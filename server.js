@@ -1,5 +1,4 @@
 import express from "express";
-import helmet from "helmet";
 import compression from "compression";
 import fs from "fs";
 import path from "path";
@@ -13,7 +12,6 @@ import { renderAccount } from "./account.js";
 import { renderProfile } from "./profile.js";
 import { renderReset } from "./reset.js";
 import { renderDmca } from "./dmca.js";
-import { renderPrivacy } from "./privacy.js";
 import { renderAdmin } from "./admin.js";
 import QRCode from "qrcode";
 import {
@@ -101,31 +99,20 @@ import {
   requireAuth,
   isAdminEmail,
   SESSION_TTL_MS,
-  REMEMBER_TTL_MS,
-  SESSION_COOKIE_OPTIONS,
 } from "./auth.js";
 import { auth as firebaseAuth } from "./firebase.js";
 import { sendDmcaReportEmail } from "./mailer.js";
 import { createChallenge, verifySolution } from "altcha-lib";
 import {
-  getDevToolsBlockScript,
-  getProtectionCSS,
   securityHeaders,
   botBlocker,
   SimpleRateLimiter,
   suspiciousRequestDetector,
   ROBOTS_TXT,
-  DEVTOOLS_LIB_ROUTE,
 } from "./security-middleware.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-
-// Needed because this runs behind a platform proxy (Railway/Render/etc).
-// Without this, req.ip returns the proxy's own address for every request,
-// which silently breaks per-IP rate limiting and the bot/scraper blocker —
-// every visitor would look like the same "IP" to those checks.
-app.set("trust proxy", 1);
 
 // Compresses every response (the profile/account pages are large inline
 // HTML+CSS+JS documents, and text compresses very well) — this cuts
@@ -137,69 +124,6 @@ app.use(securityHeaders);
 app.use(botBlocker);
 app.use(suspiciousRequestDetector);
 app.use(new SimpleRateLimiter(120, 60000).middleware()); // 120 req/min per IP
-
-// helmet adds the headers securityHeaders (above) doesn't already cover —
-// HSTS, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy,
-// X-DNS-Prefetch-Control, and Content-Security-Policy. The ones
-// securityHeaders already sets (X-Frame-Options, nosniff, Referrer-Policy,
-// X-XSS-Protection) are turned off here so they aren't set twice or
-// overridden with a different value.
-//
-// CSP starts in REPORT-ONLY mode on purpose: every inline <script>/<style>
-// block across your pages, plus every external domain they load from
-// (Google Sign-In, Firebase, jsdelivr, Google Fonts, gravatar, your
-// sportstreamer.live feed) has to be explicitly listed or CSP will silently
-// break that page — and there's no way to be 100% sure this list is
-// complete without traffic hitting it. In report-only mode nothing is
-// blocked; violations just get logged to the browser console + reported to
-// /api/csp-report so you can see what's actually missing before switching
-// it to enforced. Once you've browsed the whole site with devtools open and
-// see zero CSP warnings in the console, flip contentSecurityPolicy from
-// reportOnly:true to a normal helmet.contentSecurityPolicy({ directives })
-// call to actually start enforcing it.
-app.use(
-  helmet({
-    frameguard: false,
-    noSniff: false,
-    referrerPolicy: false,
-    xssFilter: false,
-    contentSecurityPolicy: {
-      reportOnly: true,
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: [
-          "'self'", "'unsafe-inline'",
-          "https://accounts.google.com",
-          "https://cdn.jsdelivr.net",
-          "https://www.gstatic.com",
-        ],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-        imgSrc: ["'self'", "https:", "data:", "blob:"], // team/channel logos come from whichever CDN the live-data feed points at, so this stays broad
-        mediaSrc: ["'self'", "https:", "blob:"], // hls.js streams via MediaSource/blob URLs
-        connectSrc: [
-          "'self'",
-          "https://identitytoolkit.googleapis.com",
-          "https://securetoken.googleapis.com",
-          "https://sportstreamer.live",
-          "https://cdn.jsdelivr.net",
-          "https://www.gstatic.com",
-        ],
-        frameSrc: ["https://accounts.google.com"],
-        workerSrc: ["'self'", "blob:"], // our own devtools worker heartbeat + altcha's proof-of-work workers
-        objectSrc: ["'none'"],
-        baseUri: ["'self'"],
-        formAction: ["'self'"],
-        reportUri: "/api/csp-report",
-      },
-    },
-  })
-);
-app.post("/api/csp-report", express.json({ type: "application/csp-report" }), (req, res) => {
-  console.warn("CSP violation:", JSON.stringify(req.body));
-  res.status(204).end();
-});
-
 app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
 
 const signupLimiter = new SimpleRateLimiter(8, 15 * 60 * 1000).middleware(); // signup + verify + resend: 8 / 15min
@@ -208,15 +132,8 @@ const resetLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000).middleware(); // p
 const dmcaLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000).middleware(); // DMCA report submissions: 5 / hour per IP
 const usernameCheckLimiter = new SimpleRateLimiter(40, 60 * 1000).middleware(); // live-typing availability checks: 40 / min, separate from the signup quota above
 
-// Self-hosted disable-devtool bundle — served from our own domain under a
-// plain-looking path so it isn't caught by ad-blocker rules that target the
-// public jsdelivr URL for this exact package by name.
-// Requires: npm install disable-devtool
-app.get(DEVTOOLS_LIB_ROUTE, (req, res) => {
-  res.sendFile(path.join(__dirname, "node_modules", "disable-devtool", "disable-devtool.min.js"), (err) => {
-    if (err && !res.headersSent) res.status(404).end();
-  });
-});
+// (devtools-blocking bundle route removed — was breaking pages via false-positive trips)
+
 
 // ── ALTCHA captcha: HMAC key used to sign/verify proof-of-work challenges ──
 const ALTCHA_HMAC_KEY = process.env.ALTCHA_SECRET;
@@ -233,12 +150,6 @@ async function verifyCaptcha(payload) {
     return false;
   }
 }
-const DEVTOOLS_BLOCK = getDevToolsBlockScript();
-const PROTECTION_CSS = getProtectionCSS();
-
-// SESSION_COOKIE_OPTIONS now lives in auth.js (imported above) so requireAuth
-// can re-issue the cookie with the exact same attributes when it slides the
-// expiry forward on activity — see auth.js for the sameSite rationale.
 // ── END SECURITY SETUP ──
 
 app.use(express.json({ limit: "3mb" }));
@@ -254,8 +165,8 @@ const authPageConfig = {
     appId: process.env.FIREBASE_APP_ID,
   },
   googleClientId: process.env.GOOGLE_CLIENT_ID,
-  devToolsBlock: DEVTOOLS_BLOCK,
-  protectionCSS: PROTECTION_CSS,
+  devToolsBlock: "",
+  protectionCSS: "",
 };
 
 /* category display icon — CSS SVG icons, no emoji */
@@ -317,15 +228,11 @@ app.get("/", async (req, res) => {
   const sessionId = req.cookies?.session;
   const uid = await verifySession(sessionId);
   if (!uid) return res.redirect("/login");
-  const refreshed = await refreshSession(sessionId).catch(() => null);
-  if (refreshed) {
-    res.cookie("session", sessionId, { ...SESSION_COOKIE_OPTIONS, maxAge: refreshed.ttl });
-  }
+  refreshSession(sessionId).catch(() => {});
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-${DEVTOOLS_BLOCK}
 <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ES TEAMS TV</title>
@@ -333,7 +240,6 @@ ${DEVTOOLS_BLOCK}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-${PROTECTION_CSS}
 :root{
   --red:#FF3B5C;--red-dim:#8f1530;--accent:#00E0FF;--accent2:#7c5cff;
   --dark:#0A0A0F;--dark2:#0F0F16;--dark3:#13131C;
@@ -2110,22 +2016,8 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
     var hls = new Hls({
       enableWorker: true,
-      // Low-latency mode trims the buffer to stay close to the live edge —
-      // good for latency, bad for smoothness on anything but a rock-solid
-      // connection. Off now; a bigger buffer gives more cushion to absorb
-      // network blips without stalling/cutting out.
-      lowLatencyMode: false,
-      backBufferLength: 30,
+      lowLatencyMode: true,
       maxBufferLength: 30,
-      maxMaxBufferLength: 60,
-      liveSyncDurationCount: 5,
-      liveMaxLatencyDurationCount: 10,
-      maxBufferHole: 0.5,
-      fragLoadingMaxRetry: 6,
-      fragLoadingRetryDelay: 1000,
-      manifestLoadingMaxRetry: 4,
-      manifestLoadingRetryDelay: 1000,
-      levelLoadingMaxRetry: 4,
     });
 
     hlsInstance = hls;
@@ -3272,16 +3164,8 @@ function fsRunSearch(q){
 app.get("/football", (req, res) => {
   fs.readFile(path.join(__dirname, "football.js"), "utf8", (err, html) => {
     if (err) return res.status(404).end();
-    // football.js is served as static HTML (not run through a render(cfg)
-    // template like the other pages, since it has its own nested backtick
-    // template literals in its client-side JS), so the devtools block and
-    // protection CSS get spliced in here instead, right after <head> and
-    // right after the page's own <style> opening tag.
-    const protectedHtml = html
-      .replace("<head>", `<head>\n${DEVTOOLS_BLOCK}`)
-      .replace("<style>", `<style>\n${PROTECTION_CSS}`);
     res.set("Content-Type", "text/html");
-    res.send(protectedHtml);
+    res.send(html);
   });
 });
 
@@ -3445,10 +3329,6 @@ app.get("/reset", (req, res) => {
 
 app.get("/dmca", (req, res) => {
   res.send(renderDmca(authPageConfig));
-});
-
-app.get("/privacy", (req, res) => {
-  res.send(renderPrivacy(authPageConfig));
 });
 
 // Public — just tells the page which address to display/send to. Never
@@ -3694,10 +3574,12 @@ app.post("/api/session", loginLimiter, async (req, res) => {
       const pendingToken = await issueTwoFactorPendingLogin(decoded.uid, remember);
       return res.json({ requires2FA: true, pendingToken });
     }
-    const sessionId = await createSession(decoded.uid, remember);
+    const sessionId = await createSession(decoded.uid);
     res.cookie("session", sessionId, {
-      ...SESSION_COOKIE_OPTIONS,
-      ...(remember ? { maxAge: REMEMBER_TTL_MS } : {}),
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      ...(remember ? { maxAge: SESSION_TTL_MS } : {}),
     });
     res.json({ ok: true });
   } catch (err) {
@@ -3714,10 +3596,12 @@ app.post("/api/2fa/login-verify", loginLimiter, async (req, res) => {
     const valid = await verifyTwoFactorCode(pending.uid, code);
     if (!valid) return res.status(400).json({ error: "Incorrect code." });
     await deleteTwoFactorPendingLogin(pendingToken);
-    const sessionId = await createSession(pending.uid, pending.remember);
+    const sessionId = await createSession(pending.uid);
     res.cookie("session", sessionId, {
-      ...SESSION_COOKIE_OPTIONS,
-      ...(pending.remember ? { maxAge: REMEMBER_TTL_MS } : {}),
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      ...(pending.remember ? { maxAge: SESSION_TTL_MS } : {}),
     });
     res.json({ ok: true });
   } catch (err) {
@@ -3809,10 +3693,12 @@ app.post("/api/passkey/authentication-verify", loginLimiter, async (req, res) =>
     const uid = await finishPasskeyAuthentication(token, response, rpID, origin);
     const fbUser = await firebaseAuth.getUser(uid).catch(() => null);
     if (fbUser?.disabled) return res.status(403).json({ error: "This account has been recently deactivated." });
-    const sessionId = await createSession(uid, true);
+    const sessionId = await createSession(uid);
     res.cookie("session", sessionId, {
-      ...SESSION_COOKIE_OPTIONS,
-      maxAge: REMEMBER_TTL_MS,
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: SESSION_TTL_MS,
     });
     res.json({ ok: true });
   } catch (err) {

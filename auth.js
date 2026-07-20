@@ -12,28 +12,7 @@ import { sendVerificationCode, sendBanNotificationEmail } from "./mailer.js";
 
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
-// SESSION_TTL_MS: how long a session lasts when "Keep me signed in" was left
-// unchecked at login — still slides forward on activity (see refreshSession),
-// it just won't survive the app being closed for longer than this.
-// REMEMBER_TTL_MS: how long it lasts when "Keep me signed in" was checked —
-// 30 days is the standard "remember me" window most large sites use, rather
-// than re-prompting for login every single day.
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
-const REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-
-// Shared session cookie config — lives here (rather than only in server.js)
-// so requireAuth below can re-issue the cookie with these same attributes
-// when it slides the expiry forward. sameSite stays "lax" rather than
-// "strict": Google Sign-In completes via a top-level cross-site redirect
-// back to this site, and "strict" would drop the cookie on that redirect and
-// break sign-in; "lax" still blocks the cross-site POST/fetch forgery cases
-// CSRF actually exploits, just not top-level GET navigations.
-const SESSION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: true,
-  sameSite: "lax",
-  path: "/",
-};
 
 // Only this account gets Admin access — checked here so both the /admin route
 // gate in server.js and the auto-follow-on-signup below share one source of truth.
@@ -345,13 +324,11 @@ async function consumeResetToken(token) {
   return data.uid;
 }
 
-async function createSession(uid, remember) {
+async function createSession(uid) {
   const sessionId = crypto.randomBytes(32).toString("hex");
-  const ttl = remember ? REMEMBER_TTL_MS : SESSION_TTL_MS;
   await db.collection("sessions").doc(sessionId).set({
     uid,
-    remember: !!remember,
-    expiresAt: Date.now() + ttl,
+    expiresAt: Date.now() + SESSION_TTL_MS,
   });
   return sessionId;
 }
@@ -369,21 +346,10 @@ async function verifySession(sessionId) {
   return data.uid;
 }
 
-// Slides the session's expiry forward on activity, using whichever duration
-// was chosen at login (remembered vs not) — previously this always reset to
-// the same fixed 24h TTL regardless of "Keep me signed in", which is the
-// wrong half of the fix on its own (see the cookie-side fix in server.js for
-// the other half: the cookie itself also needs to actually live that long).
-// Returns the remember flag so callers can keep the session cookie's own
-// maxAge in sync with the same sliding window.
 async function refreshSession(sessionId) {
-  const ref = db.collection("sessions").doc(sessionId);
-  const snap = await ref.get();
-  if (!snap.exists) return null;
-  const remember = !!snap.data().remember;
-  const ttl = remember ? REMEMBER_TTL_MS : SESSION_TTL_MS;
-  await ref.update({ expiresAt: Date.now() + ttl });
-  return { remember, ttl };
+  await db.collection("sessions").doc(sessionId).update({
+    expiresAt: Date.now() + SESSION_TTL_MS,
+  });
 }
 
 async function deleteSession(sessionId) {
@@ -1551,16 +1517,7 @@ function requireAuth(req, res, next) {
         return res.status(401).json({ error: "not_authenticated" });
       }
       req.uid = uid;
-      const refreshed = await refreshSession(sessionId);
-      // Previously only the database record's expiry slid forward here —
-      // the browser cookie itself was set once at login with a fixed
-      // maxAge and never renewed, so it hard-expired at a fixed time after
-      // login no matter how often the app was actually used. Re-issuing it
-      // here keeps the cookie's real lifetime in sync with activity, same
-      // as the database record.
-      if (refreshed) {
-        res.cookie("session", sessionId, { ...SESSION_COOKIE_OPTIONS, maxAge: refreshed.ttl });
-      }
+      await refreshSession(sessionId);
       // Presence / "last seen" — best-effort, throttled so we're not writing
       // to the user doc on every single authenticated request.
       if (!profile.lastActiveAt || Date.now() - profile.lastActiveAt > LAST_ACTIVE_UPDATE_THROTTLE_MS) {
@@ -1797,6 +1754,4 @@ export {
   requireAuth,
   isAdminEmail,
   SESSION_TTL_MS,
-  REMEMBER_TTL_MS,
-  SESSION_COOKIE_OPTIONS,
 };

@@ -143,9 +143,6 @@ input{font-family:inherit}
 
 .auth-foot{text-align:center;margin-top:16px;font-size:.78rem;color:var(--muted)}
 .auth-foot a{color:var(--accent);text-decoration:none;font-weight:600}
-.legal-links{display:flex;justify-content:center;gap:18px;margin-top:8px}
-.legal-links a{color:var(--muted);text-decoration:underline;font-weight:400;font-size:.74rem}
-.legal-links a:hover{color:var(--text)}
 
 .page-overlay{
   position:fixed;inset:0;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);
@@ -280,8 +277,7 @@ input{font-family:inherit}
     <div class="auth-divider">OR</div>
     <div class="gsi-wrap" id="gsiWrap"></div>
 
-    <div class="auth-foot" id="authFoot"><a href="/reset" id="forgotPasswordLink">Forgot Password?</a></div>
-    <div class="legal-links"><a href="/privacy">Privacy Policy</a><a href="/dmca">DMCA</a></div>
+    <div class="auth-foot" id="authFoot"><a href="/reset" id="forgotPasswordLink">Forgot Password?</a> · <a href="/dmca">DMCA</a></div>
   </div>
 </div>
 
