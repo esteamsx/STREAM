@@ -1,13 +1,20 @@
 import crypto from "crypto";
 import admin from "firebase-admin";
 import * as OTPAuth from "otpauth";
-import {
-  generateRegistrationOptions,
-  verifyRegistrationResponse,
-  generateAuthenticationOptions,
-  verifyAuthenticationResponse,
-} from "@simplewebauthn/server";
 import { db, auth } from "./firebase.js";
+
+// @simplewebauthn/server is only needed for passkey routes. It's loaded lazily
+// (on first passkey request) instead of at server startup, so that if this
+// package is ever slow to load, memory-heavy, or fails on a given host, it
+// cannot block or crash unrelated code paths (login, password reset, email
+// verification codes, etc). The loaded module is cached after the first call.
+let _webauthn = null;
+async function getWebAuthn() {
+  if (!_webauthn) {
+    _webauthn = await import("@simplewebauthn/server");
+  }
+  return _webauthn;
+}
 import { sendVerificationCode, sendBanNotificationEmail } from "./mailer.js";
 
 const CODE_TTL_MS = 5 * 60 * 1000;
@@ -587,6 +594,7 @@ async function beginPasskeyRegistration(uid, email, displayName, rpID) {
   if (existing.length >= MAX_PASSKEYS_PER_USER) {
     throw new Error(`You can only have up to ${MAX_PASSKEYS_PER_USER} passkeys. Delete one to add another.`);
   }
+  const { generateRegistrationOptions } = await getWebAuthn();
   const rawOptions = await generateRegistrationOptions({
     rpName: "ES TEAMS TV",
     rpID,
@@ -628,6 +636,7 @@ async function finishPasskeyRegistration(uid, response, rpID, origin, name) {
     // Verify the registration response
     let verification;
     try {
+      const { verifyRegistrationResponse } = await getWebAuthn();
       verification = await verifyRegistrationResponse({
         response,
         expectedChallenge: challenge,
@@ -708,6 +717,7 @@ async function deletePasskey(uid, credentialId) {
 // Step 1 of signing in with a passkey — no email or username needed. Discoverable
 // credentials mean the browser itself shows the matching passkey(s) for this site.
 async function beginPasskeyAuthentication(rpID) {
+  const { generateAuthenticationOptions } = await getWebAuthn();
   const rawOptions = await generateAuthenticationOptions({
     rpID,
     userVerification: "preferred",
@@ -785,6 +795,7 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
     // Verify the authentication response
     let verification;
     try {
+      const { verifyAuthenticationResponse } = await getWebAuthn();
       verification = await verifyAuthenticationResponse({
         response,
         expectedChallenge: challenge,
