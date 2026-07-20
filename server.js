@@ -4165,8 +4165,8 @@ app.post("/api/request-password-change", requireAuth, async (req, res) => {
     const profile = await getUserProfile(req.uid);
     if (!profile) return res.status(404).json({ error: "Profile not found." });
     if (profile.provider === "google") return res.status(400).json({ error: "Google accounts don't have a password here." });
-    await issueCode(req.uid, profile.email, "password_reset");
-    res.json({ ok: true });
+    const { provider } = await issueCode(req.uid, profile.email, "password_reset");
+    res.json({ ok: true, provider });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not send code." });

@@ -1442,8 +1442,12 @@ document.getElementById('startPwChange').addEventListener('click', async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner"></span>Sending code…';
   try {
-    await postJSON('/api/request-password-change');
-    window.location.href = '/verify?uid=' + encodeURIComponent(profile.uid) + '&email=' + encodeURIComponent(profile.email) + '&purpose=password_reset';
+    const { provider } = await postJSON('/api/request-password-change');
+    const via = provider === 'resend' ? ' (via backup email service)' : '';
+    flashMsg(document.getElementById('pwMsg'), 'Code sent — check your email.' + via, true);
+    setTimeout(() => {
+      window.location.href = '/verify?uid=' + encodeURIComponent(profile.uid) + '&email=' + encodeURIComponent(profile.email) + '&purpose=password_reset';
+    }, 900);
   } catch (err) {
     flashMsg(document.getElementById('pwMsg'), err.message, false);
     btn.disabled = false;

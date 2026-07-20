@@ -6,6 +6,9 @@ const transporter = nodemailer.createTransport({
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
+  connectionTimeout: 8000, // fail fast if Render is blocking the SMTP port, so Resend fallback kicks in quickly
+  greetingTimeout: 8000,
+  socketTimeout: 8000,
 });
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -13,9 +16,11 @@ const RESEND_FROM = process.env.RESEND_FROM || `ES TEAMS TV <onboarding@resend.d
 
 // Sends via Gmail SMTP first; if that fails (e.g. Render blocking SMTP ports),
 // falls back to the Resend API so the email still goes out.
+// Returns { provider: 'gmail' | 'resend' } so callers can know which one delivered it.
 async function sendMailWithFallback(mailOptions) {
   try {
-    return await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
+    return { provider: "gmail" };
   } catch (smtpErr) {
     console.error("[mailer] SMTP send failed, falling back to Resend:", smtpErr.message);
 
@@ -54,7 +59,8 @@ async function sendMailWithFallback(mailOptions) {
       throw new Error(`Resend fallback failed: ${res.status} ${errText}`);
     }
 
-    return res.json();
+    await res.json();
+    return { provider: "resend" };
   }
 }
 
@@ -68,7 +74,7 @@ async function sendVerificationCode(email, code, purpose) {
     : isReset
     ? "If you didn't request a password reset, your password will remain unchanged — you can safely ignore this email."
     : "If you didn't request this, ignore this email.";
-  await sendMailWithFallback({
+  return sendMailWithFallback({
     from: `"ES TEAMS TV" <${process.env.GMAIL_USER}>`,
     to: email,
     subject: isDeletion
