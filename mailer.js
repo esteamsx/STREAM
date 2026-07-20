@@ -8,6 +8,56 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_FROM = process.env.RESEND_FROM || `ES TEAMS TV <onboarding@resend.dev>`;
+
+// Sends via Gmail SMTP first; if that fails (e.g. Render blocking SMTP ports),
+// falls back to the Resend API so the email still goes out.
+async function sendMailWithFallback(mailOptions) {
+  try {
+    return await transporter.sendMail(mailOptions);
+  } catch (smtpErr) {
+    console.error("[mailer] SMTP send failed, falling back to Resend:", smtpErr.message);
+
+    if (!RESEND_API_KEY) {
+      console.error("[mailer] RESEND_API_KEY not set, cannot fall back.");
+      throw smtpErr;
+    }
+
+    const payload = {
+      from: RESEND_FROM,
+      to: [mailOptions.to],
+      subject: mailOptions.subject,
+      html: mailOptions.html,
+    };
+    if (mailOptions.replyTo) payload.reply_to = mailOptions.replyTo;
+    if (mailOptions.attachments?.length) {
+      payload.attachments = mailOptions.attachments.map((a) => ({
+        filename: a.filename,
+        content: Buffer.isBuffer(a.content)
+          ? a.content.toString("base64")
+          : Buffer.from(a.content).toString("base64"),
+      }));
+    }
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Resend fallback failed: ${res.status} ${errText}`);
+    }
+
+    return res.json();
+  }
+}
+
 async function sendVerificationCode(email, code, purpose) {
   const isReset = purpose === "forgot_password";
   const isDeletion = purpose === "delete_account";
@@ -18,7 +68,7 @@ async function sendVerificationCode(email, code, purpose) {
     : isReset
     ? "If you didn't request a password reset, your password will remain unchanged — you can safely ignore this email."
     : "If you didn't request this, ignore this email.";
-  await transporter.sendMail({
+  await sendMailWithFallback({
     from: `"ES TEAMS TV" <${process.env.GMAIL_USER}>`,
     to: email,
     subject: isDeletion
@@ -39,7 +89,7 @@ async function sendVerificationCode(email, code, purpose) {
 }
 
 async function sendBanNotificationEmail(email, name, appealMailto, logText) {
-  await transporter.sendMail({
+  await sendMailWithFallback({
     from: `"ES TEAMS TV" <${process.env.GMAIL_USER}>`,
     to: email,
     subject: "Your ES TEAMS TV account has been banned",
@@ -69,7 +119,7 @@ async function sendDmcaReportEmail(report) {
     signature,
   } = report;
 
-  await transporter.sendMail({
+  await sendMailWithFallback({
     from: `"ES TEAMS TV" <${process.env.GMAIL_USER}>`,
     to: process.env.DMCA_AGENT_EMAIL || process.env.GMAIL_USER,
     replyTo: reporterEmail,
