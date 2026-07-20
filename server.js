@@ -12,6 +12,7 @@ import { renderAccount } from "./account.js";
 import { renderProfile } from "./profile.js";
 import { renderReset } from "./reset.js";
 import { renderDmca } from "./dmca.js";
+import { renderPrivacy } from "./privacy.js";
 import { renderAdmin } from "./admin.js";
 import QRCode from "qrcode";
 import {
@@ -3329,6 +3330,10 @@ app.get("/reset", (req, res) => {
 
 app.get("/dmca", (req, res) => {
   res.send(renderDmca(authPageConfig));
+});
+
+app.get("/privacy", (req, res) => {
+  res.send(renderPrivacy(authPageConfig));
 });
 
 // Public — just tells the page which address to display/send to. Never
