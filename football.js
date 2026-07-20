@@ -1270,7 +1270,25 @@
         if (url.includes('.m3u8') || url.includes('m3u8')) {
             if (Hls.isSupported()) {
                 loadOverlay.classList.add('active');
-                hlsInstance = new Hls({ enableWorker: true, lowLatencyMode: true });
+                hlsInstance = new Hls({
+                    enableWorker: true,
+                    // Low-latency mode trims the buffer to stay close to the live
+                    // edge — great for latency, bad for smoothness on anything but
+                    // a rock-solid connection. Off by default now; a bigger buffer
+                    // means more cushion to absorb network blips without stalling.
+                    lowLatencyMode: false,
+                    backBufferLength: 30,        // keep some rewind buffer instead of discarding immediately
+                    maxBufferLength: 30,         // target forward buffer, in seconds
+                    maxMaxBufferLength: 60,      // hard ceiling it can grow to under good conditions
+                    liveSyncDurationCount: 5,     // stay ~5 segments behind live instead of hugging the edge
+                    liveMaxLatencyDurationCount: 10,
+                    maxBufferHole: 0.5,
+                    fragLoadingMaxRetry: 6,
+                    fragLoadingRetryDelay: 1000,
+                    manifestLoadingMaxRetry: 4,
+                    manifestLoadingRetryDelay: 1000,
+                    levelLoadingMaxRetry: 4,
+                });
                 hlsInstance.loadSource(url);
                 hlsInstance.attachMedia(video);
                 hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -1278,12 +1296,22 @@
                     video.play().catch(() => {});
                 });
                 hlsInstance.on(Hls.Events.ERROR, (e, data) => {
-                    if (data.fatal) {
-                        loadOverlay.classList.remove('active');
-                        errOverlay.classList.add('active');
-                        errMsg.textContent = 'Unable to load stream.';
-                        hlsInstance.destroy();
-                        hlsInstance = null;
+                    if (!data.fatal) return; // non-fatal errors are hls.js recovering on its own — don't interrupt playback for these
+                    switch (data.type) {
+                        case Hls.ErrorTypes.NETWORK_ERROR:
+                            // Transient CDN/network blip — retry loading rather than
+                            // ending the stream over a hiccup.
+                            hlsInstance.startLoad();
+                            break;
+                        case Hls.ErrorTypes.MEDIA_ERROR:
+                            hlsInstance.recoverMediaError();
+                            break;
+                        default:
+                            loadOverlay.classList.remove('active');
+                            errOverlay.classList.add('active');
+                            errMsg.textContent = 'Unable to load stream.';
+                            hlsInstance.destroy();
+                            hlsInstance = null;
                     }
                 });
             } else {

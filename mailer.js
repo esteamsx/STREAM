@@ -6,6 +6,13 @@ const transporter = nodemailer.createTransport({
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
+  // Previously unset, which meant a stuck/throttled Gmail connection could
+  // hang far past the client's own timeout with no error surfaced anywhere —
+  // it would just look broken with nothing in the logs. These make it fail
+  // fast with an actual error instead.
+  connectionTimeout: 10000, // time to establish the connection
+  greetingTimeout: 10000,   // time to wait for the SMTP greeting after connecting
+  socketTimeout: 15000,     // time allowed for the whole send once connected
 });
 
 async function sendVerificationCode(email, code, purpose) {

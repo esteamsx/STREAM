@@ -1,4 +1,5 @@
 import express from "express";
+import helmet from "helmet";
 import compression from "compression";
 import fs from "fs";
 import path from "path";
@@ -117,6 +118,12 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Needed because this runs behind a platform proxy (Railway/Render/etc).
+// Without this, req.ip returns the proxy's own address for every request,
+// which silently breaks per-IP rate limiting and the bot/scraper blocker —
+// every visitor would look like the same "IP" to those checks.
+app.set("trust proxy", 1);
+
 // Compresses every response (the profile/account pages are large inline
 // HTML+CSS+JS documents, and text compresses very well) — this cuts
 // transfer size substantially without changing any behavior.
@@ -127,6 +134,69 @@ app.use(securityHeaders);
 app.use(botBlocker);
 app.use(suspiciousRequestDetector);
 app.use(new SimpleRateLimiter(120, 60000).middleware()); // 120 req/min per IP
+
+// helmet adds the headers securityHeaders (above) doesn't already cover —
+// HSTS, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy,
+// X-DNS-Prefetch-Control, and Content-Security-Policy. The ones
+// securityHeaders already sets (X-Frame-Options, nosniff, Referrer-Policy,
+// X-XSS-Protection) are turned off here so they aren't set twice or
+// overridden with a different value.
+//
+// CSP starts in REPORT-ONLY mode on purpose: every inline <script>/<style>
+// block across your pages, plus every external domain they load from
+// (Google Sign-In, Firebase, jsdelivr, Google Fonts, gravatar, your
+// sportstreamer.live feed) has to be explicitly listed or CSP will silently
+// break that page — and there's no way to be 100% sure this list is
+// complete without traffic hitting it. In report-only mode nothing is
+// blocked; violations just get logged to the browser console + reported to
+// /api/csp-report so you can see what's actually missing before switching
+// it to enforced. Once you've browsed the whole site with devtools open and
+// see zero CSP warnings in the console, flip contentSecurityPolicy from
+// reportOnly:true to a normal helmet.contentSecurityPolicy({ directives })
+// call to actually start enforcing it.
+app.use(
+  helmet({
+    frameguard: false,
+    noSniff: false,
+    referrerPolicy: false,
+    xssFilter: false,
+    contentSecurityPolicy: {
+      reportOnly: true,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'", "'unsafe-inline'",
+          "https://accounts.google.com",
+          "https://cdn.jsdelivr.net",
+          "https://www.gstatic.com",
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        imgSrc: ["'self'", "https:", "data:", "blob:"], // team/channel logos come from whichever CDN the live-data feed points at, so this stays broad
+        mediaSrc: ["'self'", "https:", "blob:"], // hls.js streams via MediaSource/blob URLs
+        connectSrc: [
+          "'self'",
+          "https://identitytoolkit.googleapis.com",
+          "https://securetoken.googleapis.com",
+          "https://sportstreamer.live",
+          "https://cdn.jsdelivr.net",
+          "https://www.gstatic.com",
+        ],
+        frameSrc: ["https://accounts.google.com"],
+        workerSrc: ["'self'", "blob:"], // our own devtools worker heartbeat + altcha's proof-of-work workers
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        reportUri: "/api/csp-report",
+      },
+    },
+  })
+);
+app.post("/api/csp-report", express.json({ type: "application/csp-report" }), (req, res) => {
+  console.warn("CSP violation:", JSON.stringify(req.body));
+  res.status(204).end();
+});
+
 app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
 
 const signupLimiter = new SimpleRateLimiter(8, 15 * 60 * 1000).middleware(); // signup + verify + resend: 8 / 15min
@@ -162,6 +232,20 @@ async function verifyCaptcha(payload) {
 }
 const DEVTOOLS_BLOCK = getDevToolsBlockScript();
 const PROTECTION_CSS = getProtectionCSS();
+
+// Shared session cookie config, used by every place that issues a session
+// (password login, 2FA login, passkey login) so they can't drift out of
+// sync with each other. sameSite stays "lax" rather than "strict" — Google
+// Sign-In completes via a top-level cross-site redirect back to this site,
+// and "strict" would drop the cookie on that redirect and break sign-in;
+// "lax" still blocks the cross-site POST/fetch forgery cases CSRF actually
+// exploits, just not top-level GET navigations.
+const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax",
+  path: "/",
+};
 // ── END SECURITY SETUP ──
 
 app.use(express.json({ limit: "3mb" }));
@@ -2030,8 +2114,22 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
     var hls = new Hls({
       enableWorker: true,
-      lowLatencyMode: true,
+      // Low-latency mode trims the buffer to stay close to the live edge —
+      // good for latency, bad for smoothness on anything but a rock-solid
+      // connection. Off now; a bigger buffer gives more cushion to absorb
+      // network blips without stalling/cutting out.
+      lowLatencyMode: false,
+      backBufferLength: 30,
       maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      liveSyncDurationCount: 5,
+      liveMaxLatencyDurationCount: 10,
+      maxBufferHole: 0.5,
+      fragLoadingMaxRetry: 6,
+      fragLoadingRetryDelay: 1000,
+      manifestLoadingMaxRetry: 4,
+      manifestLoadingRetryDelay: 1000,
+      levelLoadingMaxRetry: 4,
     });
 
     hlsInstance = hls;
@@ -3598,9 +3696,7 @@ app.post("/api/session", loginLimiter, async (req, res) => {
     }
     const sessionId = await createSession(decoded.uid);
     res.cookie("session", sessionId, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
+      ...SESSION_COOKIE_OPTIONS,
       ...(remember ? { maxAge: SESSION_TTL_MS } : {}),
     });
     res.json({ ok: true });
@@ -3620,9 +3716,7 @@ app.post("/api/2fa/login-verify", loginLimiter, async (req, res) => {
     await deleteTwoFactorPendingLogin(pendingToken);
     const sessionId = await createSession(pending.uid);
     res.cookie("session", sessionId, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
+      ...SESSION_COOKIE_OPTIONS,
       ...(pending.remember ? { maxAge: SESSION_TTL_MS } : {}),
     });
     res.json({ ok: true });
@@ -3717,9 +3811,7 @@ app.post("/api/passkey/authentication-verify", loginLimiter, async (req, res) =>
     if (fbUser?.disabled) return res.status(403).json({ error: "This account has been recently deactivated." });
     const sessionId = await createSession(uid);
     res.cookie("session", sessionId, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
+      ...SESSION_COOKIE_OPTIONS,
       maxAge: SESSION_TTL_MS,
     });
     res.json({ ok: true });
