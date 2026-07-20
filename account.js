@@ -128,6 +128,9 @@ input{font-family:inherit}
 .acc-btn-ghost:hover{border-color:var(--accent);box-shadow:none;transform:none}
 .acc-btn-danger{background:transparent;color:var(--red);border:1px solid rgba(255,59,92,.3)}
 .acc-btn-danger:hover{background:rgba(255,59,92,.1);box-shadow:none;transform:none}
+.legal-links{display:flex;align-items:center;justify-content:center;gap:22px;margin-top:16px}
+.legal-links a{color:var(--muted);text-decoration:underline;font-weight:500;font-size:.72rem;transition:color .2s var(--ease)}
+.legal-links a:hover{color:var(--text)}
 
 .acc-msg{font-size:.78rem;padding:9px 12px;border-radius:8px;margin-top:12px;display:none}
 .acc-msg.show{display:block}
@@ -681,6 +684,11 @@ input{font-family:inherit}
   </div>
 
   <button class="acc-btn acc-btn-danger" id="logoutBtn" style="width:100%">Log Out</button>
+
+  <div class="legal-links">
+    <a href="/privacy">Privacy</a>
+    <a href="/dmca">DMCA</a>
+  </div>
 </div>
 
 <div class="page-overlay" id="tfaOverlay">
