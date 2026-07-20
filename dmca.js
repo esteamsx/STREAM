@@ -123,7 +123,7 @@ h1{font-family:var(--font-display);font-size:1.4rem;margin-bottom:6px}
   <div class="back-row">
     <a href="/" class="back-link">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
-      Back to ES TEAMS TV
+      Back
     </a>
   </div>
 
