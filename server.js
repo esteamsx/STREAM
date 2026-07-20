@@ -101,6 +101,8 @@ import {
   requireAuth,
   isAdminEmail,
   SESSION_TTL_MS,
+  REMEMBER_TTL_MS,
+  SESSION_COOKIE_OPTIONS,
 } from "./auth.js";
 import { auth as firebaseAuth } from "./firebase.js";
 import { sendDmcaReportEmail } from "./mailer.js";
@@ -234,19 +236,9 @@ async function verifyCaptcha(payload) {
 const DEVTOOLS_BLOCK = getDevToolsBlockScript();
 const PROTECTION_CSS = getProtectionCSS();
 
-// Shared session cookie config, used by every place that issues a session
-// (password login, 2FA login, passkey login) so they can't drift out of
-// sync with each other. sameSite stays "lax" rather than "strict" — Google
-// Sign-In completes via a top-level cross-site redirect back to this site,
-// and "strict" would drop the cookie on that redirect and break sign-in;
-// "lax" still blocks the cross-site POST/fetch forgery cases CSRF actually
-// exploits, just not top-level GET navigations.
-const SESSION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: true,
-  sameSite: "lax",
-  path: "/",
-};
+// SESSION_COOKIE_OPTIONS now lives in auth.js (imported above) so requireAuth
+// can re-issue the cookie with the exact same attributes when it slides the
+// expiry forward on activity — see auth.js for the sameSite rationale.
 // ── END SECURITY SETUP ──
 
 app.use(express.json({ limit: "3mb" }));
@@ -325,7 +317,10 @@ app.get("/", async (req, res) => {
   const sessionId = req.cookies?.session;
   const uid = await verifySession(sessionId);
   if (!uid) return res.redirect("/login");
-  refreshSession(sessionId).catch(() => {});
+  const refreshed = await refreshSession(sessionId).catch(() => null);
+  if (refreshed) {
+    res.cookie("session", sessionId, { ...SESSION_COOKIE_OPTIONS, maxAge: refreshed.ttl });
+  }
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3699,10 +3694,10 @@ app.post("/api/session", loginLimiter, async (req, res) => {
       const pendingToken = await issueTwoFactorPendingLogin(decoded.uid, remember);
       return res.json({ requires2FA: true, pendingToken });
     }
-    const sessionId = await createSession(decoded.uid);
+    const sessionId = await createSession(decoded.uid, remember);
     res.cookie("session", sessionId, {
       ...SESSION_COOKIE_OPTIONS,
-      ...(remember ? { maxAge: SESSION_TTL_MS } : {}),
+      ...(remember ? { maxAge: REMEMBER_TTL_MS } : {}),
     });
     res.json({ ok: true });
   } catch (err) {
@@ -3719,10 +3714,10 @@ app.post("/api/2fa/login-verify", loginLimiter, async (req, res) => {
     const valid = await verifyTwoFactorCode(pending.uid, code);
     if (!valid) return res.status(400).json({ error: "Incorrect code." });
     await deleteTwoFactorPendingLogin(pendingToken);
-    const sessionId = await createSession(pending.uid);
+    const sessionId = await createSession(pending.uid, pending.remember);
     res.cookie("session", sessionId, {
       ...SESSION_COOKIE_OPTIONS,
-      ...(pending.remember ? { maxAge: SESSION_TTL_MS } : {}),
+      ...(pending.remember ? { maxAge: REMEMBER_TTL_MS } : {}),
     });
     res.json({ ok: true });
   } catch (err) {
@@ -3814,10 +3809,10 @@ app.post("/api/passkey/authentication-verify", loginLimiter, async (req, res) =>
     const uid = await finishPasskeyAuthentication(token, response, rpID, origin);
     const fbUser = await firebaseAuth.getUser(uid).catch(() => null);
     if (fbUser?.disabled) return res.status(403).json({ error: "This account has been recently deactivated." });
-    const sessionId = await createSession(uid);
+    const sessionId = await createSession(uid, true);
     res.cookie("session", sessionId, {
       ...SESSION_COOKIE_OPTIONS,
-      maxAge: SESSION_TTL_MS,
+      maxAge: REMEMBER_TTL_MS,
     });
     res.json({ ok: true });
   } catch (err) {
