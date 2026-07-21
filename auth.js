@@ -47,7 +47,7 @@ async function issueCode(uid, email, purpose) {
     email,
     expiresAt,
   });
-  await sendVerificationCode(email, code, purpose);
+  return sendVerificationCode(email, code, purpose);
 }
 
 async function checkCode(uid, purpose, code) {

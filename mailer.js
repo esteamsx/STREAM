@@ -6,57 +6,20 @@ const transporter = nodemailer.createTransport({
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
-  connectionTimeout: 8000, // fail fast if Render is blocking the SMTP port, so Resend fallback kicks in quickly
+  connectionTimeout: 8000, // fail fast if Render is blocking the SMTP port, so the Brevo fallback kicks in quickly
   greetingTimeout: 8000,
   socketTimeout: 8000,
 });
-
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const RESEND_FROM = process.env.RESEND_FROM || `ES TEAMS TV <onboarding@resend.dev>`;
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || process.env.GMAIL_USER;
 const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || "ES TEAMS TV";
 
-// Sends via Resend's API first — this is proven reliable for codes going to
+// Sends via Brevo's API first — this is proven reliable for codes going to
 // your own registered email (password reset, 2FA, delete-account all send
-// there). Falls back to Brevo, then direct Gmail SMTP.
-// Returns { provider: 'resend' | 'brevo' | 'gmail' } so callers can know which one delivered it.
-async function sendMailWithFallback(mailOptions, resendFromOverride) {
-  if (RESEND_API_KEY) {
-    try {
-      const payload = {
-        from: resendFromOverride || RESEND_FROM,
-        to: [mailOptions.to],
-        subject: mailOptions.subject,
-        html: mailOptions.html,
-      };
-      if (mailOptions.replyTo) payload.reply_to = mailOptions.replyTo;
-      if (mailOptions.attachments?.length) {
-        payload.attachments = mailOptions.attachments.map((a) => ({
-          filename: a.filename,
-          content: Buffer.isBuffer(a.content) ? a.content.toString("base64") : Buffer.from(a.content).toString("base64"),
-        }));
-      }
-      const resendRes = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!resendRes.ok) {
-        const errText = await resendRes.text();
-        throw new Error(`Resend failed: ${resendRes.status} ${errText}`);
-      }
-      await resendRes.json();
-      return { provider: "resend" };
-    } catch (resendErr) {
-      console.error("[mailer] Resend send failed, falling back to Brevo:", resendErr.message);
-    }
-  }
-
+// there). Falls back to direct Gmail SMTP.
+// Returns { provider: 'brevo' | 'gmail' } so callers can know which one delivered it.
+async function sendMailWithFallback(mailOptions) {
   if (BREVO_API_KEY) {
     try {
       const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -135,15 +98,13 @@ async function sendVerificationCode(email, code, purpose) {
 // from sendVerificationCode (used by account.js for password reset / 2FA /
 // delete-account) so each can be configured and debugged independently.
 const SIGNUP_GMAIL_USER = process.env.SIGNUP_GMAIL_USER || process.env.GMAIL_USER;
-const SIGNUP_RESEND_FROM = process.env.RESEND_FROM_SIGNUP || RESEND_FROM;
 
 async function sendSignupVerificationCode(email, code) {
-  return sendMailWithFallback(
-    {
-      from: `"ES TEAMS TV" <${SIGNUP_GMAIL_USER}>`,
-      to: email,
-      subject: `${code} is your ES TEAMS TV verification code`,
-      html: `
+  return sendMailWithFallback({
+    from: `"ES TEAMS TV" <${SIGNUP_GMAIL_USER}>`,
+    to: email,
+    subject: `${code} is your ES TEAMS TV verification code`,
+    html: `
       <div style="font-family:Arial,sans-serif;background:#0A0A0F;padding:32px;color:#F3F3FA">
         <h2 style="color:#00E0FF;margin:0 0 12px">ES TEAMS TV</h2>
         <p style="margin:0 0 4px;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,.6);font-size:12px">VERIFICATION CODE</p>
@@ -152,9 +113,7 @@ async function sendSignupVerificationCode(email, code) {
         <p style="margin:20px 0 0;color:rgba(255,255,255,.5);font-size:13px">This code expires in 5 minutes. If you didn't request this, ignore this email.</p>
       </div>
     `,
-    },
-    SIGNUP_RESEND_FROM
-  );
+  });
 }
 
 async function sendBanNotificationEmail(email, name, appealMailto, logText) {
