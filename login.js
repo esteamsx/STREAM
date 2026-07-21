@@ -319,7 +319,7 @@ input{font-family:inherit}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  GoogleAuthProvider, signInWithCredential
+  GoogleAuthProvider, signInWithCredential, signInWithCustomToken
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = ${JSON.stringify(cfg.firebaseConfig)};
@@ -573,8 +573,11 @@ document.getElementById('signupForm').addEventListener('submit', async (e) => {
   btn.innerHTML = '<span class="btn-spinner"></span>Creating Account…';
 
   try {
-    await postJSON('/api/signup', { firstName, lastName, email, username, password, altcha: signupCaptchaValue });
-    window.location.href = '/verify?email=' + encodeURIComponent(email);
+    const { customToken } = await postJSON('/api/signup', { firstName, lastName, email, username, password, altcha: signupCaptchaValue });
+    const cred = await signInWithCustomToken(fbAuth, customToken);
+    const idToken = await cred.user.getIdToken();
+    await postJSON('/api/session', { idToken, remember: true });
+    window.location.href = '/?welcome=1';
   } catch (err) {
     btn.disabled = false;
     btn.textContent = 'Create Account';

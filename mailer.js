@@ -11,55 +11,45 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 8000,
 });
 
-const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || process.env.GMAIL_USER;
-const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || "ES TEAMS TV";
-
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM = process.env.RESEND_FROM || `ES TEAMS TV <onboarding@resend.dev>`;
 
-const MAIL_RELAY_URL = process.env.MAIL_RELAY_URL; // e.g. https://your-site.netlify.app/api/send-mail
-const MAIL_RELAY_SECRET = process.env.MAIL_RELAY_SECRET;
-
-// Sends via Brevo's HTTPS API first — this isn't SMTP at all, so Render's
-// SMTP port block never applies, and Brevo can deliver to any real
-// recipient once a single sender email is verified (no domain/DNS needed).
-// Falls back to direct Gmail SMTP, then the Netlify relay, then Resend,
-// in case Brevo is ever down or its free quota (300/day) is exhausted.
-// Returns { provider: 'brevo' | 'gmail' | 'relay' | 'resend' } so callers can know which one delivered it.
+// Sends via Resend's API first — this is proven reliable for codes going to
+// your own registered email (password reset, 2FA, delete-account all send
+// there). Falls back to direct Gmail SMTP.
+// Returns { provider: 'resend' | 'gmail' } so callers can know which one delivered it.
 async function sendMailWithFallback(mailOptions, resendFromOverride) {
-  if (BREVO_API_KEY) {
+  if (RESEND_API_KEY) {
     try {
-      const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
+      const payload = {
+        from: resendFromOverride || RESEND_FROM,
+        to: [mailOptions.to],
+        subject: mailOptions.subject,
+        html: mailOptions.html,
+      };
+      if (mailOptions.replyTo) payload.reply_to = mailOptions.replyTo;
+      if (mailOptions.attachments?.length) {
+        payload.attachments = mailOptions.attachments.map((a) => ({
+          filename: a.filename,
+          content: Buffer.isBuffer(a.content) ? a.content.toString("base64") : Buffer.from(a.content).toString("base64"),
+        }));
+      }
+      const resendRes = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          "api-key": BREVO_API_KEY,
+          Authorization: `Bearer ${RESEND_API_KEY}`,
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
-        body: JSON.stringify({
-          sender: { name: BREVO_FROM_NAME, email: BREVO_FROM_EMAIL },
-          to: [{ email: mailOptions.to }],
-          subject: mailOptions.subject,
-          htmlContent: mailOptions.html,
-          ...(mailOptions.replyTo ? { replyTo: { email: mailOptions.replyTo } } : {}),
-          ...(mailOptions.attachments?.length
-            ? {
-                attachment: mailOptions.attachments.map((a) => ({
-                  name: a.filename,
-                  content: Buffer.isBuffer(a.content) ? a.content.toString("base64") : Buffer.from(a.content).toString("base64"),
-                })),
-              }
-            : {}),
-        }),
+        body: JSON.stringify(payload),
       });
-      if (!brevoRes.ok) {
-        const errText = await brevoRes.text();
-        throw new Error(`Brevo failed: ${brevoRes.status} ${errText}`);
+      if (!resendRes.ok) {
+        const errText = await resendRes.text();
+        throw new Error(`Resend failed: ${resendRes.status} ${errText}`);
       }
-      return { provider: "brevo" };
-    } catch (brevoErr) {
-      console.error("[mailer] Brevo send failed, falling back to direct SMTP:", brevoErr.message);
+      await resendRes.json();
+      return { provider: "resend" };
+    } catch (resendErr) {
+      console.error("[mailer] Resend send failed, falling back to direct SMTP:", resendErr.message);
     }
   }
 
@@ -68,77 +58,7 @@ async function sendMailWithFallback(mailOptions, resendFromOverride) {
     return { provider: "gmail" };
   } catch (smtpErr) {
     console.error("[mailer] Direct SMTP send failed:", smtpErr.message);
-
-    if (MAIL_RELAY_URL && MAIL_RELAY_SECRET) {
-      try {
-        const relayRes = await fetch(MAIL_RELAY_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-relay-secret": MAIL_RELAY_SECRET,
-          },
-          body: JSON.stringify({
-            to: mailOptions.to,
-            subject: mailOptions.subject,
-            html: mailOptions.html,
-            replyTo: mailOptions.replyTo,
-            attachments: mailOptions.attachments?.length
-              ? mailOptions.attachments.map((a) => ({
-                  filename: a.filename,
-                  content: Buffer.isBuffer(a.content)
-                    ? a.content.toString("base64")
-                    : Buffer.from(a.content).toString("base64"),
-                }))
-              : undefined,
-          }),
-        });
-        if (!relayRes.ok) {
-          const errText = await relayRes.text();
-          throw new Error(`Relay failed: ${relayRes.status} ${errText}`);
-        }
-        return { provider: "relay" };
-      } catch (relayErr) {
-        console.error("[mailer] Netlify relay send failed, falling back to Resend:", relayErr.message);
-      }
-    }
-
-    if (!RESEND_API_KEY) {
-      console.error("[mailer] RESEND_API_KEY not set, cannot fall back.");
-      throw smtpErr;
-    }
-
-    const payload = {
-      from: resendFromOverride || RESEND_FROM,
-      to: [mailOptions.to],
-      subject: mailOptions.subject,
-      html: mailOptions.html,
-    };
-    if (mailOptions.replyTo) payload.reply_to = mailOptions.replyTo;
-    if (mailOptions.attachments?.length) {
-      payload.attachments = mailOptions.attachments.map((a) => ({
-        filename: a.filename,
-        content: Buffer.isBuffer(a.content)
-          ? a.content.toString("base64")
-          : Buffer.from(a.content).toString("base64"),
-      }));
-    }
-
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Resend fallback failed: ${res.status} ${errText}`);
-    }
-
-    await res.json();
-    return { provider: "resend" };
+    throw smtpErr;
   }
 }
 
