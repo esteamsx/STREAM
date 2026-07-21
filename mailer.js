@@ -14,15 +14,55 @@ const transporter = nodemailer.createTransport({
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM = process.env.RESEND_FROM || `ES TEAMS TV <onboarding@resend.dev>`;
 
-// Sends via Gmail SMTP first; if that fails (e.g. Render blocking SMTP ports),
-// falls back to the Resend API so the email still goes out.
-// Returns { provider: 'gmail' | 'resend' } so callers can know which one delivered it.
-async function sendMailWithFallback(mailOptions) {
+const MAIL_RELAY_URL = process.env.MAIL_RELAY_URL; // e.g. https://your-site.netlify.app/api/send-mail
+const MAIL_RELAY_SECRET = process.env.MAIL_RELAY_SECRET;
+
+// Sends via Gmail SMTP directly first. If that fails (e.g. Render blocking the
+// SMTP port), tries a Netlify Function relay that sends via real Gmail SMTP
+// from Netlify's network instead (works for any recipient, no restrictions).
+// Only if that's also unavailable/unconfigured does it fall back to the
+// Resend API, which — on the free/sandbox sender — can only deliver to your
+// own Resend account email until a domain is verified there.
+// Returns { provider: 'gmail' | 'relay' | 'resend' } so callers can know which one delivered it.
+async function sendMailWithFallback(mailOptions, resendFromOverride) {
   try {
     await transporter.sendMail(mailOptions);
     return { provider: "gmail" };
   } catch (smtpErr) {
-    console.error("[mailer] SMTP send failed, falling back to Resend:", smtpErr.message);
+    console.error("[mailer] Direct SMTP send failed:", smtpErr.message);
+
+    if (MAIL_RELAY_URL && MAIL_RELAY_SECRET) {
+      try {
+        const relayRes = await fetch(MAIL_RELAY_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-relay-secret": MAIL_RELAY_SECRET,
+          },
+          body: JSON.stringify({
+            to: mailOptions.to,
+            subject: mailOptions.subject,
+            html: mailOptions.html,
+            replyTo: mailOptions.replyTo,
+            attachments: mailOptions.attachments?.length
+              ? mailOptions.attachments.map((a) => ({
+                  filename: a.filename,
+                  content: Buffer.isBuffer(a.content)
+                    ? a.content.toString("base64")
+                    : Buffer.from(a.content).toString("base64"),
+                }))
+              : undefined,
+          }),
+        });
+        if (!relayRes.ok) {
+          const errText = await relayRes.text();
+          throw new Error(`Relay failed: ${relayRes.status} ${errText}`);
+        }
+        return { provider: "relay" };
+      } catch (relayErr) {
+        console.error("[mailer] Netlify relay send failed, falling back to Resend:", relayErr.message);
+      }
+    }
 
     if (!RESEND_API_KEY) {
       console.error("[mailer] RESEND_API_KEY not set, cannot fall back.");
@@ -30,7 +70,7 @@ async function sendMailWithFallback(mailOptions) {
     }
 
     const payload = {
-      from: RESEND_FROM,
+      from: resendFromOverride || RESEND_FROM,
       to: [mailOptions.to],
       subject: mailOptions.subject,
       html: mailOptions.html,
@@ -92,6 +132,32 @@ async function sendVerificationCode(email, code, purpose) {
       </div>
     `,
   });
+}
+
+// Signup verification codes get their own send path/env vars, kept separate
+// from sendVerificationCode (used by account.js for password reset / 2FA /
+// delete-account) so each can be configured and debugged independently.
+const SIGNUP_GMAIL_USER = process.env.SIGNUP_GMAIL_USER || process.env.GMAIL_USER;
+const SIGNUP_RESEND_FROM = process.env.RESEND_FROM_SIGNUP || RESEND_FROM;
+
+async function sendSignupVerificationCode(email, code) {
+  return sendMailWithFallback(
+    {
+      from: `"ES TEAMS TV" <${SIGNUP_GMAIL_USER}>`,
+      to: email,
+      subject: `${code} is your ES TEAMS TV verification code`,
+      html: `
+      <div style="font-family:Arial,sans-serif;background:#0A0A0F;padding:32px;color:#F3F3FA">
+        <h2 style="color:#00E0FF;margin:0 0 12px">ES TEAMS TV</h2>
+        <p style="margin:0 0 4px;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,.6);font-size:12px">VERIFICATION CODE</p>
+        <p style="margin:0 0 20px">Your verification code is:</p>
+        <div style="font-size:32px;font-weight:700;letter-spacing:8px;background:#15151F;padding:16px 24px;border-radius:8px;display:inline-block">${code}</div>
+        <p style="margin:20px 0 0;color:rgba(255,255,255,.5);font-size:13px">This code expires in 5 minutes. If you didn't request this, ignore this email.</p>
+      </div>
+    `,
+    },
+    SIGNUP_RESEND_FROM
+  );
 }
 
 async function sendBanNotificationEmail(email, name, appealMailto, logText) {
@@ -156,4 +222,4 @@ function escapeHtml(str) {
   }[c]));
 }
 
-export { sendVerificationCode, sendBanNotificationEmail, sendDmcaReportEmail };
+export { sendVerificationCode, sendSignupVerificationCode, sendBanNotificationEmail, sendDmcaReportEmail };

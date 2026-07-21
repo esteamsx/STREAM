@@ -1443,7 +1443,7 @@ document.getElementById('startPwChange').addEventListener('click', async () => {
   btn.innerHTML = '<span class="btn-spinner"></span>Sending code…';
   try {
     const { provider } = await postJSON('/api/request-password-change');
-    const via = provider === 'resend' ? ' (via backup email service)' : '';
+    const via = provider === 'resend' ? ' (via backup email service)' : provider === 'relay' ? '' : '';
     flashMsg(document.getElementById('pwMsg'), 'Code sent — check your email.' + via, true);
     setTimeout(() => {
       window.location.href = '/verify?uid=' + encodeURIComponent(profile.uid) + '&email=' + encodeURIComponent(profile.email) + '&purpose=password_reset';
