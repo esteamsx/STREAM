@@ -52,12 +52,6 @@ import {
   issueTwoFactorPendingLogin,
   getTwoFactorPendingLogin,
   deleteTwoFactorPendingLogin,
-  getPasskeysForUser,
-  beginPasskeyRegistration,
-  finishPasskeyRegistration,
-  deletePasskey,
-  beginPasskeyAuthentication,
-  finishPasskeyAuthentication,
   followUser,
   unfollowUser,
   isFollowing,
@@ -229,6 +223,7 @@ app.get("/", async (req, res) => {
   const sessionId = req.cookies?.session;
   const uid = await verifySession(sessionId);
   if (!uid) return res.redirect("/login");
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   refreshSession(sessionId).catch(() => {});
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -3170,7 +3165,11 @@ app.get("/football", (req, res) => {
   });
 });
 
-app.get("/login", (req, res) => {
+app.get("/login", async (req, res) => {
+  const sessionId = req.cookies?.session;
+  const uid = await verifySession(sessionId);
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  if (uid) return res.redirect("/");
   res.send(renderLogin(authPageConfig));
 });
 
@@ -3489,8 +3488,21 @@ app.post("/api/signup", signupLimiter, async (req, res) => {
     if (!(await usernameFullyAvailable(username, { excludeEmail: email }))) {
       return res.status(400).json({ error: "Username has already been used." });
     }
-    await issuePendingSignup({ firstName, lastName, email, username, password });
-    res.json({ ok: true });
+    // Account is created immediately — no email verification code required,
+    // since our free-tier mail setup can't reliably deliver to arbitrary
+    // recipient inboxes yet. (Password reset / 2FA / delete-account codes,
+    // sent to a user's own already-registered email, are unaffected.)
+    let newUid;
+    if (existing) {
+      await firebaseAuth.updateUser(existing.uid, { password, displayName: `${firstName} ${lastName}` });
+      await upsertUserProfile(existing.uid, { firstName, lastName, email, username, provider: "password" });
+      newUid = existing.uid;
+    } else {
+      newUid = await createUserAccount({ firstName, lastName, email, password, username });
+    }
+    await markEmailVerified(newUid);
+    const customToken = await firebaseAuth.createCustomToken(newUid);
+    res.json({ customToken });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not create account." });
@@ -3619,98 +3631,6 @@ app.post("/api/logout", async (req, res) => {
   await deleteSession(req.cookies?.session);
   res.clearCookie("session");
   res.json({ ok: true });
-});
-
-// The WebAuthn "relying party" ID/origin — derived from the request so this
-// works across dev/beta domains without extra config.
-function getRpInfo(req) {
-  const rpID = process.env.PASSKEY_RP_ID || req.hostname;
-  const origin = process.env.PASSKEY_ORIGIN || `${req.protocol}://${req.get("host")}`;
-  return { rpID, origin };
-}
-
-// ── Passkeys: adding one to an existing (already-signed-in) account ──
-app.post("/api/passkey/registration-options", requireAuth, async (req, res) => {
-  try {
-    const profile = await getUserProfile(req.uid);
-    if (!profile) return res.status(404).json({ error: "Profile not found." });
-    const { rpID } = getRpInfo(req);
-    const options = await beginPasskeyRegistration(req.uid, profile.email, `${profile.firstName} ${profile.lastName}`.trim(), rpID);
-    res.json(options);
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: "Could not start passkey setup." });
-  }
-});
-
-app.post("/api/passkey/registration-verify", requireAuth, async (req, res) => {
-  try {
-    const { rpID, origin } = getRpInfo(req);
-    const { name, ...response } = req.body;
-    await finishPasskeyRegistration(req.uid, response, rpID, origin, name);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: err.message || "Could not save passkey." });
-  }
-});
-
-app.get("/api/passkey/list", requireAuth, async (req, res) => {
-  try {
-    const passkeys = await getPasskeysForUser(req.uid);
-    res.json({
-      passkeys: passkeys.map((p) => ({ id: p.id, name: p.name || "Unnamed Passkey", createdAt: p.createdAt })),
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: "Could not load passkeys." });
-  }
-});
-
-app.post("/api/passkey/delete", requireAuth, async (req, res) => {
-  try {
-    const { credentialId } = req.body;
-    await deletePasskey(req.uid, credentialId);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: err.message || "Could not delete passkey." });
-  }
-});
-
-// ── Passkeys: signing in — no email or username needed, the browser surfaces
-// whichever passkey(s) match this site and the person just taps their fingerprint ──
-app.post("/api/passkey/authentication-options", loginLimiter, async (req, res) => {
-  try {
-    const { rpID } = getRpInfo(req);
-    const { options, token } = await beginPasskeyAuthentication(rpID);
-    res.json({ options, token });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: "Could not start passkey sign-in." });
-  }
-});
-
-app.post("/api/passkey/authentication-verify", loginLimiter, async (req, res) => {
-  try {
-    const { token, response } = req.body;
-    const { rpID, origin } = getRpInfo(req);
-    const uid = await finishPasskeyAuthentication(token, response, rpID, origin);
-    const fbUser = await firebaseAuth.getUser(uid).catch(() => null);
-    if (fbUser?.disabled) return res.status(403).json({ error: "This account has been recently deactivated." });
-    const sessionId = await createSession(uid);
-    res.cookie("session", sessionId, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      maxAge: SESSION_TTL_MS,
-    });
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    if (err.code === "passkey/not-found") return res.status(404).json({ error: "No account found with that passkey." });
-    res.status(400).json({ error: err.message || "Could not sign in with passkey." });
-  }
 });
 
 app.get("/api/profile", requireAuth, async (req, res) => {
@@ -4258,8 +4178,8 @@ app.post("/api/request-password-change", requireAuth, async (req, res) => {
     const profile = await getUserProfile(req.uid);
     if (!profile) return res.status(404).json({ error: "Profile not found." });
     if (profile.provider === "google") return res.status(400).json({ error: "Google accounts don't have a password here." });
-    await issueCode(req.uid, profile.email, "password_reset");
-    res.json({ ok: true });
+    const { provider } = await issueCode(req.uid, profile.email, "password_reset");
+    res.json({ ok: true, provider });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not send code." });
