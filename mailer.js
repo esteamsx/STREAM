@@ -11,20 +11,58 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 8000,
 });
 
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || process.env.GMAIL_USER;
+const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || "ES TEAMS TV";
+
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM = process.env.RESEND_FROM || `ES TEAMS TV <onboarding@resend.dev>`;
 
 const MAIL_RELAY_URL = process.env.MAIL_RELAY_URL; // e.g. https://your-site.netlify.app/api/send-mail
 const MAIL_RELAY_SECRET = process.env.MAIL_RELAY_SECRET;
 
-// Sends via Gmail SMTP directly first. If that fails (e.g. Render blocking the
-// SMTP port), tries a Netlify Function relay that sends via real Gmail SMTP
-// from Netlify's network instead (works for any recipient, no restrictions).
-// Only if that's also unavailable/unconfigured does it fall back to the
-// Resend API, which — on the free/sandbox sender — can only deliver to your
-// own Resend account email until a domain is verified there.
-// Returns { provider: 'gmail' | 'relay' | 'resend' } so callers can know which one delivered it.
+// Sends via Brevo's HTTPS API first — this isn't SMTP at all, so Render's
+// SMTP port block never applies, and Brevo can deliver to any real
+// recipient once a single sender email is verified (no domain/DNS needed).
+// Falls back to direct Gmail SMTP, then the Netlify relay, then Resend,
+// in case Brevo is ever down or its free quota (300/day) is exhausted.
+// Returns { provider: 'brevo' | 'gmail' | 'relay' | 'resend' } so callers can know which one delivered it.
 async function sendMailWithFallback(mailOptions, resendFromOverride) {
+  if (BREVO_API_KEY) {
+    try {
+      const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": BREVO_API_KEY,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: BREVO_FROM_NAME, email: BREVO_FROM_EMAIL },
+          to: [{ email: mailOptions.to }],
+          subject: mailOptions.subject,
+          htmlContent: mailOptions.html,
+          ...(mailOptions.replyTo ? { replyTo: { email: mailOptions.replyTo } } : {}),
+          ...(mailOptions.attachments?.length
+            ? {
+                attachment: mailOptions.attachments.map((a) => ({
+                  name: a.filename,
+                  content: Buffer.isBuffer(a.content) ? a.content.toString("base64") : Buffer.from(a.content).toString("base64"),
+                })),
+              }
+            : {}),
+        }),
+      });
+      if (!brevoRes.ok) {
+        const errText = await brevoRes.text();
+        throw new Error(`Brevo failed: ${brevoRes.status} ${errText}`);
+      }
+      return { provider: "brevo" };
+    } catch (brevoErr) {
+      console.error("[mailer] Brevo send failed, falling back to direct SMTP:", brevoErr.message);
+    }
+  }
+
   try {
     await transporter.sendMail(mailOptions);
     return { provider: "gmail" };
