@@ -3488,21 +3488,10 @@ app.post("/api/signup", signupLimiter, async (req, res) => {
     if (!(await usernameFullyAvailable(username, { excludeEmail: email }))) {
       return res.status(400).json({ error: "Username has already been used." });
     }
-    // Account is created immediately — no email verification code required,
-    // since our free-tier mail setup can't reliably deliver to arbitrary
-    // recipient inboxes yet. (Password reset / 2FA / delete-account codes,
-    // sent to a user's own already-registered email, are unaffected.)
-    let newUid;
-    if (existing) {
-      await firebaseAuth.updateUser(existing.uid, { password, displayName: `${firstName} ${lastName}` });
-      await upsertUserProfile(existing.uid, { firstName, lastName, email, username, provider: "password" });
-      newUid = existing.uid;
-    } else {
-      newUid = await createUserAccount({ firstName, lastName, email, password, username });
-    }
-    await markEmailVerified(newUid);
-    const customToken = await firebaseAuth.createCustomToken(newUid);
-    res.json({ customToken });
+    // A code is emailed to the address first — nothing is created in Firebase
+    // Auth or Firestore until that code comes back verified via /api/verify-email.
+    await issuePendingSignup({ firstName, lastName, email, username, password });
+    res.json({ pendingVerification: true, email });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not create account." });

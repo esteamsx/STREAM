@@ -315,6 +315,25 @@ input{font-family:inherit}
   </div>
 </div>
 
+<div class="page-overlay" id="signupVerifyOverlay">
+  <div class="overlay-card" style="max-width:340px">
+    <div class="overlay-title">Verify Your Email</div>
+    <div class="overlay-sub" id="signupVerifySub">Enter the 6-digit code we just emailed you.</div>
+    <div class="code-row">
+      <input class="code-digit" maxlength="1" inputmode="numeric" autocomplete="one-time-code">
+      <input class="code-digit" maxlength="1" inputmode="numeric">
+      <input class="code-digit" maxlength="1" inputmode="numeric">
+      <input class="code-digit" maxlength="1" inputmode="numeric">
+      <input class="code-digit" maxlength="1" inputmode="numeric">
+      <input class="code-digit" maxlength="1" inputmode="numeric">
+    </div>
+    <div class="auth-error" id="signupVerifyError"></div>
+    <button type="button" class="auth-submit" id="signupVerifyContinueBtn" style="width:100%">Continue</button>
+    <button type="button" class="overlay-cancel" id="signupVerifyResend">Resend code</button>
+    <button type="button" class="overlay-cancel" id="signupVerifyCancel">Cancel</button>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -522,6 +541,88 @@ function promptTwoFactor(pendingToken){
   });
 }
 
+const signupVerifyDigits = Array.from(document.querySelectorAll('#signupVerifyOverlay .code-digit'));
+signupVerifyDigits.forEach((d, i) => {
+  d.addEventListener('input', () => {
+    d.value = d.value.replace(/[^0-9]/g, '');
+    if (d.value && i < signupVerifyDigits.length - 1) signupVerifyDigits[i + 1].focus();
+  });
+  d.addEventListener('keydown', (e) => {
+    if (e.key === 'Backspace' && !d.value && i > 0) signupVerifyDigits[i - 1].focus();
+  });
+  d.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData.getData('text') || '').replace(/[^0-9]/g, '').slice(0, 6);
+    text.split('').forEach((ch, idx) => { if (signupVerifyDigits[idx]) signupVerifyDigits[idx].value = ch; });
+    if (signupVerifyDigits[text.length - 1]) signupVerifyDigits[text.length - 1].focus();
+  });
+});
+
+// Shows the code overlay for a pending signup and resolves with the
+// customToken once the code is verified (or null if the user cancels).
+// Nothing is created in Firebase/Firestore until this succeeds.
+function promptSignupVerification(email){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('signupVerifyOverlay');
+    const errorBox = document.getElementById('signupVerifyError');
+    const continueBtn = document.getElementById('signupVerifyContinueBtn');
+    const cancelBtn = document.getElementById('signupVerifyCancel');
+    const resendBtn = document.getElementById('signupVerifyResend');
+    signupVerifyDigits.forEach(d => d.value = '');
+    errorBox.classList.remove('show');
+    overlay.classList.add('show');
+    signupVerifyDigits[0].focus();
+
+    function cleanup(){
+      overlay.classList.remove('show');
+      continueBtn.removeEventListener('click', onContinue);
+      cancelBtn.removeEventListener('click', onCancel);
+      resendBtn.removeEventListener('click', onResend);
+    }
+    function onCancel(){
+      cleanup();
+      resolve(null);
+    }
+    async function onResend(){
+      resendBtn.disabled = true;
+      const original = resendBtn.textContent;
+      resendBtn.textContent = 'Sending…';
+      try {
+        await postJSON('/api/resend-code', { email, purpose: 'signup' });
+        errorBox.classList.remove('show');
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.add('show');
+      }
+      resendBtn.disabled = false;
+      resendBtn.textContent = original;
+    }
+    async function onContinue(){
+      const code = signupVerifyDigits.map(d => d.value).join('');
+      if (code.length !== 6) {
+        errorBox.textContent = 'Enter all 6 digits.';
+        errorBox.classList.add('show');
+        return;
+      }
+      continueBtn.disabled = true;
+      continueBtn.innerHTML = '<span class="btn-spinner"></span>Verifying…';
+      try {
+        const { customToken } = await postJSON('/api/verify-email', { email, code, purpose: 'signup' });
+        cleanup();
+        resolve(customToken);
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.add('show');
+        continueBtn.disabled = false;
+        continueBtn.textContent = 'Continue';
+      }
+    }
+    continueBtn.addEventListener('click', onContinue);
+    cancelBtn.addEventListener('click', onCancel);
+    resendBtn.addEventListener('click', onResend);
+  });
+}
+
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   clearError();
@@ -570,10 +671,16 @@ document.getElementById('signupForm').addEventListener('submit', async (e) => {
   
   const btn = document.getElementById('signupSubmit');
   btn.disabled = true;
-  btn.innerHTML = '<span class="btn-spinner"></span>Creating Account…';
+  btn.innerHTML = '<span class="btn-spinner"></span>Sending Code…';
 
   try {
-    const { customToken } = await postJSON('/api/signup', { firstName, lastName, email, username, password, altcha: signupCaptchaValue });
+    await postJSON('/api/signup', { firstName, lastName, email, username, password, altcha: signupCaptchaValue });
+    const customToken = await promptSignupVerification(email);
+    if (!customToken) {
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+      return;
+    }
     const cred = await signInWithCustomToken(fbAuth, customToken);
     const idToken = await cred.user.getIdToken();
     await postJSON('/api/session', { idToken, remember: true });

@@ -6,60 +6,20 @@ const transporter = nodemailer.createTransport({
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
-  connectionTimeout: 8000, // fail fast if Render is blocking the SMTP port, so the Brevo fallback kicks in quickly
+  connectionTimeout: 8000,
   greetingTimeout: 8000,
   socketTimeout: 8000,
 });
 
-const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || process.env.GMAIL_USER;
-const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || "ES TEAMS TV";
-
-// Sends via Brevo's API first — this is proven reliable for codes going to
-// your own registered email (password reset, 2FA, delete-account all send
-// there). Falls back to direct Gmail SMTP.
-// Returns { provider: 'brevo' | 'gmail' } so callers can know which one delivered it.
+// Sends directly over Gmail SMTP. Keeps returning { provider: 'gmail' } so
+// callers relying on that shape (e.g. server.js's /api/account/change-password
+// response) don't need to change.
 async function sendMailWithFallback(mailOptions) {
-  if (BREVO_API_KEY) {
-    try {
-      const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: {
-          "api-key": BREVO_API_KEY,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          sender: { name: BREVO_FROM_NAME, email: BREVO_FROM_EMAIL },
-          to: [{ email: mailOptions.to }],
-          subject: mailOptions.subject,
-          htmlContent: mailOptions.html,
-          ...(mailOptions.replyTo ? { replyTo: { email: mailOptions.replyTo } } : {}),
-          ...(mailOptions.attachments?.length
-            ? {
-                attachment: mailOptions.attachments.map((a) => ({
-                  name: a.filename,
-                  content: Buffer.isBuffer(a.content) ? a.content.toString("base64") : Buffer.from(a.content).toString("base64"),
-                })),
-              }
-            : {}),
-        }),
-      });
-      if (!brevoRes.ok) {
-        const errText = await brevoRes.text();
-        throw new Error(`Brevo failed: ${brevoRes.status} ${errText}`);
-      }
-      return { provider: "brevo" };
-    } catch (brevoErr) {
-      console.error("[mailer] Brevo send failed, falling back to direct SMTP:", brevoErr.message);
-    }
-  }
-
   try {
     await transporter.sendMail(mailOptions);
     return { provider: "gmail" };
   } catch (smtpErr) {
-    console.error("[mailer] Direct SMTP send failed:", smtpErr.message);
+    console.error("[mailer] Gmail SMTP send failed:", smtpErr.message);
     throw smtpErr;
   }
 }
