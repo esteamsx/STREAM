@@ -39,15 +39,45 @@ function generateCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-async function issueCode(uid, email, purpose) {
+async function issueCode(uid, contact, purpose, channel = "email") {
   const code = generateCode();
   const expiresAt = Date.now() + CODE_TTL_MS;
   await db.collection("verification_codes").doc(`${uid}_${purpose}`).set({
     code,
-    email,
+    email: channel === "email" ? contact : null,
     expiresAt,
   });
-  return sendVerificationCode(email, code, purpose);
+  if (channel === "telegram") return sendTelegramCode(contact, code, purpose);
+  return sendVerificationCode(contact, code, purpose);
+}
+
+// Sends a verification code as a Telegram DM instead of email — used for
+// account-deletion codes on Telegram-only accounts, which have no email.
+// Requires the user to have granted the bot "write" access, which our
+// Telegram login flow already requests.
+async function sendTelegramCode(telegramId, code, purpose) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    const err = new Error("Telegram sign-in isn't configured.");
+    err.userFacing = true;
+    throw err;
+  }
+  const actions = { delete_account: "delete your account" };
+  const action = actions[purpose] || "verify this request";
+  const minutes = Math.round(CODE_TTL_MS / 60000);
+  const text = `Your ES TEAMS TV verification code is ${code}\n\nUse this to ${action}. It expires in ${minutes} minutes. If you didn't request this, you can ignore this message.`;
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: telegramId, text }),
+  }).catch(() => null);
+  const data = res ? await res.json().catch(() => null) : null;
+  if (!data || !data.ok) {
+    const err = new Error("Could not send the code via Telegram. Make sure you've started a chat with our bot, then try again.");
+    err.userFacing = true;
+    throw err;
+  }
+  return { provider: "telegram" };
 }
 
 async function checkCode(uid, purpose, code) {

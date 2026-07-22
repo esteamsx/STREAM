@@ -209,6 +209,7 @@ input{font-family:inherit}
   display:none;align-items:center;justify-content:center;z-index:100;padding:24px;
 }
 .page-overlay.show{display:flex}
+body:has(.page-overlay.show){overflow:hidden}
 /* postOptionsOverlay (comment long-press menu / post 3-dot menu) can be opened while
    commentsOverlay is already open — both share .page-overlay's z-index:100, and since
    commentsOverlay comes later in the DOM it was painting on top, hiding this menu until

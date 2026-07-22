@@ -177,6 +177,7 @@ input{font-family:inherit}
   display:none;justify-content:center;overflow-y:auto;z-index:100;
 }
 .page-overlay.show{display:flex}
+body:has(.page-overlay.show){overflow:hidden}
 .overlay-card{
   background:var(--card);border:1px solid var(--border-strong);border-radius:16px;padding:30px 36px;
   display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);
@@ -255,6 +256,22 @@ input{font-family:inherit}
         <span>Keep me signed in</span>
       </label>
       <button type="submit" class="auth-submit" id="loginSubmit" disabled>Sign In</button>
+
+      <div class="auth-divider">OR</div>
+      <div class="social-row">
+        <div class="gsi-wrap" id="gsiWrap"></div>
+        <button type="button" class="social-box" id="tgSquareBtn" aria-label="Continue with Telegram">
+          <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#229ED9"/><path d="M35 14L12 23.5c-1.3.5-1.3 1.3-.2 1.6l5.9 1.8 2.3 7c.3.7.6 1 1.2 1 .5 0 .8-.2 1.1-.5l3.1-3 6.1 4.5c1.1.6 1.9.3 2.2-1l4-18.8c.4-1.6-.5-2.3-1.7-1.7z" fill="#fff"/></svg>
+        </button>
+      </div>
+
+      <div class="auth-foot" id="authFoot">
+        <a href="/reset" id="forgotPasswordLink">Forgot Password?</a>
+        <div class="legal-links">
+          <a href="/privacy">Privacy</a>
+          <a href="/dmca">DMCA</a>
+        </div>
+      </div>
     </form>
 
     <form class="auth-form" id="signupForm">
@@ -303,22 +320,6 @@ input{font-family:inherit}
       <button type="submit" class="auth-submit" id="signupSubmit" disabled>Create Account</button>
       <button type="button" class="auth-trouble-link" id="troubleSigningLink">Having trouble signing in?</button>
     </form>
-
-    <div class="auth-divider">OR</div>
-    <div class="social-row">
-      <div class="gsi-wrap" id="gsiWrap"></div>
-      <button type="button" class="social-box" id="tgSquareBtn" aria-label="Continue with Telegram">
-        <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#229ED9"/><path d="M35 14L12 23.5c-1.3.5-1.3 1.3-.2 1.6l5.9 1.8 2.3 7c.3.7.6 1 1.2 1 .5 0 .8-.2 1.1-.5l3.1-3 6.1 4.5c1.1.6 1.9.3 2.2-1l4-18.8c.4-1.6-.5-2.3-1.7-1.7z" fill="#fff"/></svg>
-      </button>
-    </div>
-
-    <div class="auth-foot" id="authFoot">
-      <a href="/reset" id="forgotPasswordLink">Forgot Password?</a>
-      <div class="legal-links">
-        <a href="/privacy">Privacy</a>
-        <a href="/dmca">DMCA</a>
-      </div>
-    </div>
   </div>
 </div>
 

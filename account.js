@@ -204,7 +204,8 @@ input{font-family:inherit}
 .tfa-chevron{width:16px;height:16px;color:var(--muted);transition:transform .25s var(--ease);flex-shrink:0}
 .tfa-card.open .tfa-chevron{transform:rotate(180deg)}
 .tfa-body{max-height:0;overflow:hidden;transition:max-height .3s var(--ease)}
-.tfa-card.open .tfa-body{max-height:500px}
+.tfa-card.open .tfa-body{max-height:500px;overflow:visible}
+.tfa-card.open{overflow:visible}
 .tfa-body-inner{padding:0 18px 18px}
 .tfa-setup-btn{
   display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
@@ -278,6 +279,7 @@ input{font-family:inherit}
   display:none;align-items:center;justify-content:center;z-index:100;padding:24px;
 }
 .page-overlay.show{display:flex}
+body:has(.page-overlay.show){overflow:hidden}
 .overlay-card{
   width:100%;max-width:360px;background:var(--card);border:1px solid var(--border-strong);border-radius:16px;
   padding:26px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);
@@ -759,7 +761,7 @@ input{font-family:inherit}
     </div>
     <div class="overlay-step" id="deleteStepCode">
       <div class="overlay-title">Enter deletion code</div>
-      <div class="overlay-sub">We sent a 6-digit code to<br><b id="deleteEmailLabel"></b></div>
+      <div class="overlay-sub"><span id="deleteCodeIntro">We sent a 6-digit code to</span><br><b id="deleteEmailLabel"></b></div>
       <div class="code-row">
         <input class="code-digit" maxlength="1" inputmode="numeric" autocomplete="one-time-code">
         <input class="code-digit" maxlength="1" inputmode="numeric">
@@ -1687,8 +1689,11 @@ document.getElementById('deleteContinueBtn').addEventListener('click', async () 
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner btn-spinner-light" style="border-top-color:var(--red)"></span>Sending code…';
   try {
-    await postJSON('/api/request-account-deletion', { altcha: deleteCaptchaValue });
-    document.getElementById('deleteEmailLabel').textContent = profile.email;
+    const result = await postJSON('/api/request-account-deletion', { altcha: deleteCaptchaValue });
+    document.getElementById('deleteEmailLabel').textContent = result.via === 'telegram' ? 'your Telegram' : profile.email;
+    document.getElementById('deleteCodeIntro').textContent = result.via === 'telegram'
+      ? 'We sent a 6-digit code via Telegram to'
+      : 'We sent a 6-digit code to';
     deleteStepCaptcha.classList.remove('active');
     deleteStepCode.classList.add('active');
     startDeleteTimer();

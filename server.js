@@ -166,8 +166,25 @@ const authPageConfig = {
   // Telegram Login Widget identifies the bot by its numeric ID, which is just
   // the part of the bot token before the colon — no separate env var needed.
   telegramBotId: (process.env.TELEGRAM_BOT_TOKEN || "").split(":")[0] || "",
-  devToolsBlock: "",
-  protectionCSS: "",
+  // Blocks the "hold to reveal link" callout/context menu on links, buttons,
+  // and images. -webkit-touch-callout covers iOS Safari's native long-press
+  // menu; the contextmenu listener covers Android Chrome, which fires that
+  // event on long-press over a link/image instead of showing a native menu.
+  devToolsBlock: `<script>
+document.addEventListener('contextmenu', function(e){
+  if (e.target.closest('a, button, img, [role="button"]')) e.preventDefault();
+});
+</script>`,
+  protectionCSS: `
+a, button, [role="button"], img {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+a, button, [role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+`,
 };
 
 /* category display icon — CSS SVG icons, no emoji */
@@ -236,12 +253,25 @@ app.get("/", async (req, res) => {
 <head>
 <meta charset="UTF-8">
 <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
+<script>
+document.addEventListener('contextmenu', function(e){
+  if (e.target.closest('a, button, img, [role="button"]')) e.preventDefault();
+});
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+a, button, [role="button"], img {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+a, button, [role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
 :root{
   --red:#FF3B5C;--red-dim:#8f1530;--accent:#00E0FF;--accent2:#7c5cff;
   --dark:#0A0A0F;--dark2:#0F0F16;--dark3:#13131C;
@@ -2154,6 +2184,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
               closePanel();
               loadChannel(btn.dataset.id, btn.dataset.name);
             });
+            if(!btn.dataset.redirect && typeof probeChannel === 'function') probeChannel(btn);
           });
         })
         .catch(function(){
