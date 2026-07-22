@@ -1,4 +1,5 @@
 import express from "express";
+import crypto from "crypto";
 import compression from "compression";
 import fs from "fs";
 import path from "path";
@@ -14,6 +15,7 @@ import { renderReset } from "./reset.js";
 import { renderDmca } from "./dmca.js";
 import { renderPrivacy } from "./privacy.js";
 import { renderAdmin } from "./admin.js";
+import { domainLock } from "./lock.js";
 import QRCode from "qrcode";
 import {
   issueCode,
@@ -36,9 +38,10 @@ import {
   seedWatchSecondsIfEmpty,
   markEmailVerified,
   ensureGoogleUserProfile,
-  verifyTelegramLoginPayload,
   verifyTelegramIdToken,
   createOrGetTelegramUser,
+  saveTelegramOAuthState,
+  consumeTelegramOAuthState,
   issueResetToken,
   consumeResetToken,
   createSession,
@@ -112,6 +115,12 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Domain lock runs first, before spending cycles on anything else — blocks
+// requests whose Host header doesn't match the canonical domain (unless a
+// valid DEVTOOLS_BYPASS_KEY is supplied). See lock.js for exactly what this
+// does and doesn't protect against.
+app.use(domainLock);
+
 // Compresses every response (the profile/account pages are large inline
 // HTML+CSS+JS documents, and text compresses very well) — this cuts
 // transfer size substantially without changing any behavior.
@@ -165,7 +174,10 @@ const authPageConfig = {
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   // Telegram Login Widget identifies the bot by its numeric ID, which is just
   // the part of the bot token before the colon — no separate env var needed.
-  telegramBotId: (process.env.TELEGRAM_BOT_TOKEN || "").split(":")[0] || "",
+  // The client no longer needs any Telegram identifier at all — sign-in is
+  // now a plain redirect to our own /api/telegram-auth/start, so this just
+  // tells the page whether to show the Telegram button at all.
+  telegramConfigured: !!(process.env.TELEGRAM_CLIENT_ID && process.env.TELEGRAM_CLIENT_SECRET),
   // Blocks the "hold to reveal link" callout/context menu on links, buttons,
   // and images. -webkit-touch-callout covers iOS Safari's native long-press
   // menu; the contextmenu listener covers Android Chrome, which fires that
@@ -3545,7 +3557,11 @@ app.post("/api/resend-code", signupLimiter, async (req, res) => {
     }
     const profile = await getUserProfile(uid);
     if (!profile) return res.status(404).json({ error: "Account not found." });
-    await issueCode(uid, profile.email, purpose || "signup");
+    if ((purpose || "signup") === "delete_account" && profile.provider === "telegram" && profile.telegramId) {
+      await issueCode(uid, profile.telegramId, "delete_account", "telegram");
+    } else {
+      await issueCode(uid, profile.email, purpose || "signup");
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -3607,42 +3623,89 @@ app.post("/api/verify-email", signupLimiter, async (req, res) => {
 // Telegram, we just verify it wasn't tampered with, then find/create the
 // account and hand back a custom token (same shape as /api/signup's success
 // path). No email or password is ever required for this provider.
-app.post("/api/telegram-auth", loginLimiter, async (req, res) => {
+// Telegram's "Log In With Telegram" OIDC flow, done as a full-page redirect
+// rather than a popup. Deliberately avoids any popup/window-messaging —
+// that's the exact mechanism that was flaky (Telegram's own docs warn popup
+// communication breaks under certain header configs, and browsers/popup
+// blockers vary). A redirect has no such fragility: Telegram's own hosted
+// authorization page handles the in-app approval UX, and simply sends the
+// browser back to us with a code once it's done.
+const TELEGRAM_CLIENT_ID = process.env.TELEGRAM_CLIENT_ID || "";
+const TELEGRAM_CLIENT_SECRET = process.env.TELEGRAM_CLIENT_SECRET || "";
+const TELEGRAM_REDIRECT_URI = "https://esteamstv.devs.surf/api/telegram-auth/callback";
+
+function base64url(buf) {
+  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+app.get("/api/telegram-auth/start", loginLimiter, async (req, res) => {
   try {
-    const data = req.body || {};
-    if (data.error) return res.status(400).json({ error: "Telegram sign-in was cancelled." });
-
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const botId = (botToken || "").split(":")[0];
-    if (!botToken) return res.status(400).json({ error: "Telegram sign-in isn't configured." });
-
-    let tgUser;
-    if (data.id_token) {
-      // Telegram's newer OIDC-based login flow: user info arrives inside a
-      // signed id_token instead of the classic hash-signed fields.
-      const claims = await verifyTelegramIdToken(data.id_token, botId);
-      if (!claims) return res.status(401).json({ error: "Could not verify Telegram login." });
-      tgUser = {
-        id: claims.id,
-        first_name: claims.given_name || (claims.name || "").split(" ")[0] || "",
-        last_name: claims.family_name || (claims.name || "").split(" ").slice(1).join(" "),
-        username: claims.preferred_username || "",
-        photo_url: claims.picture || null,
-      };
-    } else {
-      // Legacy widget flow: fields are signed together with an HMAC hash.
-      if (!verifyTelegramLoginPayload(data, botToken)) {
-        return res.status(401).json({ error: "Could not verify Telegram login." });
-      }
-      tgUser = data;
+    if (!TELEGRAM_CLIENT_ID || !TELEGRAM_CLIENT_SECRET) {
+      return res.redirect("/login?tg_error=" + encodeURIComponent("Telegram sign-in isn't configured."));
     }
+    const state = crypto.randomBytes(16).toString("hex");
+    const codeVerifier = base64url(crypto.randomBytes(32));
+    await saveTelegramOAuthState(state, codeVerifier);
+    const codeChallenge = base64url(crypto.createHash("sha256").update(codeVerifier).digest());
 
-    const uid = await createOrGetTelegramUser(tgUser);
-    const customToken = await firebaseAuth.createCustomToken(uid);
-    res.json({ customToken });
+    const url = new URL("https://oauth.telegram.org/auth");
+    url.searchParams.set("client_id", TELEGRAM_CLIENT_ID);
+    url.searchParams.set("redirect_uri", TELEGRAM_REDIRECT_URI);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("scope", "openid profile write");
+    url.searchParams.set("state", state);
+    url.searchParams.set("code_challenge", codeChallenge);
+    url.searchParams.set("code_challenge_method", "S256");
+    res.redirect(url.toString());
   } catch (err) {
     console.error(err);
-    res.status(400).json({ error: "Could not sign in with Telegram." });
+    res.redirect("/login?tg_error=" + encodeURIComponent("Could not start Telegram sign-in."));
+  }
+});
+
+app.get("/api/telegram-auth/callback", loginLimiter, async (req, res) => {
+  try {
+    const { code, state, error } = req.query;
+    if (error) return res.redirect("/login?tg_error=" + encodeURIComponent("Telegram sign-in was cancelled."));
+    if (!code || !state) return res.redirect("/login?tg_error=" + encodeURIComponent("Invalid Telegram response."));
+
+    const codeVerifier = await consumeTelegramOAuthState(String(state));
+    if (!codeVerifier) {
+      return res.redirect("/login?tg_error=" + encodeURIComponent("This Telegram sign-in link expired. Please try again."));
+    }
+
+    const basicAuth = Buffer.from(`${TELEGRAM_CLIENT_ID}:${TELEGRAM_CLIENT_SECRET}`).toString("base64");
+    const tokenRes = await fetch("https://oauth.telegram.org/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: `Basic ${basicAuth}` },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code: String(code),
+        redirect_uri: TELEGRAM_REDIRECT_URI,
+        client_id: TELEGRAM_CLIENT_ID,
+        code_verifier: codeVerifier,
+      }).toString(),
+    });
+    const tokenData = await tokenRes.json().catch(() => null);
+    if (!tokenData || !tokenData.id_token) {
+      return res.redirect("/login?tg_error=" + encodeURIComponent("Could not complete Telegram sign-in."));
+    }
+
+    const claims = await verifyTelegramIdToken(tokenData.id_token, TELEGRAM_CLIENT_ID);
+    if (!claims) return res.redirect("/login?tg_error=" + encodeURIComponent("Could not verify Telegram login."));
+
+    const uid = await createOrGetTelegramUser({
+      id: claims.id,
+      first_name: claims.given_name || (claims.name || "").split(" ")[0] || "",
+      last_name: claims.family_name || (claims.name || "").split(" ").slice(1).join(" "),
+      username: claims.preferred_username || "",
+      photo_url: claims.picture || null,
+    });
+    const customToken = await firebaseAuth.createCustomToken(uid);
+    res.redirect("/login?tg_token=" + encodeURIComponent(customToken));
+  } catch (err) {
+    console.error(err);
+    res.redirect("/login?tg_error=" + encodeURIComponent("Could not sign in with Telegram."));
   }
 });
 
@@ -4354,11 +4417,16 @@ app.post("/api/request-account-deletion", requireAuth, async (req, res) => {
     if (!(await verifyCaptcha(altcha))) return res.status(400).json({ error: "Captcha not completed." });
     const profile = await getUserProfile(req.uid);
     if (!profile) return res.status(404).json({ error: "Profile not found." });
-    await issueCode(req.uid, profile.email, "delete_account");
-    res.json({ ok: true });
+    const viaTelegram = profile.provider === "telegram" && profile.telegramId;
+    if (viaTelegram) {
+      await issueCode(req.uid, profile.telegramId, "delete_account", "telegram");
+    } else {
+      await issueCode(req.uid, profile.email, "delete_account");
+    }
+    res.json({ ok: true, via: viaTelegram ? "telegram" : "email" });
   } catch (err) {
     console.error(err);
-    res.status(400).json({ error: "Could not send deletion code." });
+    res.status(400).json({ error: err.userFacing ? err.message : "Could not send deletion code." });
   }
 });
 

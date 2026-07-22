@@ -456,6 +456,26 @@ async function createOrGetTelegramUser({ id, first_name, last_name, username, ph
   return uid;
 }
 
+// ── Telegram OIDC redirect flow: short-lived PKCE state storage ──────────
+// The state doc is deleted on first read (one-time use) and self-expires
+// after 10 minutes even if the redirect never comes back.
+async function saveTelegramOAuthState(state, codeVerifier) {
+  await db.collection("telegram_oauth_state").doc(state).set({
+    codeVerifier,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+}
+
+async function consumeTelegramOAuthState(state) {
+  const ref = db.collection("telegram_oauth_state").doc(state);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const { codeVerifier, expiresAt } = snap.data();
+  await ref.delete();
+  if (Date.now() > expiresAt) return null;
+  return codeVerifier;
+}
+
 async function issueResetToken(uid) {
   const token = crypto.randomBytes(24).toString("hex");
   await db.collection("reset_tokens").doc(token).set({
@@ -1864,6 +1884,8 @@ export {
   verifyTelegramLoginPayload,
   verifyTelegramIdToken,
   createOrGetTelegramUser,
+  saveTelegramOAuthState,
+  consumeTelegramOAuthState,
   issueResetToken,
   consumeResetToken,
   createSession,

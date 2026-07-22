@@ -11,7 +11,6 @@ ${cfg.devToolsBlock || ""}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="https://telegram.org/js/telegram-widget.js?22" async defer></script>
 <script async defer src="https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js" type="module"></script>
 <style>
 ${cfg.protectionCSS || ""}
@@ -768,39 +767,53 @@ if (${JSON.stringify(!!cfg.googleClientId)}) {
   });
 }
 
-const TELEGRAM_BOT_ID = ${JSON.stringify(cfg.telegramBotId || "")};
+const TELEGRAM_CONFIGURED = ${JSON.stringify(!!cfg.telegramConfigured)};
 
 function signInWithTelegram(){
   clearError();
-  if (!TELEGRAM_BOT_ID || !window.Telegram || !window.Telegram.Login) {
+  if (!TELEGRAM_CONFIGURED) {
     showError('Telegram sign-in is not available right now.');
     return;
   }
-  // bot_id (legacy widget) and client_id (newer OIDC flow) are the same
-  // numeric value under two names — sending both covers whichever the
-  // loaded Telegram library expects.
-  window.Telegram.Login.auth(
-    { bot_id: TELEGRAM_BOT_ID, client_id: TELEGRAM_BOT_ID, request_access: 'write', scope: ['profile', 'write'] },
-    async (data) => {
-      if (!data) return; // popup closed / declined
-      if (data.error) { showError('Telegram sign-in was cancelled.'); return; }
-      const overlay = document.getElementById('pageOverlay');
-      document.getElementById('pageOverlayText').textContent = 'Signing in with Telegram…';
-      overlay.classList.add('show');
-      try {
-        const { customToken } = await postJSON('/api/telegram-auth', data);
-        const cred = await signInWithCustomToken(fbAuth, customToken);
-        const idToken = await cred.user.getIdToken();
-        await establishSession(idToken, true);
-      } catch (err) {
-        overlay.classList.remove('show');
-        showError(err.message);
-      }
-    }
-  );
+  // Plain redirect — no popup, no window-messaging. Telegram's own hosted
+  // page handles the in-app approval, then sends the browser back to us.
+  window.location.href = '/api/telegram-auth/start';
 }
 
 document.getElementById('tgSquareBtn').addEventListener('click', signInWithTelegram);
+
+// If we just got bounced back from /api/telegram-auth/callback, finish the
+// sign-in (or show why it failed) and scrub the token out of the URL bar
+// immediately so it doesn't linger in history.
+(function(){
+  const params = new URLSearchParams(window.location.search);
+  const tgToken = params.get('tg_token');
+  const tgError = params.get('tg_error');
+  if (!tgToken && !tgError) return;
+
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete('tg_token');
+  cleanUrl.searchParams.delete('tg_error');
+  window.history.replaceState({}, '', cleanUrl.toString());
+
+  if (tgError) {
+    showError(tgError);
+    return;
+  }
+  (async () => {
+    const overlay = document.getElementById('pageOverlay');
+    document.getElementById('pageOverlayText').textContent = 'Signing in with Telegram…';
+    overlay.classList.add('show');
+    try {
+      const cred = await signInWithCustomToken(fbAuth, tgToken);
+      const idToken = await cred.user.getIdToken();
+      await establishSession(idToken, true);
+    } catch (err) {
+      overlay.classList.remove('show');
+      showError(err.message);
+    }
+  })();
+})();
 
 const troubleSigningOverlay = document.getElementById('troubleSigningOverlay');
 document.getElementById('troubleSigningLink').addEventListener('click', () => {
