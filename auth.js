@@ -324,6 +324,63 @@ function verifyTelegramLoginPayload(data, botToken) {
   return true;
 }
 
+function base64UrlToBuffer(b64url) {
+  const b64 = String(b64url).replace(/-/g, "+").replace(/_/g, "/");
+  const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+  return Buffer.from(b64 + pad, "base64");
+}
+
+let telegramJwksCache = null;
+let telegramJwksFetchedAt = 0;
+
+async function getTelegramJwks() {
+  if (telegramJwksCache && Date.now() - telegramJwksFetchedAt < 3600_000) return telegramJwksCache;
+  const res = await fetch("https://oauth.telegram.org/.well-known/jwks.json");
+  if (!res.ok) throw new Error("Could not fetch Telegram's signing keys.");
+  const data = await res.json();
+  telegramJwksCache = data.keys || [];
+  telegramJwksFetchedAt = Date.now();
+  return telegramJwksCache;
+}
+
+const TELEGRAM_JWT_ALGS = {
+  RS256: { import: { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, verify: { name: "RSASSA-PKCS1-v1_5" } },
+  ES256: { import: { name: "ECDSA", namedCurve: "P-256" }, verify: { name: "ECDSA", hash: "SHA-256" } },
+};
+
+// Telegram's newer "Log In With Telegram" (OIDC) flow hands back a signed
+// id_token instead of the legacy hash-signed fields. This verifies it against
+// Telegram's published JWKS (no bot secret needed — signature is asymmetric)
+// and checks issuer/audience/expiry before trusting anything inside it.
+async function verifyTelegramIdToken(idToken, expectedBotId) {
+  try {
+    const parts = String(idToken).split(".");
+    if (parts.length !== 3) return null;
+    const [headerB64, payloadB64, sigB64] = parts;
+    const header = JSON.parse(base64UrlToBuffer(headerB64).toString("utf8"));
+    const payload = JSON.parse(base64UrlToBuffer(payloadB64).toString("utf8"));
+    const algSpec = TELEGRAM_JWT_ALGS[header.alg];
+    if (!algSpec) return null; // unexpected/unsupported signing algorithm
+
+    const keys = await getTelegramJwks();
+    const jwk = keys.find((k) => k.kid === header.kid) || keys.find((k) => k.alg === header.alg);
+    if (!jwk) return null;
+
+    const publicKey = await crypto.webcrypto.subtle.importKey("jwk", jwk, algSpec.import, false, ["verify"]);
+    const signedData = Buffer.from(`${headerB64}.${payloadB64}`, "utf8");
+    const signature = base64UrlToBuffer(sigB64);
+    const valid = await crypto.webcrypto.subtle.verify(algSpec.verify, publicKey, signature, signedData);
+    if (!valid) return null;
+
+    if (payload.iss !== "https://oauth.telegram.org") return null;
+    if (String(payload.aud) !== String(expectedBotId)) return null;
+    if (!payload.exp || Date.now() / 1000 > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 async function findUserByTelegramId(telegramId) {
   const snap = await db.collection("users").where("telegramId", "==", String(telegramId)).limit(1).get();
   if (snap.empty) return null;
@@ -340,7 +397,14 @@ async function createOrGetTelegramUser({ id, first_name, last_name, username, ph
 
   const uid = `tg_${telegramId}`;
   const displayName = [first_name, last_name].filter(Boolean).join(" ") || username || "Telegram User";
-  await auth.createUser({ uid, displayName });
+  try {
+    await auth.createUser({ uid, displayName });
+  } catch (err) {
+    // A prior attempt may have created the Auth user but failed before the
+    // Firestore doc was written (network blip, etc.) — pick up where it left
+    // off instead of failing the retry too.
+    if (err.code !== "auth/uid-already-exists") throw err;
+  }
 
   const uniqueUsername = await generateUniqueUsername(username || first_name || "user");
   const profile = {
@@ -357,7 +421,7 @@ async function createOrGetTelegramUser({ id, first_name, last_name, username, ph
     likesCount: 0,
     createdAt: Date.now(),
   };
-  await db.collection("users").doc(uid).set(profile);
+  await db.collection("users").doc(uid).set(profile, { merge: true });
   await autoFollowAdmin(uid, null);
   return uid;
 }
@@ -1768,6 +1832,7 @@ export {
   markEmailVerified,
   ensureGoogleUserProfile,
   verifyTelegramLoginPayload,
+  verifyTelegramIdToken,
   createOrGetTelegramUser,
   issueResetToken,
   consumeResetToken,

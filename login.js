@@ -775,21 +775,28 @@ function signInWithTelegram(){
     showError('Telegram sign-in is not available right now.');
     return;
   }
-  window.Telegram.Login.auth({ bot_id: TELEGRAM_BOT_ID, request_access: 'write' }, async (data) => {
-    if (!data) return; // popup closed / declined
-    const overlay = document.getElementById('pageOverlay');
-    document.getElementById('pageOverlayText').textContent = 'Signing in with Telegram…';
-    overlay.classList.add('show');
-    try {
-      const { customToken } = await postJSON('/api/telegram-auth', data);
-      const cred = await signInWithCustomToken(fbAuth, customToken);
-      const idToken = await cred.user.getIdToken();
-      await establishSession(idToken, true);
-    } catch (err) {
-      overlay.classList.remove('show');
-      showError(err.message);
+  // bot_id (legacy widget) and client_id (newer OIDC flow) are the same
+  // numeric value under two names — sending both covers whichever the
+  // loaded Telegram library expects.
+  window.Telegram.Login.auth(
+    { bot_id: TELEGRAM_BOT_ID, client_id: TELEGRAM_BOT_ID, request_access: 'write', scope: ['profile', 'write'] },
+    async (data) => {
+      if (!data) return; // popup closed / declined
+      if (data.error) { showError('Telegram sign-in was cancelled.'); return; }
+      const overlay = document.getElementById('pageOverlay');
+      document.getElementById('pageOverlayText').textContent = 'Signing in with Telegram…';
+      overlay.classList.add('show');
+      try {
+        const { customToken } = await postJSON('/api/telegram-auth', data);
+        const cred = await signInWithCustomToken(fbAuth, customToken);
+        const idToken = await cred.user.getIdToken();
+        await establishSession(idToken, true);
+      } catch (err) {
+        overlay.classList.remove('show');
+        showError(err.message);
+      }
     }
-  });
+  );
 }
 
 document.getElementById('tgSquareBtn').addEventListener('click', signInWithTelegram);

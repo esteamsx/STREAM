@@ -37,6 +37,7 @@ import {
   markEmailVerified,
   ensureGoogleUserProfile,
   verifyTelegramLoginPayload,
+  verifyTelegramIdToken,
   createOrGetTelegramUser,
   issueResetToken,
   consumeResetToken,
@@ -3578,12 +3579,34 @@ app.post("/api/verify-email", signupLimiter, async (req, res) => {
 app.post("/api/telegram-auth", loginLimiter, async (req, res) => {
   try {
     const data = req.body || {};
+    if (data.error) return res.status(400).json({ error: "Telegram sign-in was cancelled." });
+
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const botId = (botToken || "").split(":")[0];
     if (!botToken) return res.status(400).json({ error: "Telegram sign-in isn't configured." });
-    if (!verifyTelegramLoginPayload(data, botToken)) {
-      return res.status(401).json({ error: "Could not verify Telegram login." });
+
+    let tgUser;
+    if (data.id_token) {
+      // Telegram's newer OIDC-based login flow: user info arrives inside a
+      // signed id_token instead of the classic hash-signed fields.
+      const claims = await verifyTelegramIdToken(data.id_token, botId);
+      if (!claims) return res.status(401).json({ error: "Could not verify Telegram login." });
+      tgUser = {
+        id: claims.id,
+        first_name: claims.given_name || (claims.name || "").split(" ")[0] || "",
+        last_name: claims.family_name || (claims.name || "").split(" ").slice(1).join(" "),
+        username: claims.preferred_username || "",
+        photo_url: claims.picture || null,
+      };
+    } else {
+      // Legacy widget flow: fields are signed together with an HMAC hash.
+      if (!verifyTelegramLoginPayload(data, botToken)) {
+        return res.status(401).json({ error: "Could not verify Telegram login." });
+      }
+      tgUser = data;
     }
-    const uid = await createOrGetTelegramUser(data);
+
+    const uid = await createOrGetTelegramUser(tgUser);
     const customToken = await firebaseAuth.createCustomToken(uid);
     res.json({ customToken });
   } catch (err) {
