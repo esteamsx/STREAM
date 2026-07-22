@@ -36,6 +36,8 @@ import {
   seedWatchSecondsIfEmpty,
   markEmailVerified,
   ensureGoogleUserProfile,
+  verifyTelegramLoginPayload,
+  createOrGetTelegramUser,
   issueResetToken,
   consumeResetToken,
   createSession,
@@ -160,6 +162,9 @@ const authPageConfig = {
     appId: process.env.FIREBASE_APP_ID,
   },
   googleClientId: process.env.GOOGLE_CLIENT_ID,
+  // Telegram Login Widget identifies the bot by its numeric ID, which is just
+  // the part of the bot token before the colon — no separate env var needed.
+  telegramBotId: (process.env.TELEGRAM_BOT_TOKEN || "").split(":")[0] || "",
   devToolsBlock: "",
   protectionCSS: "",
 };
@@ -3566,6 +3571,27 @@ app.post("/api/verify-email", signupLimiter, async (req, res) => {
   }
 });
 
+// Telegram Login Widget: the browser gets signed user data straight from
+// Telegram, we just verify it wasn't tampered with, then find/create the
+// account and hand back a custom token (same shape as /api/signup's success
+// path). No email or password is ever required for this provider.
+app.post("/api/telegram-auth", loginLimiter, async (req, res) => {
+  try {
+    const data = req.body || {};
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) return res.status(400).json({ error: "Telegram sign-in isn't configured." });
+    if (!verifyTelegramLoginPayload(data, botToken)) {
+      return res.status(401).json({ error: "Could not verify Telegram login." });
+    }
+    const uid = await createOrGetTelegramUser(data);
+    const customToken = await firebaseAuth.createCustomToken(uid);
+    res.json({ customToken });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not sign in with Telegram." });
+  }
+});
+
 app.post("/api/session", loginLimiter, async (req, res) => {
   try {
     const { idToken, remember, altcha } = req.body;
@@ -4167,6 +4193,7 @@ app.post("/api/request-password-change", requireAuth, async (req, res) => {
     const profile = await getUserProfile(req.uid);
     if (!profile) return res.status(404).json({ error: "Profile not found." });
     if (profile.provider === "google") return res.status(400).json({ error: "Google accounts don't have a password here." });
+    if (profile.provider === "telegram") return res.status(400).json({ error: "Telegram accounts don't have a password here." });
     const { provider } = await issueCode(req.uid, profile.email, "password_reset");
     res.json({ ok: true, provider });
   } catch (err) {
@@ -4187,6 +4214,45 @@ app.post("/api/change-password", resetLimiter, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not update password." });
+  }
+});
+
+app.post("/api/account/request-email", requireAuth, async (req, res) => {
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const domain = (email.split("@")[1] || "").toLowerCase();
+    if (!ALLOWED_EMAIL_DOMAINS.includes(domain)) return res.status(400).json({ error: "Please enter a valid email address." });
+    const profile = await getUserProfile(req.uid);
+    if (!profile) return res.status(404).json({ error: "Profile not found." });
+    const existing = await firebaseAuth.getUserByEmail(email).catch(() => null);
+    if (existing && existing.uid !== req.uid) return res.status(400).json({ error: "That email is already in use by another account." });
+    await issueCode(req.uid, email, "add_email");
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not send code." });
+  }
+});
+
+app.post("/api/account/confirm-email", requireAuth, async (req, res) => {
+  try {
+    const { code } = req.body;
+    const result = await checkCode(req.uid, "add_email", code);
+    if (!result.ok) {
+      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", not_found: "Code expired. Request a new one." };
+      return res.status(400).json({ error: messages[result.reason] || "Invalid code." });
+    }
+    const email = result.email;
+    // Re-check right before committing — the address could have been claimed
+    // by someone else while this code was sitting unverified.
+    const existing = await firebaseAuth.getUserByEmail(email).catch(() => null);
+    if (existing && existing.uid !== req.uid) return res.status(400).json({ error: "That email was just claimed by another account." });
+    await firebaseAuth.updateUser(req.uid, { email, emailVerified: true });
+    await updateUserProfile(req.uid, { email, emailVerified: true });
+    res.json({ ok: true, email });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not verify code." });
   }
 });
 

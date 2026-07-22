@@ -180,6 +180,11 @@ input{font-family:inherit}
 }
 .pf-info-card input{background:rgba(0,0,0,.28);color:var(--muted);cursor:not-allowed}
 :root[data-theme="light"] .pf-info-card input{background:rgba(0,0,0,.06)}
+.acc-inline-link{
+  display:inline-block;background:transparent;border:none;color:var(--muted);font-size:.72rem;font-weight:600;
+  text-decoration:underline;margin-top:6px;cursor:pointer;padding:0;
+}
+.acc-inline-link:hover{color:var(--accent)}
 
 .pf-card{
   background:var(--card);border:1px solid var(--border);border-radius:16px;padding:26px 20px;
@@ -2186,6 +2191,12 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
   // Read-only Profile Information — mirrors Account Settings, edits happen there only.
   const infoCard = document.createElement('div');
   infoCard.className = 'acc-card pf-info-card';
+  const emailFieldHtml = profile.email
+    ? '<div class="field"><label>Email</label><input type="email" value="' + profile.email.replace(/"/g, '&quot;') + '" disabled></div>'
+    : profile.telegramId
+      ? '<div class="field"><label>Telegram ID</label><input type="text" value="' + String(profile.telegramId).replace(/"/g, '&quot;') + '" disabled>' +
+        '<a href="/account#addEmail" class="acc-inline-link">Add Email</a></div>'
+      : '<div class="field"><label>Email</label><input type="email" value="" disabled></div>';
   infoCard.innerHTML =
     '<div class="acc-card-title">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' +
@@ -2196,7 +2207,7 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
       '<div class="field"><label>First Name</label><input type="text" value="' + (profile.firstName || '').replace(/"/g, '&quot;') + '" disabled></div>' +
       '<div class="field"><label>Last Name</label><input type="text" value="' + (profile.lastName || '').replace(/"/g, '&quot;') + '" disabled></div>' +
     '</div>' +
-    '<div class="field"><label>Email</label><input type="email" value="' + (profile.email || '').replace(/"/g, '&quot;') + '" disabled></div>';
+    emailFieldHtml;
   document.getElementById('pfInfoSlot').appendChild(infoCard);
 
   const hint = document.createElement('div');

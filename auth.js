@@ -61,7 +61,7 @@ async function checkCode(uid, purpose, code) {
   }
   if (data.code !== code) return { ok: false, reason: "mismatch" };
   await ref.delete();
-  return { ok: true };
+  return { ok: true, email: data.email };
 }
 
 async function createUserAccount({ firstName, lastName, email, password, username }) {
@@ -303,6 +303,63 @@ async function ensureGoogleUserProfile(decodedToken) {
   await db.collection("users").doc(uid).set(profile);
   await autoFollowAdmin(uid, profile.email);
   return profile;
+}
+
+// ── Telegram Login Widget: verifies the payload's signature against the bot
+// token per Telegram's documented algorithm, then finds or creates the
+// matching account. No email or password is ever required for this path.
+function verifyTelegramLoginPayload(data, botToken) {
+  if (!botToken || !data || !data.hash || !data.id) return false;
+  const { hash, ...rest } = data;
+  const checkString = Object.keys(rest)
+    .sort()
+    .map((k) => `${k}=${rest[k]}`)
+    .join("\n");
+  const secret = crypto.createHash("sha256").update(botToken).digest();
+  const computedHash = crypto.createHmac("sha256", secret).update(checkString).digest("hex");
+  if (computedHash.length !== hash.length) return false;
+  if (!crypto.timingSafeEqual(Buffer.from(computedHash), Buffer.from(hash))) return false;
+  const authAge = Date.now() / 1000 - Number(data.auth_date || 0);
+  if (!(authAge >= 0) || authAge > 86400) return false; // reject stale/replayed logins
+  return true;
+}
+
+async function findUserByTelegramId(telegramId) {
+  const snap = await db.collection("users").where("telegramId", "==", String(telegramId)).limit(1).get();
+  if (snap.empty) return null;
+  return { uid: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+// Finds the account for this Telegram ID, or creates one. Firebase Auth users
+// created here have no email/password — the Telegram ID is the identifier —
+// so this mirrors createUserAccount/ensureGoogleUserProfile but stays passwordless.
+async function createOrGetTelegramUser({ id, first_name, last_name, username, photo_url }) {
+  const telegramId = String(id);
+  const existing = await findUserByTelegramId(telegramId);
+  if (existing) return existing.uid;
+
+  const uid = `tg_${telegramId}`;
+  const displayName = [first_name, last_name].filter(Boolean).join(" ") || username || "Telegram User";
+  await auth.createUser({ uid, displayName });
+
+  const uniqueUsername = await generateUniqueUsername(username || first_name || "user");
+  const profile = {
+    firstName: first_name || "",
+    lastName: last_name || "",
+    username: uniqueUsername,
+    provider: "telegram",
+    telegramId,
+    telegramUsername: username || "",
+    photoURL: photo_url || null,
+    emailVerified: false,
+    followersCount: 0,
+    followingCount: 0,
+    likesCount: 0,
+    createdAt: Date.now(),
+  };
+  await db.collection("users").doc(uid).set(profile);
+  await autoFollowAdmin(uid, null);
+  return uid;
 }
 
 async function issueResetToken(uid) {
@@ -1538,6 +1595,7 @@ function adminUserView(uid, data) {
     firstName: data.firstName || "",
     lastName: data.lastName || "",
     email: data.email || "",
+    telegramId: data.telegramId || "",
     photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
     isAdmin: isAdminEmail(data.email),
     banned: !!data.banned,
@@ -1564,14 +1622,24 @@ async function adminListUsers({ cursor } = {}) {
 async function adminSearchUsers(query) {
   const q = String(query || "").trim().toLowerCase();
   if (!q) return [];
-  const snap = await db.collection("users")
+  const usernameSnap = await db.collection("users")
     .where("username", ">=", q)
     .where("username", "<=", q + "\uf8ff")
     .limit(20)
     .get();
-  return snap.docs
+  const results = new Map();
+  usernameSnap.docs
     .filter((d) => d.data().username && !d.data().pendingDeletion && !isAdminEmail(d.data().email) && !d.data().banned)
-    .map((d) => adminUserView(d.id, d.data()));
+    .forEach((d) => results.set(d.id, adminUserView(d.id, d.data())));
+
+  // Telegram-only accounts have no email — let admins look them up by their numeric Telegram ID too.
+  if (/^\d+$/.test(q)) {
+    const tgSnap = await db.collection("users").where("telegramId", "==", q).limit(5).get();
+    tgSnap.docs
+      .filter((d) => !d.data().pendingDeletion && !isAdminEmail(d.data().email) && !d.data().banned)
+      .forEach((d) => results.set(d.id, adminUserView(d.id, d.data())));
+  }
+  return Array.from(results.values());
 }
 
 async function adminListBannedUsers() {
@@ -1699,6 +1767,8 @@ export {
   seedWatchSecondsIfEmpty,
   markEmailVerified,
   ensureGoogleUserProfile,
+  verifyTelegramLoginPayload,
+  createOrGetTelegramUser,
   issueResetToken,
   consumeResetToken,
   createSession,

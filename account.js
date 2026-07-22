@@ -102,6 +102,11 @@ input{font-family:inherit}
   padding:11px 13px;color:var(--text);font-size:.9rem;transition:border-color .2s var(--ease);
 }
 .field input:disabled{color:var(--muted);cursor:not-allowed}
+.acc-inline-link{
+  background:transparent;border:none;color:var(--muted);font-size:.72rem;font-weight:600;
+  text-decoration:underline;align-self:flex-start;cursor:pointer;padding:0;margin-top:2px;
+}
+.acc-inline-link:hover{color:var(--accent)}
 .pw-dead{background:var(--dark3) !important;opacity:.55;letter-spacing:2px}
 .field input:focus{border-color:var(--accent)}
 .input-wrap{position:relative}
@@ -482,8 +487,9 @@ input{font-family:inherit}
       <div class="alt-uname-msg" id="altUnameMsg"></div>
     </div>
     <div class="field">
-      <label>Email</label>
+      <label id="emailFieldLabel">Email</label>
       <input type="email" id="emailField" disabled>
+      <button type="button" class="acc-inline-link" id="addEmailLink" style="display:none">Add Email</button>
     </div>
     <button class="acc-btn" id="saveProfileBtn" style="margin-top:6px" disabled>Save Changes</button>
     <div class="acc-msg" id="profileMsg"></div>
@@ -767,6 +773,38 @@ input{font-family:inherit}
       <button class="acc-btn acc-btn-danger" id="confirmDeleteBtn" style="width:100%;border-color:var(--red)">Confirm Deletion</button>
       <button class="overlay-resend" id="deleteResend" disabled>Resend code (<span id="deleteResendWait">30</span>s)</button>
       <button class="overlay-cancel" id="cancelDelete2">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-overlay" id="addEmailOverlay">
+  <div class="overlay-card">
+    <div class="overlay-step active" id="addEmailStepInput">
+      <div class="overlay-title">Add Email</div>
+      <div class="overlay-sub">Add an email so you can also sign in and recover your account with it.</div>
+      <div class="field" style="margin-bottom:0">
+        <label>Email Address</label>
+        <input type="email" id="addEmailInput" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="acc-msg" id="addEmailInputMsg"></div>
+      <button class="acc-btn" id="addEmailSendBtn" style="width:100%">Send Code</button>
+      <button class="overlay-cancel" id="addEmailCancel1">Cancel</button>
+    </div>
+    <div class="overlay-step" id="addEmailStepCode">
+      <div class="overlay-title">Enter verification code</div>
+      <div class="overlay-sub">We sent a 6-digit code to<br><b id="addEmailCodeTarget"></b></div>
+      <div class="code-row">
+        <input class="code-digit" maxlength="1" inputmode="numeric" autocomplete="one-time-code">
+        <input class="code-digit" maxlength="1" inputmode="numeric">
+        <input class="code-digit" maxlength="1" inputmode="numeric">
+        <input class="code-digit" maxlength="1" inputmode="numeric">
+        <input class="code-digit" maxlength="1" inputmode="numeric">
+        <input class="code-digit" maxlength="1" inputmode="numeric">
+      </div>
+      <div class="acc-msg" id="addEmailCodeMsg"></div>
+      <button class="acc-btn" id="addEmailConfirmBtn" style="width:100%">Verify & Add</button>
+      <button class="overlay-resend" id="addEmailResend" disabled>Resend code (<span id="addEmailResendWait">30</span>s)</button>
+      <button class="overlay-cancel" id="addEmailCancel2">Cancel</button>
     </div>
   </div>
 </div>
@@ -1133,7 +1171,25 @@ async function loadProfile(){
   document.getElementById('firstName').value = profile.firstName || '';
   document.getElementById('lastName').value = profile.lastName || '';
   document.getElementById('username').value = profile.username || '';
-  document.getElementById('emailField').value = profile.email || '';
+  const emailField = document.getElementById('emailField');
+  const emailFieldLabel = document.getElementById('emailFieldLabel');
+  const addEmailLink = document.getElementById('addEmailLink');
+  if (profile.email) {
+    emailFieldLabel.textContent = 'Email';
+    emailField.type = 'email';
+    emailField.value = profile.email;
+    addEmailLink.style.display = 'none';
+  } else if (profile.telegramId) {
+    emailFieldLabel.textContent = 'Telegram ID';
+    emailField.type = 'text';
+    emailField.value = profile.telegramId;
+    addEmailLink.style.display = 'inline-block';
+  } else {
+    emailFieldLabel.textContent = 'Email';
+    emailField.type = 'email';
+    emailField.value = '';
+    addEmailLink.style.display = 'none';
+  }
 
   initAltUsernames();
 
@@ -1148,6 +1204,9 @@ async function loadProfile(){
       row.classList.add('flash-highlight');
       setTimeout(() => row.classList.remove('flash-highlight'), 1800);
     }, 350);
+  }
+  if (window.location.hash === '#addEmail' && addEmailLink.style.display !== 'none') {
+    document.getElementById('addEmailOverlay').classList.add('show');
   }
 }
 loadProfile();
@@ -1724,6 +1783,114 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
     btn.disabled = false;
     btn.textContent = 'Confirm Deletion';
   }
+});
+
+const addEmailOverlay = document.getElementById('addEmailOverlay');
+const addEmailStepInput = document.getElementById('addEmailStepInput');
+const addEmailStepCode = document.getElementById('addEmailStepCode');
+let addEmailResendInterval = null;
+
+function closeAddEmailOverlay(){
+  addEmailOverlay.classList.remove('show');
+  addEmailStepInput.classList.add('active');
+  addEmailStepCode.classList.remove('active');
+  document.getElementById('addEmailInput').value = '';
+  addEmailDigits.forEach(d => d.value = '');
+  if (addEmailResendInterval) clearInterval(addEmailResendInterval);
+}
+document.getElementById('addEmailCancel1').addEventListener('click', closeAddEmailOverlay);
+document.getElementById('addEmailCancel2').addEventListener('click', closeAddEmailOverlay);
+
+document.getElementById('addEmailLink').addEventListener('click', () => {
+  addEmailOverlay.classList.add('show');
+});
+
+document.getElementById('addEmailSendBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('addEmailSendBtn');
+  const msg = document.getElementById('addEmailInputMsg');
+  const email = document.getElementById('addEmailInput').value.trim();
+  if (!email || !email.includes('@')) { flashMsg(msg, 'Enter a valid email address.', false); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span>Sending code…';
+  try {
+    await postJSON('/api/account/request-email', { email });
+    document.getElementById('addEmailCodeTarget').textContent = email;
+    addEmailStepInput.classList.remove('active');
+    addEmailStepCode.classList.add('active');
+    startAddEmailResendCooldown();
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Send Code';
+});
+
+const addEmailDigits = Array.from(document.querySelectorAll('#addEmailStepCode .code-digit'));
+addEmailDigits.forEach((d, i) => {
+  d.addEventListener('input', () => {
+    d.value = d.value.replace(/[^0-9]/g, '');
+    if (d.value && i < addEmailDigits.length - 1) addEmailDigits[i + 1].focus();
+  });
+  d.addEventListener('keydown', (e) => {
+    if (e.key === 'Backspace' && !d.value && i > 0) addEmailDigits[i - 1].focus();
+  });
+  d.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData.getData('text') || '').replace(/[^0-9]/g, '').slice(0, 6);
+    text.split('').forEach((ch, idx) => { if (addEmailDigits[idx]) addEmailDigits[idx].value = ch; });
+    if (addEmailDigits[text.length - 1]) addEmailDigits[text.length - 1].focus();
+  });
+});
+
+function startAddEmailResendCooldown(){
+  let wait = 30;
+  const resendBtn = document.getElementById('addEmailResend');
+  resendBtn.disabled = true;
+  resendBtn.textContent = 'Resend code (30s)';
+  if (addEmailResendInterval) clearInterval(addEmailResendInterval);
+  addEmailResendInterval = setInterval(() => {
+    wait--;
+    if (wait <= 0) { clearInterval(addEmailResendInterval); resendBtn.disabled = false; resendBtn.textContent = 'Resend code'; }
+    else { resendBtn.textContent = 'Resend code (' + wait + 's)'; }
+  }, 1000);
+}
+
+document.getElementById('addEmailResend').addEventListener('click', async () => {
+  const msg = document.getElementById('addEmailCodeMsg');
+  const email = document.getElementById('addEmailCodeTarget').textContent;
+  const resendBtn = document.getElementById('addEmailResend');
+  resendBtn.disabled = true;
+  try {
+    await postJSON('/api/account/request-email', { email });
+    startAddEmailResendCooldown();
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+    resendBtn.disabled = false;
+  }
+});
+
+document.getElementById('addEmailConfirmBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('addEmailConfirmBtn');
+  const msg = document.getElementById('addEmailCodeMsg');
+  const code = addEmailDigits.map(d => d.value).join('');
+  if (code.length !== 6) { flashMsg(msg, 'Enter all 6 digits.', false); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span>Verifying…';
+  try {
+    const result = await postJSON('/api/account/confirm-email', { code });
+    profile.email = result.email;
+    document.getElementById('emailFieldLabel').textContent = 'Email';
+    const emailField = document.getElementById('emailField');
+    emailField.type = 'email';
+    emailField.value = result.email;
+    document.getElementById('addEmailLink').style.display = 'none';
+    closeAddEmailOverlay();
+    flashMsg(document.getElementById('profileMsg'), 'Email added.', true);
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Verify & Add';
 });
 
 document.getElementById('tfaHeader').addEventListener('click', () => {
