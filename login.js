@@ -897,6 +897,25 @@ async function signInWithPasskey(){
 }
 
 document.getElementById('passkeyInlineBtn').addEventListener('click', signInWithPasskey);
+
+// Pre-flight capability check, run once on load. If this browser/webview
+// doesn't genuinely support WebAuthn (common in some in-app browsers, e.g.
+// opening this link from inside Telegram or another app's built-in
+// browser), disable the button up front with an honest label instead of
+// letting someone tap it and hit a confusing crash.
+(async function checkPasskeySupport(){
+  const btn = document.getElementById('passkeyInlineBtn');
+  try {
+    if (!window.PublicKeyCredential) throw new Error('unsupported');
+    const platformOk = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
+    if (!platformOk) throw new Error('unsupported');
+  } catch {
+    btn.disabled = true;
+    btn.style.opacity = '.45';
+    btn.style.cursor = 'not-allowed';
+    btn.title = 'Passkeys are not available in this browser — try Chrome, Safari, or Edge directly (not an in-app browser).';
+  }
+})();
 document.getElementById('troublePasskeyBtn').addEventListener('click', () => {
   troubleSigningOverlay.classList.remove('show');
   signInWithPasskey();

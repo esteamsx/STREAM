@@ -79,6 +79,14 @@ input{font-family:inherit}
 .verified-badge{display:inline-flex;vertical-align:middle;margin-left:4px;position:relative;top:-1px}
 .acc-hero-email{font-size:.8rem;color:var(--muted);margin-top:2px}
 
+.acc-verify-link{
+  display:flex;align-items:center;gap:5px;flex-shrink:0;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;
+  font-size:.72rem;font-weight:700;padding:7px 12px;border-radius:20px;text-decoration:none;
+  transition:transform .15s var(--ease),box-shadow .15s var(--ease);
+}
+.acc-verify-link:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,224,255,.25)}
+
 .acc-settings-icon{
   background:transparent;border:none;color:var(--muted);display:flex;align-items:center;justify-content:center;
   width:40px;height:40px;border-radius:8px;cursor:pointer;transition:all .2s var(--ease);flex-shrink:0;
@@ -405,6 +413,10 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="acc-hero-name" id="heroName">Hi, –</div>
       <div class="acc-hero-email" id="heroEmail">–</div>
     </div>
+    <a class="acc-verify-link" id="getVerifiedLink" href="https://telegram.me/examsolutionteam" target="_blank" rel="noopener noreferrer" style="display:none">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
+      Get Verified
+    </a>
     <button class="acc-settings-icon" id="themeToggle" aria-label="Toggle theme">
       <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -1169,6 +1181,9 @@ async function loadProfile(){
   }
   
   document.getElementById('heroName').innerHTML = 'Hi, ' + profile.firstName + ((profile.isAdmin || profile.verified) ? VERIFIED_BADGE : '');
+  // Verified users (and admins, who always carry the badge) already have
+  // the badge — no reason to prompt them to go get verified again.
+  document.getElementById('getVerifiedLink').style.display = (profile.isAdmin || profile.verified) ? 'none' : 'flex';
   updateHeroIdentity();
   document.getElementById('firstName').value = profile.firstName || '';
   document.getElementById('lastName').value = profile.lastName || '';
