@@ -954,6 +954,12 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
     }
 
     // Verify the authentication response
+    // NOTE: @simplewebauthn/server v10's `credential.id` must be the
+    // base64url STRING (its type is `Base64URLString`), not raw bytes —
+    // only `publicKey` is binary. Passing the decoded Buffer here (as this
+    // previously did) breaks the library's internal base64url handling and
+    // is what was surfacing client-side as "Cannot read properties of
+    // undefined (reading 'replace')".
     let verification;
     try {
       verification = await verifyAuthenticationResponse({
@@ -962,7 +968,7 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
         expectedOrigin: origin,
         expectedRPID: rpID,
         credential: {
-          id: credentialIdBinary,
+          id: credentialIdString,
           publicKey: publicKeyBinary,
           counter: Number(credData.counter) || 0,
           transports: Array.isArray(credData.transports) ? credData.transports : [],

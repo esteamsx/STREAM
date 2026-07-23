@@ -159,6 +159,15 @@ input{font-family:inherit}
 .provider-btn:hover{border-color:var(--accent);transform:translateY(-1px)}
 .provider-btn svg{flex-shrink:0}
 
+.provider-btn-inline{
+  display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
+  padding:10px;color:var(--text);font-weight:600;font-size:.8rem;letter-spacing:.01em;
+  margin-top:10px;transition:border-color .15s var(--ease),transform .15s var(--ease);
+}
+.provider-btn-inline:hover{border-color:var(--accent);transform:translateY(-1px)}
+.provider-btn-inline svg{flex-shrink:0}
+
 .auth-error{
   background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.3);color:var(--red);
   font-size:.8rem;padding:10px 12px;border-radius:8px;display:none;
@@ -256,14 +265,17 @@ body:has(.page-overlay.show){overflow:hidden}
       </label>
       <button type="submit" class="auth-submit" id="loginSubmit" disabled>Sign In</button>
 
+      <button type="button" class="provider-btn-inline" id="passkeyInlineBtn" aria-label="Sign in with a passkey">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 18v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="8" cy="7" r="4"/><path d="M15 8h5m-2 0v4"/></svg>
+        Login with Passkey
+      </button>
+      <!-- Next up: a matching GitHub button goes here once that provider is wired in. -->
+
       <div class="auth-divider">OR</div>
       <div class="social-row">
         <div class="gsi-wrap" id="gsiWrap"></div>
         <button type="button" class="social-box" id="tgSquareBtn" aria-label="Continue with Telegram">
           <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#229ED9"/><path d="M35 14L12 23.5c-1.3.5-1.3 1.3-.2 1.6l5.9 1.8 2.3 7c.3.7.6 1 1.2 1 .5 0 .8-.2 1.1-.5l3.1-3 6.1 4.5c1.1.6 1.9.3 2.2-1l4-18.8c.4-1.6-.5-2.3-1.7-1.7z" fill="#fff"/></svg>
-        </button>
-        <button type="button" class="social-box" id="passkeySquareBtn" aria-label="Sign in with a passkey">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 18v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="8" cy="7" r="4"/><path d="M15 8h5m-2 0v4"/></svg>
         </button>
       </div>
 
@@ -870,7 +882,7 @@ async function signInWithPasskey(){
   }
 }
 
-document.getElementById('passkeySquareBtn').addEventListener('click', signInWithPasskey);
+document.getElementById('passkeyInlineBtn').addEventListener('click', signInWithPasskey);
 document.getElementById('troublePasskeyBtn').addEventListener('click', () => {
   troubleSigningOverlay.classList.remove('show');
   signInWithPasskey();

@@ -554,11 +554,11 @@ body:has(.page-overlay.show){overflow:hidden}
         <div id="passkeyAddRow">
           <div class="field" style="margin-bottom:10px">
             <label>Name this passkey</label>
-            <input type="text" id="passkeyNameInput" placeholder="e.g. My iPhone" maxlength="40" disabled>
+            <input type="text" id="passkeyNameInput" placeholder="e.g. My iPhone" maxlength="40">
           </div>
-          <button class="tfa-setup-btn" id="addPasskeyBtn" disabled style="opacity:.5;cursor:not-allowed">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Coming Soon
+          <button class="tfa-setup-btn" id="addPasskeyBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 18v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="8" cy="7" r="4"/><path d="M15 8h5m-2 0v4"/></svg>
+            Add Passkey
           </button>
         </div>
         <div id="passkeyMaxMsg" style="display:none;font-size:.76rem;color:var(--muted);text-align:center;padding:8px 0">Maximum of 3 passkeys reached. Delete one to add another.</div>

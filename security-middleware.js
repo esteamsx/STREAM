@@ -29,6 +29,12 @@ import helmet from "helmet";
 export const helmetMiddleware = helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false, // would block loading channel logos/streams from other origins
+  // Helmet's default here is "same-origin", which silently breaks Google
+  // Sign-In: the Google popup can't postMessage back to window.opener once
+  // this is on, so the button looks like it's "stuck" right after picking
+  // an account. "same-origin-allow-popups" keeps the COOP protection for
+  // everything else while still letting that one popup talk back to us.
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
 });
 
 /* ───────────────────────────────────────────────
