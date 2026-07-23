@@ -195,7 +195,7 @@ input{font-family:inherit}
     <div class="ad-card-body"><div class="ad-card-body-inner">
       <div class="ad-search-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>
-        <input type="text" id="userSearchInput" placeholder="Search by username or Telegram ID…" autocomplete="off">
+        <input type="text" id="userSearchInput" placeholder="Search by username, Telegram ID, or GitHub…" autocomplete="off">
       </div>
       <div class="ad-list" id="usersList"></div>
       <button type="button" class="ad-loadmore" id="usersLoadMore" style="display:none">Load more</button>
@@ -223,7 +223,7 @@ input{font-family:inherit}
     <div class="ad-card-body"><div class="ad-card-body-inner">
       <div class="ad-search-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>
-        <input type="text" id="verifySearchInput" placeholder="Search by username or Telegram ID…" autocomplete="off">
+        <input type="text" id="verifySearchInput" placeholder="Search by username, Telegram ID, or GitHub…" autocomplete="off">
       </div>
       <div class="ad-list" id="verifyList"></div>
       <button type="button" class="ad-loadmore" id="verifyLoadMore" style="display:none">Load more</button>
@@ -360,7 +360,7 @@ function renderUserRow(u){
   name.innerHTML = '<span>' + (((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
   const email = document.createElement('div');
   email.className = 'ad-row-email';
-  email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : '');
+  email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : (u.githubLogin ? 'GitHub: @' + u.githubLogin : ''));
   info.appendChild(name);
   info.appendChild(email);
 
@@ -415,7 +415,7 @@ function renderBannedRow(u){
   name.innerHTML = '<span>' + (((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>';
   const email = document.createElement('div');
   email.className = 'ad-row-email';
-  email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : '');
+  email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : (u.githubLogin ? 'GitHub: @' + u.githubLogin : ''));
   info.appendChild(name);
   info.appendChild(email);
 
@@ -453,7 +453,7 @@ function renderVerifyRow(u){
   name.innerHTML = '<span>' + (((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
   const email = document.createElement('div');
   email.className = 'ad-row-email';
-  email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : '');
+  email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : (u.githubLogin ? 'GitHub: @' + u.githubLogin : ''));
   info.appendChild(name);
   info.appendChild(email);
 

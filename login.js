@@ -265,17 +265,17 @@ body:has(.page-overlay.show){overflow:hidden}
       </label>
       <button type="submit" class="auth-submit" id="loginSubmit" disabled>Sign In</button>
 
-      <button type="button" class="provider-btn-inline" id="passkeyInlineBtn" aria-label="Sign in with a passkey">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 18v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="8" cy="7" r="4"/><path d="M15 8h5m-2 0v4"/></svg>
-        Login with Passkey
-      </button>
-      <!-- Next up: a matching GitHub button goes here once that provider is wired in. -->
-
       <div class="auth-divider">OR</div>
       <div class="social-row">
         <div class="gsi-wrap" id="gsiWrap"></div>
         <button type="button" class="social-box" id="tgSquareBtn" aria-label="Continue with Telegram">
           <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#229ED9"/><path d="M35 14L12 23.5c-1.3.5-1.3 1.3-.2 1.6l5.9 1.8 2.3 7c.3.7.6 1 1.2 1 .5 0 .8-.2 1.1-.5l3.1-3 6.1 4.5c1.1.6 1.9.3 2.2-1l4-18.8c.4-1.6-.5-2.3-1.7-1.7z" fill="#fff"/></svg>
+        </button>
+        <button type="button" class="social-box" id="ghSquareBtn" aria-label="Continue with GitHub">
+          <svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r="12" fill="#181717"/><path fill="#fff" d="M12 5.3a6.7 6.7 0 00-2.12 13.06c.34.06.46-.15.46-.32v-1.25c-1.87.4-2.26-.8-2.26-.8-.31-.77-.75-.98-.75-.98-.61-.42.05-.41.05-.41.68.05 1.03.7 1.03.7.6 1.02 1.57.72 1.95.55.06-.43.24-.72.43-.89-1.49-.17-3.06-.75-3.06-3.32 0-.73.26-1.33.7-1.8-.07-.17-.3-.87.07-1.81 0 0 .57-.18 1.87.69a6.5 6.5 0 013.4 0c1.3-.87 1.87-.69 1.87-.69.37.94.14 1.64.07 1.81.44.47.7 1.07.7 1.8 0 2.58-1.58 3.15-3.08 3.31.24.21.46.63.46 1.27v1.88c0 .17.11.38.47.32A6.7 6.7 0 0012 5.3z"/></svg>
+        </button>
+        <button type="button" class="social-box" id="pkSquareBtn" aria-label="Sign in with a passkey">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 18v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="8" cy="7" r="4"/><path d="M15 8h5m-2 0v4"/></svg>
         </button>
       </div>
 
@@ -348,6 +348,10 @@ body:has(.page-overlay.show){overflow:hidden}
     <button type="button" class="provider-btn" id="troubleTelegramBtn">
       <svg viewBox="0 0 48 48" width="18" height="18"><circle cx="24" cy="24" r="24" fill="#229ED9"/><path d="M35 14L12 23.5c-1.3.5-1.3 1.3-.2 1.6l5.9 1.8 2.3 7c.3.7.6 1 1.2 1 .5 0 .8-.2 1.1-.5l3.1-3 6.1 4.5c1.1.6 1.9.3 2.2-1l4-18.8c.4-1.6-.5-2.3-1.7-1.7z" fill="#fff"/></svg>
       SIGN IN WITH TELEGRAM
+    </button>
+    <button type="button" class="provider-btn" id="troubleGithubBtn">
+      <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="12" fill="#181717"/><path fill="#fff" d="M12 5.3a6.7 6.7 0 00-2.12 13.06c.34.06.46-.15.46-.32v-1.25c-1.87.4-2.26-.8-2.26-.8-.31-.77-.75-.98-.75-.98-.61-.42.05-.41.05-.41.68.05 1.03.7 1.03.7.6 1.02 1.57.72 1.95.55.06-.43.24-.72.43-.89-1.49-.17-3.06-.75-3.06-3.32 0-.73.26-1.33.7-1.8-.07-.17-.3-.87.07-1.81 0 0 .57-.18 1.87.69a6.5 6.5 0 013.4 0c1.3-.87 1.87-.69 1.87-.69.37.94.14 1.64.07 1.81.44.47.7 1.07.7 1.8 0 2.58-1.58 3.15-3.08 3.31.24.21.46.63.46 1.27v1.88c0 .17.11.38.47.32A6.7 6.7 0 0012 5.3z"/></svg>
+      SIGN IN WITH GITHUB
     </button>
     <button type="button" class="provider-btn" id="troublePasskeyBtn">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 18v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="8" cy="7" r="4"/><path d="M15 8h5m-2 0v4"/></svg>
@@ -801,6 +805,22 @@ function signInWithTelegram(){
 
 document.getElementById('tgSquareBtn').addEventListener('click', signInWithTelegram);
 
+const GITHUB_CONFIGURED = ${JSON.stringify(!!cfg.githubConfigured)};
+
+function signInWithGithub(){
+  clearError();
+  if (!GITHUB_CONFIGURED) {
+    showError('GitHub sign-in is not available right now.');
+    return;
+  }
+  // Same plain full-page redirect as Telegram — GitHub's own hosted
+  // authorization page handles the approval UX, then sends the browser
+  // back to us with a code.
+  window.location.href = '/api/github-auth/start';
+}
+
+document.getElementById('ghSquareBtn').addEventListener('click', signInWithGithub);
+
 // If we just got bounced back from /api/telegram-auth/callback, finish the
 // sign-in (or show why it failed) and scrub the token out of the URL bar
 // immediately so it doesn't linger in history.
@@ -834,6 +854,37 @@ document.getElementById('tgSquareBtn').addEventListener('click', signInWithTeleg
   })();
 })();
 
+// Same handling as the Telegram block above, for /api/github-auth/callback.
+(function(){
+  const params = new URLSearchParams(window.location.search);
+  const ghToken = params.get('gh_token');
+  const ghError = params.get('gh_error');
+  if (!ghToken && !ghError) return;
+
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete('gh_token');
+  cleanUrl.searchParams.delete('gh_error');
+  window.history.replaceState({}, '', cleanUrl.toString());
+
+  if (ghError) {
+    showError(ghError);
+    return;
+  }
+  (async () => {
+    const overlay = document.getElementById('pageOverlay');
+    document.getElementById('pageOverlayText').textContent = 'Signing in with GitHub…';
+    overlay.classList.add('show');
+    try {
+      const cred = await signInWithCustomToken(fbAuth, ghToken);
+      const idToken = await cred.user.getIdToken();
+      await establishSession(idToken, true);
+    } catch (err) {
+      overlay.classList.remove('show');
+      showError(err.message);
+    }
+  })();
+})();
+
 const troubleSigningOverlay = document.getElementById('troubleSigningOverlay');
 document.getElementById('troubleSigningLink').addEventListener('click', () => {
   clearError();
@@ -856,6 +907,10 @@ document.getElementById('troubleGoogleBtn').addEventListener('click', () => {
 document.getElementById('troubleTelegramBtn').addEventListener('click', () => {
   troubleSigningOverlay.classList.remove('show');
   signInWithTelegram();
+});
+document.getElementById('troubleGithubBtn').addEventListener('click', () => {
+  troubleSigningOverlay.classList.remove('show');
+  signInWithGithub();
 });
 
 async function signInWithPasskey(){
@@ -896,7 +951,7 @@ async function signInWithPasskey(){
   }
 }
 
-document.getElementById('passkeyInlineBtn').addEventListener('click', signInWithPasskey);
+document.getElementById('pkSquareBtn').addEventListener('click', signInWithPasskey);
 
 // Pre-flight capability check, run once on load. If this browser/webview
 // doesn't genuinely support WebAuthn (common in some in-app browsers, e.g.
@@ -904,7 +959,7 @@ document.getElementById('passkeyInlineBtn').addEventListener('click', signInWith
 // browser), disable the button up front with an honest label instead of
 // letting someone tap it and hit a confusing crash.
 (async function checkPasskeySupport(){
-  const btn = document.getElementById('passkeyInlineBtn');
+  const btn = document.getElementById('pkSquareBtn');
   try {
     if (!window.PublicKeyCredential) throw new Error('unsupported');
     const platformOk = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);

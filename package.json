@@ -9,9 +9,10 @@
     "obfuscate:admin": "javascript-obfuscator admin.js --output dist/admin.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
     "obfuscate:account": "javascript-obfuscator account.js --output dist/account.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
     "obfuscate:profile": "javascript-obfuscator profile.js --output dist/profile.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
+    "obfuscate:login": "javascript-obfuscator login.js --output dist/login.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
     "obfuscate:lock": "javascript-obfuscator lock.js --output dist/lock.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
     "obfuscate:security": "javascript-obfuscator security-middleware.js --output dist/security-middleware.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
-    "obfuscate:all": "npm run obfuscate:server && npm run obfuscate:admin && npm run obfuscate:account && npm run obfuscate:profile && npm run obfuscate:lock && npm run obfuscate:security"
+    "obfuscate:all": "npm run obfuscate:server && npm run obfuscate:admin && npm run obfuscate:account && npm run obfuscate:profile && npm run obfuscate:login && npm run obfuscate:lock && npm run obfuscate:security"
   },
   "devDependencies": {
     "javascript-obfuscator": "^4.1.1"

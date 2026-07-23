@@ -48,6 +48,9 @@ import {
   createOrGetTelegramUser,
   saveTelegramOAuthState,
   consumeTelegramOAuthState,
+  createOrGetGithubUser,
+  saveGithubOAuthState,
+  consumeGithubOAuthState,
   issueResetToken,
   consumeResetToken,
   createSession,
@@ -200,6 +203,9 @@ const authPageConfig = {
   // now a plain redirect to our own /api/telegram-auth/start, so this just
   // tells the page whether to show the Telegram button at all.
   telegramConfigured: !!(process.env.TELEGRAM_CLIENT_ID && process.env.TELEGRAM_CLIENT_SECRET),
+  // Same idea as telegramConfigured above — the page just needs to know
+  // whether to show the button, the actual client ID stays server-side.
+  githubConfigured: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
   // Blocks the "hold to reveal link" callout/context menu on links, buttons,
   // and images. -webkit-touch-callout covers iOS Safari's native long-press
   // menu; the contextmenu listener covers Android Chrome, which fires that
@@ -3770,6 +3776,98 @@ app.get("/api/telegram-auth/callback", loginLimiter, async (req, res) => {
   }
 });
 
+// GitHub OAuth: standard authorization-code redirect flow, same shape as
+// the Telegram flow above (state stored server-side, one-time use,
+// self-expiring). GitHub OAuth Apps are confidential clients so the code
+// exchange uses a client secret instead of PKCE.
+const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
+const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || "";
+const GITHUB_REDIRECT_URI = "https://esteamstv.devs.surf/api/github-auth/callback";
+
+app.get("/api/github-auth/start", loginLimiter, async (req, res) => {
+  try {
+    if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
+      return res.redirect("/login?gh_error=" + encodeURIComponent("GitHub sign-in isn't configured."));
+    }
+    const state = crypto.randomBytes(16).toString("hex");
+    await saveGithubOAuthState(state);
+
+    const url = new URL("https://github.com/login/oauth/authorize");
+    url.searchParams.set("client_id", GITHUB_CLIENT_ID);
+    url.searchParams.set("redirect_uri", GITHUB_REDIRECT_URI);
+    url.searchParams.set("scope", "read:user user:email");
+    url.searchParams.set("state", state);
+    res.redirect(url.toString());
+  } catch (err) {
+    console.error(err);
+    res.redirect("/login?gh_error=" + encodeURIComponent("Could not start GitHub sign-in."));
+  }
+});
+
+app.get("/api/github-auth/callback", loginLimiter, async (req, res) => {
+  try {
+    const { code, state, error } = req.query;
+    if (error) return res.redirect("/login?gh_error=" + encodeURIComponent("GitHub sign-in was cancelled."));
+    if (!code || !state) return res.redirect("/login?gh_error=" + encodeURIComponent("Invalid GitHub response."));
+
+    const stateValid = await consumeGithubOAuthState(String(state));
+    if (!stateValid) {
+      return res.redirect("/login?gh_error=" + encodeURIComponent("This GitHub sign-in link expired. Please try again."));
+    }
+
+    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        client_id: GITHUB_CLIENT_ID,
+        client_secret: GITHUB_CLIENT_SECRET,
+        code: String(code),
+        redirect_uri: GITHUB_REDIRECT_URI,
+      }),
+    });
+    const tokenData = await tokenRes.json().catch(() => null);
+    if (!tokenData || !tokenData.access_token) {
+      return res.redirect("/login?gh_error=" + encodeURIComponent("Could not complete GitHub sign-in."));
+    }
+
+    const ghHeaders = {
+      Authorization: `Bearer ${tokenData.access_token}`,
+      Accept: "application/vnd.github+json",
+      "User-Agent": "ES-TEAMS-TV",
+    };
+    const userRes = await fetch("https://api.github.com/user", { headers: ghHeaders });
+    const ghUser = await userRes.json().catch(() => null);
+    if (!ghUser || !ghUser.id) {
+      return res.redirect("/login?gh_error=" + encodeURIComponent("Could not verify GitHub login."));
+    }
+
+    // Public profile email is often null (many devs hide it) — fall back to
+    // the verified primary address from /user/emails when that happens.
+    let email = ghUser.email || null;
+    if (!email) {
+      const emailsRes = await fetch("https://api.github.com/user/emails", { headers: ghHeaders });
+      const emails = await emailsRes.json().catch(() => null);
+      if (Array.isArray(emails)) {
+        const primary = emails.find((e) => e.primary && e.verified) || emails.find((e) => e.verified);
+        email = primary ? primary.email : null;
+      }
+    }
+
+    const uid = await createOrGetGithubUser({
+      id: ghUser.id,
+      login: ghUser.login,
+      name: ghUser.name,
+      email,
+      avatar_url: ghUser.avatar_url,
+    });
+    const customToken = await firebaseAuth.createCustomToken(uid);
+    res.redirect("/login?gh_token=" + encodeURIComponent(customToken));
+  } catch (err) {
+    console.error(err);
+    res.redirect("/login?gh_error=" + encodeURIComponent("Could not sign in with GitHub."));
+  }
+});
+
 app.post("/api/session", loginLimiter, async (req, res) => {
   try {
     const { idToken, remember, altcha } = req.body;
@@ -4372,6 +4470,7 @@ app.post("/api/request-password-change", requireAuth, async (req, res) => {
     if (!profile) return res.status(404).json({ error: "Profile not found." });
     if (profile.provider === "google") return res.status(400).json({ error: "Google accounts don't have a password here." });
     if (profile.provider === "telegram") return res.status(400).json({ error: "Telegram accounts don't have a password here." });
+    if (profile.provider === "github") return res.status(400).json({ error: "GitHub accounts don't have a password here." });
     const { provider } = await issueCode(req.uid, profile.email, "password_reset");
     res.json({ ok: true, provider });
   } catch (err) {

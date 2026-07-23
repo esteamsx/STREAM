@@ -2197,7 +2197,10 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
     : profile.telegramId
       ? '<div class="field"><label>Telegram ID</label><input type="text" value="' + String(profile.telegramId).replace(/"/g, '&quot;') + '" disabled>' +
         '<a href="/account#addEmail" class="acc-inline-link">Add Email</a></div>'
-      : '<div class="field"><label>Email</label><input type="email" value="" disabled></div>';
+      : profile.githubLogin
+        ? '<div class="field"><label>GitHub</label><input type="text" value="@' + String(profile.githubLogin).replace(/"/g, '&quot;') + '" disabled>' +
+          '<a href="/account#addEmail" class="acc-inline-link">Add Email</a></div>'
+        : '<div class="field"><label>Email</label><input type="email" value="" disabled></div>';
   infoCard.innerHTML =
     '<div class="acc-card-title">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' +

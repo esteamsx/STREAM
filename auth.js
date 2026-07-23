@@ -476,6 +476,75 @@ async function consumeTelegramOAuthState(state) {
   return codeVerifier;
 }
 
+// ── GitHub OAuth: standard authorization-code flow (GitHub OAuth Apps are
+// confidential clients — the exchange happens server-side with a client
+// secret, so no PKCE code_verifier is needed here, just a CSRF-guarding
+// `state`). Mirrors the Telegram state storage below so both flows share
+// the same "one-time use, self-expiring" shape.
+async function saveGithubOAuthState(state) {
+  await db.collection("github_oauth_state").doc(state).set({
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+}
+
+async function consumeGithubOAuthState(state) {
+  const ref = db.collection("github_oauth_state").doc(state);
+  const snap = await ref.get();
+  if (!snap.exists) return false;
+  const { expiresAt } = snap.data();
+  await ref.delete();
+  return Date.now() <= expiresAt;
+}
+
+async function findUserByGithubId(githubId) {
+  const snap = await db.collection("users").where("githubId", "==", String(githubId)).limit(1).get();
+  if (snap.empty) return null;
+  return { uid: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+// Finds the account for this GitHub user, or creates one. GitHub accounts
+// may not expose a public email (many devs hide it), so `email` here is
+// whatever the caller already resolved via GitHub's /user/emails endpoint —
+// it may be null, in which case the account is created email-less, same as
+// a Telegram-only account.
+async function createOrGetGithubUser({ id, login, name, email, avatar_url }) {
+  const githubId = String(id);
+  const existing = await findUserByGithubId(githubId);
+  if (existing) return existing.uid;
+
+  const uid = `gh_${githubId}`;
+  const displayName = name || login || "GitHub User";
+  try {
+    await auth.createUser({ uid, displayName, email: email || undefined, emailVerified: !!email });
+  } catch (err) {
+    // A prior attempt may have created the Auth user but failed before the
+    // Firestore doc was written (network blip, etc.) — pick up where it left
+    // off instead of failing the retry too.
+    if (err.code !== "auth/uid-already-exists") throw err;
+  }
+
+  const uniqueUsername = await generateUniqueUsername(login || name || "user");
+  const profile = {
+    firstName: name || login || "",
+    lastName: "",
+    email: email || "",
+    username: uniqueUsername,
+    provider: "github",
+    githubId,
+    githubLogin: login || "",
+    githubLoginLower: (login || "").toLowerCase(),
+    photoURL: avatar_url || null,
+    emailVerified: !!email,
+    followersCount: 0,
+    followingCount: 0,
+    likesCount: 0,
+    createdAt: Date.now(),
+  };
+  await db.collection("users").doc(uid).set(profile, { merge: true });
+  await autoFollowAdmin(uid, email || null);
+  return uid;
+}
+
 async function issueResetToken(uid) {
   const token = crypto.randomBytes(24).toString("hex");
   await db.collection("reset_tokens").doc(token).set({
@@ -1733,6 +1802,8 @@ function adminUserView(uid, data) {
     lastName: data.lastName || "",
     email: data.email || "",
     telegramId: data.telegramId || "",
+    githubId: data.githubId || "",
+    githubLogin: data.githubLogin || "",
     photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
     isAdmin: isAdminEmail(data.email),
     banned: !!data.banned,
@@ -1776,6 +1847,19 @@ async function adminSearchUsers(query) {
       .filter((d) => !d.data().pendingDeletion && !isAdminEmail(d.data().email) && !d.data().banned)
       .forEach((d) => results.set(d.id, adminUserView(d.id, d.data())));
   }
+
+  // Same idea for GitHub-only accounts — searchable by numeric GitHub ID or @login.
+  if (/^\d+$/.test(q)) {
+    const ghIdSnap = await db.collection("users").where("githubId", "==", q).limit(5).get();
+    ghIdSnap.docs
+      .filter((d) => !d.data().pendingDeletion && !isAdminEmail(d.data().email) && !d.data().banned)
+      .forEach((d) => results.set(d.id, adminUserView(d.id, d.data())));
+  }
+  const ghLoginSnap = await db.collection("users").where("githubLoginLower", "==", q).limit(5).get();
+  ghLoginSnap.docs
+    .filter((d) => !d.data().pendingDeletion && !isAdminEmail(d.data().email) && !d.data().banned)
+    .forEach((d) => results.set(d.id, adminUserView(d.id, d.data())));
+
   return Array.from(results.values());
 }
 
@@ -1909,6 +1993,9 @@ export {
   createOrGetTelegramUser,
   saveTelegramOAuthState,
   consumeTelegramOAuthState,
+  createOrGetGithubUser,
+  saveGithubOAuthState,
+  consumeGithubOAuthState,
   issueResetToken,
   consumeResetToken,
   createSession,
