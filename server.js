@@ -29,6 +29,12 @@ import {
   resendPendingSignupCode,
   checkPendingSignupCode,
   getUserProfile,
+  getPasskeysForUser,
+  beginPasskeyRegistration,
+  finishPasskeyRegistration,
+  deletePasskey,
+  beginPasskeyAuthentication,
+  finishPasskeyAuthentication,
   updateUserProfile,
   addAltUsername,
   removeAltUsername,
@@ -106,9 +112,11 @@ import { sendDmcaReportEmail } from "./mailer.js";
 import { createChallenge, verifySolution } from "altcha-lib";
 import {
   securityHeaders,
+  helmetMiddleware,
   botBlocker,
   SimpleRateLimiter,
   suspiciousRequestDetector,
+  ipBlocklist,
   ROBOTS_TXT,
 } from "./security-middleware.js";
 
@@ -127,7 +135,9 @@ app.use(domainLock);
 app.use(compression());
 
 // ── SECURITY: applied before everything else, purely additive ──
+app.use(helmetMiddleware);
 app.use(securityHeaders);
+app.use(ipBlocklist);
 app.use(botBlocker);
 app.use(suspiciousRequestDetector);
 app.use(new SimpleRateLimiter(120, 60000).middleware()); // 120 req/min per IP
@@ -138,6 +148,10 @@ const loginLimiter = new SimpleRateLimiter(8, 15 * 60 * 1000).middleware(); // l
 const resetLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000).middleware(); // password reset flow: 5 / 15min
 const dmcaLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000).middleware(); // DMCA report submissions: 5 / hour per IP
 const usernameCheckLimiter = new SimpleRateLimiter(40, 60 * 1000).middleware(); // live-typing availability checks: 40 / min, separate from the signup quota above
+// Keyed by account (req.uid), not IP — this endpoint is already behind
+// requireAuth, so the thing worth throttling is one account hammering it
+// from anywhere, not one IP (which a scraper can just rotate).
+const channelApiLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware(); // 60 / min per account
 
 // (devtools-blocking bundle route removed — was breaking pages via false-positive trips)
 
@@ -225,7 +239,7 @@ function categoryIcon(name) {
 }
 
 // ── Channel categories — feeds the "More Channels" panel under the player ──
-app.get("/api/channels/categories", requireAuth, async (req, res) => {
+app.get("/api/channels/categories", requireAuth, channelApiLimiter, async (req, res) => {
   try {
     const categories = liveTV.map((cat) => ({
       category: cat.category,
@@ -239,7 +253,7 @@ app.get("/api/channels/categories", requireAuth, async (req, res) => {
   }
 });
 
-app.get("/api/channels/category/:name", requireAuth, async (req, res) => {
+app.get("/api/channels/category/:name", requireAuth, channelApiLimiter, async (req, res) => {
   try {
     const wanted = String(req.params.name || "").toLowerCase().trim();
     const cat = liveTV.find((c) => String(c.category || "").toLowerCase().trim() === wanted);
@@ -4370,6 +4384,94 @@ app.post("/api/account/confirm-email", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not verify code." });
+  }
+});
+
+// ── Passkeys (WebAuthn) — the actual FIDO2/WebAuthn logic and the account
+// settings UI both already existed; these are just the HTTP routes tying
+// them together. rpID must be the bare domain (no scheme/port); origin
+// must be the full URL the browser sees — both fixed to the canonical
+// domain rather than derived from the request, since a spoofed Host header
+// must never be able to shift what a passkey gets bound to.
+const PASSKEY_RP_ID = "esteamstv.devs.surf";
+const PASSKEY_ORIGIN = "https://esteamstv.devs.surf";
+
+app.get("/api/passkey/list", requireAuth, async (req, res) => {
+  try {
+    const passkeys = await getPasskeysForUser(req.uid);
+    // Only ever send the client what it needs to render/manage the list —
+    // never the public key or counter.
+    res.json({
+      passkeys: passkeys.map((p) => ({ id: p.id, name: p.name, createdAt: p.createdAt })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not load passkeys." });
+  }
+});
+
+app.post("/api/passkey/registration-options", requireAuth, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.uid);
+    if (!profile) return res.status(404).json({ error: "Profile not found." });
+    const identifier = profile.email || profile.username || req.uid;
+    const displayName = [profile.firstName, profile.lastName].filter(Boolean).join(" ") || identifier;
+    const options = await beginPasskeyRegistration(req.uid, identifier, displayName, PASSKEY_RP_ID);
+    res.json(options);
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Could not start passkey setup." });
+  }
+});
+
+app.post("/api/passkey/registration-verify", requireAuth, async (req, res) => {
+  try {
+    const { name, ...response } = req.body || {};
+    await finishPasskeyRegistration(req.uid, response, PASSKEY_RP_ID, PASSKEY_ORIGIN, name);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Could not add passkey." });
+  }
+});
+
+app.post("/api/passkey/delete", requireAuth, async (req, res) => {
+  try {
+    const { credentialId } = req.body || {};
+    if (!credentialId) return res.status(400).json({ error: "Missing passkey ID." });
+    await deletePasskey(req.uid, credentialId);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Could not delete passkey." });
+  }
+});
+
+// Passkey sign-in — deliberately not behind requireAuth, since successfully
+// verifying the passkey response IS the login. Discoverable credentials
+// mean the browser shows the person's own saved passkey(s) for this site
+// without needing an email/username first.
+app.post("/api/passkey/authentication-options", loginLimiter, async (req, res) => {
+  try {
+    const { options, token } = await beginPasskeyAuthentication(PASSKEY_RP_ID);
+    res.json({ options, token });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not start passkey sign-in." });
+  }
+});
+
+app.post("/api/passkey/authentication-verify", loginLimiter, async (req, res) => {
+  try {
+    const { token, ...response } = req.body || {};
+    if (!token) return res.status(400).json({ error: "Missing passkey session token." });
+    const uid = await finishPasskeyAuthentication(token, response, PASSKEY_RP_ID, PASSKEY_ORIGIN);
+    const customToken = await firebaseAuth.createCustomToken(uid);
+    res.json({ customToken });
+  } catch (err) {
+    console.error(err);
+    const notFound = err.code === "passkey/not-found";
+    res.status(notFound ? 404 : 400).json({ error: notFound ? "No account found with that passkey." : (err.message || "Could not verify passkey.") });
   }
 });
 

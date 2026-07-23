@@ -4,7 +4,32 @@
  *
  * Drop this file in the same folder as server.js (project root).
  * Nothing here touches your existing routes/logic — it's purely additive.
+ *
+ * HONEST SCOPE: everything below raises the bar against casual/automated
+ * abuse (curl scripts, bulk cloners, basic rate abuse). None of it — and
+ * nothing at this layer ever can — stops a determined scraper running a
+ * real browser that mimics human behavior and rotates IPs. That level of
+ * defense lives at the edge (Cloudflare, etc.) or in protecting the data
+ * itself (short-lived signed URLs, per-account throttling), not in header
+ * or user-agent checks. Layer 7 below (per-key rate limiting) is the one
+ * piece here that still works against a logged-in scraper rotating IPs,
+ * because it doesn't key on IP at all.
  */
+
+import ipaddr from "ipaddr.js";
+import helmet from "helmet";
+
+/* ───────────────────────────────────────────────
+   LAYER 1: BROADER HEADER BASELINE (helmet)
+   Kept separate from securityHeaders below rather than replacing it —
+   both are harmless to run together. contentSecurityPolicy stays off for
+   the same reason noted below: pages rely on inline <script>/<style>.
+   ─────────────────────────────────────────────── */
+
+export const helmetMiddleware = helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false, // would block loading channel logos/streams from other origins
+});
 
 /* ───────────────────────────────────────────────
    LAYER 2: SAFE SECURITY HEADERS
@@ -33,6 +58,10 @@ const BLOCKED_UA_PATTERNS = [
   /httpclient/i, /go-http-client/i, /node-fetch/i, /axios\//i,
   /okhttp/i, /libwww-perl/i, /^java\//i, /^ruby/i, /php\//i,
   /httrack/i, /wput/i, /crawler/i, /spider/i, /^$/,
+  // Additional signatures: headless/automation frameworks and bulk-fetch tools
+  /headlesschrome/i, /phantomjs/i, /puppeteer/i, /playwright/i,
+  /selenium/i, /^scrapy\//i, /aiohttp/i, /^postmanruntime/i,
+  /^guzzlehttp/i, /^dart[:-]?http/i, /^got \(/i, /^undici/i,
 ];
 
 // Paths that must always stay reachable (favicon etc.) even if UA looks odd.
@@ -53,28 +82,34 @@ export const botBlocker = (req, res, next) => {
 
 /* ───────────────────────────────────────────────
    LAYER 4: RATE LIMITING (no external dependency needed)
+   Now accepts an optional keyFn so callers can rate-limit by something
+   other than IP — e.g. by account (req.uid), which is what actually stops
+   a logged-in scraper rotating IPs against an authenticated API. Existing
+   usages (new SimpleRateLimiter(n, ms)) are unaffected — keyFn defaults to
+   IP exactly as before.
    ─────────────────────────────────────────────── */
 
 export class SimpleRateLimiter {
-  constructor(maxRequests = 100, windowMs = 60000) {
+  constructor(maxRequests = 100, windowMs = 60000, keyFn = (req) => req.ip) {
     this.maxRequests = maxRequests;
     this.windowMs = windowMs;
+    this.keyFn = keyFn;
     this.hits = new Map();
   }
 
   middleware() {
     return (req, res, next) => {
       const now = Date.now();
-      const ip = req.ip;
-      const timestamps = (this.hits.get(ip) || []).filter((t) => now - t < this.windowMs);
+      const key = this.keyFn(req) || req.ip;
+      const timestamps = (this.hits.get(key) || []).filter((t) => now - t < this.windowMs);
 
       if (timestamps.length >= this.maxRequests) {
-        console.warn(`⚠️ Rate limit exceeded: ${ip} on ${req.path}`);
+        console.warn(`⚠️ Rate limit exceeded: ${key} on ${req.path}`);
         return res.status(429).json({ error: "Too many requests. Please slow down." });
       }
 
       timestamps.push(now);
-      this.hits.set(ip, timestamps);
+      this.hits.set(key, timestamps);
       next();
     };
   }
@@ -105,3 +140,61 @@ export const suspiciousRequestDetector = (req, res, next) => {
 export const ROBOTS_TXT = `User-agent: *
 Disallow: /
 `;
+
+/* ───────────────────────────────────────────────
+   LAYER 7: IP / CIDR BLOCKLIST
+   Blocks exact IPs or ranges (CIDR notation) outright — for specific
+   IPs/hosts you've identified as sources of abuse. Configure via the
+   BLOCKED_IPS env var: comma-separated IPs and/or CIDR ranges, e.g.
+   BLOCKED_IPS=1.2.3.4,5.6.7.0/24,2001:db8::/32
+   Handles IPv4 and IPv6 (including IPv4-mapped IPv6 from proxies) via
+   ipaddr.js rather than hand-rolled string matching, which is where CIDR
+   logic reliably goes wrong if done by hand.
+   ─────────────────────────────────────────────── */
+
+function parseBlocklist(raw) {
+  const entries = String(raw || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  const ranges = {};
+  let i = 0;
+  for (const entry of entries) {
+    try {
+      const range = entry.includes("/")
+        ? ipaddr.parseCIDR(entry)
+        : [ipaddr.parse(entry), ipaddr.parse(entry).kind() === "ipv6" ? 128 : 32];
+      ranges[`blocked_${i++}`] = range;
+    } catch {
+      console.warn(`⚠️ Ignoring invalid BLOCKED_IPS entry: "${entry}"`);
+    }
+  }
+  return ranges;
+}
+
+const BLOCKED_RANGES = parseBlocklist(process.env.BLOCKED_IPS);
+const HAS_BLOCKED_RANGES = Object.keys(BLOCKED_RANGES).length > 0;
+const NO_MATCH = "__none__";
+
+export const ipBlocklist = (req, res, next) => {
+  if (!HAS_BLOCKED_RANGES) return next();
+
+  let addr;
+  try {
+    addr = ipaddr.process(req.ip); // normalizes IPv4-mapped IPv6 (::ffff:1.2.3.4) to plain IPv4
+  } catch {
+    return next(); // couldn't parse req.ip at all — fail open rather than break the site
+  }
+
+  // subnetMatch is ipaddr.js's own tool for "check this address against a list
+  // of ranges" — it's documented to safely skip mismatched address families
+  // (an IPv4 address against an IPv6 range, etc.) rather than needing that
+  // handled by hand.
+  const matched = ipaddr.subnetMatch(addr, BLOCKED_RANGES, NO_MATCH);
+  if (matched !== NO_MATCH) {
+    console.warn(`⛔ Blocked IP: ${req.ip} (${matched}) - ${req.path}`);
+    return res.status(403).send("Forbidden");
+  }
+  next();
+};

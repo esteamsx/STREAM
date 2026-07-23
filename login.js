@@ -262,6 +262,9 @@ body:has(.page-overlay.show){overflow:hidden}
         <button type="button" class="social-box" id="tgSquareBtn" aria-label="Continue with Telegram">
           <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#229ED9"/><path d="M35 14L12 23.5c-1.3.5-1.3 1.3-.2 1.6l5.9 1.8 2.3 7c.3.7.6 1 1.2 1 .5 0 .8-.2 1.1-.5l3.1-3 6.1 4.5c1.1.6 1.9.3 2.2-1l4-18.8c.4-1.6-.5-2.3-1.7-1.7z" fill="#fff"/></svg>
         </button>
+        <button type="button" class="social-box" id="passkeySquareBtn" aria-label="Sign in with a passkey">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 18v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="8" cy="7" r="4"/><path d="M15 8h5m-2 0v4"/></svg>
+        </button>
       </div>
 
       <div class="auth-foot" id="authFoot">
@@ -333,6 +336,10 @@ body:has(.page-overlay.show){overflow:hidden}
     <button type="button" class="provider-btn" id="troubleTelegramBtn">
       <svg viewBox="0 0 48 48" width="18" height="18"><circle cx="24" cy="24" r="24" fill="#229ED9"/><path d="M35 14L12 23.5c-1.3.5-1.3 1.3-.2 1.6l5.9 1.8 2.3 7c.3.7.6 1 1.2 1 .5 0 .8-.2 1.1-.5l3.1-3 6.1 4.5c1.1.6 1.9.3 2.2-1l4-18.8c.4-1.6-.5-2.3-1.7-1.7z" fill="#fff"/></svg>
       SIGN IN WITH TELEGRAM
+    </button>
+    <button type="button" class="provider-btn" id="troublePasskeyBtn">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 18v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="8" cy="7" r="4"/><path d="M15 8h5m-2 0v4"/></svg>
+      SIGN IN WITH A PASSKEY
     </button>
     <button type="button" class="overlay-cancel" id="troubleCancelBtn">Cancel</button>
   </div>
@@ -837,6 +844,36 @@ document.getElementById('troubleGoogleBtn').addEventListener('click', () => {
 document.getElementById('troubleTelegramBtn').addEventListener('click', () => {
   troubleSigningOverlay.classList.remove('show');
   signInWithTelegram();
+});
+
+async function signInWithPasskey(){
+  clearError();
+  if (!window.PublicKeyCredential) {
+    showError('Passkeys are not supported on this browser.');
+    return;
+  }
+  const overlay = document.getElementById('pageOverlay');
+  document.getElementById('pageOverlayText').textContent = 'Waiting for fingerprint…';
+  overlay.classList.add('show');
+  try {
+    const { startAuthentication } = await import('https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@10.0.0/+esm');
+    const { options, token } = await postJSON('/api/passkey/authentication-options', {});
+    if (!options || !options.challenge) throw new Error('Could not start passkey sign-in. Try again.');
+    const response = await startAuthentication({ optionsJSON: options });
+    const { customToken } = await postJSON('/api/passkey/authentication-verify', { token, ...response });
+    const cred = await signInWithCustomToken(fbAuth, customToken);
+    const idToken = await cred.user.getIdToken();
+    await establishSession(idToken, true);
+  } catch (err) {
+    overlay.classList.remove('show');
+    showError(err.name === 'NotAllowedError' ? 'Passkey sign-in was cancelled.' : (err.message || 'Could not sign in with that passkey.'));
+  }
+}
+
+document.getElementById('passkeySquareBtn').addEventListener('click', signInWithPasskey);
+document.getElementById('troublePasskeyBtn').addEventListener('click', () => {
+  troubleSigningOverlay.classList.remove('show');
+  signInWithPasskey();
 });
 </script>
 </body>
