@@ -867,16 +867,30 @@ async function signInWithPasskey(){
   const overlay = document.getElementById('pageOverlay');
   document.getElementById('pageOverlayText').textContent = 'Waiting for fingerprint…';
   overlay.classList.add('show');
+  let stage = 'load-library';
   try {
     const { startAuthentication } = await import('https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@10.0.0/+esm');
+
+    stage = 'fetch-options';
     const { options, token } = await postJSON('/api/passkey/authentication-options', {});
     if (!options || !options.challenge) throw new Error('Could not start passkey sign-in. Try again.');
+
+    stage = 'browser-prompt';
     const response = await startAuthentication({ optionsJSON: options });
+
+    stage = 'verify-with-server';
     const { customToken } = await postJSON('/api/passkey/authentication-verify', { token, ...response });
+
+    stage = 'firebase-sign-in';
     const cred = await signInWithCustomToken(fbAuth, customToken);
     const idToken = await cred.user.getIdToken();
     await establishSession(idToken, true);
   } catch (err) {
+    // Logs which of the 5 stages above threw, plus the full error object —
+    // open DevTools > Console right after this happens and screenshot/paste
+    // this line; that pinpoints it in one shot instead of another guessing
+    // round.
+    console.error('[passkey-signin] failed at stage "' + stage + '":', err);
     overlay.classList.remove('show');
     showError(err.name === 'NotAllowedError' ? 'Passkey sign-in was cancelled.' : (err.message || 'Could not sign in with that passkey.'));
   }

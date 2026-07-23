@@ -204,10 +204,44 @@ const authPageConfig = {
   // and images. -webkit-touch-callout covers iOS Safari's native long-press
   // menu; the contextmenu listener covers Android Chrome, which fires that
   // event on long-press over a link/image instead of showing a native menu.
+  //
+  // This is ONE shared string included on every page that takes authPageConfig
+  // (login, verify, account, profile, admin, reset — check each file's <head>
+  // for `${cfg.devToolsBlock || ""}`), so anything added here is automatically
+  // on all of them without touching those files individually.
   devToolsBlock: `<script>
 document.addEventListener('contextmenu', function(e){
   if (e.target.closest('a, button, img, [role="button"]')) e.preventDefault();
 });
+
+// Soft DevTools-open notice — NOT a hard block/redirect/blank-out. A harder
+// version of this (debugger-timing trap) was tried before and caused false
+// positives on real users, so this only ever shows a small, dismissible
+// banner. It cannot stop anyone determined from opening DevTools — nothing
+// running in the browser truly can — it just makes casual inspection less
+// invisible and matches across every page instead of only the login screen.
+(function(){
+  var shown = false;
+  function notify(){
+    if (shown) return;
+    shown = true;
+    var bar = document.createElement('div');
+    bar.textContent = 'Developer tools detected — this session is logged.';
+    bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#1a0a0f;color:#ff8fa3;font:600 12px system-ui;text-align:center;padding:8px;border-top:1px solid #ff3b5c;';
+    var closeBtn = document.createElement('span');
+    closeBtn.textContent = ' ✕';
+    closeBtn.style.cssText = 'cursor:pointer;margin-left:8px;';
+    closeBtn.addEventListener('click', function(){ bar.remove(); shown = false; });
+    bar.appendChild(closeBtn);
+    document.body.appendChild(bar);
+  }
+  var threshold = 160;
+  setInterval(function(){
+    var widthDiff = window.outerWidth - window.innerWidth;
+    var heightDiff = window.outerHeight - window.innerHeight;
+    if (widthDiff > threshold || heightDiff > threshold) notify();
+  }, 1000);
+})();
 </script>`,
   protectionCSS: `
 a, button, [role="button"], img {
@@ -4469,7 +4503,7 @@ app.post("/api/passkey/authentication-options", loginLimiter, async (req, res) =
     const { options, token } = await beginPasskeyAuthentication(PASSKEY_RP_ID);
     res.json({ options, token });
   } catch (err) {
-    console.error(err);
+    console.error("[passkey-auth-options]", err.stack || err);
     res.status(400).json({ error: "Could not start passkey sign-in." });
   }
 });
@@ -4482,7 +4516,7 @@ app.post("/api/passkey/authentication-verify", loginLimiter, async (req, res) =>
     const customToken = await firebaseAuth.createCustomToken(uid);
     res.json({ customToken });
   } catch (err) {
-    console.error(err);
+    console.error("[passkey-auth-verify]", err.stack || err);
     const notFound = err.code === "passkey/not-found";
     res.status(notFound ? 404 : 400).json({ error: notFound ? "No account found with that passkey." : (err.message || "Could not verify passkey.") });
   }
