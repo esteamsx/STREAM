@@ -714,6 +714,21 @@ function toBase64url(value) {
   return value;
 }
 
+// Converts one excludeCredentials/allowCredentials descriptor and guarantees
+// its `id` came out as a real, non-empty string — this is the field the
+// browser library calls .replace()/base64url-decodes directly. A bad
+// (missing/malformed) entry here is exactly what surfaces client-side as
+// "Cannot read properties of undefined (reading 'replace')", so this throws
+// a clear server-side error instead of ever letting that shape reach the
+// browser.
+function toSafeCredentialDescriptor(c, label) {
+  const id = toBase64url(c && c.id);
+  if (!id || typeof id !== "string") {
+    throw new Error(`Server produced an invalid ${label} entry — passkey data may be corrupted.`);
+  }
+  return { ...c, id };
+}
+
 // Walks the options object returned by @simplewebauthn/server and forces every field
 // the browser library expects to be a base64url string into that shape.
 function sanitizePasskeyOptions(options, { isRegistration } = {}) {
@@ -731,17 +746,15 @@ function sanitizePasskeyOptions(options, { isRegistration } = {}) {
     if (!safe.user.id || typeof safe.user.id !== "string") {
       throw new Error("Server failed to generate a valid passkey user ID.");
     }
-    if (Array.isArray(safe.excludeCredentials)) {
-      safe.excludeCredentials = safe.excludeCredentials.map((c) => ({
-        ...c,
-        id: toBase64url(c.id),
-      }));
-    }
-  } else if (Array.isArray(safe.allowCredentials)) {
-    safe.allowCredentials = safe.allowCredentials.map((c) => ({
-      ...c,
-      id: toBase64url(c.id),
-    }));
+    // Always a real array — never undefined — so the browser library's
+    // .map() over it is never handed something it doesn't expect.
+    safe.excludeCredentials = Array.isArray(safe.excludeCredentials)
+      ? safe.excludeCredentials.map((c) => toSafeCredentialDescriptor(c, "excludeCredentials"))
+      : [];
+  } else {
+    safe.allowCredentials = Array.isArray(safe.allowCredentials)
+      ? safe.allowCredentials.map((c) => toSafeCredentialDescriptor(c, "allowCredentials"))
+      : [];
   }
 
   return safe;
@@ -882,6 +895,10 @@ async function beginPasskeyAuthentication(rpID) {
   const rawOptions = await generateAuthenticationOptions({
     rpID,
     userVerification: "preferred",
+    // Empty (not omitted) allowCredentials is the documented way to ask for
+    // a fully discoverable/passwordless flow — the browser shows whichever
+    // passkeys it has for this rpID instead of us needing to name one.
+    allowCredentials: [],
   });
   const options = sanitizePasskeyOptions(rawOptions, { isRegistration: false });
   const token = crypto.randomBytes(16).toString("hex");

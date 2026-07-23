@@ -204,3 +204,108 @@ export const ipBlocklist = (req, res, next) => {
   }
   next();
 };
+
+/* ───────────────────────────────────────────────
+   LAYER 7 (NEW): PERMISSIONS-POLICY HEADER
+   Tells the browser this site never wants camera/mic/geolocation/USB/payment
+   access, no matter what a compromised or injected script asks for. Purely
+   additive — doesn't touch or replace securityHeaders() above, just adds
+   one more header alongside it.
+   ─────────────────────────────────────────────── */
+
+export const permissionsPolicy = (req, res, next) => {
+  res.setHeader(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), usb=(), payment=(), interest-cohort=()"
+  );
+  next();
+};
+
+/* ───────────────────────────────────────────────
+   LAYER 8 (NEW): HTTP PARAMETER POLLUTION GUARD
+   ?role=user&role=admin style duplicate query keys can confuse code that
+   only expects one value. This collapses any duplicated query param down
+   to its last value before your routes ever see req.query, so existing
+   route code doesn't need to change to be protected by it.
+   ─────────────────────────────────────────────── */
+
+export const hppGuard = (req, res, next) => {
+  for (const key of Object.keys(req.query)) {
+    if (Array.isArray(req.query[key])) {
+      req.query[key] = req.query[key][req.query[key].length - 1];
+    }
+  }
+  next();
+};
+
+/* ───────────────────────────────────────────────
+   LAYER 9 (NEW): KNOWN-PROBE PATH TRAP
+   Automated scanners constantly poke at these paths on every site they
+   find, looking for misconfigured WordPress/PHP/env leftovers you don't
+   even have. None of this overlaps with suspiciousRequestDetector's regex
+   list above — this is a flat, easy-to-audit set of exact path prefixes.
+   ─────────────────────────────────────────────── */
+
+const PROBE_PATH_PREFIXES = [
+  "/wp-admin", "/wp-login", "/wp-content", "/wp-includes", "/xmlrpc.php",
+  "/phpmyadmin", "/pma", "/.aws", "/.ssh", "/.docker", "/config.json",
+  "/server-status", "/actuator", "/.well-known/traffic-advice",
+];
+
+export const probePathTrap = (req, res, next) => {
+  const p = req.path.toLowerCase();
+  if (PROBE_PATH_PREFIXES.some((prefix) => p.startsWith(prefix))) {
+    console.warn(`Blocked known-probe path: ${req.ip} - ${req.path}`);
+    return res.status(404).end(); // 404, not 403 — no point confirming the path exists at all
+  }
+  next();
+};
+
+/* ───────────────────────────────────────────────
+   LAYER 10 (NEW): REPEATED-403/404 IP GUARD
+   Independent from SimpleRateLimiter above (which caps total request
+   volume) — this tracks how many times an IP gets refused across ANY
+   route. A normal visitor almost never triggers a 403/404 more than a
+   couple of times; a scanner walking a wordlist racks up dozens in
+   seconds. Wrap this around your existing app with app.use(), same as the
+   others — it inspects res.statusCode after the fact and doesn't change
+   what any existing route returns.
+   ─────────────────────────────────────────────── */
+
+export class RepeatedRefusalGuard {
+  constructor(maxRefusals = 15, windowMs = 5 * 60 * 1000, banMs = 30 * 60 * 1000) {
+    this.maxRefusals = maxRefusals;
+    this.windowMs = windowMs;
+    this.banMs = banMs;
+    this.refusals = new Map(); // ip -> timestamps[]
+    this.bannedUntil = new Map(); // ip -> expiry ms
+  }
+
+  middleware() {
+    return (req, res, next) => {
+      const ip = req.ip;
+      const now = Date.now();
+
+      const bannedUntil = this.bannedUntil.get(ip);
+      if (bannedUntil && now < bannedUntil) {
+        return res.status(403).send("Forbidden");
+      } else if (bannedUntil) {
+        this.bannedUntil.delete(ip);
+      }
+
+      res.on("finish", () => {
+        if (res.statusCode !== 403 && res.statusCode !== 404) return;
+        const hits = (this.refusals.get(ip) || []).filter((t) => now - t < this.windowMs);
+        hits.push(now);
+        this.refusals.set(ip, hits);
+        if (hits.length >= this.maxRefusals) {
+          console.warn(`Auto-banning ${ip} for ${Math.round(this.banMs / 60000)}min after ${hits.length} refused requests.`);
+          this.bannedUntil.set(ip, now + this.banMs);
+          this.refusals.delete(ip);
+        }
+      });
+
+      next();
+    };
+  }
+}

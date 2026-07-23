@@ -118,6 +118,10 @@ import {
   suspiciousRequestDetector,
   ipBlocklist,
   ROBOTS_TXT,
+  permissionsPolicy,
+  hppGuard,
+  probePathTrap,
+  RepeatedRefusalGuard,
 } from "./security-middleware.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -137,6 +141,10 @@ app.use(compression());
 // ── SECURITY: applied before everything else, purely additive ──
 app.use(helmetMiddleware);
 app.use(securityHeaders);
+app.use(permissionsPolicy);
+app.use(hppGuard);
+app.use(probePathTrap);
+app.use(new RepeatedRefusalGuard(15, 5 * 60 * 1000, 30 * 60 * 1000).middleware());
 app.use(ipBlocklist);
 app.use(botBlocker);
 app.use(suspiciousRequestDetector);
@@ -3283,7 +3291,12 @@ app.get("/api/admin/me", requireAuth, requireAdmin, async (req, res) => {
       firstName: profile.firstName || "",
       lastName: profile.lastName || "",
       username: profile.username || "",
-      photoURL: profile.showProfilePhoto === false ? null : (profile.photoURL || null),
+      // This is you looking at your own admin panel, not another user
+      // viewing your public profile — so the "hide my photo from others"
+      // privacy setting (showProfilePhoto) must not apply here. Applying
+      // it here was exactly why the avatar was blank in the admin hero
+      // while the same photo showed fine on your own profile/account pages.
+      photoURL: profile.photoURL || null,
     });
   } catch (err) {
     console.error(err);
