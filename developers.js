@@ -84,6 +84,14 @@ pre{
 .btn-primary:hover{opacity:.92;background:linear-gradient(90deg,var(--accent),var(--accent2))}
 .btn-sm{padding:6px 10px;font-size:.72rem;border-radius:8px}
 .btn-ghost{background:transparent;border-color:var(--border)}
+.btn:disabled,.icon-btn:disabled{opacity:.6;cursor:not-allowed}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-spinner{
+  width:13px;height:13px;border:2px solid rgba(4,18,26,.35);border-top-color:#04121a;
+  border-radius:50%;display:inline-block;flex-shrink:0;animation:spin .6s linear infinite;
+}
+.btn-spinner-muted{border:2px solid var(--border-strong);border-top-color:var(--accent)}
 
 /* ── HERO ── */
 .hero{margin-bottom:26px}
@@ -487,9 +495,12 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     keyCardBody.querySelectorAll('[data-revoke]').forEach(function(btn){
       btn.addEventListener('click', function(){
         if(!confirm('Revoke this API key? Anything using it will stop working immediately.')) return;
+        var originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-spinner btn-spinner-muted"></span>';
         fetch('/api/dev/keys/' + encodeURIComponent(btn.getAttribute('data-revoke')), { method: 'DELETE' })
           .then(function(){ loadKeys(); })
-          .catch(function(){});
+          .catch(function(){ btn.disabled = false; btn.innerHTML = originalHtml; });
       });
     });
 
@@ -498,7 +509,9 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
       createBtn.addEventListener('click', function(){
         var label = document.getElementById('newKeyLabel').value.trim();
         var msg = document.getElementById('keyMsg');
+        var originalHtml = createBtn.innerHTML;
         createBtn.disabled = true;
+        createBtn.innerHTML = '<span class="btn-spinner"></span> Creating…';
         fetch('/api/dev/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: label }) })
           .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error || 'Could not create key.'); return d; }); })
           .then(function(d){
@@ -508,7 +521,10 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
             if(tryitInput) tryitInput.value = d.key;
             loadKeys();
           })
-          .catch(function(err){ msg.className = 'dcard-msg err'; msg.textContent = err.message; createBtn.disabled = false; });
+          .catch(function(err){
+            msg.className = 'dcard-msg err'; msg.textContent = err.message;
+            createBtn.disabled = false; createBtn.innerHTML = originalHtml;
+          });
       });
     }
   }
@@ -630,7 +646,9 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
       headers['x-api-key'] = key;
       url = '/api/v1/stream/' + encodeURIComponent(chId);
     }
+    var originalHtml = btn.innerHTML;
     btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span> Sending…';
     fetch(url, { headers: headers }).then(function(res){
       var ms = Math.round(performance.now() - start);
       return res.json().catch(function(){ return {}; }).then(function(data){
@@ -642,7 +660,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
       resultBox.style.display = 'block';
       resultStatus.innerHTML = '<span class="status-pill bad">—</span>';
       resultBody.textContent = 'Request failed. Check your connection and try again.';
-    }).finally(function(){ btn.disabled = false; });
+    }).finally(function(){ btn.disabled = false; btn.innerHTML = originalHtml; });
   });
 
 })();
