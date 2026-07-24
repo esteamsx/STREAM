@@ -2377,13 +2377,17 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     var id  = btn.dataset.id;
     var dot = btn.querySelector('.ch-dot');
     if(!dot) return;
-    var url  = 'https://cinexora.emmyhenztech.site/api/hls?ch=' + id;
+    /* Same-origin status check — the browser never talks to the upstream
+       restream host directly (that would both leak it in the Network tab
+       and break on upstream CORS). The server does the real HEAD request. */
+    var url  = '/api/channel-status/' + encodeURIComponent(id);
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, PROBE_TIMEOUT);
-    fetch(url, { method:'HEAD', cache:'no-store', signal: ctrl ? ctrl.signal : undefined })
-      .then(function(r){
+    fetch(url, { cache:'no-store', signal: ctrl ? ctrl.signal : undefined })
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+      .then(function(data){
         clearTimeout(timer);
-        var ok = r.ok || r.status === 200 || r.status === 206 || r.status === 302;
+        var ok = !!data.up;
         dot.classList.toggle('ch-dot-up',   ok);
         dot.classList.toggle('ch-dot-down', !ok);
         btn.dataset.chStatus = ok ? 'up' : 'down';

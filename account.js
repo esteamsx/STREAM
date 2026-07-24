@@ -685,7 +685,7 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
     <div class="tfa-body">
       <div class="tfa-body-inner">
-        <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Use an API key to pull ES TEAMS TV channels into your own site or bot. Up to 5 keys per account. <a href="/developers" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">View documentation</a></div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Use an API key to pull ES TEAMS TV channels into your own site or bot. Up to 5 keys per account. <a href="/developers" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">Open the API Dashboard</a> to test requests, see usage, and read the docs.</div>
         <div id="apiKeyList"></div>
         <div id="apiKeyAddRow">
           <div class="field" style="margin-bottom:10px">

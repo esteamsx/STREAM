@@ -219,6 +219,41 @@ router.get("/api/v1/hls/:channel/seg", hlsLimiter, async (req, res) => {
   }
 });
 
+// ── Channel status check (for the sidebar's up/down dots) ──────────────
+// The browser used to HEAD the upstream restream API directly to color
+// each channel's status dot. That both leaked the real upstream host into
+// every visitor's Network tab and broke silently once the upstream started
+// rejecting cross-origin requests without CORS headers. This does the same
+// check server-side instead, so the browser only ever talks to our own
+// origin, same as the actual stream traffic.
+const statusLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.ip).middleware();
+const statusCache = new Map(); // channel -> { up, checkedAt }
+const STATUS_CACHE_MS = 30 * 1000; // dots re-probe every 90s client-side anyway; this just absorbs bursts
+
+router.get("/api/channel-status/:channel", statusLimiter, async (req, res) => {
+  const { channel } = req.params;
+  if (!VALID_CHANNEL_IDS.has(channel)) return res.status(404).json({ error: "Unknown channel." });
+
+  const cached = statusCache.get(channel);
+  if (cached && Date.now() - cached.checkedAt < STATUS_CACHE_MS) {
+    return res.json({ channel, up: cached.up });
+  }
+
+  try {
+    const upstream = await fetch(`${UPSTREAM_BASE}?ch=${encodeURIComponent(channel)}`, {
+      method: "HEAD",
+      headers: UPSTREAM_HEADERS,
+      redirect: "follow",
+    });
+    const up = upstream.ok || upstream.status === 200 || upstream.status === 206 || upstream.status === 302;
+    statusCache.set(channel, { up, checkedAt: Date.now() });
+    res.json({ channel, up });
+  } catch (err) {
+    statusCache.set(channel, { up: false, checkedAt: Date.now() });
+    res.json({ channel, up: false });
+  }
+});
+
 // ── Internal token issuance (for the main site's own logged-in player) ──
 const internalTokenLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
 
@@ -301,11 +336,17 @@ router.get("/embed/:channel", (req, res) => {
   html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden}
   .wrap{position:relative;width:100vw;height:100vh;background:#000}
   video{width:100%;height:100%;object-fit:contain;background:#000}
-  .wm{position:absolute;top:10px;right:14px;display:flex;align-items:center;gap:6px;
-      padding:5px 10px;border-radius:20px;background:rgba(0,0,0,.45);
-      backdrop-filter:blur(4px);color:#fff;font:600 12px/1 system-ui,sans-serif;
-      letter-spacing:.02em;pointer-events:none;user-select:none;z-index:5}
-  .wm .dot{width:7px;height:7px;border-radius:50%;background:#00E0FF}
+  /* ── WATERMARK — identical markup/positioning to .wm-badge on the main
+     site's .video-frame (server.js), so embeds carry the exact same mark. ── */
+  .wm-badge{
+    position:absolute;top:50%;right:10px;transform:translateY(-50%);z-index:5;
+    display:flex;align-items:center;gap:5px;
+    padding:0;pointer-events:none;
+    opacity:.6;
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));
+  }
+  .wm-shield{width:12px;height:12px;stroke:rgba(255,255,255,.95);flex-shrink:0}
+  .wm-name{font-family:ui-monospace,'JetBrains Mono',monospace;font-size:.55rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.95);text-shadow:0 1px 3px rgba(0,0,0,.6)}
   .status{position:absolute;bottom:10px;left:14px;color:rgba(255,255,255,.6);
           font:500 11px system-ui,sans-serif;pointer-events:none;z-index:5}
 </style>
@@ -313,7 +354,13 @@ router.get("/embed/:channel", (req, res) => {
 <body>
 <div class="wrap">
   <video id="v" playsinline autoplay muted></video>
-  <div class="wm"><span class="dot"></span>ES TEAMS TV</div>
+  <div class="wm-badge">
+    <svg class="wm-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2L3 6v5c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V6z"/>
+      <path d="M9 12l2 2 4-4" stroke-width="2"/>
+    </svg>
+    <span class="wm-name">ES TEAMS TV</span>
+  </div>
   <div class="status" id="status">Connecting…</div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
@@ -355,7 +402,17 @@ router.post("/api/dev/keys", requireAuth, async (req, res) => {
 router.get("/api/dev/keys", requireAuth, async (req, res) => {
   try {
     const keys = await listApiKeysForUser(req.uid);
-    res.json({ keys: keys.map((k) => ({ id: k.id, label: k.label, last4: k.last4, createdAt: k.createdAt, lastUsedAt: k.lastUsedAt })) });
+    res.json({
+      keys: keys.map((k) => ({
+        id: k.id,
+        label: k.label,
+        last4: k.last4,
+        createdAt: k.createdAt,
+        lastUsedAt: k.lastUsedAt,
+        requestsThisMonth: k.requestsThisMonth,
+        monthlyLimit: k.monthlyLimit,
+      })),
+    });
   } catch (err) {
     console.error("list api keys error:", err.message);
     res.status(500).json({ error: "Could not load API keys." });
