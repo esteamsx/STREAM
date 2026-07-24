@@ -545,6 +545,56 @@ async function createOrGetGithubUser({ id, login, name, email, avatar_url }) {
   return uid;
 }
 
+// ── Developer API keys. Raw key is only ever shown once, at creation —
+// we store just its SHA-256 hash as the Firestore doc id, so a lookup is a
+// single doc.get() and a leaked database export never reveals usable keys.
+function hashApiKey(rawKey) {
+  return crypto.createHash("sha256").update(rawKey).digest("hex");
+}
+
+async function createApiKey(uid, label) {
+  const rawKey = "estv_" + crypto.randomBytes(24).toString("hex");
+  const keyHash = hashApiKey(rawKey);
+  await db.collection("apiKeys").doc(keyHash).set({
+    uid,
+    label: (label || "").slice(0, 60) || "Unnamed key",
+    last4: rawKey.slice(-4),
+    createdAt: Date.now(),
+    lastUsedAt: null,
+    revoked: false,
+  });
+  // rawKey is returned exactly once — the caller must show it to the user now.
+  return { id: keyHash, rawKey };
+}
+
+async function listApiKeysForUser(uid) {
+  const q = await db.collection("apiKeys").where("uid", "==", uid).get();
+  return q.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((k) => !k.revoked)
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+async function revokeApiKey(uid, keyId) {
+  const ref = db.collection("apiKeys").doc(keyId);
+  const snap = await ref.get();
+  if (!snap.exists || snap.data().uid !== uid) throw new Error("Key not found.");
+  await ref.update({ revoked: true });
+}
+
+// Looks up a raw key presented by a developer's request. Returns null for
+// missing/revoked keys so callers can respond with a generic 401 either way
+// (no need to distinguish "wrong key" from "revoked key" to the caller).
+async function findApiKeyByRawKey(rawKey) {
+  if (!rawKey || typeof rawKey !== "string") return null;
+  const keyHash = hashApiKey(rawKey);
+  const ref = db.collection("apiKeys").doc(keyHash);
+  const snap = await ref.get();
+  if (!snap.exists || snap.data().revoked) return null;
+  ref.update({ lastUsedAt: Date.now() }).catch(() => {}); // best-effort, don't block the request on it
+  return { id: snap.id, uid: snap.data().uid };
+}
+
 async function issueResetToken(uid) {
   const token = crypto.randomBytes(24).toString("hex");
   await db.collection("reset_tokens").doc(token).set({
@@ -1996,6 +2046,10 @@ export {
   createOrGetGithubUser,
   saveGithubOAuthState,
   consumeGithubOAuthState,
+  createApiKey,
+  listApiKeysForUser,
+  revokeApiKey,
+  findApiKeyByRawKey,
   issueResetToken,
   consumeResetToken,
   createSession,

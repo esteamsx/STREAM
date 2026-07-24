@@ -677,6 +677,39 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
   </div>
 
+  <div class="tfa-card" id="apiCard">
+    <div class="tfa-header" id="apiHeader">
+      <svg class="tfa-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>
+      <div class="tfa-header-title">Developer API</div>
+      <svg class="tfa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="tfa-body">
+      <div class="tfa-body-inner">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Use an API key to pull ES TEAMS TV channels into your own site or bot. Up to 5 keys per account. <a href="/developers" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">View documentation</a></div>
+        <div id="apiKeyList"></div>
+        <div id="apiKeyAddRow">
+          <div class="field" style="margin-bottom:10px">
+            <label>Label this key</label>
+            <input type="text" id="apiKeyLabelInput" placeholder="e.g. My Discord bot" maxlength="60">
+          </div>
+          <button class="tfa-setup-btn" id="createApiKeyBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+            Create API Key
+          </button>
+        </div>
+        <div id="apiKeyMaxMsg" style="display:none;font-size:.76rem;color:var(--muted);text-align:center;padding:8px 0">Maximum of 5 API keys reached. Revoke one to create another.</div>
+        <div id="apiKeyRevealBox" style="display:none;margin-top:12px;padding:12px;border-radius:10px;background:rgba(0,224,255,.08);border:1px solid rgba(0,224,255,.25)">
+          <div style="font-size:.76rem;color:var(--muted);margin-bottom:8px">Copy this now — you won't be able to see it again.</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <code id="apiKeyRevealValue" style="flex:1;font-size:.78rem;word-break:break-all;font-family:var(--font-mono)"></code>
+            <button type="button" class="acc-inline-link" id="apiKeyCopyBtn" style="display:inline;white-space:nowrap">Copy</button>
+          </div>
+        </div>
+        <div class="acc-msg" id="apiKeyMsg"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="danger-card" id="dangerCard">
     <div class="danger-header" id="dangerHeader">
       <svg class="danger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
@@ -865,6 +898,12 @@ async function postJSON(url, body, timeoutMs){
 }
 async function getJSON(url){
   const res = await fetch(url);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Something went wrong');
+  return data;
+}
+async function deleteJSON(url){
+  const res = await fetch(url, { method: 'DELETE' });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Something went wrong');
   return data;
@@ -1527,6 +1566,88 @@ async function deletePasskeyRow(id, btn){
   }
 }
 
+document.getElementById('apiHeader').addEventListener('click', () => {
+  document.getElementById('apiCard').classList.toggle('open');
+});
+
+async function loadApiKeys(){
+  try {
+    const { keys } = await getJSON('/api/dev/keys');
+    const listEl = document.getElementById('apiKeyList');
+    const addRow = document.getElementById('apiKeyAddRow');
+    const maxMsg = document.getElementById('apiKeyMaxMsg');
+    listEl.innerHTML = keys.map(k =>
+      '<div class="pk-row" data-id="' + k.id + '">' +
+        '<div>' +
+          '<div class="pk-row-name">' + (k.label || 'Unnamed key') + ' <span style="color:var(--muted);font-weight:400">••••' + k.last4 + '</span></div>' +
+          '<div class="pk-row-time">Created ' + timeAgo(k.createdAt) + (k.lastUsedAt ? ' · last used ' + timeAgo(k.lastUsedAt) : ' · never used') + '</div>' +
+        '</div>' +
+        '<button class="pk-delete-btn" data-delete-id="' + k.id + '">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg>' +
+          'Revoke' +
+        '</button>' +
+      '</div>'
+    ).join('');
+    listEl.querySelectorAll('.pk-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => revokeApiKeyRow(btn.dataset.deleteId, btn));
+    });
+    const atMax = keys.length >= 5;
+    addRow.style.display = atMax ? 'none' : 'block';
+    maxMsg.style.display = atMax ? 'block' : 'none';
+  } catch (err) {
+    // silently ignore — card just shows empty until opened again
+  }
+}
+
+async function revokeApiKeyRow(id, btn){
+  const msg = document.getElementById('apiKeyMsg');
+  const originalHtml = btn ? btn.innerHTML : null;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner" style="margin-right:0;border-color:rgba(255,59,92,.35);border-top-color:var(--red)"></span>'; }
+  try {
+    await deleteJSON('/api/dev/keys/' + encodeURIComponent(id));
+    document.getElementById('apiKeyRevealBox').style.display = 'none';
+    await loadApiKeys();
+    flashMsg(msg, 'API key revoked.', true);
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+  }
+}
+
+document.getElementById('createApiKeyBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('createApiKeyBtn');
+  const msg = document.getElementById('apiKeyMsg');
+  const labelInput = document.getElementById('apiKeyLabelInput');
+  const label = labelInput.value.trim();
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span>Creating…';
+  try {
+    const { key } = await postJSON('/api/dev/keys', { label });
+    labelInput.value = '';
+    const revealBox = document.getElementById('apiKeyRevealBox');
+    document.getElementById('apiKeyRevealValue').textContent = key;
+    revealBox.style.display = 'block';
+    await loadApiKeys();
+    flashMsg(msg, 'API key created.', true);
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
+});
+
+document.getElementById('apiKeyCopyBtn').addEventListener('click', () => {
+  const val = document.getElementById('apiKeyRevealValue').textContent;
+  navigator.clipboard.writeText(val).then(() => {
+    const btn = document.getElementById('apiKeyCopyBtn');
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = original; }, 1500);
+  }).catch(() => {});
+});
+
 document.getElementById('addPasskeyBtn').addEventListener('click', async () => {
   const btn = document.getElementById('addPasskeyBtn');
   const msg = document.getElementById('passkeyMsg');
@@ -1552,6 +1673,7 @@ document.getElementById('addPasskeyBtn').addEventListener('click', async () => {
   btn.innerHTML = originalHTML;
 });
 loadPasskeys();
+loadApiKeys();
 
 document.getElementById('saveProfileBtn').addEventListener('click', async () => {
   const btn = document.getElementById('saveProfileBtn');

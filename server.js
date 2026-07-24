@@ -14,8 +14,10 @@ import { renderProfile } from "./profile.js";
 import { renderReset } from "./reset.js";
 import { renderDmca } from "./dmca.js";
 import { renderPrivacy } from "./privacy.js";
+import { renderDevelopers } from "./developers.js";
 import { renderAdmin } from "./admin.js";
 import { domainLock } from "./lock.js";
+import { apiRouter } from "./api.js";
 import QRCode from "qrcode";
 import {
   issueCode,
@@ -186,6 +188,7 @@ async function verifyCaptcha(payload) {
 
 app.use(express.json({ limit: "3mb" }));
 app.use(cookieParser());
+app.use(apiRouter);
 
 const authPageConfig = {
   firebaseConfig: {
@@ -2079,7 +2082,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
     video.src = '';
 
-    var url = 'https://cinexora.emmyhenztech.site/api/hls?ch=' + id;
     setStatus('Connecting…', 'buffering');
     showConnecting();
     armConnectTimeout(id, name);
@@ -2099,6 +2101,21 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     function onRecovered(){
       if(_waitingTimer){ clearTimeout(_waitingTimer); _waitingTimer = null; }
     }
+
+    /* Fetch a short-lived, signed proxy URL for this channel instead of ever
+       touching the upstream source directly — the real stream host is now
+       resolved server-side only. */
+    fetch('/api/stream-token/' + encodeURIComponent(id), { credentials: 'same-origin' })
+      .then(function(r){ if(!r.ok) throw new Error('token'); return r.json(); })
+      .then(function(data){ startPlayback(data.url); })
+      .catch(function(){
+        setStatus('Stream error', 'error');
+        hideConnecting();
+        setLivePillOff();
+        showChDown(id, name);
+      });
+
+    function startPlayback(url){
 
     /* native HLS (Safari / iOS) */
     if(!Hls.isSupported() && video.canPlayType('application/vnd.apple.mpegurl')){
@@ -2189,6 +2206,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     window.__hls = hls;
 
     if(window.innerWidth <= 768) closeSB();
+    } /* end startPlayback */
   }
 
   /* ── channel buttons ── */
@@ -3449,6 +3467,10 @@ app.get("/dmca", (req, res) => {
 
 app.get("/privacy", (req, res) => {
   res.send(renderPrivacy(authPageConfig));
+});
+
+app.get("/developers", (req, res) => {
+  res.send(renderDevelopers(authPageConfig));
 });
 
 // Public — just tells the page which address to display/send to. Never

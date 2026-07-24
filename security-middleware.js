@@ -71,10 +71,17 @@ const BLOCKED_UA_PATTERNS = [
 ];
 
 // Paths that must always stay reachable (favicon etc.) even if UA looks odd.
+// /api/v1 and /embed are the public developer API surface — the whole point
+// of that surface is to be called by scripts/bots (axios, node-fetch,
+// python-requests, Telegram bots, etc.), so it would defeat its own purpose
+// to block exactly those user agents here. Key-based auth and per-key rate
+// limiting on those routes do the abuse-prevention job instead.
 const UA_ALLOWLIST_PATHS = ["/favicon.ico"];
+const UA_ALLOWLIST_PREFIXES = ["/api/v1/", "/embed/"];
 
 export const botBlocker = (req, res, next) => {
   if (UA_ALLOWLIST_PATHS.includes(req.path)) return next();
+  if (UA_ALLOWLIST_PREFIXES.some((p) => req.path.startsWith(p))) return next();
 
   const ua = req.get("user-agent") || "";
   const isBlocked = BLOCKED_UA_PATTERNS.some((pattern) => pattern.test(ua));
