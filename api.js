@@ -1,5 +1,7 @@
 import express from "express";
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import { Readable } from "stream";
 import { liveTV } from "./channels.js";
 import { SimpleRateLimiter } from "./security-middleware.js";
@@ -35,11 +37,44 @@ const PUBLIC_BASE = "https://esteamstv.devs.surf";
 // /api/v1/stream/:channel issuance (or the internal main-site equivalent)
 // checks the database — that's the one request per viewing session, not
 // per segment.
-if (!process.env.STREAM_TOKEN_SECRET) {
-  console.warn("⚠️ STREAM_TOKEN_SECRET is not set — using a secret generated at boot. " +
-    "This means existing embed/stream links break every time the server restarts. Set STREAM_TOKEN_SECRET on Render for stable links.");
+//
+// The secret used to sign tokens has to stay the same across restarts, or
+// every currently-active link breaks the instant the process restarts —
+// regardless of how much of its 6-hour window was left. process.env is the
+// most reliable place for it (survives redeploys too), but if it isn't set
+// there, fall back to a value persisted on disk instead of a fresh random
+// one every boot: that way a plain restart/crash-recovery (same filesystem)
+// keeps existing links alive, expiring at exactly their original 6-hour
+// mark instead of dying early. Only a full redeploy that wipes the
+// filesystem would still rotate it in that fallback case.
+function getStreamTokenSecret() {
+  if (process.env.STREAM_TOKEN_SECRET) return process.env.STREAM_TOKEN_SECRET;
+
+  const secretPath = path.join(process.cwd(), ".stream-token-secret");
+  try {
+    const existing = fs.readFileSync(secretPath, "utf8").trim();
+    if (existing) {
+      console.warn("⚠️ STREAM_TOKEN_SECRET is not set — reusing the secret persisted at " +
+        secretPath + ". Set STREAM_TOKEN_SECRET as an env var for the most reliable, redeploy-proof setup.");
+      return existing;
+    }
+  } catch {
+    // no file yet — fall through and create one
+  }
+
+  const generated = crypto.randomBytes(32).toString("hex");
+  try {
+    fs.writeFileSync(secretPath, generated, { mode: 0o600 });
+    console.warn("⚠️ STREAM_TOKEN_SECRET is not set — generated one and saved it to " +
+      secretPath + " so restarts reuse it. Set STREAM_TOKEN_SECRET as an env var instead for a setup that also survives redeploys.");
+  } catch (err) {
+    console.warn("⚠️ STREAM_TOKEN_SECRET is not set and couldn't be persisted to disk (" + err.message + ") — " +
+      "using a secret generated at boot. This means existing embed/stream links break every time the server restarts. " +
+      "Set STREAM_TOKEN_SECRET on Render for stable links.");
+  }
+  return generated;
 }
-const STREAM_TOKEN_SECRET = process.env.STREAM_TOKEN_SECRET || crypto.randomBytes(32).toString("hex");
+const STREAM_TOKEN_SECRET = getStreamTokenSecret();
 
 const VALID_CHANNEL_IDS = new Set(
   liveTV.flatMap((cat) => cat.channels).filter((c) => !c.redirect).map((c) => c.id)
@@ -107,6 +142,39 @@ setInterval(() => {
     if (store.expiresAt < now) resourceStores.delete(token);
   }
 }, 5 * 60 * 1000).unref();
+
+// How long an issued embed link/stream token stays valid. Shared as a
+// constant because the lookup endpoint below needs to derive a token's
+// "created at" time from its expiry (exp - STREAM_LINK_TTL_MS), and that
+// only works if it's the same value used at issuance.
+const STREAM_LINK_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+// ── Issued-link history (for the "Generated Links" dashboard section) ────
+// Per-account list of links issued via /api/v1/stream/:channel, newest
+// first, capped so it can't grow unbounded. Same in-memory tradeoff as
+// resourceStores above: it resets on a restart, so entries from before a
+// restart won't show up here even though the links they describe may
+// still be valid (this list is just a viewing convenience — it doesn't
+// gate anything). The "paste a link" lookup below doesn't have this
+// limitation, since it decodes everything it needs straight from the
+// token itself, with no stored history required.
+const MAX_LINKS_PER_ACCOUNT = 50;
+const issuedLinksByUid = new Map(); // uid -> [{ channel, token, createdAt, exp }, ...]
+
+function recordIssuedLink(uid, entry) {
+  let list = issuedLinksByUid.get(uid);
+  if (!list) {
+    list = [];
+    issuedLinksByUid.set(uid, list);
+  }
+  list.unshift(entry);
+  if (list.length > MAX_LINKS_PER_ACCOUNT) list.length = MAX_LINKS_PER_ACCOUNT;
+}
+
+function channelDisplayName(channel) {
+  const meta = liveTV.flatMap((c) => c.channels).find((c) => c.id === channel);
+  return meta ? meta.name : channel;
+}
 
 // ── HLS fetch + rewrite ──────────────────────────────────────────────────
 async function fetchUpstream(url) {
@@ -318,12 +386,14 @@ router.get("/api/v1/stream/:channel", requireApiKey, devApiLimiter, (req, res) =
   const { channel } = req.params;
   if (!VALID_CHANNEL_IDS.has(channel)) return res.status(404).json({ error: "Unknown channel id. See /api/v1/channels." });
 
-  const ttlMs = 6 * 60 * 60 * 1000; // 6 hours
+  const ttlMs = STREAM_LINK_TTL_MS;
   const token = signStreamToken(channel, ttlMs);
+  const createdAt = Date.now();
+  recordIssuedLink(req.apiKeyUid, { channel, token, createdAt, exp: createdAt + ttlMs });
   res.json({
     channel,
     embed_url: `${PUBLIC_BASE}/embed/${encodeURIComponent(channel)}?token=${encodeURIComponent(token)}`,
-    expires_at: new Date(Date.now() + ttlMs).toISOString(),
+    expires_at: new Date(createdAt + ttlMs).toISOString(),
     note: "Embed this URL in an iframe (or open it directly). It carries the ES TEAMS TV watermark and expires — it isn't the real stream source, and can't be used to reach it.",
   });
 });
@@ -505,6 +575,44 @@ router.delete("/api/dev/keys/:id", requireAuth, async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not revoke key." });
   }
+});
+
+// ── Generated links: history + status lookup ─────────────────────────────
+function describeLink(channel, createdAt, exp) {
+  const now = Date.now();
+  return {
+    channel,
+    channel_name: channelDisplayName(channel),
+    created_at: new Date(createdAt).toISOString(),
+    expires_at: new Date(exp).toISOString(),
+    status: now > exp ? "expired" : "active",
+    ms_left: Math.max(0, exp - now),
+  };
+}
+
+router.get("/api/dev/links", requireAuth, (req, res) => {
+  const list = issuedLinksByUid.get(req.uid) || [];
+  res.json({ links: list.map((l) => describeLink(l.channel, l.createdAt, l.exp)) });
+});
+
+router.get("/api/dev/links/lookup", requireAuth, (req, res) => {
+  const q = String(req.query.q || "").trim();
+  if (!q) return res.status(400).json({ error: "Paste a link or token to look up." });
+
+  // Accept either a full embed URL (?token=...) or a bare token.
+  let token = q;
+  try {
+    const asUrl = new URL(q);
+    const fromQuery = asUrl.searchParams.get("token");
+    if (fromQuery) token = fromQuery;
+  } catch {
+    // not a URL — treat q as a raw token as-is
+  }
+
+  const check = verifyStreamToken(token);
+  if (!check.valid) return res.json({ valid: false });
+
+  res.json({ valid: true, ...describeLink(check.channel, check.exp - STREAM_LINK_TTL_MS, check.exp) });
 });
 
 export { router as apiRouter };

@@ -191,6 +191,18 @@ body:has(.page-overlay.show){overflow:hidden}
 .ch-item code{font-size:.68rem;color:var(--muted)}
 .ch-loading{padding:20px;text-align:center;font-size:.8rem;color:var(--muted)}
 
+/* ── GENERATED LINKS CARD ── */
+.link-item{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;
+  font-size:.8rem;border-bottom:1px solid var(--border);
+}
+.link-item:last-child{border-bottom:none}
+.link-item-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.link-channel{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link-created{font-size:.68rem;color:var(--muted)}
+.link-item-status{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.link-timeleft{font-size:.68rem;color:var(--muted);font-family:var(--font-mono);white-space:nowrap}
+
 /* ── TRY IT CARD ── */
 .tryit-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
 .tryit-tab{
@@ -321,6 +333,23 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 
         <div class="curl-label"><span>Equivalent curl</span><button class="btn btn-sm" id="tryitCopyCurl" type="button">Copy</button></div>
         <pre id="tryitCurl">curl https://esteamstv.devs.surf/api/v1/channels</pre>
+      </div>
+
+      <!-- GENERATED LINKS -->
+      <div class="dcard span2" id="linksCard">
+        <div class="dcard-head">
+          <span class="dcard-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 00-7.07 0l-2.83 2.83a5 5 0 007.07 7.07l1.5-1.5"/></svg>
+          </span>
+          <div>
+            <div class="dcard-title">Generated Links</div>
+            <div class="dcard-sub" id="linksCountSub">Loading…</div>
+          </div>
+        </div>
+        <div class="field ch-search">
+          <input type="text" id="linksSearchInput" placeholder="Filter by channel, or paste a link/token to check its status…">
+        </div>
+        <div class="ch-list" id="linksList"><div class="ch-loading">Loading…</div></div>
       </div>
 
     </div>
@@ -586,9 +615,82 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     }).catch(function(){ renderLoggedOutKeyCard(); });
   }
 
+  /* ── GENERATED LINKS CARD ── */
+  var linksList = document.getElementById('linksList');
+  var linksSearchInput = document.getElementById('linksSearchInput');
+  var linksCountSub = document.getElementById('linksCountSub');
+  var allLinks = [];
+
+  function formatDuration(ms){
+    var totalMin = Math.round(Math.abs(ms) / 60000);
+    var h = Math.floor(totalMin / 60);
+    var m = totalMin % 60;
+    return (h > 0 ? h + 'h ' : '') + m + 'm';
+  }
+  function formatCreated(iso){
+    return new Date(iso).toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+  }
+  function linkItemHtml(l){
+    var isActive = l.status === 'active';
+    var timeText = isActive
+      ? (formatDuration(l.ms_left) + ' left')
+      : ('Expired ' + formatDuration(Date.now() - new Date(l.expires_at).getTime()) + ' ago');
+    return '<div class="link-item">' +
+      '<div class="link-item-main">' +
+        '<span class="link-channel">' + esc(l.channel_name) + '</span>' +
+        '<code class="link-created">Created ' + esc(formatCreated(l.created_at)) + '</code>' +
+      '</div>' +
+      '<div class="link-item-status">' +
+        '<span class="status-pill ' + (isActive ? 'ok' : 'bad') + '">' + (isActive ? 'Active' : 'Inactive') + '</span>' +
+        '<span class="link-timeleft">' + esc(timeText) + '</span>' +
+      '</div>' +
+    '</div>';
+  }
+  function renderLinksList(links){
+    if(!links.length){ linksList.innerHTML = '<div class="ch-loading">No generated links yet.</div>'; return; }
+    linksList.innerHTML = links.map(linkItemHtml).join('');
+  }
+  function looksLikeTokenOrUrl(s){
+    return /token=/.test(s) || /^[A-Za-z0-9_-]+\.[A-Za-z0-9]+$/.test(s.trim());
+  }
+
+  function loadLinks(){
+    getJSON('/api/dev/links').then(function(r){
+      if(!r.ok){ linksList.innerHTML = '<div class="ch-loading">Log in to see your generated links.</div>'; linksCountSub.textContent = ''; return; }
+      allLinks = r.data.links || [];
+      linksCountSub.textContent = allLinks.length + (allLinks.length === 1 ? ' link generated' : ' links generated');
+      renderLinksList(allLinks);
+    }).catch(function(){ linksList.innerHTML = '<div class="ch-loading">Could not load links.</div>'; });
+  }
+
+  var linksLookupTimer = null;
+  linksSearchInput.addEventListener('input', function(){
+    var q = linksSearchInput.value.trim();
+    if(!q){ renderLinksList(allLinks); return; }
+    if(looksLikeTokenOrUrl(q)){
+      linksList.innerHTML = '<div class="ch-loading">Checking…</div>';
+      clearTimeout(linksLookupTimer);
+      linksLookupTimer = setTimeout(function(){
+        getJSON('/api/dev/links/lookup?q=' + encodeURIComponent(q)).then(function(r){
+          if(!r.ok || !r.data.valid){ linksList.innerHTML = '<div class="ch-loading">That link is invalid or malformed.</div>'; return; }
+          renderLinksList([r.data]);
+        }).catch(function(){ linksList.innerHTML = '<div class="ch-loading">Could not check that link.</div>'; });
+      }, 300);
+    } else {
+      var f = q.toLowerCase();
+      renderLinksList(allLinks.filter(function(l){
+        return l.channel_name.toLowerCase().indexOf(f) !== -1 || l.channel.toLowerCase().indexOf(f) !== -1;
+      }));
+    }
+  });
+
   /* ── PROFILE (determines logged-in state) ── */
   getJSON('/api/profile').then(function(r){
-    if(r.ok) loadKeys(); else renderLoggedOutKeyCard();
+    if(r.ok){ loadKeys(); loadLinks(); } else {
+      renderLoggedOutKeyCard();
+      linksList.innerHTML = '<div class="ch-loading">Log in to see your generated links.</div>';
+      linksCountSub.textContent = '';
+    }
   }).catch(function(){ renderLoggedOutKeyCard(); });
 
   /* ── CHANNELS CARD + Try it channel select ── */
