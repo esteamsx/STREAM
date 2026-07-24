@@ -302,6 +302,10 @@ export class RepeatedRefusalGuard {
 
       res.on("finish", () => {
         if (res.statusCode !== 403 && res.statusCode !== 404) return;
+        // The developer API legitimately returns 401/403/404 as part of normal
+        // use (bad key, expired embed token, unknown channel id) — someone
+        // testing it shouldn't get their IP auto-banned from the entire site.
+        if (req.path.startsWith("/api/v1/") || req.path.startsWith("/embed/")) return;
         const hits = (this.refusals.get(ip) || []).filter((t) => now - t < this.windowMs);
         hits.push(now);
         this.refusals.set(ip, hits);

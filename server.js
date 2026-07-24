@@ -319,6 +319,12 @@ app.get("/api/channels/category/:name", requireAuth, channelApiLimiter, async (r
   }
 });
 
+// Every browser auto-requests this on every page load. With no route here it
+// 404s every time, and RepeatedRefusalGuard counts every 403/404 site-wide
+// toward its self-ban threshold — so normal browsing alone could trip it.
+app.get("/favicon.ico", (req, res) => res.status(204).end());
+app.get(["/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"], (req, res) => res.status(204).end());
+
 app.get("/", async (req, res) => {
   const sessionId = req.cookies?.session;
   const uid = await verifySession(sessionId);
@@ -3241,7 +3247,7 @@ function fsRunSearch(q){
   }
   if (bnavApiItem) {
     bnavApiItem.addEventListener('click', function(){
-      showLiquidToast('Api — coming soon');
+      window.location.href = '/developers';
       if (bnavSettingsMenu) bnavSettingsMenu.classList.remove('open');
     });
   }
@@ -3258,7 +3264,7 @@ function fsRunSearch(q){
   var menuApiItem = document.getElementById('menuApiItem');
   if (menuApiItem) {
     menuApiItem.addEventListener('click', function(){
-      showLiquidToast('Api — coming soon');
+      window.location.href = '/developers';
       var dropdown = document.getElementById('userMenuDropdown');
       if (dropdown) dropdown.classList.remove('open');
     });
