@@ -269,14 +269,18 @@ export const probePathTrap = (req, res, next) => {
 };
 
 /* ───────────────────────────────────────────────
-   LAYER 10 (NEW): REPEATED-403/404 IP GUARD
+   LAYER 10 (NEW): REPEATED-403 IP GUARD
    Independent from SimpleRateLimiter above (which caps total request
-   volume) — this tracks how many times an IP gets refused across ANY
-   route. A normal visitor almost never triggers a 403/404 more than a
-   couple of times; a scanner walking a wordlist racks up dozens in
-   seconds. Wrap this around your existing app with app.use(), same as the
-   others — it inspects res.statusCode after the fact and doesn't change
-   what any existing route returns.
+   volume) — this tracks how many times an IP gets actively blocked by
+   another security layer (bot UA, IP blocklist, invalid stream token, etc.)
+   across ANY route. Deliberately 403-only, not 404 — bare 404s are far too
+   common from ordinary browsing and browser/DevTools auto-probing
+   (favicon.ico, apple-touch-icon, devtools.json, typos) to be a reliable
+   attack signal; counting them was auto-banning real visitors for nothing.
+   A scanner walking a wordlist still racks up plenty of real 403s from the
+   other layers above. Wrap this around your existing app with app.use(),
+   same as the others — it inspects res.statusCode after the fact and
+   doesn't change what any existing route returns.
    ─────────────────────────────────────────────── */
 
 export class RepeatedRefusalGuard {
@@ -301,7 +305,14 @@ export class RepeatedRefusalGuard {
       }
 
       res.on("finish", () => {
-        if (res.statusCode !== 403 && res.statusCode !== 404) return;
+        // Only count 403s here — those are already a deliberate block from
+        // another security layer (bot UA, IP blocklist, invalid stream
+        // token...), a real signal. Bare 404s are too common from normal
+        // browsing and browser/DevTools auto-probing (favicon, touch icons,
+        // devtools.json, typos, etc.) to safely treat as an attack signal —
+        // counting them was auto-banning real visitors from the whole site
+        // for nothing.
+        if (res.statusCode !== 403) return;
         // The developer API legitimately returns 401/403/404 as part of normal
         // use (bad key, expired embed token, unknown channel id) — someone
         // testing it shouldn't get their IP auto-banned from the entire site.

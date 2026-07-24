@@ -324,6 +324,10 @@ app.get("/api/channels/category/:name", requireAuth, channelApiLimiter, async (r
 // toward its self-ban threshold — so normal browsing alone could trip it.
 app.get("/favicon.ico", (req, res) => res.status(204).end());
 app.get(["/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"], (req, res) => res.status(204).end());
+// Chrome DevTools auto-requests this on every single page load whenever
+// DevTools is open (its "Automatic Workspace Folders" feature) — another
+// silent 404-per-reload source, same problem as favicon.ico above.
+app.get("/.well-known/appspecific/com.chrome.devtools.json", (req, res) => res.status(204).end());
 
 app.get("/", async (req, res) => {
   const sessionId = req.cookies?.session;
