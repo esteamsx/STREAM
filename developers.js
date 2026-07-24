@@ -93,6 +93,24 @@ pre{
 }
 .btn-spinner-muted{border:2px solid var(--border-strong);border-top-color:var(--accent)}
 
+/* ── confirmation overlay (same pattern as the account page's delete/logout dialogs) ── */
+@keyframes overlayCardIn{from{opacity:0;transform:translateY(6px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.page-overlay{
+  position:fixed;inset:0;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);
+  display:none;align-items:center;justify-content:center;z-index:100;padding:24px;
+}
+.page-overlay.show{display:flex}
+body:has(.page-overlay.show){overflow:hidden}
+.overlay-card{
+  width:100%;max-width:360px;background:var(--card);border:1px solid var(--border-strong);border-radius:16px;
+  padding:26px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);
+  animation:overlayCardIn .22s var(--ease);
+}
+.overlay-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem}
+.overlay-sub{font-size:.82rem;color:var(--muted);line-height:1.5}
+.overlay-sub b{color:var(--text)}
+.overlay-cancel{background:transparent;border:none;color:var(--muted);font-size:.78rem;align-self:center;text-decoration:underline;cursor:pointer}
+
 /* ── HERO ── */
 .hero{margin-bottom:26px}
 .hero h1{font-family:var(--font-display);font-size:1.7rem;margin-bottom:6px}
@@ -390,6 +408,15 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 
 </div>
 
+<div class="page-overlay" id="revokeKeyOverlay">
+  <div class="overlay-card">
+    <div class="overlay-title">Revoke this API key?</div>
+    <div class="overlay-sub">Anything using it will stop working <b>immediately</b>. This can't be undone.</div>
+    <button class="btn btn-primary" id="revokeKeyConfirmBtn" type="button" style="width:100%;justify-content:center;background:linear-gradient(90deg,var(--red),#ff7a8d)">Revoke Key</button>
+    <button class="overlay-cancel" id="revokeKeyCancelBtn" type="button">Cancel</button>
+  </div>
+</div>
+
 <script>
 (function(){
   'use strict';
@@ -419,6 +446,34 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     return '<div class="reveal-box"><div class="reveal-label">Copy this now — you won\\'t be able to see it again.</div>' +
       '<div class="reveal-row"><code>' + esc(key) + '</code><button type="button" class="btn btn-sm" id="copyRevealBtn">Copy</button></div></div>';
   }
+
+  /* ── revoke-key confirmation overlay ── */
+  var pendingRevokeBtn = null;
+  var revokeKeyOverlay = document.getElementById('revokeKeyOverlay');
+  document.getElementById('revokeKeyCancelBtn').addEventListener('click', function(){
+    pendingRevokeBtn = null;
+    revokeKeyOverlay.classList.remove('show');
+  });
+  document.getElementById('revokeKeyConfirmBtn').addEventListener('click', function(){
+    var confirmBtn = this;
+    var btn = pendingRevokeBtn;
+    if(!btn) return;
+    var originalHtml = confirmBtn.innerHTML;
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<span class="btn-spinner"></span> Revoking…';
+    fetch('/api/dev/keys/' + encodeURIComponent(btn.getAttribute('data-revoke')), { method: 'DELETE' })
+      .then(function(){
+        pendingRevokeBtn = null;
+        revokeKeyOverlay.classList.remove('show');
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalHtml;
+        loadKeys();
+      })
+      .catch(function(){
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalHtml;
+      });
+  });
 
   /* ── API KEY CARD ── */
   var keyCardBody = document.getElementById('keyCardBody');
@@ -494,13 +549,8 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 
     keyCardBody.querySelectorAll('[data-revoke]').forEach(function(btn){
       btn.addEventListener('click', function(){
-        if(!confirm('Revoke this API key? Anything using it will stop working immediately.')) return;
-        var originalHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="btn-spinner btn-spinner-muted"></span>';
-        fetch('/api/dev/keys/' + encodeURIComponent(btn.getAttribute('data-revoke')), { method: 'DELETE' })
-          .then(function(){ loadKeys(); })
-          .catch(function(){ btn.disabled = false; btn.innerHTML = originalHtml; });
+        pendingRevokeBtn = btn;
+        document.getElementById('revokeKeyOverlay').classList.add('show');
       });
     });
 

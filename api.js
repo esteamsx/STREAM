@@ -372,6 +372,15 @@ router.get("/embed/:channel", (req, res) => {
   .wm-name{font-family:ui-monospace,'JetBrains Mono',monospace;font-size:.55rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.95);text-shadow:0 1px 3px rgba(0,0,0,.6)}
   .status{position:absolute;bottom:10px;left:14px;color:rgba(255,255,255,.6);
           font:500 11px system-ui,sans-serif;pointer-events:none;z-index:5}
+  .mute-btn{
+    position:absolute;bottom:10px;right:10px;z-index:6;width:32px;height:32px;border-radius:50%;
+    background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;
+    cursor:pointer;padding:0;
+  }
+  .mute-btn svg{width:16px;height:16px;stroke:#fff}
+  .mute-btn .ic-off{display:none}
+  .mute-btn.muted .ic-on{display:none}
+  .mute-btn.muted .ic-off{display:block}
 </style>
 </head>
 <body>
@@ -385,11 +394,17 @@ router.get("/embed/:channel", (req, res) => {
     <span class="wm-name">ES TEAMS TV</span>
   </div>
   <div class="status" id="status">Connecting…</div>
+  <button type="button" class="mute-btn muted" id="muteBtn" aria-label="Toggle sound">
+    <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+    <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M23 9l-6 6M17 9l6 6"/></svg>
+  </button>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
   var video = document.getElementById('v');
   var statusEl = document.getElementById('status');
+  var wrapEl = document.querySelector('.wrap');
+  var muteBtn = document.getElementById('muteBtn');
   var src = 'https://cinexora.emmyhenztech.site/api/hls?ch=${encodeURIComponent(channel)}';
   if (Hls.isSupported()) {
     var hls = new Hls({ enableWorker: true, lowLatencyMode: true, maxBufferLength: 30 });
@@ -403,10 +418,29 @@ router.get("/embed/:channel", (req, res) => {
   } else {
     statusEl.textContent = 'HLS not supported in this browser.';
   }
+
+  /* Sound: autoplay must start muted (browser policy), and there was previously no
+     way at all to turn it on — no controls, nothing. This adds a visible mute/unmute
+     button, plus unmuting on the first tap/click anywhere on the player, same pattern
+     as the main site's watch page. */
+  function setMuted(muted){
+    video.muted = muted;
+    muteBtn.classList.toggle('muted', muted);
+    if(!muted){
+      var resumeIfPaused = function(){ if(video.paused) video.play().catch(function(){}); };
+      resumeIfPaused();
+      setTimeout(resumeIfPaused, 50);
+      setTimeout(resumeIfPaused, 250);
+    }
+  }
+  muteBtn.addEventListener('click', function(e){ e.stopPropagation(); setMuted(!video.muted); });
+  wrapEl.addEventListener('click', function(){ if(video.muted) setMuted(false); });
+  wrapEl.addEventListener('touchstart', function(){ if(video.muted) setMuted(false); }, {passive:true});
 </script>
 </body>
 </html>`);
 });
+
 
 // ── Account-facing API key management (session-based, powers the Settings → API tab) ──
 router.post("/api/dev/keys", requireAuth, async (req, res) => {
