@@ -552,15 +552,43 @@ function hashApiKey(rawKey) {
   return crypto.createHash("sha256").update(rawKey).digest("hex");
 }
 
-// Monthly request quota shown on the API dashboard's usage bar. Not a hard
-// server-side cap (the per-minute SimpleRateLimiter in api.js is what
-// actually throttles traffic) — this is a soft, informational allowance so
-// developers can see how close they are to what we consider normal usage.
-const API_KEY_MONTHLY_LIMIT = 3000;
+// Monthly request quota. Tracked per ACCOUNT (uid), not per key — revoking a
+// key and creating a new one does not grant a fresh allowance, since the
+// counter lives on the account's own doc, not on any individual key's doc.
+// Not enforced by SimpleRateLimiter (that's the separate per-minute burst
+// cap in api.js) — this is the hard monthly ceiling.
+const API_KEY_MONTHLY_LIMIT = 100;
 
 function currentUsageMonth() {
   const d = new Date();
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+// Read-only: for display (the dashboard's usage bar). Never writes, so it's
+// safe to call as often as needed without affecting the count itself.
+async function getAccountApiUsage(uid) {
+  const nowMonth = currentUsageMonth();
+  const snap = await db.collection("apiUsage").doc(uid).get();
+  const data = snap.exists ? snap.data() : null;
+  const requestsThisMonth = data && data.usageMonth === nowMonth ? (data.requestsThisMonth || 0) : 0;
+  return { requestsThisMonth, monthlyLimit: API_KEY_MONTHLY_LIMIT };
+}
+
+// Called once per authenticated API request (from requireApiKey in api.js).
+// Returns allowed:false without incrementing once the account is already at
+// its cap, so a blocked account can't be pushed further over by retries.
+async function checkAndIncrementAccountApiUsage(uid) {
+  const nowMonth = currentUsageMonth();
+  const ref = db.collection("apiUsage").doc(uid);
+  const snap = await ref.get();
+  const data = snap.exists ? snap.data() : null;
+  const current = data && data.usageMonth === nowMonth ? (data.requestsThisMonth || 0) : 0;
+  if (current >= API_KEY_MONTHLY_LIMIT) {
+    return { allowed: false, requestsThisMonth: current, monthlyLimit: API_KEY_MONTHLY_LIMIT };
+  }
+  const requestsThisMonth = current + 1;
+  await ref.set({ uid, requestsThisMonth, usageMonth: nowMonth }, { merge: true });
+  return { allowed: true, requestsThisMonth, monthlyLimit: API_KEY_MONTHLY_LIMIT };
 }
 
 async function createApiKey(uid, label) {
@@ -573,8 +601,6 @@ async function createApiKey(uid, label) {
     createdAt: Date.now(),
     lastUsedAt: null,
     revoked: false,
-    requestsThisMonth: 0,
-    usageMonth: currentUsageMonth(),
   });
   // rawKey is returned exactly once — the caller must show it to the user now.
   return { id: keyHash, rawKey };
@@ -582,20 +608,8 @@ async function createApiKey(uid, label) {
 
 async function listApiKeysForUser(uid) {
   const q = await db.collection("apiKeys").where("uid", "==", uid).get();
-  const nowMonth = currentUsageMonth();
   return q.docs
-    .map((d) => {
-      const k = { id: d.id, ...d.data() };
-      // Display-only reset: if the stored counter is from a previous month,
-      // show 0 without writing (the actual write-side reset happens lazily
-      // in findApiKeyByRawKey, the next time the key is actually used).
-      const requestsThisMonth = k.usageMonth === nowMonth ? (k.requestsThisMonth || 0) : 0;
-      return {
-        ...k,
-        requestsThisMonth,
-        monthlyLimit: API_KEY_MONTHLY_LIMIT,
-      };
-    })
+    .map((d) => ({ id: d.id, ...d.data() }))
     .filter((k) => !k.revoked)
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -616,13 +630,8 @@ async function findApiKeyByRawKey(rawKey) {
   const ref = db.collection("apiKeys").doc(keyHash);
   const snap = await ref.get();
   if (!snap.exists || snap.data().revoked) return null;
-  const data = snap.data();
-  const nowMonth = currentUsageMonth();
-  // Lazy monthly rollover: if the stored counter is from a previous month,
-  // this use starts a fresh month at 1 instead of piling onto the old total.
-  const requestsThisMonth = data.usageMonth === nowMonth ? (data.requestsThisMonth || 0) + 1 : 1;
-  ref.update({ lastUsedAt: Date.now(), requestsThisMonth, usageMonth: nowMonth }).catch(() => {}); // best-effort, don't block the request on it
-  return { id: snap.id, uid: data.uid };
+  ref.update({ lastUsedAt: Date.now() }).catch(() => {}); // best-effort, don't block the request on it
+  return { id: snap.id, uid: snap.data().uid };
 }
 
 async function issueResetToken(uid) {
@@ -2081,6 +2090,8 @@ export {
   revokeApiKey,
   findApiKeyByRawKey,
   API_KEY_MONTHLY_LIMIT,
+  getAccountApiUsage,
+  checkAndIncrementAccountApiUsage,
   issueResetToken,
   consumeResetToken,
   createSession,

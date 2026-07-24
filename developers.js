@@ -48,12 +48,28 @@ pre{
 }
 .wrap{max-width:920px;margin:0 auto;padding:22px 20px 80px}
 
-/* ── TOP BAR ── */
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px}
-.brand{display:flex;align-items:center;gap:9px;font-family:var(--font-display);font-size:1.08rem;font-weight:700;color:var(--text)}
-.brand-icon{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,rgba(0,224,255,.16),rgba(124,92,255,.12));display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0}
-.brand-icon svg{width:16px;height:16px}
-.topbar-actions{display:flex;align-items:center;gap:8px}
+/* ── HEADER — same back-link + page-logo pattern used across the site (see privacy.js) ── */
+.back-row{margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.back-link{
+  display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;
+  font-size:.82rem;font-weight:600;background:none;border:none;cursor:pointer;padding:0;font-family:var(--font-body);
+}
+.back-link:hover{color:var(--accent)}
+.back-link svg{width:16px;height:16px}
+.page-logo{
+  display:flex;align-items:center;gap:10px;margin-bottom:20px;
+  font-family:var(--font-display);font-size:1.3rem;font-weight:700;letter-spacing:-.02em;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.docs-link-btn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:9px;
+  font-size:.78rem;font-weight:600;cursor:pointer;border:1px solid var(--border-strong);
+  background:var(--card2);color:var(--text);font-family:var(--font-body);
+}
+.docs-link-btn:hover{background:var(--card)}
+.docs-link-btn svg{width:14px;height:14px}
+
 .btn{
   display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:10px;
   font-family:var(--font-body);font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid var(--border-strong);
@@ -76,7 +92,6 @@ pre{
 
 /* ── VIEW SWITCH ── */
 #view-docs{display:none}
-.docs-topbar{display:flex;align-items:center;gap:10px;margin-bottom:18px}
 
 /* ── GRID / CARDS ── */
 .dash-grid{display:grid;grid-template-columns:1fr;gap:16px}
@@ -189,20 +204,20 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   <!-- ══════════════════════════ DASHBOARD VIEW ══════════════════════════ -->
   <div id="view-dash">
 
-    <div class="topbar">
-      <a class="brand" href="/">
-        <span class="brand-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 20h8"/><path d="M7 7l3-4M17 7l-3-4"/></svg>
-        </span>
-        ES TEAMS TV
+    <div class="back-row">
+      <a href="/" class="back-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+        Back
       </a>
-      <div class="topbar-actions">
-        <button class="btn" id="toDocsBtn" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
-          Documentation
-        </button>
-        <a class="btn btn-ghost" href="/">← Back to site</a>
-      </div>
+      <button type="button" class="docs-link-btn" id="toDocsBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+        Documentation
+      </button>
+    </div>
+
+    <div class="page-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" style="width:24px;height:24px;flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      ES TEAMS TV
     </div>
 
     <div class="hero">
@@ -289,12 +304,16 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   <!-- ══════════════════════════ DOCUMENTATION VIEW ══════════════════════════ -->
   <div id="view-docs">
 
-    <div class="docs-topbar">
-      <button class="btn" id="backToDashBtn" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    <div class="back-row">
+      <a href="#" class="back-link" id="backToDashBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
         Back
-      </button>
-      <div class="brand" style="font-size:.95rem"><span class="brand-icon" style="width:22px;height:22px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 20h8"/><path d="M7 7l3-4M17 7l-3-4"/></svg></span>Documentation</div>
+      </a>
+    </div>
+
+    <div class="page-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" style="width:24px;height:24px;flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      ES TEAMS TV
     </div>
 
     <h1>Developer API</h1>
@@ -346,14 +365,14 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     <p class="doc-p">Once a link expires, call <code>/api/v1/stream/:channel</code> again for a fresh one. Don't try to cache or redistribute the underlying player URL past its expiry — it stops working, by design.</p>
 
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
-    <p class="doc-p">30 requests per minute per API key on the issuance endpoints — plenty for normal use, since it's one call per viewer session, not per segment. Each key also has a soft monthly allowance of 3,000 requests, shown as the usage bar on your <a href="#" id="docsToDashLink2">API Dashboard</a>.</p>
+    <p class="doc-p">30 requests per minute per API key on the issuance endpoints — plenty for normal use, since it's one call per viewer session, not per segment. On top of that, every account has a monthly allowance of 100 requests, shared across all your keys — it's tied to your account, so revoking a key and creating a new one doesn't reset it. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink2">API Dashboard</a>.</p>
 
     <h2 class="doc-h2">Errors</h2>
     <table>
       <tr><th>Status</th><th>Meaning</th></tr>
       <tr><td>401</td><td>Missing, invalid, or revoked API key</td></tr>
       <tr><td>404</td><td>Unknown channel id — check <code>/api/v1/channels</code></td></tr>
-      <tr><td>429</td><td>Rate limit hit — slow down</td></tr>
+      <tr><td>429</td><td>Per-minute rate limit hit, or the account's monthly request limit is reached</td></tr>
       <tr><td>502</td><td>Could not reach the stream source — try again shortly</td></tr>
     </table>
 
@@ -373,7 +392,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   function showDocs(){ viewDash.style.display = 'none'; viewDocs.style.display = 'block'; window.scrollTo(0,0); }
   function showDash(){ viewDocs.style.display = 'none'; viewDash.style.display = 'block'; window.scrollTo(0,0); }
   document.getElementById('toDocsBtn').addEventListener('click', showDocs);
-  document.getElementById('backToDashBtn').addEventListener('click', showDash);
+  document.getElementById('backToDashBtn').addEventListener('click', function(e){ e.preventDefault(); showDash(); });
   document.getElementById('docsToDashLink1').addEventListener('click', function(e){ e.preventDefault(); showDash(); });
   document.getElementById('docsToDashLink2').addEventListener('click', function(e){ e.preventDefault(); showDash(); });
 
@@ -403,22 +422,29 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
       '<a class="btn btn-primary" href="/login?next=%2Fdevelopers">Log in</a>';
   }
 
-  function renderKeys(keys){
+  function renderKeys(keys, usage){
     var html = '';
+
+    // Account-level usage — one bar, shared by every key on this account.
+    // Revoking a key and making a new one does not reset this.
+    if(usage){
+      var pct = usage.monthlyLimit ? Math.min(100, Math.round((usage.requestsThisMonth / usage.monthlyLimit) * 100)) : 0;
+      html += '<div class="usage-wrap" style="margin-top:0;margin-bottom:16px">' +
+        '<div class="usage-top"><span class="usage-label">Account usage this month</span><span class="usage-count">' + usage.requestsThisMonth + ' / ' + usage.monthlyLimit + '</span></div>' +
+        '<div class="usage-track"><div class="usage-fill ' + usageLevelClass(pct) + '" style="width:0%" data-pct="' + pct + '"></div></div>' +
+        (pct >= 100 ? '<div class="dcard-msg err" style="margin-top:6px">Monthly limit reached — requests will fail until it resets next month.</div>' : '') +
+      '</div>';
+    }
+
     if(!keys.length){
       html += '<div class="empty-state" id="noKeysMsg">You don\\'t have an API key yet. Create one to start making requests.</div>';
     } else {
       keys.forEach(function(k){
-        var pct = k.monthlyLimit ? Math.min(100, Math.round((k.requestsThisMonth / k.monthlyLimit) * 100)) : 0;
         html += '<div class="key-row">' +
           '<span class="key-dot"></span>' +
           '<div class="key-info">' +
             '<div class="key-label">' + esc(k.label) + '</div>' +
             '<div class="key-meta">estv_&bull;&bull;&bull;&bull;' + esc(k.last4) + ' &middot; created ' + fmtDate(k.createdAt) + ' &middot; last used ' + fmtDate(k.lastUsedAt) + '</div>' +
-            '<div class="usage-wrap">' +
-              '<div class="usage-top"><span class="usage-label">Usage this month</span><span class="usage-count">' + k.requestsThisMonth + ' / ' + k.monthlyLimit + '</span></div>' +
-              '<div class="usage-track"><div class="usage-fill ' + usageLevelClass(pct) + '" style="width:0%" data-pct="' + pct + '"></div></div>' +
-            '</div>' +
           '</div>' +
           '<div class="key-actions"><button type="button" class="icon-btn" data-revoke="' + k.id + '" title="Revoke"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg></button></div>' +
         '</div>';
@@ -484,7 +510,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   function loadKeys(){
     getJSON('/api/dev/keys').then(function(r){
       if(!r.ok){ renderLoggedOutKeyCard(); return; }
-      renderKeys(r.data.keys || []);
+      renderKeys(r.data.keys || [], r.data.usage || null);
     }).catch(function(){ renderLoggedOutKeyCard(); });
   }
 

@@ -9,6 +9,8 @@ import {
   listApiKeysForUser,
   revokeApiKey,
   findApiKeyByRawKey,
+  getAccountApiUsage,
+  checkAndIncrementAccountApiUsage,
 } from "./auth.js";
 
 const router = express.Router();
@@ -272,6 +274,16 @@ async function requireApiKey(req, res, next) {
   try {
     const found = await findApiKeyByRawKey(String(key));
     if (!found) return res.status(401).json({ error: "Invalid or revoked API key." });
+    // Quota lives on the ACCOUNT (uid), not the key — revoking this key and
+    // making a new one does not grant a fresh allowance.
+    const usage = await checkAndIncrementAccountApiUsage(found.uid);
+    if (!usage.allowed) {
+      return res.status(429).json({
+        error: "Monthly request limit reached for this account.",
+        requests_this_month: usage.requestsThisMonth,
+        monthly_limit: usage.monthlyLimit,
+      });
+    }
     req.apiKeyId = found.id;
     req.apiKeyUid = found.uid;
     next();
@@ -401,7 +413,10 @@ router.post("/api/dev/keys", requireAuth, async (req, res) => {
 
 router.get("/api/dev/keys", requireAuth, async (req, res) => {
   try {
-    const keys = await listApiKeysForUser(req.uid);
+    const [keys, usage] = await Promise.all([
+      listApiKeysForUser(req.uid),
+      getAccountApiUsage(req.uid),
+    ]);
     res.json({
       keys: keys.map((k) => ({
         id: k.id,
@@ -409,9 +424,11 @@ router.get("/api/dev/keys", requireAuth, async (req, res) => {
         last4: k.last4,
         createdAt: k.createdAt,
         lastUsedAt: k.lastUsedAt,
-        requestsThisMonth: k.requestsThisMonth,
-        monthlyLimit: k.monthlyLimit,
       })),
+      usage: {
+        requestsThisMonth: usage.requestsThisMonth,
+        monthlyLimit: usage.monthlyLimit,
+      },
     });
   } catch (err) {
     console.error("list api keys error:", err.message);
