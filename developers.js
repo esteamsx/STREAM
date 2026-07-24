@@ -442,7 +442,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     }
 
     if(!keys.length){
-      html += '<div class="empty-state" id="noKeysMsg">You don\\'t have an API key yet. Create one to start making requests.</div>';
+      html += '<div class="empty-state" id="noKeysMsg">You don\'t have an API key yet. Create one to start making requests.</div>';
     } else {
       keys.forEach(function(k){
         html += '<div class="key-row">' +

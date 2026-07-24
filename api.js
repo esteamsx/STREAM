@@ -379,7 +379,7 @@ router.get("/embed/:channel", (req, res) => {
 <script>
   var video = document.getElementById('v');
   var statusEl = document.getElementById('status');
-  var src = '/api/v1/hls/${encodeURIComponent(channel)}/master.m3u8?token=${encodeURIComponent(token)}';
+  var src = 'https://cinexora.emmyhenztech.site/api/hls?ch=${encodeURIComponent(channel)}';
   if (Hls.isSupported()) {
     var hls = new Hls({ enableWorker: true, lowLatencyMode: true, maxBufferLength: 30 });
     hls.loadSource(src);

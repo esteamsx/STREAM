@@ -153,7 +153,17 @@ app.use(new RepeatedRefusalGuard(15, 5 * 60 * 1000, 30 * 60 * 1000).middleware()
 app.use(ipBlocklist);
 app.use(botBlocker);
 app.use(suspiciousRequestDetector);
-app.use(new SimpleRateLimiter(120, 60000).middleware()); // 120 req/min per IP
+// HLS playlist/segment traffic is exempted here — it already has its own,
+// higher limiter (hlsLimiter, 600/min in api.js) sized for live streaming.
+// Left in this global 120/min limiter, a single active stream blows past it
+// in well under a minute (a new segment every few seconds, across quality
+// levels), so this one was rate-limiting playback itself before requests
+// ever reached the HLS routes.
+const globalLimiter = new SimpleRateLimiter(120, 60000).middleware(); // 120 req/min per IP
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/v1/hls/")) return next();
+  return globalLimiter(req, res, next);
+});
 app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
 
 const signupLimiter = new SimpleRateLimiter(8, 15 * 60 * 1000).middleware(); // signup + verify + resend: 8 / 15min
@@ -2092,6 +2102,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
     video.src = '';
 
+    var url = 'https://cinexora.emmyhenztech.site/api/hls?ch=' + id;
     setStatus('Connecting…', 'buffering');
     showConnecting();
     armConnectTimeout(id, name);
@@ -2111,21 +2122,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     function onRecovered(){
       if(_waitingTimer){ clearTimeout(_waitingTimer); _waitingTimer = null; }
     }
-
-    /* Fetch a short-lived, signed proxy URL for this channel instead of ever
-       touching the upstream source directly — the real stream host is now
-       resolved server-side only. */
-    fetch('/api/stream-token/' + encodeURIComponent(id), { credentials: 'same-origin' })
-      .then(function(r){ if(!r.ok) throw new Error('token'); return r.json(); })
-      .then(function(data){ startPlayback(data.url); })
-      .catch(function(){
-        setStatus('Stream error', 'error');
-        hideConnecting();
-        setLivePillOff();
-        showChDown(id, name);
-      });
-
-    function startPlayback(url){
 
     /* native HLS (Safari / iOS) */
     if(!Hls.isSupported() && video.canPlayType('application/vnd.apple.mpegurl')){
@@ -2216,7 +2212,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     window.__hls = hls;
 
     if(window.innerWidth <= 768) closeSB();
-    } /* end startPlayback */
   }
 
   /* ── channel buttons ── */
