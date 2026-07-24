@@ -406,6 +406,11 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   }
 
   var lastRevealedKey = ''; // filled in only right after creating a key this session
+  function revealBoxHtml(key){
+    if(!key) return '';
+    return '<div class="reveal-box"><div class="reveal-label">Copy this now — you won\'t be able to see it again.</div>' +
+      '<div class="reveal-row"><code>' + esc(key) + '</code><button type="button" class="btn btn-sm" id="copyRevealBtn">Copy</button></div></div>';
+  }
 
   /* ── API KEY CARD ── */
   var keyCardBody = document.getElementById('keyCardBody');
@@ -459,10 +464,18 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Create API Key' +
     '</button>' +
     (atMax ? '<div class="empty-state">Maximum of 5 keys reached. Revoke one to create another.</div>' : '') +
-    '<div id="revealBoxWrap"></div>' +
+    '<div id="revealBoxWrap">' + revealBoxHtml(lastRevealedKey) + '</div>' +
     '<div class="dcard-msg" id="keyMsg"></div>';
 
     keyCardBody.innerHTML = html;
+
+    var copyRevealBtn = document.getElementById('copyRevealBtn');
+    if(copyRevealBtn){
+      copyRevealBtn.addEventListener('click', function(){
+        navigator.clipboard.writeText(lastRevealedKey).catch(function(){});
+        this.textContent = 'Copied!';
+      });
+    }
 
     // animate usage bars in on next frame
     requestAnimationFrame(function(){
@@ -490,13 +503,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
           .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error || 'Could not create key.'); return d; }); })
           .then(function(d){
             lastRevealedKey = d.key;
-            document.getElementById('revealBoxWrap').innerHTML =
-              '<div class="reveal-box"><div class="reveal-label">Copy this now — you won\\'t be able to see it again.</div>' +
-              '<div class="reveal-row"><code>' + esc(d.key) + '</code><button type="button" class="btn btn-sm" id="copyRevealBtn">Copy</button></div></div>';
-            document.getElementById('copyRevealBtn').addEventListener('click', function(){
-              navigator.clipboard.writeText(d.key).catch(function(){});
-              this.textContent = 'Copied!';
-            });
             // auto-fill the Try it panel so a fresh key can be tested immediately
             var tryitInput = document.getElementById('tryitKeyInput');
             if(tryitInput) tryitInput.value = d.key;
