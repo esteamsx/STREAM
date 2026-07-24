@@ -166,45 +166,45 @@ const STREAM_LINK_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 // ── Issued-link history (for the "Generated Links" dashboard section) ────
 // Per-account list of links issued via /api/v1/stream/:channel, newest
-// first, capped so it can't grow unbounded. Same in-memory tradeoff as
-// resourceStores above: it resets on a restart, so entries from before a
-// restart won't show up here even though the links they describe may
-// still be valid (this list is just a viewing convenience — it doesn't
-// gate anything). The "paste a link" lookup below doesn't have this
-// limitation, since it decodes everything it needs straight from the
-// token itself, with no stored history required.
-const MAX_LINKS_PER_ACCOUNT = 50;
-const issuedLinksByUid = new Map(); // uid -> [{ channel, token, createdAt, exp }, ...]
-
-// Every API key id that's been revoked/deleted through this app's own
-// /api/dev/keys/:id DELETE route. Checked inside verifyStreamToken so any
-// link generated with a since-deleted key stops working immediately,
-// instead of staying valid until its normal 6-hour expiry.
+// first, capped so it can't grow unbounded. This is a viewing convenience
+// only — it doesn't gate anything, a link's actual validity is entirely
+// determined by its own signed token (see verifyStreamToken), independent
+// of whether it's still remembered here. The "paste a link" lookup below
+// never depended on this list at all, since it decodes everything it
+// needs straight from the token itself.
 //
-// Persisted to disk (same pattern as the token secret) so a plain
-// restart/crash-recovery doesn't forget a revocation and let an
-// already-dead key's old links start working again. A full redeploy that
-// wipes the filesystem would still lose it, same caveat as the secret
-// fallback file — there's no env-var equivalent for a growing list like
-// this one, so disk is the persistence mechanism here either way.
-const REVOKED_KEYS_PATH = path.join(process.cwd(), ".revoked-api-keys.log");
-const revokedApiKeyIds = new Set();
+// Persisted to disk (one JSON line per link, same pattern as the other
+// stores above) so a restart doesn't empty the dashboard's list of links
+// that are still perfectly valid. Same caveat as the others: survives a
+// plain restart, not a full redeploy that wipes the filesystem.
+const MAX_LINKS_PER_ACCOUNT = 50;
+const ISSUED_LINKS_PATH = path.join(process.cwd(), ".issued-links.log");
+const issuedLinksByUid = new Map(); // uid -> [{ channel, token, createdAt, exp }, ...]
 try {
-  fs.readFileSync(REVOKED_KEYS_PATH, "utf8")
+  fs.readFileSync(ISSUED_LINKS_PATH, "utf8")
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
-    .forEach((id) => revokedApiKeyIds.add(id));
-} catch {
-  // no file yet — nothing revoked so far, that's fine
-}
-function persistRevokedKeyId(id) {
-  try {
-    fs.appendFileSync(REVOKED_KEYS_PATH, id + "\n");
-  } catch (err) {
-    console.warn("⚠️ Could not persist revoked API key id to disk (" + err.message + ") — " +
-      "it's still revoked for this process, but a restart before its links naturally expire would let them work again.");
+    .forEach((line) => {
+      try {
+        const { uid, channel, token, createdAt, exp } = JSON.parse(line);
+        if (!uid || !channel || !token || !createdAt || !exp) return;
+        let list = issuedLinksByUid.get(uid);
+        if (!list) {
+          list = [];
+          issuedLinksByUid.set(uid, list);
+        }
+        list.push({ channel, token, createdAt, exp }); // file is oldest-first; fixed up to newest-first below
+      } catch {
+        // one bad line shouldn't take down the rest
+      }
+    });
+  for (const list of issuedLinksByUid.values()) {
+    list.reverse(); // now newest-first, matching recordIssuedLink's ordering
+    if (list.length > MAX_LINKS_PER_ACCOUNT) list.length = MAX_LINKS_PER_ACCOUNT;
   }
+} catch {
+  // no file yet — nothing issued so far, that's fine
 }
 
 function recordIssuedLink(uid, entry) {
@@ -215,7 +215,14 @@ function recordIssuedLink(uid, entry) {
   }
   list.unshift(entry);
   if (list.length > MAX_LINKS_PER_ACCOUNT) list.length = MAX_LINKS_PER_ACCOUNT;
+  try {
+    fs.appendFileSync(ISSUED_LINKS_PATH, JSON.stringify({ uid, ...entry }) + "\n");
+  } catch (err) {
+    console.warn("⚠️ Could not persist issued link to disk (" + err.message + ") — " +
+      "the link itself still works fine, it just won't survive a restart in the dashboard's history list.");
+  }
 }
+
 
 function channelDisplayName(channel) {
   const meta = liveTV.flatMap((c) => c.channels).find((c) => c.id === channel);
