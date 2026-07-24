@@ -1,0 +1,846 @@
+export function renderAdmin(cfg) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+${cfg.devToolsBlock || ""}
+<script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — ES TEAMS TV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+${cfg.protectionCSS || ""}
+:root{
+  --red:#FF3B5C;--accent:#00E0FF;--accent2:#7c5cff;
+  --dark:#0A0A0F;--dark3:#13131C;--card:#15151F;--card2:#1B1B27;
+  --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.13);
+  --text:#F3F3FA;--muted:rgba(255,255,255,.42);--muted2:rgba(255,255,255,.22);
+  --nav-bg:rgba(10,10,15,.98);
+  --font-display:'Space Grotesk',Inter,-apple-system,sans-serif;
+  --font-body:'Inter',-apple-system,sans-serif;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+:root[data-theme="light"]{
+  --dark:#F5F6FA;--dark3:#ECEEF3;--card:#FFFFFF;--card2:#F0F1F5;
+  --border:rgba(0,0,0,.08);--border-strong:rgba(0,0,0,.14);
+  --text:#14141C;--muted:rgba(20,20,28,.55);--muted2:rgba(20,20,28,.3);
+  --nav-bg:rgba(255,255,255,.92);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--dark);color:var(--text);font-family:var(--font-body);min-height:100%}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+.ad-nav{
+  position:sticky;top:0;z-index:10;height:58px;display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:var(--nav-bg);border-bottom:1px solid var(--border);backdrop-filter:blur(20px);
+}
+.ad-back{display:flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-size:.85rem;font-weight:600;background:transparent;border:none;cursor:pointer;font-family:inherit;padding:0}
+.ad-back:hover{color:var(--accent)}
+.ad-back svg{width:18px;height:18px}
+.ad-nav-title{font-family:var(--font-display);font-weight:700;font-size:.95rem}
+
+.ad-wrap{max-width:560px;margin:0 auto;padding:24px 18px 60px}
+
+.ad-hero{
+  display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);
+  border-radius:18px;padding:18px;margin-bottom:20px;
+}
+.ad-avatar{
+  width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;
+  font-size:1.2rem;color:#04141a;background-size:cover;background-position:center;flex-shrink:0;
+}
+.ad-hero-name{font-family:var(--font-display);font-weight:700;font-size:1.05rem;display:flex;align-items:center;gap:4px}
+.ad-hero-sub{font-size:.8rem;color:var(--muted);margin-top:2px}
+.ad-verified{display:inline-flex}
+
+.ad-card{background:var(--card);border:1px solid var(--border);border-radius:16px;margin-bottom:18px;overflow:hidden}
+.ad-card-header{
+  display:flex;align-items:center;gap:10px;padding:16px 18px;cursor:pointer;user-select:none;
+}
+.ad-card-header svg.ad-icon{width:19px;height:19px;color:var(--accent);flex-shrink:0}
+.ad-card-header-title{font-family:var(--font-display);font-weight:700;font-size:.92rem;flex:1}
+.ad-card-count{font-size:.72rem;color:var(--muted);font-weight:700;background:var(--card2);padding:2px 9px;border-radius:20px;margin-right:2px}
+.ad-chevron{width:16px;height:16px;color:var(--muted);transition:transform .25s var(--ease);flex-shrink:0}
+.ad-card.open .ad-chevron{transform:rotate(180deg)}
+.ad-card-body{max-height:0;overflow:hidden;transition:max-height .35s var(--ease)}
+.ad-card.open .ad-card-body{max-height:2400px}
+.ad-card-body-inner{padding:0 18px 18px}
+
+.ad-search-wrap{position:relative;margin-bottom:14px}
+.ad-search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;opacity:.4;pointer-events:none}
+.ad-search-wrap input{
+  width:100%;background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
+  padding:11px 12px 11px 36px;color:var(--text);font-size:.85rem;outline:none;transition:border-color .2s var(--ease);
+}
+.ad-search-wrap input:focus{border-color:var(--accent)}
+
+.ad-list{display:flex;flex-direction:column;gap:8px;min-height:20px}
+.ad-row{
+  display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:var(--card2);
+  border:1px solid var(--border);transition:opacity .25s var(--ease),transform .25s var(--ease);
+}
+.ad-row.removing{opacity:0;transform:scale(.96)}
+.ad-row-avatar{
+  width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:#04141a;
+  flex-shrink:0;background-size:cover;background-position:center;
+}
+.ad-row-info{flex:1;min-width:0}
+.ad-row-name{font-size:.85rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}
+.ad-row-email{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ad-row-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.ad-act-btn{
+  width:33px;height:33px;border-radius:50%;border:1px solid var(--border-strong);background:var(--dark3);
+  color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:all .18s var(--ease);
+}
+.ad-act-btn svg{width:15px;height:15px}
+.ad-act-btn:hover{color:var(--accent);border-color:var(--accent)}
+.ad-act-btn:disabled{opacity:.55;cursor:default}
+.ad-act-btn.reset:hover{color:var(--accent2);border-color:var(--accent2)}
+.ad-act-btn.ban:hover{color:#FFB020;border-color:#FFB020}
+.ad-act-btn.delete:hover{color:var(--red);border-color:var(--red)}
+.ad-act-btn.unban:hover{color:#3DDC84;border-color:#3DDC84}
+.ad-act-btn.verify{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-color:transparent}
+.ad-act-btn.verify:hover{color:#04141a;border-color:transparent;opacity:.9}
+.ad-act-btn.verified{color:var(--muted2);border-color:var(--border);background:var(--dark3);opacity:.85}
+.ad-act-btn.verified:hover{color:#FFB020;border-color:#FFB020}
+.ad-act-btn.done{color:#3DDC84;border-color:#3DDC84;background:rgba(61,220,132,.12)}
+.ad-act-btn.done.danger-done{color:var(--red);border-color:var(--red);background:rgba(255,59,92,.12)}
+
+.ad-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:currentColor;border-radius:50%;display:inline-block;animation:adSpin .6s linear infinite}
+@keyframes adSpin{to{transform:rotate(360deg)}}
+
+.ad-empty,.ad-hint{font-size:.8rem;color:var(--muted);text-align:center;padding:18px 8px}
+.ad-loadmore{
+  width:100%;padding:10px;border-radius:10px;border:1px solid var(--border-strong);background:transparent;
+  color:var(--accent);font-size:.8rem;font-weight:700;margin-top:10px;
+}
+.ad-loadmore:disabled{opacity:.5}
+
+/* ── overlays (reset password + confirm) ── */
+.ad-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);z-index:60;
+  display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;
+  transition:opacity .25s var(--ease);
+}
+.ad-overlay.show{opacity:1;pointer-events:auto}
+.ad-modal{
+  width:100%;max-width:340px;background:var(--card);border:1px solid var(--border-strong);border-radius:18px;
+  padding:24px 22px;transform:translateY(10px) scale(.97);transition:transform .25s var(--ease);
+}
+.ad-overlay.show .ad-modal{transform:translateY(0) scale(1)}
+.ad-modal-title{font-family:var(--font-display);font-weight:700;font-size:1rem;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.ad-modal-sub{font-size:.8rem;color:var(--muted);margin-bottom:18px;line-height:1.5}
+.ad-modal input{
+  width:100%;background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
+  padding:11px 12px;color:var(--text);font-size:.85rem;outline:none;margin-bottom:10px;transition:border-color .2s var(--ease);
+}
+.ad-modal input:focus{border-color:var(--accent)}
+.ad-modal-msg{font-size:.76rem;min-height:16px;margin-bottom:8px}
+.ad-modal-msg.err{color:var(--red)}
+.ad-modal-msg.ok{color:#3DDC84}
+.ad-modal-actions{display:flex;gap:10px;margin-top:6px}
+.ad-modal-btn{
+  flex:1;padding:11px;border-radius:10px;border:none;font-weight:700;font-size:.84rem;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+}
+.ad-modal-btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a}
+.ad-modal-btn.danger{background:var(--red);color:#fff}
+.ad-modal-btn.ghost{background:var(--card2);color:var(--text);border:1px solid var(--border-strong)}
+.ad-modal-btn:disabled{opacity:.55}
+
+.ad-toast{
+  position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card2);
+  border:1px solid var(--border-strong);color:var(--text);padding:11px 18px;border-radius:12px;font-size:.82rem;
+  font-weight:600;z-index:80;opacity:0;transition:all .3s var(--ease);max-width:88vw;text-align:center;
+  box-shadow:0 10px 30px rgba(0,0,0,.4);
+}
+.ad-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="ad-nav">
+  <button type="button" class="ad-back" id="adBackBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+    Back
+  </button>
+  <div class="ad-nav-title">Admin</div>
+</div>
+
+<div class="ad-wrap">
+
+  <div class="ad-hero">
+    <div class="ad-avatar" id="adAvatar">A</div>
+    <div>
+      <div class="ad-hero-name" id="adName">Loading…</div>
+      <div class="ad-hero-sub">Admin / Control Panel account</div>
+    </div>
+  </div>
+
+  <div class="ad-card" id="usersCard">
+    <div class="ad-card-header" id="usersHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      <div class="ad-card-header-title">User Accounts</div>
+      <div class="ad-card-count" id="usersCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="ad-search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" id="userSearchInput" placeholder="Search by username, Telegram ID, or GitHub…" autocomplete="off">
+      </div>
+      <div class="ad-list" id="usersList"></div>
+      <button type="button" class="ad-loadmore" id="usersLoadMore" style="display:none">Load more</button>
+    </div></div>
+  </div>
+
+  <div class="ad-card" id="bannedCard">
+    <div class="ad-card-header" id="bannedHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8" stroke-linecap="round"/></svg>
+      <div class="ad-card-header-title">Banned Users</div>
+      <div class="ad-card-count" id="bannedCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="ad-list" id="bannedList"></div>
+    </div></div>
+  </div>
+
+  <div class="ad-card" id="verifyCard">
+    <div class="ad-card-header" id="verifyHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
+      <div class="ad-card-header-title">Account Verification</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="ad-search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" id="verifySearchInput" placeholder="Search by username, Telegram ID, or GitHub…" autocomplete="off">
+      </div>
+      <div class="ad-list" id="verifyList"></div>
+      <button type="button" class="ad-loadmore" id="verifyLoadMore" style="display:none">Load more</button>
+    </div></div>
+  </div>
+
+</div>
+
+<!-- Reset password overlay -->
+<div class="ad-overlay" id="resetOverlay">
+  <div class="ad-modal">
+    <div class="ad-modal-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+      Reset Password
+    </div>
+    <div class="ad-modal-sub" id="resetModalSub">Set a new password for this account.</div>
+    <input type="password" id="resetNewPw" placeholder="New password" autocomplete="new-password">
+    <input type="password" id="resetConfirmPw" placeholder="Confirm new password" autocomplete="new-password">
+    <div class="ad-modal-msg" id="resetMsg"></div>
+    <div class="ad-modal-actions">
+      <button type="button" class="ad-modal-btn ghost" id="resetCancelBtn">Cancel</button>
+      <button type="button" class="ad-modal-btn primary" id="resetApplyBtn">Apply Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm overlay (used for ban + delete) -->
+<div class="ad-overlay" id="confirmOverlay">
+  <div class="ad-modal">
+    <div class="ad-modal-title" id="confirmTitle">Are you sure?</div>
+    <div class="ad-modal-sub" id="confirmSub"></div>
+    <div class="ad-modal-actions">
+      <button type="button" class="ad-modal-btn ghost" id="confirmCancelBtn">Cancel</button>
+      <button type="button" class="ad-modal-btn danger" id="confirmOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+
+function showToast(message){
+  const toast = document.createElement('div');
+  toast.className = 'ad-toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 400);
+  }, 2800);
+}
+
+async function getJSON(url){
+  const res = await fetch(url);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed.');
+  return data;
+}
+async function postJSON(url, body){
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed.');
+  return data;
+}
+
+document.getElementById('adBackBtn').addEventListener('click', () => {
+  if (window.history.length > 1) window.history.back();
+  else window.location.href = '/';
+});
+
+/* ── collapsible cards ── */
+document.getElementById('usersHeader').addEventListener('click', () => {
+  document.getElementById('usersCard').classList.toggle('open');
+});
+document.getElementById('bannedHeader').addEventListener('click', () => {
+  document.getElementById('bannedCard').classList.toggle('open');
+});
+document.getElementById('verifyHeader').addEventListener('click', () => {
+  document.getElementById('verifyCard').classList.toggle('open');
+});
+
+/* ── icons ── */
+const RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>';
+const BAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2" stroke-linecap="round"/></svg>';
+const DELETE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>';
+const UNBAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 109-9" stroke-linecap="round"/><path d="M3 4v5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
+const VERIFIED_BADGE = '<svg width="15" height="15" viewBox="0 0 24 24" aria-label="Admin"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
+const PROFILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/></svg>';
+const PROFILE_VERIFIED_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/><g transform="translate(13.5,12.5) scale(0.6)"><path fill="currentColor" stroke="none" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke="var(--card2)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></g></svg>';
+
+function initialsOf(u){
+  return (((u.firstName || '')[0] || '') + ((u.lastName || '')[0] || '')) || (u.username ? u.username[0].toUpperCase() : '?');
+}
+
+/* ── generic confirm overlay, used for ban + delete ── */
+function askConfirm(title, sub){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('confirmOverlay');
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmSub').textContent = sub;
+    overlay.classList.add('show');
+    function cleanup(result){
+      overlay.classList.remove('show');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      resolve(result);
+    }
+    const okBtn = document.getElementById('confirmOkBtn');
+    const cancelBtn = document.getElementById('confirmCancelBtn');
+    function onOk(){ cleanup(true); }
+    function onCancel(){ cleanup(false); }
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+  });
+}
+
+/* ── row rendering ── */
+function renderUserRow(u){
+  const row = document.createElement('div');
+  row.className = 'ad-row';
+  row.dataset.uid = u.uid;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'ad-row-avatar';
+  if (u.photoURL) { avatar.style.backgroundImage = 'url(' + u.photoURL + ')'; }
+  else { avatar.textContent = initialsOf(u); }
+
+  const info = document.createElement('div');
+  info.className = 'ad-row-info';
+  const name = document.createElement('div');
+  name.className = 'ad-row-name';
+  name.innerHTML = '<span>' + (((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
+  const email = document.createElement('div');
+  email.className = 'ad-row-email';
+  email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : (u.githubLogin ? 'GitHub: @' + u.githubLogin : ''));
+  info.appendChild(name);
+  info.appendChild(email);
+
+  const actions = document.createElement('div');
+  actions.className = 'ad-row-actions';
+
+  const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.className = 'ad-act-btn reset';
+  resetBtn.innerHTML = RESET_ICON;
+  resetBtn.setAttribute('aria-label', 'Reset password');
+  resetBtn.addEventListener('click', () => openResetOverlay(u));
+
+  const banBtn = document.createElement('button');
+  banBtn.type = 'button';
+  banBtn.className = 'ad-act-btn ban';
+  banBtn.innerHTML = BAN_ICON;
+  banBtn.setAttribute('aria-label', 'Ban account');
+  banBtn.addEventListener('click', () => handleBan(u, row, banBtn));
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'ad-act-btn delete';
+  delBtn.innerHTML = DELETE_ICON;
+  delBtn.setAttribute('aria-label', 'Delete account');
+  delBtn.addEventListener('click', () => handleDelete(u, row, delBtn));
+
+  actions.appendChild(resetBtn);
+  actions.appendChild(banBtn);
+  actions.appendChild(delBtn);
+
+  row.appendChild(avatar);
+  row.appendChild(info);
+  row.appendChild(actions);
+  return row;
+}
+
+function renderBannedRow(u){
+  const row = document.createElement('div');
+  row.className = 'ad-row';
+  row.dataset.uid = u.uid;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'ad-row-avatar';
+  if (u.photoURL) { avatar.style.backgroundImage = 'url(' + u.photoURL + ')'; }
+  else { avatar.textContent = initialsOf(u); }
+
+  const info = document.createElement('div');
+  info.className = 'ad-row-info';
+  const name = document.createElement('div');
+  name.className = 'ad-row-name';
+  name.innerHTML = '<span>' + (((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>';
+  const email = document.createElement('div');
+  email.className = 'ad-row-email';
+  email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : (u.githubLogin ? 'GitHub: @' + u.githubLogin : ''));
+  info.appendChild(name);
+  info.appendChild(email);
+
+  const actions = document.createElement('div');
+  actions.className = 'ad-row-actions';
+
+  const unbanBtn = document.createElement('button');
+  unbanBtn.type = 'button';
+  unbanBtn.className = 'ad-act-btn unban';
+  unbanBtn.innerHTML = UNBAN_ICON;
+  unbanBtn.setAttribute('aria-label', 'Unban account');
+  unbanBtn.addEventListener('click', () => handleUnban(u, row, unbanBtn));
+
+  actions.appendChild(unbanBtn);
+  row.appendChild(avatar);
+  row.appendChild(info);
+  row.appendChild(actions);
+  return row;
+}
+
+function renderVerifyRow(u){
+  const row = document.createElement('div');
+  row.className = 'ad-row';
+  row.dataset.uid = u.uid;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'ad-row-avatar';
+  if (u.photoURL) { avatar.style.backgroundImage = 'url(' + u.photoURL + ')'; }
+  else { avatar.textContent = initialsOf(u); }
+
+  const info = document.createElement('div');
+  info.className = 'ad-row-info';
+  const name = document.createElement('div');
+  name.className = 'ad-row-name';
+  name.innerHTML = '<span>' + (((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
+  const email = document.createElement('div');
+  email.className = 'ad-row-email';
+  email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : (u.githubLogin ? 'GitHub: @' + u.githubLogin : ''));
+  info.appendChild(name);
+  info.appendChild(email);
+
+  const actions = document.createElement('div');
+  actions.className = 'ad-row-actions';
+
+  const verifyBtn = document.createElement('button');
+  verifyBtn.type = 'button';
+  const isVerified = u.isAdmin || u.verified;
+  verifyBtn.className = 'ad-act-btn' + (isVerified ? ' verified' : ' verify');
+  verifyBtn.innerHTML = isVerified ? PROFILE_VERIFIED_ICON : PROFILE_ICON;
+  verifyBtn.setAttribute('aria-label', isVerified ? 'Remove verification' : 'Grant verification');
+  if (u.isAdmin) {
+    verifyBtn.disabled = true;
+  } else {
+    verifyBtn.addEventListener('click', () => handleVerifyToggle(u, row, verifyBtn));
+  }
+
+  actions.appendChild(verifyBtn);
+  row.appendChild(avatar);
+  row.appendChild(info);
+  row.appendChild(actions);
+  return row;
+}
+
+async function handleVerifyToggle(u, row, btn){
+  const wasVerified = btn.classList.contains('verified');
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="ad-spinner"></span>';
+  try {
+    if (wasVerified) {
+      await postJSON('/api/admin/users/' + u.uid + '/unverify', {});
+      btn.innerHTML = PROFILE_ICON;
+      btn.className = 'ad-act-btn verify';
+      btn.setAttribute('aria-label', 'Grant verification');
+      const nameSpan = row.querySelector('.ad-row-name');
+      const badge = nameSpan && nameSpan.querySelector('svg[aria-label="Admin"]');
+      if (badge) badge.remove();
+      showToast('@' + u.username + ' is no longer verified.');
+      btn.disabled = false;
+    } else {
+      await postJSON('/api/admin/users/' + u.uid + '/verify', {});
+      btn.innerHTML = CHECK_ICON;
+      btn.classList.add('done');
+      const nameSpan = row.querySelector('.ad-row-name');
+      if (nameSpan && !nameSpan.innerHTML.includes('aria-label="Admin"')) {
+        nameSpan.innerHTML += VERIFIED_BADGE;
+      }
+      showToast('@' + u.username + ' is now verified.');
+      setTimeout(() => {
+        btn.innerHTML = PROFILE_VERIFIED_ICON;
+        btn.className = 'ad-act-btn verified';
+        btn.setAttribute('aria-label', 'Remove verification');
+        btn.disabled = false;
+      }, 700);
+    }
+  } catch (err) {
+    showToast(err.message || 'Could not update verification.');
+    btn.innerHTML = original;
+    btn.disabled = false;
+  }
+}
+
+function fadeRemoveRow(row, after){
+  row.classList.add('removing');
+  setTimeout(() => {
+    row.remove();
+    if (after) after();
+    refreshEmptyStates();
+  }, 260);
+}
+
+function refreshEmptyStates(){
+  const usersList = document.getElementById('usersList');
+  const bannedList = document.getElementById('bannedList');
+  if (!usersList.querySelector('.ad-row') && !usersList.querySelector('.ad-loading')) {
+    if (!usersList.querySelector('.ad-empty')) {
+      const empty = document.createElement('div');
+      empty.className = 'ad-empty';
+      empty.textContent = 'No accounts found.';
+      usersList.appendChild(empty);
+    }
+  }
+  if (!bannedList.querySelector('.ad-row')) {
+    bannedList.innerHTML = '<div class="ad-empty">No banned users right now.</div>';
+  } else {
+    bannedList.querySelectorAll('.ad-empty').forEach((el) => el.remove());
+  }
+  document.getElementById('bannedCount').style.display = bannedList.querySelectorAll('.ad-row').length ? 'inline-block' : 'none';
+  document.getElementById('bannedCount').textContent = bannedList.querySelectorAll('.ad-row').length;
+}
+
+/* ── ban / unban / delete handlers ── */
+async function handleBan(u, row, btn){
+  const ok = await askConfirm('Ban this account?', '@' + u.username + ' will be signed out and blocked from logging in until unbanned.');
+  if (!ok) return;
+  const buttons = row.querySelectorAll('.ad-act-btn');
+  buttons.forEach((b) => b.disabled = true);
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="ad-spinner"></span>';
+  try {
+    await postJSON('/api/admin/users/' + u.uid + '/ban', {});
+    btn.innerHTML = CHECK_ICON;
+    btn.classList.add('done');
+    showToast('@' + u.username + ' has been banned.');
+    setTimeout(() => {
+      fadeRemoveRow(row, () => {
+        document.getElementById('bannedList').querySelectorAll('.ad-empty').forEach((el) => el.remove());
+        document.getElementById('bannedList').prepend(renderBannedRow({ ...u, banned: true }));
+        refreshEmptyStates();
+      });
+    }, 700);
+  } catch (err) {
+    showToast(err.message || 'Could not ban that account.');
+    btn.innerHTML = original;
+    buttons.forEach((b) => b.disabled = false);
+  }
+}
+
+async function handleUnban(u, row, btn){
+  const buttons = row.querySelectorAll('.ad-act-btn');
+  buttons.forEach((b) => b.disabled = true);
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="ad-spinner"></span>';
+  try {
+    await postJSON('/api/admin/users/' + u.uid + '/unban', {});
+    btn.innerHTML = CHECK_ICON;
+    btn.classList.add('done');
+    showToast('@' + u.username + ' has been unbanned.');
+    setTimeout(() => {
+      fadeRemoveRow(row, () => {
+        document.getElementById('usersList').querySelectorAll('.ad-empty').forEach((el) => el.remove());
+        document.getElementById('usersList').prepend(renderUserRow({ ...u, banned: false }));
+        refreshEmptyStates();
+      });
+    }, 700);
+  } catch (err) {
+    showToast(err.message || 'Could not unban that account.');
+    btn.innerHTML = original;
+    buttons.forEach((b) => b.disabled = false);
+  }
+}
+
+async function handleDelete(u, row, btn){
+  const ok = await askConfirm('Delete this account?', 'This permanently removes @' + u.username + ' from Firebase. This cannot be undone.');
+  if (!ok) return;
+  const buttons = row.querySelectorAll('.ad-act-btn');
+  buttons.forEach((b) => b.disabled = true);
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="ad-spinner"></span>';
+  try {
+    await postJSON('/api/admin/users/' + u.uid + '/delete', {});
+    btn.innerHTML = CHECK_ICON;
+    btn.classList.add('done', 'danger-done');
+    showToast('@' + u.username + "'s account was deleted.");
+    setTimeout(() => fadeRemoveRow(row), 700);
+  } catch (err) {
+    showToast(err.message || 'Could not delete that account.');
+    btn.innerHTML = original;
+    buttons.forEach((b) => b.disabled = false);
+  }
+}
+
+/* ── reset password overlay ── */
+let resetTarget = null;
+function openResetOverlay(u){
+  resetTarget = u;
+  document.getElementById('resetModalSub').textContent = 'Set a new password for @' + u.username + '.';
+  document.getElementById('resetNewPw').value = '';
+  document.getElementById('resetConfirmPw').value = '';
+  const msg = document.getElementById('resetMsg');
+  msg.textContent = '';
+  msg.className = 'ad-modal-msg';
+  document.getElementById('resetOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('resetNewPw').focus(), 150);
+}
+document.getElementById('resetCancelBtn').addEventListener('click', () => {
+  document.getElementById('resetOverlay').classList.remove('show');
+  resetTarget = null;
+});
+document.getElementById('resetOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'resetOverlay') {
+    document.getElementById('resetOverlay').classList.remove('show');
+    resetTarget = null;
+  }
+});
+document.getElementById('resetApplyBtn').addEventListener('click', async () => {
+  if (!resetTarget) return;
+  const pw = document.getElementById('resetNewPw').value;
+  const confirmPw = document.getElementById('resetConfirmPw').value;
+  const msg = document.getElementById('resetMsg');
+  if (!pw || pw.length < 6) { msg.textContent = 'Password must be at least 6 characters.'; msg.className = 'ad-modal-msg err'; return; }
+  if (pw !== confirmPw) { msg.textContent = 'Passwords do not match.'; msg.className = 'ad-modal-msg err'; return; }
+  const btn = document.getElementById('resetApplyBtn');
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="ad-spinner"></span> Applying…';
+  try {
+    await postJSON('/api/admin/users/' + resetTarget.uid + '/reset-password', { newPassword: pw });
+    btn.innerHTML = CHECK_ICON + ' Done';
+    msg.textContent = 'Password updated.';
+    msg.className = 'ad-modal-msg ok';
+    showToast("@" + resetTarget.username + "'s password was changed.");
+    setTimeout(() => {
+      document.getElementById('resetOverlay').classList.remove('show');
+      btn.innerHTML = original;
+      btn.disabled = false;
+      resetTarget = null;
+    }, 900);
+  } catch (err) {
+    msg.textContent = err.message || 'Could not update password.';
+    msg.className = 'ad-modal-msg err';
+    btn.innerHTML = original;
+    btn.disabled = false;
+  }
+});
+
+/* ── loading the user list ── */
+let nextCursor = null;
+let loadingMore = false;
+async function loadUsersPage(reset){
+  const list = document.getElementById('usersList');
+  const loadMoreBtn = document.getElementById('usersLoadMore');
+  if (reset) {
+    list.innerHTML = '<div class="ad-loading ad-hint">Loading accounts…</div>';
+    nextCursor = null;
+  }
+  loadingMore = true;
+  try {
+    const data = await getJSON('/api/admin/users' + (nextCursor ? ('?cursor=' + encodeURIComponent(nextCursor)) : ''));
+    if (reset) list.innerHTML = '';
+    list.querySelectorAll('.ad-loading').forEach((el) => el.remove());
+    (data.results || []).forEach((u) => list.appendChild(renderUserRow(u)));
+    nextCursor = data.nextCursor || null;
+    loadMoreBtn.style.display = nextCursor ? 'block' : 'none';
+    const countEl = document.getElementById('usersCount');
+    const total = list.querySelectorAll('.ad-row').length;
+    countEl.style.display = total ? 'inline-block' : 'none';
+    countEl.textContent = total + (nextCursor ? '+' : '');
+    refreshEmptyStates();
+  } catch (err) {
+    list.innerHTML = '<div class="ad-empty">Could not load accounts.</div>';
+  }
+  loadingMore = false;
+}
+document.getElementById('usersLoadMore').addEventListener('click', () => {
+  if (loadingMore) return;
+  loadUsersPage(false);
+});
+
+/* ── quick-access search — filters the same box to just the match ── */
+let searchDebounce = null;
+const searchInput = document.getElementById('userSearchInput');
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchDebounce);
+  const q = searchInput.value.trim();
+  if (!q) {
+    document.getElementById('usersLoadMore').style.display = nextCursor ? 'block' : 'none';
+    loadUsersPage(true);
+    return;
+  }
+  document.getElementById('usersLoadMore').style.display = 'none';
+  searchDebounce = setTimeout(async () => {
+    const list = document.getElementById('usersList');
+    list.innerHTML = '<div class="ad-loading ad-hint">Searching…</div>';
+    try {
+      const data = await getJSON('/api/admin/users/search?q=' + encodeURIComponent(q));
+      list.innerHTML = '';
+      const results = data.results || [];
+      if (!results.length) {
+        list.innerHTML = '<div class="ad-empty">No matching accounts.</div>';
+      } else {
+        results.forEach((u) => list.appendChild(renderUserRow(u)));
+      }
+    } catch (err) {
+      list.innerHTML = '<div class="ad-empty">Search failed.</div>';
+    }
+  }, 300);
+});
+
+/* ── verification list — shows every account by default; search just narrows it down ── */
+let verifyNextCursor = null;
+let verifyLoadingMore = false;
+async function loadVerifyPage(reset){
+  const list = document.getElementById('verifyList');
+  const loadMoreBtn = document.getElementById('verifyLoadMore');
+  if (reset) {
+    list.innerHTML = '<div class="ad-loading ad-hint">Loading accounts…</div>';
+    verifyNextCursor = null;
+  }
+  verifyLoadingMore = true;
+  try {
+    const data = await getJSON('/api/admin/users' + (verifyNextCursor ? ('?cursor=' + encodeURIComponent(verifyNextCursor)) : ''));
+    if (reset) list.innerHTML = '';
+    list.querySelectorAll('.ad-loading').forEach((el) => el.remove());
+    (data.results || []).forEach((u) => list.appendChild(renderVerifyRow(u)));
+    verifyNextCursor = data.nextCursor || null;
+    loadMoreBtn.style.display = verifyNextCursor ? 'block' : 'none';
+    if (!list.querySelector('.ad-row')) {
+      list.innerHTML = '<div class="ad-empty">No accounts found.</div>';
+    }
+  } catch (err) {
+    list.innerHTML = '<div class="ad-empty">Could not load accounts.</div>';
+  }
+  verifyLoadingMore = false;
+}
+document.getElementById('verifyLoadMore').addEventListener('click', () => {
+  if (verifyLoadingMore) return;
+  loadVerifyPage(false);
+});
+
+/* ── verification search — same debounced pattern as user search above ── */
+let verifySearchDebounce = null;
+const verifySearchInput = document.getElementById('verifySearchInput');
+verifySearchInput.addEventListener('input', () => {
+  clearTimeout(verifySearchDebounce);
+  const q = verifySearchInput.value.trim();
+  const list = document.getElementById('verifyList');
+  if (!q) {
+    document.getElementById('verifyLoadMore').style.display = verifyNextCursor ? 'block' : 'none';
+    loadVerifyPage(true);
+    return;
+  }
+  document.getElementById('verifyLoadMore').style.display = 'none';
+  list.innerHTML = '<div class="ad-loading ad-hint">Searching…</div>';
+  verifySearchDebounce = setTimeout(async () => {
+    try {
+      const data = await getJSON('/api/admin/users/search?q=' + encodeURIComponent(q));
+      list.innerHTML = '';
+      const results = data.results || [];
+      if (!results.length) {
+        list.innerHTML = '<div class="ad-empty">No matching accounts.</div>';
+      } else {
+        results.forEach((u) => list.appendChild(renderVerifyRow(u)));
+      }
+    } catch (err) {
+      list.innerHTML = '<div class="ad-empty">Search failed.</div>';
+    }
+  }, 300);
+});
+
+/* ── banned users list ── */
+async function loadBannedUsers(){
+  const list = document.getElementById('bannedList');
+  list.innerHTML = '<div class="ad-hint">Loading…</div>';
+  try {
+    const data = await getJSON('/api/admin/users/banned');
+    list.innerHTML = '';
+    const results = data.results || [];
+    if (!results.length) {
+      list.innerHTML = '<div class="ad-empty">No banned users right now.</div>';
+    } else {
+      results.forEach((u) => list.appendChild(renderBannedRow(u)));
+    }
+    const countEl = document.getElementById('bannedCount');
+    countEl.style.display = results.length ? 'inline-block' : 'none';
+    countEl.textContent = results.length;
+  } catch (err) {
+    list.innerHTML = '<div class="ad-empty">Could not load banned users.</div>';
+  }
+}
+
+/* ── admin identity in the hero ── */
+(async function initHero(){
+  try {
+    const me = await getJSON('/api/admin/me');
+    const avatar = document.getElementById('adAvatar');
+    if (me.photoURL) {
+      avatar.style.backgroundImage = 'url(' + me.photoURL + ')';
+      avatar.textContent = '';
+    } else {
+      avatar.textContent = (((me.firstName || '')[0] || '') + ((me.lastName || '')[0] || '')) || 'A';
+    }
+    document.getElementById('adName').innerHTML =
+      '<span>' + (((me.firstName || me.lastName) ? ((me.firstName || '') + ' ' + (me.lastName || '')).trim() : ('@' + me.username))) + '</span>' + VERIFIED_BADGE;
+  } catch (err) {
+    document.getElementById('adName').textContent = 'Admin';
+  }
+})();
+
+loadUsersPage(true);
+loadBannedUsers();
+loadVerifyPage(true);
+
+})();
+</script>
+</body>
+</html>`;
+}
