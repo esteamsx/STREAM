@@ -164,6 +164,40 @@ setInterval(() => {
 // only works if it's the same value used at issuance.
 const STREAM_LINK_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
+// Every API key id that's been revoked/deleted through this app's own
+// /api/dev/keys/:id DELETE route. Checked inside verifyStreamToken so any
+// link generated with a since-deleted key stops working immediately,
+// instead of staying valid until its normal 6-hour expiry.
+//
+// Persisted to disk (same pattern as the token secret) so a plain
+// restart/crash-recovery doesn't forget a revocation and let an
+// already-dead key's old links start working again. A full redeploy that
+// wipes the filesystem would still lose it, same caveat as the secret
+// fallback file — there's no env-var equivalent for a growing list like
+// this one, so disk is the persistence mechanism here either way.
+const REVOKED_KEYS_PATH = path.join(process.cwd(), ".revoked-api-keys.log");
+const revokedApiKeyIds = new Set();
+try {
+  fs.readFileSync(REVOKED_KEYS_PATH, "utf8")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((id) => revokedApiKeyIds.add(id));
+} catch {
+  // no file yet — nothing revoked so far, that's fine
+}
+function persistRevokedKeyId(id) {
+  // Non-blocking: a slow disk write here must never stall the request
+  // that's already in flight (or, worse, any other concurrent request —
+  // Node's single event loop means a *synchronous* write here would pause
+  // every other request being served at that moment, video segments
+  // included).
+  fs.appendFile(REVOKED_KEYS_PATH, id + "\n", (err) => {
+    if (err) console.warn("⚠️ Could not persist revoked API key id to disk (" + err.message + ") — " +
+      "it's still revoked for this process, but a restart before its links naturally expire would let them work again.");
+  });
+}
+
 // ── Issued-link history (for the "Generated Links" dashboard section) ────
 // Per-account list of links issued via /api/v1/stream/:channel, newest
 // first, capped so it can't grow unbounded. This is a viewing convenience
@@ -215,12 +249,13 @@ function recordIssuedLink(uid, entry) {
   }
   list.unshift(entry);
   if (list.length > MAX_LINKS_PER_ACCOUNT) list.length = MAX_LINKS_PER_ACCOUNT;
-  try {
-    fs.appendFileSync(ISSUED_LINKS_PATH, JSON.stringify({ uid, ...entry }) + "\n");
-  } catch (err) {
-    console.warn("⚠️ Could not persist issued link to disk (" + err.message + ") — " +
+  // Non-blocking, same reasoning as persistRevokedKeyId above — this is
+  // called on every /api/v1/stream/:channel issuance, which can happen
+  // right as someone's about to start watching.
+  fs.appendFile(ISSUED_LINKS_PATH, JSON.stringify({ uid, ...entry }) + "\n", (err) => {
+    if (err) console.warn("⚠️ Could not persist issued link to disk (" + err.message + ") — " +
       "the link itself still works fine, it just won't survive a restart in the dashboard's history list.");
-  }
+  });
 }
 
 
