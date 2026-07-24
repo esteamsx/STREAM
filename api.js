@@ -80,31 +80,46 @@ const VALID_CHANNEL_IDS = new Set(
   liveTV.flatMap((cat) => cat.channels).filter((c) => !c.redirect).map((c) => c.id)
 );
 
-function signStreamToken(channel, ttlMs) {
+function signStreamToken(channel, ttlMs, keyId) {
   const exp = Date.now() + ttlMs;
-  const payloadB64 = Buffer.from(`${channel}|${exp}`).toString("base64url");
+  const payloadB64 = Buffer.from(`${channel}|${exp}|${keyId}`).toString("base64url");
   const sig = crypto.createHmac("sha256", STREAM_TOKEN_SECRET).update(payloadB64).digest("hex").slice(0, 32);
   return `${payloadB64}.${sig}`;
 }
 
-function verifyStreamToken(token, expectedChannel) {
-  if (!token || typeof token !== "string" || !token.includes(".")) return { valid: false };
+// Decodes + checks the signature only — doesn't care whether the token has
+// expired or its issuing key has since been revoked. Used by the "status
+// lookup" endpoint below, which needs to describe *why* a well-formed token
+// is no longer active (expired vs. revoked) instead of just rejecting it.
+function decodeStreamToken(token) {
+  if (!token || typeof token !== "string" || !token.includes(".")) return { ok: false };
   const [payloadB64, sig] = token.split(".");
   const expectedSig = crypto.createHmac("sha256", STREAM_TOKEN_SECRET).update(payloadB64).digest("hex").slice(0, 32);
   const sigBuf = Buffer.from(sig || "", "hex");
   const expBuf = Buffer.from(expectedSig, "hex");
-  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return { valid: false };
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return { ok: false };
   let payload;
   try {
     payload = Buffer.from(payloadB64, "base64url").toString();
   } catch {
-    return { valid: false };
+    return { ok: false };
   }
-  const [channel, expStr] = payload.split("|");
+  const [channel, expStr, keyId] = payload.split("|");
   const exp = Number(expStr);
-  if (!exp || Date.now() > exp) return { valid: false };
-  if (expectedChannel && channel !== expectedChannel) return { valid: false };
-  return { valid: true, channel, exp };
+  if (!channel || !exp) return { ok: false };
+  return { ok: true, channel, exp, keyId };
+}
+
+function verifyStreamToken(token, expectedChannel) {
+  const decoded = decodeStreamToken(token);
+  if (!decoded.ok) return { valid: false };
+  if (Date.now() > decoded.exp) return { valid: false };
+  if (expectedChannel && decoded.channel !== expectedChannel) return { valid: false };
+  // If the API key that generated this link has since been revoked/deleted,
+  // the link stops working immediately too — even if it hasn't hit its
+  // 6-hour expiry yet.
+  if (decoded.keyId && revokedApiKeyIds.has(decoded.keyId)) return { valid: false };
+  return { valid: true, channel: decoded.channel, exp: decoded.exp, keyId: decoded.keyId };
 }
 
 // ── Per-token resource maps ──────────────────────────────────────────────
@@ -160,6 +175,37 @@ const STREAM_LINK_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 // token itself, with no stored history required.
 const MAX_LINKS_PER_ACCOUNT = 50;
 const issuedLinksByUid = new Map(); // uid -> [{ channel, token, createdAt, exp }, ...]
+
+// Every API key id that's been revoked/deleted through this app's own
+// /api/dev/keys/:id DELETE route. Checked inside verifyStreamToken so any
+// link generated with a since-deleted key stops working immediately,
+// instead of staying valid until its normal 6-hour expiry.
+//
+// Persisted to disk (same pattern as the token secret) so a plain
+// restart/crash-recovery doesn't forget a revocation and let an
+// already-dead key's old links start working again. A full redeploy that
+// wipes the filesystem would still lose it, same caveat as the secret
+// fallback file — there's no env-var equivalent for a growing list like
+// this one, so disk is the persistence mechanism here either way.
+const REVOKED_KEYS_PATH = path.join(process.cwd(), ".revoked-api-keys.log");
+const revokedApiKeyIds = new Set();
+try {
+  fs.readFileSync(REVOKED_KEYS_PATH, "utf8")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((id) => revokedApiKeyIds.add(id));
+} catch {
+  // no file yet — nothing revoked so far, that's fine
+}
+function persistRevokedKeyId(id) {
+  try {
+    fs.appendFileSync(REVOKED_KEYS_PATH, id + "\n");
+  } catch (err) {
+    console.warn("⚠️ Could not persist revoked API key id to disk (" + err.message + ") — " +
+      "it's still revoked for this process, but a restart before its links naturally expire would let them work again.");
+  }
+}
 
 function recordIssuedLink(uid, entry) {
   let list = issuedLinksByUid.get(uid);
@@ -342,7 +388,7 @@ router.get("/api/stream-token/:channel", requireAuth, internalTokenLimiter, (req
   const { channel } = req.params;
   if (!VALID_CHANNEL_IDS.has(channel)) return res.status(404).json({ error: "Unknown channel." });
   const ttlMs = 30 * 60 * 1000; // 30 min — the main-site player re-requests this on channel switch/reload
-  const token = signStreamToken(channel, ttlMs);
+  const token = signStreamToken(channel, ttlMs, "");
   res.json({ url: `/api/v1/hls/${channel}/master.m3u8?token=${encodeURIComponent(token)}` });
 });
 
@@ -387,7 +433,7 @@ router.get("/api/v1/stream/:channel", requireApiKey, devApiLimiter, (req, res) =
   if (!VALID_CHANNEL_IDS.has(channel)) return res.status(404).json({ error: "Unknown channel id. See /api/v1/channels." });
 
   const ttlMs = STREAM_LINK_TTL_MS;
-  const token = signStreamToken(channel, ttlMs);
+  const token = signStreamToken(channel, ttlMs, req.apiKeyId);
   const createdAt = Date.now();
   recordIssuedLink(req.apiKeyUid, { channel, token, createdAt, exp: createdAt + ttlMs });
   res.json({
@@ -410,9 +456,34 @@ router.get("/embed/:channel", (req, res) => {
   res.removeHeader("X-Frame-Options");
 
   if (!check.valid) {
-    res.status(403).type("html").send(
-      `<!doctype html><html><body style="margin:0;background:#0b0b12;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh"><p>This link has expired or is invalid.</p></body></html>`
-    );
+    res.status(403).type("html").send(`<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#0b0b12;color:#fff;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+  .wrap{display:flex;align-items:center;justify-content:center;height:100vh;padding:24px}
+  .card{max-width:340px;width:100%;text-align:center}
+  .title{font-size:1.08rem;font-weight:700;margin:0 0 8px;line-height:1.45}
+  .sub{font-size:.82rem;color:rgba(255,255,255,.55);margin:0 0 20px}
+  .visit-btn{
+    display:inline-flex;align-items:center;gap:8px;padding:11px 24px;border-radius:10px;
+    background:linear-gradient(90deg,#00E0FF,#7c5cff);color:#04121a;font-weight:700;font-size:.85rem;
+    text-decoration:none;
+  }
+  .visit-btn svg{width:15px;height:15px;flex-shrink:0}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="title">This video streaming link has expired / Invalid</div>
+    <div class="sub">Want more access?</div>
+    <a class="visit-btn" href="${PUBLIC_BASE}" target="_top" rel="noopener">
+      Visit Page
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
+    </a>
+  </div>
+</div>
+</body></html>`);
     return;
   }
 
@@ -532,7 +603,8 @@ router.get("/embed/:channel", (req, res) => {
 // ── Account-facing API key management (session-based, powers the Settings → API tab) ──
 router.post("/api/dev/keys", requireAuth, async (req, res) => {
   try {
-    const label = (req.body && req.body.label) || "";
+    const label = ((req.body && req.body.label) || "").trim();
+    if (!label) return res.status(400).json({ error: "Give the key a name first." });
     const existing = await listApiKeysForUser(req.uid);
     if (existing.length >= 5) return res.status(400).json({ error: "You can have up to 5 API keys. Revoke one first." });
     const { id, rawKey } = await createApiKey(req.uid, label);
@@ -571,6 +643,8 @@ router.get("/api/dev/keys", requireAuth, async (req, res) => {
 router.delete("/api/dev/keys/:id", requireAuth, async (req, res) => {
   try {
     await revokeApiKey(req.uid, req.params.id);
+    revokedApiKeyIds.add(req.params.id);
+    persistRevokedKeyId(req.params.id);
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not revoke key." });
@@ -578,21 +652,28 @@ router.delete("/api/dev/keys/:id", requireAuth, async (req, res) => {
 });
 
 // ── Generated links: history + status lookup ─────────────────────────────
-function describeLink(channel, createdAt, exp) {
+function describeLink(channel, createdAt, exp, token, keyId) {
   const now = Date.now();
+  const revoked = !!keyId && revokedApiKeyIds.has(keyId);
   return {
     channel,
     channel_name: channelDisplayName(channel),
     created_at: new Date(createdAt).toISOString(),
     expires_at: new Date(exp).toISOString(),
-    status: now > exp ? "expired" : "active",
+    status: now > exp || revoked ? "expired" : "active",
     ms_left: Math.max(0, exp - now),
+    embed_url: `${PUBLIC_BASE}/embed/${encodeURIComponent(channel)}?token=${encodeURIComponent(token)}`,
   };
 }
 
 router.get("/api/dev/links", requireAuth, (req, res) => {
   const list = issuedLinksByUid.get(req.uid) || [];
-  res.json({ links: list.map((l) => describeLink(l.channel, l.createdAt, l.exp)) });
+  res.json({
+    links: list.map((l) => {
+      const decoded = decodeStreamToken(l.token);
+      return describeLink(l.channel, l.createdAt, l.exp, l.token, decoded.ok ? decoded.keyId : undefined);
+    }),
+  });
 });
 
 router.get("/api/dev/links/lookup", requireAuth, (req, res) => {
@@ -609,10 +690,14 @@ router.get("/api/dev/links/lookup", requireAuth, (req, res) => {
     // not a URL — treat q as a raw token as-is
   }
 
-  const check = verifyStreamToken(token);
-  if (!check.valid) return res.json({ valid: false });
+  // Decode (signature + shape only) rather than the strict access-control
+  // check — a well-formed token that's expired or whose key was revoked
+  // should still report *why* here, instead of just "invalid", so this
+  // search box can actually show "Inactive" with real timestamps.
+  const decoded = decodeStreamToken(token);
+  if (!decoded.ok) return res.json({ valid: false });
 
-  res.json({ valid: true, ...describeLink(check.channel, check.exp - STREAM_LINK_TTL_MS, check.exp) });
+  res.json({ valid: true, ...describeLink(decoded.channel, decoded.exp - STREAM_LINK_TTL_MS, decoded.exp, token, decoded.keyId) });
 });
 
 export { router as apiRouter };

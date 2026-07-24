@@ -85,6 +85,7 @@ pre{
 .btn-sm{padding:6px 10px;font-size:.72rem;border-radius:8px}
 .btn-ghost{background:transparent;border-color:var(--border)}
 .btn:disabled,.icon-btn:disabled{opacity:.6;cursor:not-allowed}
+.btn-primary:disabled{background:var(--card2);color:var(--muted);opacity:1;box-shadow:none}
 
 @keyframes spin{to{transform:rotate(360deg)}}
 .btn-spinner{
@@ -194,9 +195,10 @@ body:has(.page-overlay.show){overflow:hidden}
 /* ── GENERATED LINKS CARD ── */
 .link-item{
   display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;
-  font-size:.8rem;border-bottom:1px solid var(--border);
+  font-size:.8rem;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s var(--ease);
 }
 .link-item:last-child{border-bottom:none}
+.link-item:hover{background:var(--card2)}
 .link-item-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .link-channel{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .link-created{font-size:.68rem;color:var(--muted)}
@@ -418,6 +420,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
       <tr><td>Embed link (<code>embed_url</code>)</td><td>6 hours</td></tr>
     </table>
     <p class="doc-p">Once a link expires, call <code>/api/v1/stream/:channel</code> again for a fresh one. Don't try to cache or redistribute the underlying player URL past its expiry — it stops working, by design.</p>
+    <p class="doc-p">Every link is also tied to the specific API key that generated it. If you revoke that key — from the dashboard, whether or not the link has hit its 6-hour mark yet — the link stops working immediately too. There's no way to keep a link alive past its key's lifetime, so revoking a key is a clean, complete way to cut off everything it was used for.</p>
 
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
     <p class="doc-p">30 requests per minute per API key on the issuance endpoints — plenty for normal use, since it's one call per viewer session, not per segment. On top of that, every account has a monthly allowance of 100 requests, shared across all your keys — it's tied to your account, so revoking a key and creating a new one doesn't reset it. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink2">API Dashboard</a>.</p>
@@ -443,6 +446,21 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     <div class="overlay-sub">Anything using it will stop working <b>immediately</b>. This can't be undone.</div>
     <button class="btn btn-primary" id="revokeKeyConfirmBtn" type="button" style="width:100%;justify-content:center;background:linear-gradient(90deg,var(--red),#ff7a8d)">Revoke Key</button>
     <button class="overlay-cancel" id="revokeKeyCancelBtn" type="button">Cancel</button>
+  </div>
+</div>
+
+<div class="page-overlay" id="linkUrlOverlay">
+  <div class="overlay-card">
+    <div class="overlay-title" id="linkUrlOverlayTitle">Direct URL</div>
+    <div class="overlay-sub" id="linkUrlOverlaySub"></div>
+    <div class="field">
+      <label>Embed URL</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="linkUrlOverlayInput" readonly style="flex:1;font-family:var(--font-mono);font-size:.7rem">
+        <button class="btn btn-sm" id="linkUrlCopyBtn" type="button">Copy</button>
+      </div>
+    </div>
+    <button class="overlay-cancel" id="linkUrlCloseBtn" type="button">Close</button>
   </div>
 </div>
 
@@ -552,7 +570,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
       '<label>Label a new key</label>' +
       '<input type="text" id="newKeyLabel" placeholder="e.g. My Discord bot" maxlength="60">' +
     '</div>' +
-    '<button class="btn btn-primary" id="createKeyBtn" type="button" style="' + (atMax ? 'display:none' : '') + '">' +
+    '<button class="btn btn-primary" id="createKeyBtn" type="button" disabled style="' + (atMax ? 'display:none' : '') + '">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Create API Key' +
     '</button>' +
     (atMax ? '<div class="empty-state">Maximum of 5 keys reached. Revoke one to create another.</div>' : '') +
@@ -584,10 +602,20 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     });
 
     var createBtn = document.getElementById('createKeyBtn');
-    if(createBtn){
+    var newKeyLabelInput = document.getElementById('newKeyLabel');
+    if(createBtn && newKeyLabelInput){
+      newKeyLabelInput.addEventListener('input', function(){
+        createBtn.disabled = !newKeyLabelInput.value.trim();
+      });
       createBtn.addEventListener('click', function(){
-        var label = document.getElementById('newKeyLabel').value.trim();
+        var label = newKeyLabelInput.value.trim();
         var msg = document.getElementById('keyMsg');
+        if(!label){
+          msg.className = 'dcard-msg err';
+          msg.textContent = 'Give the key a name first.';
+          newKeyLabelInput.focus();
+          return;
+        }
         var originalHtml = createBtn.innerHTML;
         createBtn.disabled = true;
         createBtn.innerHTML = '<span class="btn-spinner"></span> Creating…';
@@ -620,6 +648,27 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   var linksSearchInput = document.getElementById('linksSearchInput');
   var linksCountSub = document.getElementById('linksCountSub');
   var allLinks = [];
+  var currentRenderedLinks = [];
+
+  var linkUrlOverlay = document.getElementById('linkUrlOverlay');
+  var linkUrlOverlaySub = document.getElementById('linkUrlOverlaySub');
+  var linkUrlOverlayInput = document.getElementById('linkUrlOverlayInput');
+  var linkUrlCopyBtn = document.getElementById('linkUrlCopyBtn');
+  document.getElementById('linkUrlCloseBtn').addEventListener('click', function(){
+    linkUrlOverlay.classList.remove('show');
+  });
+  linkUrlCopyBtn.addEventListener('click', function(){
+    navigator.clipboard.writeText(linkUrlOverlayInput.value).catch(function(){});
+    linkUrlCopyBtn.textContent = 'Copied!';
+    setTimeout(function(){ linkUrlCopyBtn.textContent = 'Copy'; }, 1500);
+  });
+  function openLinkUrlOverlay(l){
+    linkUrlOverlaySub.innerHTML = esc(l.channel_name) + ' — <span class="status-pill ' +
+      (l.status === 'active' ? 'ok' : 'bad') + '" style="margin-left:2px">' + (l.status === 'active' ? 'Active' : 'Inactive') + '</span>';
+    linkUrlOverlayInput.value = l.embed_url || '';
+    linkUrlCopyBtn.textContent = 'Copy';
+    linkUrlOverlay.classList.add('show');
+  }
 
   function formatDuration(ms){
     var totalMin = Math.round(Math.abs(ms) / 60000);
@@ -630,12 +679,12 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   function formatCreated(iso){
     return new Date(iso).toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
   }
-  function linkItemHtml(l){
+  function linkItemHtml(l, i){
     var isActive = l.status === 'active';
     var timeText = isActive
       ? (formatDuration(l.ms_left) + ' left')
       : ('Expired ' + formatDuration(Date.now() - new Date(l.expires_at).getTime()) + ' ago');
-    return '<div class="link-item">' +
+    return '<div class="link-item" data-idx="' + i + '">' +
       '<div class="link-item-main">' +
         '<span class="link-channel">' + esc(l.channel_name) + '</span>' +
         '<code class="link-created">Created ' + esc(formatCreated(l.created_at)) + '</code>' +
@@ -648,7 +697,13 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   }
   function renderLinksList(links){
     if(!links.length){ linksList.innerHTML = '<div class="ch-loading">No generated links yet.</div>'; return; }
-    linksList.innerHTML = links.map(linkItemHtml).join('');
+    currentRenderedLinks = links;
+    linksList.innerHTML = links.map(function(l, i){ return linkItemHtml(l, i); }).join('');
+    linksList.querySelectorAll('.link-item').forEach(function(item){
+      item.addEventListener('click', function(){
+        openLinkUrlOverlay(currentRenderedLinks[Number(item.getAttribute('data-idx'))]);
+      });
+    });
   }
   function looksLikeTokenOrUrl(s){
     return /token=/.test(s) || /^[A-Za-z0-9_-]+\.[A-Za-z0-9]+$/.test(s.trim());
