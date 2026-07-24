@@ -408,7 +408,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   var lastRevealedKey = ''; // filled in only right after creating a key this session
   function revealBoxHtml(key){
     if(!key) return '';
-    return '<div class="reveal-box"><div class="reveal-label">Copy this now — you won\'t be able to see it again.</div>' +
+    return '<div class="reveal-box"><div class="reveal-label">Copy this now — you won\\'t be able to see it again.</div>' +
       '<div class="reveal-row"><code>' + esc(key) + '</code><button type="button" class="btn btn-sm" id="copyRevealBtn">Copy</button></div></div>';
   }
 
@@ -442,7 +442,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     }
 
     if(!keys.length){
-      html += '<div class="empty-state" id="noKeysMsg">You don\'t have an API key yet. Create one to start making requests.</div>';
+      html += '<div class="empty-state" id="noKeysMsg">You don\\'t have an API key yet. Create one to start making requests.</div>';
     } else {
       keys.forEach(function(k){
         html += '<div class="key-row">' +
