@@ -116,9 +116,9 @@ async function fetchUpstream(url) {
 }
 
 // Rewrites every URI in an HLS playlist (variant playlists, segments,
-// #EXT-X-KEY / #EXT-X-MAP references) to point back through our own proxy
-// routes, so the real upstream host never appears in anything the client
-// receives.
+// #EXT-X-KEY / #EXT-X-MAP / #EXT-X-MEDIA references) to point back through
+// our own proxy routes, so the real upstream host never appears in anything
+// the client receives.
 function rewritePlaylist(text, baseUrl, token, channel, exp) {
   const store = getResourceStore(token, exp);
   const lines = text.split(/\r?\n/);
@@ -128,6 +128,17 @@ function rewritePlaylist(text, baseUrl, token, channel, exp) {
         const abs = new URL(uri, baseUrl).toString();
         const id = storeResource(store, abs);
         return `URI="/api/v1/hls/${channel}/seg?token=${encodeURIComponent(token)}&r=${id}"`;
+      });
+    }
+    if (line.startsWith("#EXT-X-MEDIA") && line.includes("URI=")) {
+      // Alternate renditions (e.g. TYPE=AUDIO) point at their own sub-playlist —
+      // same rewrite as a bare playlist/segment line below, just inside a tag.
+      return line.replace(/URI="([^"]+)"/, (_, uri) => {
+        const abs = new URL(uri, baseUrl).toString();
+        const id = storeResource(store, abs);
+        const isSubPlaylist = /\.m3u8(\?|$)/i.test(abs);
+        const path = isSubPlaylist ? "playlist.m3u8" : "seg";
+        return `URI="/api/v1/hls/${channel}/${path}?token=${encodeURIComponent(token)}&r=${id}"`;
       });
     }
     if (line.startsWith("#") || line.trim() === "") return line;
