@@ -215,6 +215,12 @@ body:has(.page-overlay.show){overflow:hidden}
    commentsOverlay comes later in the DOM it was painting on top, hiding this menu until
    commentsOverlay closed. Force these above any other .page-overlay. */
 #postOptionsOverlay, #postVisibilityOverlay, #postDeleteOverlay, #postSettingsOverlay{ z-index:150; }
+/* followingFeedOverlay (the floating-button "POSTS" panel) is declared
+   later in the DOM than commentsOverlay, so opening comments on a post
+   from inside that feed was rendering the comments overlay BEHIND the
+   still-open feed overlay — same shape of bug as above, tapping "comment"
+   appeared to do nothing because it opened out of sight. */
+#commentsOverlay{ z-index:120; }
 .flist-card{
   width:100%;max-width:400px;max-height:78vh;background:var(--card);border:1px solid var(--border-strong);
   border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:flex;flex-direction:column;overflow:hidden;
@@ -918,6 +924,13 @@ function attachTagHighlight(inputEl, opts){
   if (inputEl.dataset.tagHighlightWired) return;
   inputEl.dataset.tagHighlightWired = '1';
 
+  // Must happen BEFORE reading computed style below — native form-control
+  // chrome can carry its own internal metrics, so the padding/font values
+  // we're about to copy to the backdrop need to reflect the box the input
+  // will actually render as, not its pre-appearance-none box.
+  inputEl.style.webkitAppearance = 'none';
+  inputEl.style.appearance = 'none';
+
   const cs = window.getComputedStyle(inputEl);
   const originalColor = cs.color;
   const isTextarea = inputEl.tagName === 'TEXTAREA';
@@ -960,6 +973,16 @@ function attachTagHighlight(inputEl, opts){
   inputEl.style.webkitTextFillColor = 'transparent';
   inputEl.style.caretColor = originalColor;
   inputEl.style.zIndex = '1';
+  backdrop.style.webkitAppearance = 'none';
+  backdrop.style.appearance = 'none';
+  // Mobile browsers independently auto-inflate text size per element
+  // unless pinned — two elements can end up at different effective sizes
+  // even with an identical font-size, which reads as misalignment. Locking
+  // both to 100% keeps them in lockstep.
+  inputEl.style.webkitTextSizeAdjust = '100%';
+  inputEl.style.textSizeAdjust = '100%';
+  backdrop.style.webkitTextSizeAdjust = '100%';
+  backdrop.style.textSizeAdjust = '100%';
 
   function render(){
     const text = inputEl.value || '';
