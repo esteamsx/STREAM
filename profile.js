@@ -287,7 +287,14 @@ body:has(.page-overlay.show){overflow:hidden}
   position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;overflow:hidden;
   box-sizing:border-box;word-wrap:break-word;
 }
-.tag-highlight-backdrop mark{background:transparent;color:var(--accent);font-weight:700}
+/* These highlight spans must never change a glyph's width — the backdrop is
+   overlaid pixel-for-pixel on the real input text, so any font-weight or
+   font-style change here shifts every following character out of alignment
+   with the caret and selection underneath. Colour-only styling keeps the
+   metrics identical while still making the markup visible as you type. */
+.tag-highlight-backdrop mark{background:transparent;color:var(--accent)}
+.tag-highlight-backdrop .md-bold{color:var(--text)}
+.tag-highlight-backdrop .md-italic{color:var(--text);opacity:.92}
 .pf-composer-input{
   flex:1;background:var(--dark3);border:1px solid var(--border-strong);border-radius:22px;
   padding:11px 16px;color:var(--text);font-size:.88rem;
@@ -447,7 +454,10 @@ body:has(.page-overlay.show){overflow:hidden}
 .post-link{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 .tag-highlight-backdrop .link-span{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 .insert-link-btn{
-  position:absolute;top:-38px;right:0;z-index:5;padding:6px 12px;border-radius:8px;
+  /* Below the field, not above it: the browser's own Cut/Copy/Paste callout
+     renders directly above a selection on mobile, which was covering this
+     button completely. Sitting underneath keeps both usable at once. */
+  position:absolute;bottom:-40px;right:0;z-index:5;padding:6px 12px;border-radius:8px;
   background:var(--accent);color:#04141a;font-size:.74rem;font-weight:700;border:none;
   box-shadow:0 6px 16px rgba(0,0,0,.35);display:none;align-items:center;gap:5px;
 }
@@ -921,7 +931,8 @@ function attachTagHighlight(inputEl, opts){
   wrap.appendChild(backdrop);
   wrap.appendChild(inputEl);
 
-  ['fontFamily','fontSize','fontWeight','letterSpacing','lineHeight',
+  ['fontFamily','fontSize','fontWeight','fontStyle','fontVariant','letterSpacing','lineHeight',
+   'wordSpacing','textIndent','textTransform',
    'paddingTop','paddingRight','paddingBottom','paddingLeft',
    'borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth','textAlign'
   ].forEach(prop => { backdrop.style[prop] = cs[prop]; });
@@ -929,11 +940,24 @@ function attachTagHighlight(inputEl, opts){
   backdrop.style.borderColor = 'transparent';
   backdrop.style.color = originalColor;
   backdrop.style.whiteSpace = isTextarea ? 'pre-wrap' : 'pre';
+  // Match the input's own box model and text rendering exactly — any
+  // mismatch here shifts the mirrored text by a fraction of a pixel against
+  // the real (invisible) text underneath, which is what made this look
+  // blurry/ghosted rather than crisp.
+  backdrop.style.boxSizing = cs.boxSizing;
+  backdrop.style.webkitFontSmoothing = cs.webkitFontSmoothing || 'antialiased';
+  backdrop.style.textRendering = 'geometricPrecision';
 
   inputEl.style.position = 'relative';
   inputEl.style.width = '100%';
   inputEl.style.background = 'transparent';
   inputEl.style.color = 'transparent';
+  // WebKit (iOS Safari, and Chrome on iOS) ignores `color:transparent` for
+  // the text inside a form field — it kept painting the real text on top of
+  // the mirrored copy, so every character showed twice with a slight offset.
+  // That doubling is what read as "blurry". -webkit-text-fill-color is the
+  // property WebKit actually honours here.
+  inputEl.style.webkitTextFillColor = 'transparent';
   inputEl.style.caretColor = originalColor;
   inputEl.style.zIndex = '1';
 
@@ -942,8 +966,8 @@ function attachTagHighlight(inputEl, opts){
     let html = escapeHtml(text);
     if (opts.richFormatting) {
       html = html.replace(/\\[([^\\[\\]]+)\\]\\((https?:\\/\\/[^\\s()]+)\\)/g, '<span class="link-span">[$1]($2)</span>');
-      html = html.replace(/\\*([^\\s*][^*]*?)\\*/g, '<b>$1</b>');
-      html = html.replace(/_([^\\s_][^_]*?)_/g, '<i>$1</i>');
+      html = html.replace(/\\*([^\\s*][^*]*?)\\*/g, '<span class="md-bold">*$1*</span>');
+      html = html.replace(/_([^\\s_][^_]*?)_/g, '<span class="md-italic">_$1_</span>');
     }
     html = html.replace(/@(\\w+)/g, '<mark>@$1</mark>');
     backdrop.innerHTML = html + '&#8203;';
@@ -975,6 +999,19 @@ function wireTagTrigger(inputEl, opts){
 let pendingLinkInput = null;
 let pendingLinkRange = null;
 
+/* setupLinkInsertion runs again on a brand-new element every time a post
+   enters edit mode, so the 'selectionchange' listener it needs is registered
+   ONCE here at document level and dispatched to whichever wired input is
+   currently focused. Registering it per-input would leave a permanent
+   listener holding a reference to every discarded textarea. */
+const linkSelectionCheckers = new WeakMap();
+document.addEventListener('selectionchange', () => {
+  const el = document.activeElement;
+  if (!el) return;
+  const check = linkSelectionCheckers.get(el);
+  if (check) check();
+});
+
 function setupLinkInsertion(inputEl){
   const container = inputEl.parentNode; // the .tag-highlight-wrap attachTagHighlight created
   const btn = document.createElement('button');
@@ -983,23 +1020,52 @@ function setupLinkInsertion(inputEl){
   btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 00-7.07 0l-2.83 2.83a5 5 0 007.07 7.07l1.5-1.5"/></svg> Insert Link';
   container.appendChild(btn);
 
+  let lastSelection = null;
   function checkSelection(){
-    btn.classList.toggle('show', inputEl.selectionStart !== inputEl.selectionEnd);
+    const start = inputEl.selectionStart, end = inputEl.selectionEnd;
+    const hasSelection = start !== end;
+    // Remember the range: tapping the button can collapse the field's live
+    // selection before the click handler gets to read it, so the click falls
+    // back to this cached copy instead of silently doing nothing.
+    if (hasSelection) lastSelection = { start, end, text: inputEl.value.slice(start, end) };
+    btn.classList.toggle('show', hasSelection);
   }
+  // A double-tap-to-select-word on mobile finalises the selection *after*
+  // touchend/mouseup have already fired, so checking only on those events
+  // always saw an empty selection and the button never appeared — which is
+  // why only the browser's own menu showed up. 'selectionchange' fires when
+  // the selection actually settles, which is the reliable signal here; it's
+  // handled by the single shared document listener above.
+  linkSelectionCheckers.set(inputEl, checkSelection);
+  inputEl.addEventListener('select', checkSelection);
   inputEl.addEventListener('mouseup', checkSelection);
-  inputEl.addEventListener('touchend', checkSelection);
   inputEl.addEventListener('keyup', checkSelection);
+  // Belt-and-braces for engines that don't fire selectionchange inside form
+  // fields: re-check shortly after the touch settles, too.
+  inputEl.addEventListener('touchend', () => {
+    checkSelection();
+    setTimeout(checkSelection, 60);
+    setTimeout(checkSelection, 300);
+  });
   inputEl.addEventListener('blur', () => {
     setTimeout(() => { if (document.activeElement !== btn) btn.classList.remove('show'); }, 150);
   });
+  // Editing the text invalidates the cached range.
+  inputEl.addEventListener('input', () => { lastSelection = null; });
 
   btn.addEventListener('mousedown', (e) => e.preventDefault()); // don't steal focus/selection from the input
   btn.addEventListener('click', () => {
-    const start = inputEl.selectionStart, end = inputEl.selectionEnd;
-    if (start === end) return;
+    let range = null;
+    if (inputEl.selectionStart !== inputEl.selectionEnd) {
+      const start = inputEl.selectionStart, end = inputEl.selectionEnd;
+      range = { start, end, text: inputEl.value.slice(start, end) };
+    } else if (lastSelection) {
+      range = lastSelection;
+    }
+    if (!range) return;
     pendingLinkInput = inputEl;
-    pendingLinkRange = { start, end, text: inputEl.value.slice(start, end) };
-    document.getElementById('linkInsertSelectedWord').textContent = 'Linking: "' + pendingLinkRange.text + '"';
+    pendingLinkRange = range;
+    document.getElementById('linkInsertSelectedWord').textContent = 'Linking: "' + range.text + '"';
     document.getElementById('linkInsertUrlInput').value = '';
     document.getElementById('linkInsertOverlay').classList.add('show');
     document.getElementById('linkInsertUrlInput').focus();

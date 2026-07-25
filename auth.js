@@ -1434,13 +1434,13 @@ async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
   return { id: ref.id, ...post, likesCount: 0, likedByViewer: false, commentsCount: 0 };
 }
 
-// Reshares never carry their own likes — a like on a reshare is recorded on
-// the original post it points to (see togglePostLike below), so a
-// reshare's own `likedBy` stays empty forever. This resolves the *real*
-// likedBy array (the original's, for a reshare; its own, otherwise) for a
-// batch of raw post docs, so list views show the same like count/state a
-// viewer would see on the original post itself.
-async function resolveEffectiveLikedBy(rawPosts) {
+// Reshares never carry their own likes OR comments — both are recorded on
+// the original post they point to (see togglePostLike / addComment below),
+// so a reshare's own `likedBy` and `commentsCount` stay empty forever.
+// This resolves the *real* stats (the original's, for a reshare; its own,
+// otherwise) for a batch of raw post docs, so list views show the same
+// like/comment counts a viewer would see on the original post itself.
+async function resolveEffectivePostStats(rawPosts) {
   const originalIds = [...new Set(
     rawPosts.filter((p) => p.resharedFrom && p.resharedFrom.postId).map((p) => p.resharedFrom.postId)
   )];
@@ -1452,13 +1452,27 @@ async function resolveEffectiveLikedBy(rawPosts) {
   }
   const result = new Map();
   for (const p of rawPosts) {
-    if (p.resharedFrom && p.resharedFrom.postId && originalsById.has(p.resharedFrom.postId)) {
-      result.set(p.id, originalsById.get(p.resharedFrom.postId).likedBy || []);
-    } else {
-      result.set(p.id, p.likedBy || []);
-    }
+    const src = (p.resharedFrom && p.resharedFrom.postId && originalsById.get(p.resharedFrom.postId)) || p;
+    result.set(p.id, {
+      likedBy: src.likedBy || [],
+      commentsCount: src.commentsCount || 0,
+      // Comments live on the original, so the original's on/off switch is
+      // the one that actually governs whether a reshare can be commented on.
+      commentsEnabled: src.commentsEnabled !== false,
+    });
   }
   return result;
+}
+
+// Comments on a reshare belong to the original post's thread — everyone
+// discussing the same content sees the same conversation, and the original
+// author keeps ownership/moderation of it. Resolves a postId to the id the
+// comment collection should actually key on.
+async function resolveCommentTargetPostId(postId) {
+  const snap = await db.collection("posts").doc(postId).get();
+  if (!snap.exists) return postId;
+  const data = snap.data();
+  return (data.resharedFrom && data.resharedFrom.postId) || postId;
 }
 
 async function getPostsByUser(targetUid, viewerUid) {
@@ -1481,10 +1495,10 @@ async function getPostsByUser(targetUid, viewerUid) {
     return true;
   });
 
-  const likedByMap = await resolveEffectiveLikedBy(visiblePosts);
+  const statsMap = await resolveEffectivePostStats(visiblePosts);
 
   return visiblePosts.map((p) => {
-    const effectiveLikedBy = likedByMap.get(p.id) || [];
+    const stats = statsMap.get(p.id) || { likedBy: [], commentsCount: 0, commentsEnabled: true };
     return {
       id: p.id,
       text: p.text || "",
@@ -1492,15 +1506,15 @@ async function getPostsByUser(targetUid, viewerUid) {
       taggedUids: p.taggedUids || [],
       visibility: p.visibility || "everyone",
       resharedFrom: p.resharedFrom || null,
-      commentsEnabled: p.commentsEnabled !== false,
+      commentsEnabled: stats.commentsEnabled,
       reshareEnabled: p.reshareEnabled !== false,
       linksEnabled: p.linksEnabled !== false,
       reshareCount: p.reshareCount || 0,
       editedAt: p.editedAt || null,
       createdAt: p.createdAt,
-      likesCount: effectiveLikedBy.length,
-      likedByViewer: viewerUid ? effectiveLikedBy.includes(viewerUid) : false,
-      commentsCount: p.commentsCount || 0,
+      likesCount: stats.likedBy.length,
+      likedByViewer: viewerUid ? stats.likedBy.includes(viewerUid) : false,
+      commentsCount: stats.commentsCount,
     };
   });
 }
@@ -1665,7 +1679,13 @@ async function fetchUsersByUid(uids) {
 async function getPostOwner(postId) {
   const snap = await db.collection("posts").doc(postId).get();
   if (!snap.exists) return null;
-  const data = snap.data();
+  let data = snap.data();
+  // Comments on a reshare live on the original post, so the person to
+  // notify about a new comment is the original author, not the resharer.
+  if (data.resharedFrom && data.resharedFrom.postId) {
+    const origSnap = await db.collection("posts").doc(data.resharedFrom.postId).get();
+    if (origSnap.exists) data = origSnap.data();
+  }
   const owner = await getUserProfile(data.uid);
   return owner ? { uid: data.uid, username: owner.username } : { uid: data.uid, username: null };
 }
@@ -1681,7 +1701,11 @@ async function getCommentAuthorUid(commentId) {
 async function addComment(uid, postId, text, taggedUsernames) {
   const cleanText = (text || "").toString().trim().slice(0, 500);
   if (!cleanText) throw new Error("Write something first.");
-  const postRef = db.collection("posts").doc(postId);
+  // A reshare has no comment thread of its own — commenting on one adds to
+  // the original post's thread, so everyone sees the same conversation and
+  // the original author keeps ownership of it.
+  const targetPostId = await resolveCommentTargetPostId(postId);
+  const postRef = db.collection("posts").doc(targetPostId);
   const postSnap = await postRef.get();
   if (!postSnap.exists) throw new Error("Post not found.");
   const postData = postSnap.data();
@@ -1691,17 +1715,17 @@ async function addComment(uid, postId, text, taggedUsernames) {
   }
 
   const tagged = await resolveTaggedUsers(uid, taggedUsernames);
-  const comment = { postId, uid, text: cleanText, taggedUids: tagged.map((t) => t.uid), likedBy: [], hidden: false, pinnedAt: null, createdAt: Date.now() };
+  const comment = { postId: targetPostId, uid, text: cleanText, taggedUids: tagged.map((t) => t.uid), likedBy: [], hidden: false, pinnedAt: null, createdAt: Date.now() };
   const ref = await db.collection("comments").add(comment);
   await postRef.update({ commentsCount: admin.firestore.FieldValue.increment(1) }).catch(() => {});
 
   const author = await getUserProfile(uid);
   if (tagged.length && author) {
     const authorName = `${author.firstName || ""} ${author.lastName || ""}`.trim() || `@${author.username}`;
-    const postUrl = `/u/${author.username}#post-${postId}`;
+    const postUrl = `/u/${author.username}#post-${targetPostId}`;
     for (const t of tagged) {
       if (t.uid === uid) continue;
-      await addNotification(t.uid, "tag", `${authorName} tagged you in a comment.`, { postId, postUrl });
+      await addNotification(t.uid, "tag", `${authorName} tagged you in a comment.`, { postId: targetPostId, postUrl });
     }
   }
 
@@ -1718,11 +1742,13 @@ async function addComment(uid, postId, text, taggedUsernames) {
 }
 
 async function getComments(postId, viewerUid) {
-  const postSnap = await db.collection("posts").doc(postId).get();
+  // Same redirection as addComment — a reshare shows the original's thread.
+  const targetPostId = await resolveCommentTargetPostId(postId);
+  const postSnap = await db.collection("posts").doc(targetPostId).get();
   if (!postSnap.exists) throw new Error("Post not found.");
   const postOwnerUid = postSnap.data().uid;
 
-  const snap = await db.collection("comments").where("postId", "==", postId).limit(500).get();
+  const snap = await db.collection("comments").where("postId", "==", targetPostId).limit(500).get();
   let comments = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   comments = comments.filter((c) => !c.hidden || c.uid === viewerUid || postOwnerUid === viewerUid);
@@ -1952,20 +1978,20 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
     });
   }
 
-  const likedByMap = await resolveEffectiveLikedBy(visible);
+  const statsMap = await resolveEffectivePostStats(visible);
 
   const posts = visible.map((p) => {
-    const effectiveLikedBy = likedByMap.get(p.id) || [];
+    const stats = statsMap.get(p.id) || { likedBy: [], commentsCount: 0, commentsEnabled: true };
     return {
       id: p.id,
       author: authorsByUid.get(p.uid) || { uid: p.uid, username: "", firstName: "", lastName: "", photoURL: null },
       text: p.text || "",
       imageDataUrl: p.imageDataUrl || null,
       createdAt: p.createdAt,
-      likesCount: effectiveLikedBy.length,
-      likedByViewer: effectiveLikedBy.includes(uid),
-      commentsCount: p.commentsCount || 0,
-      commentsEnabled: p.commentsEnabled !== false,
+      likesCount: stats.likedBy.length,
+      likedByViewer: stats.likedBy.includes(uid),
+      commentsCount: stats.commentsCount,
+      commentsEnabled: stats.commentsEnabled,
     };
   });
 
