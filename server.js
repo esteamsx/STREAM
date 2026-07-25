@@ -19,7 +19,11 @@ import { renderAdmin } from "./admin.js";
 import { domainLock } from "./lock.js";
 import { apiRouter } from "./api.js";
 import { renderDeployBot } from "./deploy-bot.js";
-import { deployBot, listBotsForUser, getBotStatus, stopBot, restartBot, deleteBot, countActiveBots, MAX_ACTIVE_BOTS, restoreBotsOnBoot } from "./bots.js";
+import {
+  deployBot, listBotsForUser, getBotStatus, stopBot, restartBot, deleteBot,
+  countActiveBots, MAX_ACTIVE_BOTS, countBotsForUser, MAX_INSTANCES_PER_USER, restoreBotsOnBoot,
+  adminStopBot, adminRestartBot, adminDeleteBot, adminListDeployingUsers, adminListBotsForUser,
+} from "./bots.js";
 import QRCode from "qrcode";
 import {
   issueCode,
@@ -3515,6 +3519,59 @@ app.post("/api/admin/users/:uid/reset-password", requireAuth, requireAdmin, asyn
   }
 });
 
+app.get("/api/admin/bots/users", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const rows = await adminListDeployingUsers();
+    const enriched = await Promise.all(rows.map(async (r) => {
+      const profile = await getUserProfile(r.uid).catch(() => null);
+      return {
+        ...r,
+        username: profile?.username || null,
+        firstName: profile?.firstName || "",
+        lastName: profile?.lastName || "",
+        email: profile?.email || "",
+      };
+    }));
+    res.json({ users: enriched });
+  } catch (err) {
+    res.status(500).json({ error: "Could not load deploying users." });
+  }
+});
+
+app.get("/api/admin/bots/users/:uid", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const bots = await adminListBotsForUser(req.params.uid);
+    res.json({ bots });
+  } catch (err) {
+    res.status(500).json({ error: "Could not load that user's deployments." });
+  }
+});
+
+app.post("/api/admin/bots/:id/stop", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await adminStopBot(req.params.id));
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not stop that deployment." });
+  }
+});
+
+app.post("/api/admin/bots/:id/restart", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await adminRestartBot(req.params.id));
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not restart that deployment." });
+  }
+});
+
+app.delete("/api/admin/bots/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await adminDeleteBot(req.params.id));
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not delete that deployment." });
+  }
+});
+
+
 
 
 app.get("/reset", (req, res) => {
@@ -3539,8 +3596,9 @@ app.get("/deploy-bot", (req, res) => {
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {
   try {
-    const active = await countActiveBots();
-    res.json({ active, max: MAX_ACTIVE_BOTS });
+    const isAdmin = isAdminEmail(req.userProfile?.email);
+    const [active, mine] = await Promise.all([countActiveBots(), countBotsForUser(req.uid)]);
+    res.json({ active, max: MAX_ACTIVE_BOTS, mine, maxMine: isAdmin ? null : MAX_INSTANCES_PER_USER, isAdmin });
   } catch (err) {
     res.status(500).json({ error: "Could not load deployment capacity." });
   }
@@ -3557,7 +3615,8 @@ app.get("/api/bots", requireAuth, async (req, res) => {
 
 app.post("/api/bots/deploy", requireAuth, async (req, res) => {
   try {
-    const result = await deployBot(req.uid, req.body || {});
+    const isAdmin = isAdminEmail(req.userProfile?.email);
+    const result = await deployBot(req.uid, req.body || {}, isAdmin);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message || "Deploy failed." });

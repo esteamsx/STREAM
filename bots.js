@@ -37,6 +37,7 @@ const TEMPLATE_MARKER = path.join(TEMPLATE_DIR, ".built-at");
 const TEMPLATE_TTL_MS = 6 * 60 * 60 * 1000; // rebuild the shared template at most every 6h
 const SESSION_DIR_NAME = "ES_TEAMS-SESSION";
 const MAX_ACTIVE_BOTS = 100;
+const MAX_INSTANCES_PER_USER = 3; // admin (isAdminEmail) bypasses this; the global 100 cap above still applies to everyone
 // Every one of these counts as "in progress or running" for the cap and
 // for boot-time restore — including the fast-moving download/extract/
 // install stages, which mostly only appear on the very first deploy.
@@ -81,11 +82,23 @@ async function getBotDoc(uid, botId) {
   return { ref, data };
 }
 
+async function countBotsForUser(uid) {
+  const snap = await db.collection("botDeployments").where("uid", "==", uid).get();
+  return snap.size;
+}
+
 // ── Deploy ────────────────────────────────────────────────────────────
-async function deployBot(uid, { label, phoneNumber }) {
+async function deployBot(uid, { label, phoneNumber }, isAdmin = false) {
   const cleanLabel = (label || "My Bot").toString().trim().slice(0, 60) || "My Bot";
   const cleanNumber = isValidPhoneNumber(phoneNumber);
   if (!cleanNumber) throw new Error("Enter a valid phone number, digits only (with country code, no + or spaces).");
+
+  if (!isAdmin) {
+    const mineCount = await countBotsForUser(uid);
+    if (mineCount >= MAX_INSTANCES_PER_USER) {
+      throw new Error(`You can only deploy ${MAX_INSTANCES_PER_USER} instances.`);
+    }
+  }
 
   const activeCount = await countActiveBots();
   if (activeCount >= MAX_ACTIVE_BOTS) {
@@ -270,7 +283,19 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         return;
       }
       if (/Delete Session and Scan again/i.test(line)) {
-        setStatus("needs_repair", { lastError: "Session invalid — redeploy to get a new pairing code." });
+        setStatus("needs_repair", { lastError: "Session invalid — restart to get a new pairing code." });
+        return;
+      }
+      // The bot's own reconnect logic only covers connectionLost/Closed/
+      // restartRequired/timedOut — for a manual "unlink this device" in
+      // WhatsApp (loggedOut) or a session replaced elsewhere
+      // (multideviceMismatch / connectionReplaced) it just logs and sits
+      // idle without exiting, which was leaving the dashboard stuck
+      // showing "Connected" forever. Catch those and reflect reality.
+      if (/^Scan again/i.test(line) || /Close current Session first/i.test(line)) {
+        setStatus("disconnected", { lastError: "Disconnected from WhatsApp — restart to get a new pairing code." });
+        if (entry.proc) entry.proc.kill("SIGTERM");
+        return;
       }
     });
   };
@@ -283,7 +308,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
       running.delete(botId);
       if (entry.stoppedByUser) return; // stopBot() already set the final status
       ref.get().then((snap) => {
-        if (snap.exists && snap.data().status === "needs_repair") return; // already handled above
+        if (snap.exists && ["needs_repair", "disconnected"].includes(snap.data().status)) return; // already handled above
         ref.update({ status: "crashed", lastError: `Process exited (code ${code}).`, updatedAt: Date.now() }).catch(() => {});
       }).catch(() => {});
     });
@@ -304,9 +329,8 @@ async function getBotStatus(uid, botId) {
   return { ...data, id: botId, logs: entry ? entry.logs : [] };
 }
 
-async function stopBot(uid, botId) {
-  const { ref, data } = await getBotDoc(uid, botId);
-  const entry = running.get(botId);
+async function _stopBotDoc(ref, data) {
+  const entry = running.get(ref.id);
   if (entry) {
     entry.stoppedByUser = true;
     if (entry.backupTimer) clearInterval(entry.backupTimer);
@@ -316,28 +340,87 @@ async function stopBot(uid, botId) {
   return { ok: true };
 }
 
-async function restartBot(uid, botId) {
-  const { ref, data } = await getBotDoc(uid, botId);
-  if (running.has(botId)) await stopBot(uid, botId);
+async function _restartBotDoc(ref, data) {
+  if (running.has(ref.id)) await _stopBotDoc(ref, data);
   await ref.update({ status: "starting", stoppedByUser: false, lastError: null, pairingCode: null, updatedAt: Date.now() });
-  runDeployment(botId, uid, data.phoneNumber, { isRestore: true }).catch((err) => {
+  runDeployment(ref.id, data.uid, data.phoneNumber, { isRestore: true }).catch((err) => {
     ref.update({ status: "crashed", lastError: err.message, updatedAt: Date.now() }).catch(() => {});
   });
   return { ok: true };
 }
 
-async function deleteBot(uid, botId) {
-  const { ref } = await getBotDoc(uid, botId);
-  const entry = running.get(botId);
+async function _deleteBotDoc(ref, data) {
+  const entry = running.get(ref.id);
   if (entry) {
     entry.stoppedByUser = true;
     if (entry.backupTimer) clearInterval(entry.backupTimer);
     if (entry.proc) entry.proc.kill("SIGTERM");
-    running.delete(botId);
+    running.delete(ref.id);
   }
   await ref.delete();
-  fs.rm(path.join(BOTS_ROOT, botId), { recursive: true, force: true }, () => {});
+  fs.rm(path.join(BOTS_ROOT, ref.id), { recursive: true, force: true }, () => {});
   return { ok: true };
+}
+
+async function stopBot(uid, botId) {
+  const { ref, data } = await getBotDoc(uid, botId);
+  return _stopBotDoc(ref, data);
+}
+
+async function restartBot(uid, botId) {
+  const { ref, data } = await getBotDoc(uid, botId);
+  return _restartBotDoc(ref, data);
+}
+
+async function deleteBot(uid, botId) {
+  const { ref, data } = await getBotDoc(uid, botId);
+  return _deleteBotDoc(ref, data);
+}
+
+// ── Admin management — same actions, no ownership check ──────────────────
+// Gating on isAdminEmail happens at the route level (server.js), same as
+// every other admin-only endpoint in this app; these assume that's already
+// been checked.
+async function adminGetBotDoc(botId) {
+  const ref = db.collection("botDeployments").doc(botId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("Deployment not found.");
+  return { ref, data: snap.data() };
+}
+
+async function adminStopBot(botId) {
+  const { ref, data } = await adminGetBotDoc(botId);
+  return _stopBotDoc(ref, data);
+}
+
+async function adminRestartBot(botId) {
+  const { ref, data } = await adminGetBotDoc(botId);
+  return _restartBotDoc(ref, data);
+}
+
+async function adminDeleteBot(botId) {
+  const { ref, data } = await adminGetBotDoc(botId);
+  return _deleteBotDoc(ref, data);
+}
+
+// One row per user who has ever deployed a bot, with counts — powers the
+// admin "Bot Deployments" section's user list.
+async function adminListDeployingUsers() {
+  const snap = await db.collection("botDeployments").get();
+  const byUid = new Map();
+  snap.docs.forEach((d) => {
+    const data = d.data();
+    if (!byUid.has(data.uid)) byUid.set(data.uid, { uid: data.uid, count: 0, activeCount: 0 });
+    const entry = byUid.get(data.uid);
+    entry.count++;
+    if (ACTIVE_STATUSES.includes(data.status)) entry.activeCount++;
+  });
+  return [...byUid.values()].sort((a, b) => b.activeCount - a.activeCount || b.count - a.count);
+}
+
+async function adminListBotsForUser(targetUid) {
+  const snap = await db.collection("botDeployments").where("uid", "==", targetUid).get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 // Called once at server boot. Anything that was active before a restart
@@ -359,4 +442,8 @@ export async function restoreBotsOnBoot() {
   }
 }
 
-export { deployBot, listBotsForUser, getBotStatus, stopBot, restartBot, deleteBot, countActiveBots, MAX_ACTIVE_BOTS };
+export {
+  deployBot, listBotsForUser, getBotStatus, stopBot, restartBot, deleteBot,
+  countActiveBots, MAX_ACTIVE_BOTS, countBotsForUser, MAX_INSTANCES_PER_USER,
+  adminStopBot, adminRestartBot, adminDeleteBot, adminListDeployingUsers, adminListBotsForUser,
+};

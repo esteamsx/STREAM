@@ -80,6 +80,7 @@ input{font-family:inherit}
 }
 .db-btn:hover{filter:brightness(1.08)}
 .db-btn:disabled{opacity:.5;cursor:not-allowed}
+.db-btn-dead{opacity:.4;filter:grayscale(.5)}
 .db-btn-danger{background:var(--red);color:#fff}
 .db-btn-ghost{background:var(--card2);color:var(--text);border:1px solid var(--border)}
 .db-err{color:var(--red);font-size:.8rem;margin-top:8px;display:none}
@@ -102,7 +103,7 @@ input{font-family:inherit}
 .db-status-connected{background:rgba(18,196,139,.15);color:var(--green)}
 .db-status-reconnecting{background:rgba(245,166,35,.15);color:var(--amber)}
 .db-status-stopped{background:rgba(255,255,255,.08);color:var(--muted)}
-.db-status-crashed,.db-status-needs_repair{background:rgba(255,59,92,.15);color:var(--red)}
+.db-status-crashed,.db-status-needs_repair,.db-status-disconnected{background:rgba(255,59,92,.15);color:var(--red)}
 
 .db-pairing-row{display:flex;align-items:stretch;gap:8px;margin:8px 0}
 .db-pairing-code{
@@ -219,7 +220,7 @@ input{font-family:inherit}
   const STATUS_LABELS = {
     downloading: 'Downloading', extracting: 'Extracting', starting: 'Starting', installing: 'Installing',
     pairing: 'Awaiting pairing', connected: 'Connected', reconnecting: 'Reconnecting', stopped: 'Stopped',
-    crashed: 'Crashed', needs_repair: 'Needs re-pair',
+    crashed: 'Crashed', needs_repair: 'Needs re-pair', disconnected: 'Disconnected',
   };
   const RUNNING_STATUSES = ['downloading','extracting','installing','starting','pairing','connected','reconnecting'];
   // Steps shown in the progress bar, in order. "connected" isn't included —
@@ -386,7 +387,7 @@ input{font-family:inherit}
           try {
             if (act === 'stop') await postJSON('/api/bots/' + id + '/stop');
             else if (act === 'restart') await postJSON('/api/bots/' + id + '/restart');
-            else if (act === 'delete') await deleteReq('/api/bots/' + id);
+            else if (act === 'delete') { await deleteReq('/api/bots/' + id); refreshCap(); }
             refreshList();
           } catch (e) {
             showInlineError(el, e.message);
@@ -458,11 +459,26 @@ input{font-family:inherit}
     }
   }, 4000);
 
+  let userCapInfo = { mine: 0, maxMine: 3, isAdmin: false };
+
+  function atUserCap(){
+    return !userCapInfo.isAdmin && userCapInfo.maxMine != null && userCapInfo.mine >= userCapInfo.maxMine;
+  }
+
+  function updateDeployBtnLook(){
+    document.getElementById('deployBtn').classList.toggle('db-btn-dead', atUserCap());
+  }
+
   document.getElementById('deployForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('deployBtn');
     const errEl = document.getElementById('deployErr');
     errEl.classList.remove('show');
+    if (atUserCap()) {
+      errEl.textContent = 'You can only deploy ' + userCapInfo.maxMine + ' instances.';
+      errEl.classList.add('show');
+      return;
+    }
     const label = document.getElementById('botLabel').value;
     const phoneNumber = document.getElementById('botNumber').value;
     btn.disabled = true;
@@ -472,6 +488,7 @@ input{font-family:inherit}
       await postJSON('/api/bots/deploy', { label, phoneNumber });
       document.getElementById('deployForm').reset();
       refreshList();
+      refreshCap();
     } catch (err) {
       errEl.textContent = err.message;
       errEl.classList.add('show');
@@ -485,6 +502,8 @@ input{font-family:inherit}
     try {
       const data = await getJSON('/api/bots/cap');
       document.getElementById('capLabel').textContent = data.active + '/' + data.max;
+      userCapInfo = data;
+      updateDeployBtnLook();
     } catch { document.getElementById('capLabel').textContent = ''; }
   }
 
