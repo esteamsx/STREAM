@@ -413,6 +413,37 @@ body:has(.page-overlay.show){overflow:hidden}
 .pf-posts-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:26px 0}
 .pf-posts-loading .pf-loader-ring{width:26px;height:26px}
 
+/* ── Following feed: floating icon + "POSTS" overlay ── */
+.pf-feed-fab{
+  position:fixed;right:20px;bottom:20px;z-index:90;width:52px;height:52px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
+  cursor:pointer;transition:transform .15s var(--ease);
+}
+.pf-feed-fab:active{transform:scale(.94)}
+.pf-feed-fab svg{width:23px;height:23px}
+.pf-feed-fab-badge{
+  position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;
+  background:var(--red);color:#fff;font-size:.68rem;font-weight:700;display:none;align-items:center;justify-content:center;
+  border:2px solid var(--dark);box-sizing:border-box;
+}
+.pf-feed-fab-badge.show{display:flex}
+
+.feed-post{display:flex;gap:10px;padding:14px 0;border-top:1px solid var(--border)}
+.feed-post:first-child{border-top:none;padding-top:0}
+.feed-post-avatar{
+  width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;
+  font-size:.82rem;color:#04141a;flex-shrink:0;background-size:cover;background-position:center;cursor:pointer;
+}
+.feed-post-body{flex:1;min-width:0}
+.feed-post-name{font-size:.83rem;font-weight:600;cursor:pointer;display:inline}
+.feed-post-time{font-size:.7rem;color:var(--muted);margin-top:1px}
+.feed-post-text{font-size:.85rem;color:var(--text);line-height:1.45;white-space:pre-wrap;margin-top:4px}
+.feed-post-image{width:100%;max-height:260px;object-fit:cover;border-radius:10px;margin-top:8px;display:block}
+.feed-post-footer{display:flex;align-items:center;gap:6px;margin-top:8px}
+.feed-empty{color:var(--muted);font-size:.83rem;text-align:center;padding:30px 0}
+
 .pf-post-more-btn{position:absolute;top:0;right:0;background:transparent;border:none;color:var(--muted);width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
 .pf-post-more-btn:hover{color:var(--accent);background:rgba(0,224,255,.1)}
 .pf-post-more-btn svg{width:18px;height:18px}
@@ -669,6 +700,23 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
     <button type="button" class="mpv-view-btn" disabled style="opacity:.6;cursor:default">Follow</button>
     <button type="button" class="mpv-close-text" id="vaCloseBtn">Close</button>
+  </div>
+</div>
+
+<button type="button" class="pf-feed-fab" id="feedFabBtn" style="display:none" aria-label="Posts from people you follow">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+  <span class="pf-feed-fab-badge" id="feedFabBadge"></span>
+</button>
+
+<div class="page-overlay comments-overlay" id="followingFeedOverlay">
+  <div class="comments-card">
+    <div class="comments-header">
+      <div class="comments-title">POSTS</div>
+      <button type="button" class="flist-close" id="followingFeedCloseBtn" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="comments-list" id="followingFeedList"></div>
   </div>
 </div>
 
@@ -956,6 +1004,145 @@ async function toggleLikePost(postId, btn, countEl){
   } finally {
     btn.disabled = false;
   }
+}
+
+/* ── Following feed: floating icon + "POSTS" overlay ── */
+function goToProfile(username){
+  if (username) window.location.href = '/u/' + encodeURIComponent(username);
+}
+
+function createFeedPostCard(post){
+  const author = post.author || {};
+  const card = document.createElement('div');
+  card.className = 'feed-post';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'feed-post-avatar';
+  if (author.photoURL) {
+    avatar.style.backgroundImage = 'url(' + author.photoURL + ')';
+  } else {
+    avatar.textContent = ((author.firstName || '')[0] || (author.username || '?')[0] || '?').toUpperCase();
+  }
+  avatar.addEventListener('click', () => goToProfile(author.username));
+  card.appendChild(avatar);
+
+  const body = document.createElement('div');
+  body.className = 'feed-post-body';
+
+  const nameRow = document.createElement('div');
+  const nameEl = document.createElement('span');
+  nameEl.className = 'feed-post-name';
+  nameEl.innerHTML = ((author.firstName || author.lastName) ? ((author.firstName || '') + ' ' + (author.lastName || '')).trim() : ('@' + (author.username || ''))) +
+    ((author.isAdmin || author.verified) ? VERIFIED_BADGE : '');
+  nameEl.addEventListener('click', () => goToProfile(author.username));
+  nameRow.appendChild(nameEl);
+  body.appendChild(nameRow);
+
+  const timeEl = document.createElement('div');
+  timeEl.className = 'feed-post-time';
+  timeEl.textContent = formatRelativeTime(post.createdAt);
+  body.appendChild(timeEl);
+
+  if (post.text) {
+    const textEl = document.createElement('div');
+    textEl.className = 'feed-post-text';
+    textEl.innerHTML = renderPostText(post.text);
+    body.appendChild(textEl);
+  }
+
+  if (post.imageDataUrl) {
+    const img = document.createElement('img');
+    img.className = 'feed-post-image';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.src = post.imageDataUrl;
+    body.appendChild(img);
+  }
+
+  const footer = document.createElement('div');
+  footer.className = 'feed-post-footer';
+
+  const heart = document.createElement('button');
+  heart.type = 'button';
+  heart.className = 'pf-post-heart' + (post.likedByViewer ? ' liked' : '');
+  heart.innerHTML = HEART_ICON;
+  const likeCountEl = document.createElement('div');
+  likeCountEl.className = 'pf-post-like-count';
+  likeCountEl.textContent = post.likesCount > 0 ? formatCount(post.likesCount) : '';
+  heart.addEventListener('click', () => toggleLikePost(post.id, heart, likeCountEl));
+  footer.appendChild(heart);
+  footer.appendChild(likeCountEl);
+
+  const commentBtn = document.createElement('button');
+  commentBtn.type = 'button';
+  commentBtn.className = 'pf-post-comment-btn' + (post.commentsEnabled === false ? ' disabled' : '');
+  commentBtn.innerHTML = COMMENT_ICON;
+  const commentCountEl = document.createElement('div');
+  commentCountEl.className = 'pf-post-comment-count';
+  commentCountEl.textContent = post.commentsCount > 0 ? formatCount(post.commentsCount) : '';
+  commentBtn.addEventListener('click', () => {
+    if (post.commentsEnabled === false) { showToast('Comments are turned off for this post.'); return; }
+    openComments(post.id, post);
+  });
+  footer.appendChild(commentBtn);
+  footer.appendChild(commentCountEl);
+
+  body.appendChild(footer);
+  card.appendChild(body);
+  return card;
+}
+
+async function loadFollowingFeed(){
+  const listEl = document.getElementById('followingFeedList');
+  listEl.innerHTML = '<div class="pf-posts-loading"><div class="pf-loader-ring"></div><div class="pf-loader-text">Loading posts…</div></div>';
+  try {
+    const data = await getJSON('/api/feed/following');
+    const posts = data.posts || [];
+    listEl.innerHTML = '';
+    if (!posts.length) {
+      listEl.innerHTML = '<div class="feed-empty">No posts yet from people you follow.</div>';
+    } else {
+      posts.forEach(p => listEl.appendChild(createFeedPostCard(p)));
+    }
+  } catch (err) {
+    listEl.innerHTML = '<div class="feed-empty">Could not load posts. Try again.</div>';
+  }
+  refreshFeedBadge(); // this fetch marked the feed seen server-side, so the badge should now read 0
+}
+
+async function refreshFeedBadge(){
+  const badge = document.getElementById('feedFabBadge');
+  if (!badge) return;
+  try {
+    const data = await getJSON('/api/feed/following/unseen-count');
+    const count = data.count || 0;
+    badge.textContent = count > 0 ? String(count) : '';
+    badge.classList.toggle('show', count > 0);
+  } catch (err) {
+    // best-effort — leave the badge as it was
+  }
+}
+
+function initFollowingFeedFab(){
+  const fab = document.getElementById('feedFabBtn');
+  if (!fab) return;
+  fab.style.display = 'flex';
+  fab.addEventListener('click', () => {
+    document.getElementById('followingFeedOverlay').classList.add('show');
+    document.getElementById('feedFabBadge').classList.remove('show'); // clear optimistically; loadFollowingFeed confirms via the server
+    loadFollowingFeed();
+  });
+  document.getElementById('followingFeedCloseBtn').addEventListener('click', () => {
+    document.getElementById('followingFeedOverlay').classList.remove('show');
+  });
+  document.getElementById('followingFeedOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'followingFeedOverlay') document.getElementById('followingFeedOverlay').classList.remove('show');
+  });
+  refreshFeedBadge();
+  setInterval(refreshFeedBadge, 20000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshFeedBadge();
+  });
 }
 
 function createPostCard(post, isOwner){
@@ -2228,6 +2415,7 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
 
   setupComposer();
   if (profile.username) loadPosts(profile.username, true);
+  initFollowingFeedFab();
 })();
 </script>
 </body>
