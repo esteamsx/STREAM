@@ -1238,7 +1238,10 @@ async function getNotifications(uid, limit = 50) {
 
 async function hasUnreadNotifications(uid) {
   const list = await getNotifications(uid, 200);
-  return list.some((n) => !n.read);
+  // Comments don't light up the notification dot — the per-post comment
+  // count badge already surfaces those. Likes/follows/tags/reshares still
+  // do; only "comment" is excluded here.
+  return list.some((n) => !n.read && n.type !== "comment");
 }
 
 async function markAllNotificationsRead(uid) {
