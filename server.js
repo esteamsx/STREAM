@@ -18,6 +18,8 @@ import { renderDevelopers } from "./developers.js";
 import { renderAdmin } from "./admin.js";
 import { domainLock } from "./lock.js";
 import { apiRouter } from "./api.js";
+import { renderDeployBot } from "./deploy-bot.js";
+import { deployBot, listBotsForUser, getBotStatus, stopBot, restartBot, deleteBot, countActiveBots, MAX_ACTIVE_BOTS, restoreBotsOnBoot } from "./bots.js";
 import QRCode from "qrcode";
 import {
   issueCode,
@@ -3508,6 +3510,70 @@ app.get("/developers", (req, res) => {
   res.send(renderDevelopers(authPageConfig));
 });
 
+app.get("/deploy-bot", (req, res) => {
+  res.send(renderDeployBot(authPageConfig));
+});
+
+app.get("/api/bots/cap", requireAuth, async (req, res) => {
+  try {
+    const active = await countActiveBots();
+    res.json({ active, max: MAX_ACTIVE_BOTS });
+  } catch (err) {
+    res.status(500).json({ error: "Could not load deployment capacity." });
+  }
+});
+
+app.get("/api/bots", requireAuth, async (req, res) => {
+  try {
+    const bots = await listBotsForUser(req.uid);
+    res.json({ bots });
+  } catch (err) {
+    res.status(500).json({ error: "Could not load your deployments." });
+  }
+});
+
+app.post("/api/bots/deploy", requireAuth, async (req, res) => {
+  try {
+    const result = await deployBot(req.uid, req.body || {});
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Deploy failed." });
+  }
+});
+
+app.get("/api/bots/:id/status", requireAuth, async (req, res) => {
+  try {
+    const status = await getBotStatus(req.uid, req.params.id);
+    res.json(status);
+  } catch (err) {
+    res.status(404).json({ error: err.message || "Deployment not found." });
+  }
+});
+
+app.post("/api/bots/:id/stop", requireAuth, async (req, res) => {
+  try {
+    res.json(await stopBot(req.uid, req.params.id));
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not stop deployment." });
+  }
+});
+
+app.post("/api/bots/:id/restart", requireAuth, async (req, res) => {
+  try {
+    res.json(await restartBot(req.uid, req.params.id));
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not restart deployment." });
+  }
+});
+
+app.delete("/api/bots/:id", requireAuth, async (req, res) => {
+  try {
+    res.json(await deleteBot(req.uid, req.params.id));
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not delete deployment." });
+  }
+});
+
 // Public — just tells the page which address to display/send to. Never
 // exposes anything secret; it's whichever address DMCA notices go to.
 app.get("/api/dmca-agent-email", (req, res) => {
@@ -4874,6 +4940,8 @@ sweepPendingDeletions().catch((err) => console.error("Deletion sweep failed:", e
 setInterval(() => {
   sweepPendingDeletions().catch((err) => console.error("Deletion sweep failed:", err));
 }, 5 * 60 * 1000);
+
+restoreBotsOnBoot().catch((err) => console.error("Bot restore-on-boot failed:", err));
 
 sweepOrphanedUsers().catch((err) => console.error("Orphaned user sweep failed:", err));
 setInterval(() => {
