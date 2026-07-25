@@ -634,6 +634,35 @@ async function findApiKeyByRawKey(rawKey) {
   return { id: snap.id, uid: snap.data().uid };
 }
 
+// ── Issued stream links (Settings → API → "Generated Links") ─────────────
+// Stored in Firestore rather than a local file next to server.js — a local
+// dotfile survives a plain process restart, but gets wiped along with the
+// rest of the old filesystem on a redeploy/fresh file upload, which was
+// making the dashboard's link history disappear even though the app itself
+// came back up fine. Firestore isn't affected by that, same as every other
+// piece of account data in this file.
+const MAX_ISSUED_LINKS_PER_ACCOUNT = 50;
+
+async function recordIssuedStreamLink(uid, entry) {
+  await db.collection("issuedStreamLinks").add({ uid, ...entry });
+  // Best-effort trim so the collection doesn't grow forever — never blocks
+  // the caller, same spirit as the old fire-and-forget disk append.
+  db.collection("issuedStreamLinks").where("uid", "==", uid).get().then((snap) => {
+    const docs = snap.docs
+      .map((d) => ({ ref: d.ref, createdAt: d.data().createdAt || 0 }))
+      .sort((a, b) => b.createdAt - a.createdAt);
+    docs.slice(MAX_ISSUED_LINKS_PER_ACCOUNT).forEach((d) => d.ref.delete().catch(() => {}));
+  }).catch(() => {});
+}
+
+async function getIssuedStreamLinks(uid) {
+  const snap = await db.collection("issuedStreamLinks").where("uid", "==", uid).get();
+  return snap.docs
+    .map((d) => d.data())
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, MAX_ISSUED_LINKS_PER_ACCOUNT);
+}
+
 async function issueResetToken(uid) {
   const token = crypto.randomBytes(24).toString("hex");
   await db.collection("reset_tokens").doc(token).set({
@@ -671,6 +700,15 @@ async function verifySession(sessionId) {
   if (Date.now() > data.expiresAt) {
     await ref.delete();
     return null;
+  }
+  // Sliding expiry, throttled: only actually re-extend once the session is
+  // more than halfway to expiring, instead of writing on every single
+  // request. verifySession is called far more often than a 24h session
+  // ever needs renewing, so this cuts an unconditional Firestore write on
+  // every request down to roughly once every ~12h per active session.
+  // Fire-and-forget — never worth delaying the request on.
+  if (data.expiresAt - Date.now() < SESSION_TTL_MS / 2) {
+    ref.update({ expiresAt: Date.now() + SESSION_TTL_MS }).catch(() => {});
   }
   return data.uid;
 }
@@ -1396,6 +1434,33 @@ async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
   return { id: ref.id, ...post, likesCount: 0, likedByViewer: false, commentsCount: 0 };
 }
 
+// Reshares never carry their own likes — a like on a reshare is recorded on
+// the original post it points to (see togglePostLike below), so a
+// reshare's own `likedBy` stays empty forever. This resolves the *real*
+// likedBy array (the original's, for a reshare; its own, otherwise) for a
+// batch of raw post docs, so list views show the same like count/state a
+// viewer would see on the original post itself.
+async function resolveEffectiveLikedBy(rawPosts) {
+  const originalIds = [...new Set(
+    rawPosts.filter((p) => p.resharedFrom && p.resharedFrom.postId).map((p) => p.resharedFrom.postId)
+  )];
+  const originalsById = new Map();
+  for (let i = 0; i < originalIds.length; i += 30) {
+    const chunk = originalIds.slice(i, i + 30);
+    const snap = await db.collection("posts").where(admin.firestore.FieldPath.documentId(), "in", chunk).get();
+    snap.forEach((d) => originalsById.set(d.id, d.data()));
+  }
+  const result = new Map();
+  for (const p of rawPosts) {
+    if (p.resharedFrom && p.resharedFrom.postId && originalsById.has(p.resharedFrom.postId)) {
+      result.set(p.id, originalsById.get(p.resharedFrom.postId).likedBy || []);
+    } else {
+      result.set(p.id, p.likedBy || []);
+    }
+  }
+  return result;
+}
+
 async function getPostsByUser(targetUid, viewerUid) {
   const snap = await db.collection("posts").where("uid", "==", targetUid).limit(200).get();
   const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -1408,15 +1473,19 @@ async function getPostsByUser(targetUid, viewerUid) {
     mutualFollow = a && b;
   }
 
-  return posts
-    .filter((p) => {
-      if (isOwner) return true;
-      const vis = p.visibility || "everyone";
-      if (vis === "only_me") return false;
-      if (vis === "friends") return mutualFollow;
-      return true;
-    })
-    .map((p) => ({
+  const visiblePosts = posts.filter((p) => {
+    if (isOwner) return true;
+    const vis = p.visibility || "everyone";
+    if (vis === "only_me") return false;
+    if (vis === "friends") return mutualFollow;
+    return true;
+  });
+
+  const likedByMap = await resolveEffectiveLikedBy(visiblePosts);
+
+  return visiblePosts.map((p) => {
+    const effectiveLikedBy = likedByMap.get(p.id) || [];
+    return {
       id: p.id,
       text: p.text || "",
       imageDataUrl: p.imageDataUrl || null,
@@ -1429,10 +1498,11 @@ async function getPostsByUser(targetUid, viewerUid) {
       reshareCount: p.reshareCount || 0,
       editedAt: p.editedAt || null,
       createdAt: p.createdAt,
-      likesCount: (p.likedBy || []).length,
-      likedByViewer: viewerUid ? (p.likedBy || []).includes(viewerUid) : false,
+      likesCount: effectiveLikedBy.length,
+      likedByViewer: viewerUid ? effectiveLikedBy.includes(viewerUid) : false,
       commentsCount: p.commentsCount || 0,
-    }));
+    };
+  });
 }
 
 async function updatePostVisibility(uid, postId, visibility) {
@@ -1753,28 +1823,38 @@ async function togglePostLike(uid, postId) {
   const snap = await ref.get();
   if (!snap.exists) throw new Error("Post not found.");
   const post = snap.data();
-  const likedBy = post.likedBy || [];
+
+  // A reshare doesn't own likes — liking one always credits the original
+  // post it points to (its likedBy array, its author's likesCount, its
+  // notification), so a like never ends up attributed to the resharer.
+  const isReshare = !!(post.resharedFrom && post.resharedFrom.postId);
+  const targetRef = isReshare ? db.collection("posts").doc(post.resharedFrom.postId) : ref;
+  const targetSnap = isReshare ? await targetRef.get() : snap;
+  if (!targetSnap.exists) throw new Error("Post not found.");
+  const target = targetSnap.data();
+
+  const likedBy = target.likedBy || [];
   const alreadyLiked = likedBy.includes(uid);
 
   if (alreadyLiked) {
-    await ref.update({ likedBy: admin.firestore.FieldValue.arrayRemove(uid) });
-    await db.collection("users").doc(post.uid).update({
+    await targetRef.update({ likedBy: admin.firestore.FieldValue.arrayRemove(uid) });
+    await db.collection("users").doc(target.uid).update({
       likesCount: admin.firestore.FieldValue.increment(-1),
     }).catch(() => {});
   } else {
-    await ref.update({ likedBy: admin.firestore.FieldValue.arrayUnion(uid) });
-    await db.collection("users").doc(post.uid).update({
+    await targetRef.update({ likedBy: admin.firestore.FieldValue.arrayUnion(uid) });
+    await db.collection("users").doc(target.uid).update({
       likesCount: admin.firestore.FieldValue.increment(1),
     }).catch(() => {});
-    if (post.uid !== uid) {
-      const [liker, author] = await Promise.all([getUserProfile(uid), getUserProfile(post.uid)]);
+    if (target.uid !== uid) {
+      const [liker, author] = await Promise.all([getUserProfile(uid), getUserProfile(target.uid)]);
       const likerName = liker ? (`${liker.firstName || ""} ${liker.lastName || ""}`.trim() || `@${liker.username}`) : "Someone";
-      const postUrl = author ? `/u/${author.username}#post-${postId}` : null;
-      await addNotification(post.uid, "like", `${likerName} liked your post.`, { postId, postUrl });
+      const postUrl = author ? `/u/${author.username}#post-${targetRef.id}` : null;
+      await addNotification(target.uid, "like", `${likerName} liked your post.`, { postId: targetRef.id, postUrl });
     }
   }
 
-  const updatedSnap = await ref.get();
+  const updatedSnap = await targetRef.get();
   const updated = updatedSnap.data();
   return { likesCount: (updated.likedBy || []).length, likedByViewer: (updated.likedBy || []).includes(uid) };
 }
@@ -1872,32 +1952,42 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
     });
   }
 
-  const posts = visible.map((p) => ({
-    id: p.id,
-    author: authorsByUid.get(p.uid) || { uid: p.uid, username: "", firstName: "", lastName: "", photoURL: null },
-    text: p.text || "",
-    imageDataUrl: p.imageDataUrl || null,
-    createdAt: p.createdAt,
-    likesCount: (p.likedBy || []).length,
-    likedByViewer: (p.likedBy || []).includes(uid),
-    commentsCount: p.commentsCount || 0,
-    commentsEnabled: p.commentsEnabled !== false,
-  }));
+  const likedByMap = await resolveEffectiveLikedBy(visible);
+
+  const posts = visible.map((p) => {
+    const effectiveLikedBy = likedByMap.get(p.id) || [];
+    return {
+      id: p.id,
+      author: authorsByUid.get(p.uid) || { uid: p.uid, username: "", firstName: "", lastName: "", photoURL: null },
+      text: p.text || "",
+      imageDataUrl: p.imageDataUrl || null,
+      createdAt: p.createdAt,
+      likesCount: effectiveLikedBy.length,
+      likedByViewer: effectiveLikedBy.includes(uid),
+      commentsCount: p.commentsCount || 0,
+      commentsEnabled: p.commentsEnabled !== false,
+    };
+  });
 
   if (markSeen) await updateUserProfile(uid, { lastSeenFeedAt: Date.now() }).catch(() => {});
   return posts;
 }
 
-async function getFollowingFeedUnseenCount(uid) {
+async function getFollowingFeedUnseenCount(uid, cachedProfile) {
   const followingUids = await getFollowingUids(uid);
   if (!followingUids.length) return 0;
-  const profile = await getUserProfile(uid);
+  const profile = cachedProfile || (await getUserProfile(uid));
   const lastSeenFeedAt = profile?.lastSeenFeedAt || 0;
 
   let count = 0;
   for (let i = 0; i < followingUids.length; i += 30) {
     const chunk = followingUids.slice(i, i + 30);
-    const snap = await db.collection("posts").where("uid", "in", chunk).limit(50).get();
+    // Field mask: this only needs createdAt/visibility to produce a count,
+    // so there's no reason to pull full post bodies (text, base64 images)
+    // across the wire for what's ultimately just a badge number, polled
+    // every 20s from every open tab.
+    const snap = await db.collection("posts").where("uid", "in", chunk).limit(50)
+      .select("createdAt", "visibility").get();
     snap.docs.forEach((d) => {
       const data = d.data();
       if (data.createdAt <= lastSeenFeedAt) return;
@@ -1971,7 +2061,7 @@ function requireAuth(req, res, next) {
         return res.status(401).json({ error: "not_authenticated" });
       }
       req.uid = uid;
-      await refreshSession(sessionId);
+      req.userProfile = profile; // already fetched above — downstream handlers can reuse this instead of re-fetching
       // Presence / "last seen" — best-effort, throttled so we're not writing
       // to the user doc on every single authenticated request.
       if (!profile.lastActiveAt || Date.now() - profile.lastActiveAt > LAST_ACTIVE_UPDATE_THROTTLE_MS) {
@@ -2194,6 +2284,8 @@ export {
   API_KEY_MONTHLY_LIMIT,
   getAccountApiUsage,
   checkAndIncrementAccountApiUsage,
+  recordIssuedStreamLink,
+  getIssuedStreamLinks,
   issueResetToken,
   consumeResetToken,
   createSession,

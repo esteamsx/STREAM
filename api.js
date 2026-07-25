@@ -13,6 +13,8 @@ import {
   findApiKeyByRawKey,
   getAccountApiUsage,
   checkAndIncrementAccountApiUsage,
+  recordIssuedStreamLink,
+  getIssuedStreamLinks,
 } from "./auth.js";
 
 const router = express.Router();
@@ -207,54 +209,15 @@ function persistRevokedKeyId(id) {
 // never depended on this list at all, since it decodes everything it
 // needs straight from the token itself.
 //
-// Persisted to disk (one JSON line per link, same pattern as the other
-// stores above) so a restart doesn't empty the dashboard's list of links
-// that are still perfectly valid. Same caveat as the others: survives a
-// plain restart, not a full redeploy that wipes the filesystem.
-const MAX_LINKS_PER_ACCOUNT = 50;
-const ISSUED_LINKS_PATH = path.join(process.cwd(), ".issued-links.log");
-const issuedLinksByUid = new Map(); // uid -> [{ channel, token, createdAt, exp }, ...]
-try {
-  fs.readFileSync(ISSUED_LINKS_PATH, "utf8")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .forEach((line) => {
-      try {
-        const { uid, channel, token, createdAt, exp } = JSON.parse(line);
-        if (!uid || !channel || !token || !createdAt || !exp) return;
-        let list = issuedLinksByUid.get(uid);
-        if (!list) {
-          list = [];
-          issuedLinksByUid.set(uid, list);
-        }
-        list.push({ channel, token, createdAt, exp }); // file is oldest-first; fixed up to newest-first below
-      } catch {
-        // one bad line shouldn't take down the rest
-      }
-    });
-  for (const list of issuedLinksByUid.values()) {
-    list.reverse(); // now newest-first, matching recordIssuedLink's ordering
-    if (list.length > MAX_LINKS_PER_ACCOUNT) list.length = MAX_LINKS_PER_ACCOUNT;
-  }
-} catch {
-  // no file yet — nothing issued so far, that's fine
-}
-
+// Persisted in Firestore (via auth.js) rather than a local disk file, so
+// the dashboard's list survives a full redeploy/file upload, not just a
+// plain restart. recordIssuedStreamLink() is fire-and-forget, same as the
+// old disk append — it must never stall the request that's already in
+// flight.
 function recordIssuedLink(uid, entry) {
-  let list = issuedLinksByUid.get(uid);
-  if (!list) {
-    list = [];
-    issuedLinksByUid.set(uid, list);
-  }
-  list.unshift(entry);
-  if (list.length > MAX_LINKS_PER_ACCOUNT) list.length = MAX_LINKS_PER_ACCOUNT;
-  // Non-blocking, same reasoning as persistRevokedKeyId above — this is
-  // called on every /api/v1/stream/:channel issuance, which can happen
-  // right as someone's about to start watching.
-  fs.appendFile(ISSUED_LINKS_PATH, JSON.stringify({ uid, ...entry }) + "\n", (err) => {
-    if (err) console.warn("⚠️ Could not persist issued link to disk (" + err.message + ") — " +
-      "the link itself still works fine, it just won't survive a restart in the dashboard's history list.");
+  recordIssuedStreamLink(uid, entry).catch((err) => {
+    console.warn("⚠️ Could not persist issued link (" + err.message + ") — " +
+      "the link itself still works fine, it just won't show up in the dashboard's history list.");
   });
 }
 
@@ -708,14 +671,19 @@ function describeLink(channel, createdAt, exp, token, keyId) {
   };
 }
 
-router.get("/api/dev/links", requireAuth, (req, res) => {
-  const list = issuedLinksByUid.get(req.uid) || [];
-  res.json({
-    links: list.map((l) => {
-      const decoded = decodeStreamToken(l.token);
-      return describeLink(l.channel, l.createdAt, l.exp, l.token, decoded.ok ? decoded.keyId : undefined);
-    }),
-  });
+router.get("/api/dev/links", requireAuth, async (req, res) => {
+  try {
+    const list = await getIssuedStreamLinks(req.uid);
+    res.json({
+      links: list.map((l) => {
+        const decoded = decodeStreamToken(l.token);
+        return describeLink(l.channel, l.createdAt, l.exp, l.token, decoded.ok ? decoded.keyId : undefined);
+      }),
+    });
+  } catch (err) {
+    console.error("list issued links error:", err.message);
+    res.status(500).json({ error: "Could not load generated links." });
+  }
 });
 
 router.get("/api/dev/links/lookup", requireAuth, (req, res) => {

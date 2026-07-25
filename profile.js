@@ -444,6 +444,16 @@ body:has(.page-overlay.show){overflow:hidden}
 .feed-post-footer{display:flex;align-items:center;gap:6px;margin-top:8px}
 .feed-empty{color:var(--muted);font-size:.83rem;text-align:center;padding:30px 0}
 
+.post-link{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.tag-highlight-backdrop .link-span{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.insert-link-btn{
+  position:absolute;top:-38px;right:0;z-index:5;padding:6px 12px;border-radius:8px;
+  background:var(--accent);color:#04141a;font-size:.74rem;font-weight:700;border:none;
+  box-shadow:0 6px 16px rgba(0,0,0,.35);display:none;align-items:center;gap:5px;
+}
+.insert-link-btn.show{display:flex}
+.insert-link-btn svg{width:13px;height:13px}
+
 .pf-post-more-btn{position:absolute;top:0;right:0;background:transparent;border:none;color:var(--muted);width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
 .pf-post-more-btn:hover{color:var(--accent);background:rgba(0,224,255,.1)}
 .pf-post-more-btn svg{width:18px;height:18px}
@@ -720,6 +730,25 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 </div>
 
+<div class="page-overlay" id="linkInsertOverlay">
+  <div class="flist-card" style="max-height:none">
+    <div class="flist-header">
+      <div class="flist-title">Insert Link</div>
+      <button type="button" class="flist-close" id="linkInsertCloseBtn" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="flist-search-wrap" style="padding-bottom:4px">
+      <div class="pf-status" id="linkInsertSelectedWord" style="margin-bottom:10px;font-size:.8rem;color:var(--muted)"></div>
+      <input type="text" class="flist-search" id="linkInsertUrlInput" placeholder="https://example.com" inputmode="url">
+    </div>
+    <div style="padding:6px 18px 18px">
+      <button type="button" class="mpv-view-btn" id="linkInsertSaveBtn">Save</button>
+      <button type="button" class="mpv-close-text" id="linkInsertCancelBtn" style="display:block;margin:0 auto">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
 document.getElementById('pfBackBtn').addEventListener('click', () => {
   if (window.history.length > 1) window.history.back();
@@ -851,7 +880,21 @@ function escapeHtml(s){
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 function renderPostText(text){
-  return escapeHtml(text).replace(/@(\\w+)/g, '<a href="/u/$1">@$1</a>');
+  let html = escapeHtml(text);
+  // [label](https://url) — Telegram-style inline links. Only http(s) is
+  // allowed (the regex itself enforces the scheme), and the url is
+  // separately quote-escaped since escapeHtml above doesn't touch quotes —
+  // needed so a url containing a \" can't break out of the href attribute.
+  html = html.replace(/\\[([^\\[\\]]+)\\]\\((https?:\\/\\/[^\\s()]+)\\)/g, function(m, label, url){
+    return '<a href="' + url.replace(/\"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer" class="post-link">' + label + '</a>';
+  });
+  // *bold*
+  html = html.replace(/\\*([^\\s*][^*]*?)\\*/g, '<b>$1</b>');
+  // _italic_
+  html = html.replace(/_([^\\s_][^_]*?)_/g, '<i>$1</i>');
+  // @tags
+  html = html.replace(/@(\\w+)/g, '<a href="/u/$1">@$1</a>');
+  return html;
 }
 function extractTags(text){
   const matches = (text || '').match(/@(\\w+)/g) || [];
@@ -860,7 +903,8 @@ function extractTags(text){
 
 let activeTagInput = null;
 
-function attachTagHighlight(inputEl){
+function attachTagHighlight(inputEl, opts){
+  opts = opts || {};
   if (inputEl.dataset.tagHighlightWired) return;
   inputEl.dataset.tagHighlightWired = '1';
 
@@ -895,7 +939,14 @@ function attachTagHighlight(inputEl){
 
   function render(){
     const text = inputEl.value || '';
-    backdrop.innerHTML = escapeHtml(text).replace(/@(\\w+)/g, '<mark>@$1</mark>') + '&#8203;';
+    let html = escapeHtml(text);
+    if (opts.richFormatting) {
+      html = html.replace(/\\[([^\\[\\]]+)\\]\\((https?:\\/\\/[^\\s()]+)\\)/g, '<span class="link-span">[$1]($2)</span>');
+      html = html.replace(/\\*([^\\s*][^*]*?)\\*/g, '<b>$1</b>');
+      html = html.replace(/_([^\\s_][^_]*?)_/g, '<i>$1</i>');
+    }
+    html = html.replace(/@(\\w+)/g, '<mark>@$1</mark>');
+    backdrop.innerHTML = html + '&#8203;';
     backdrop.scrollLeft = inputEl.scrollLeft;
     backdrop.scrollTop = inputEl.scrollTop;
   }
@@ -907,8 +958,8 @@ function attachTagHighlight(inputEl){
   render();
 }
 
-function wireTagTrigger(inputEl){
-  attachTagHighlight(inputEl);
+function wireTagTrigger(inputEl, opts){
+  attachTagHighlight(inputEl, opts);
   inputEl.addEventListener('input', () => {
     if (inputEl.value.endsWith('@')) {
       inputEl.value = inputEl.value.slice(0, -1);
@@ -916,6 +967,69 @@ function wireTagTrigger(inputEl){
     }
   });
 }
+
+/* ── Select text in a rich-formatting input to insert a [text](url) link,
+   same idea as tag-highlighting: the mini button appears inside the same
+   .tag-highlight-wrap that attachTagHighlight already creates, so call this
+   AFTER wireTagTrigger/attachTagHighlight has run on the input. ── */
+let pendingLinkInput = null;
+let pendingLinkRange = null;
+
+function setupLinkInsertion(inputEl){
+  const container = inputEl.parentNode; // the .tag-highlight-wrap attachTagHighlight created
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'insert-link-btn';
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 00-7.07 0l-2.83 2.83a5 5 0 007.07 7.07l1.5-1.5"/></svg> Insert Link';
+  container.appendChild(btn);
+
+  function checkSelection(){
+    btn.classList.toggle('show', inputEl.selectionStart !== inputEl.selectionEnd);
+  }
+  inputEl.addEventListener('mouseup', checkSelection);
+  inputEl.addEventListener('touchend', checkSelection);
+  inputEl.addEventListener('keyup', checkSelection);
+  inputEl.addEventListener('blur', () => {
+    setTimeout(() => { if (document.activeElement !== btn) btn.classList.remove('show'); }, 150);
+  });
+
+  btn.addEventListener('mousedown', (e) => e.preventDefault()); // don't steal focus/selection from the input
+  btn.addEventListener('click', () => {
+    const start = inputEl.selectionStart, end = inputEl.selectionEnd;
+    if (start === end) return;
+    pendingLinkInput = inputEl;
+    pendingLinkRange = { start, end, text: inputEl.value.slice(start, end) };
+    document.getElementById('linkInsertSelectedWord').textContent = 'Linking: "' + pendingLinkRange.text + '"';
+    document.getElementById('linkInsertUrlInput').value = '';
+    document.getElementById('linkInsertOverlay').classList.add('show');
+    document.getElementById('linkInsertUrlInput').focus();
+  });
+}
+
+function closeLinkInsertOverlay(){
+  document.getElementById('linkInsertOverlay').classList.remove('show');
+  pendingLinkInput = null;
+  pendingLinkRange = null;
+}
+document.getElementById('linkInsertCloseBtn').addEventListener('click', closeLinkInsertOverlay);
+document.getElementById('linkInsertCancelBtn').addEventListener('click', closeLinkInsertOverlay);
+document.getElementById('linkInsertSaveBtn').addEventListener('click', () => {
+  if (!pendingLinkInput || !pendingLinkRange) { closeLinkInsertOverlay(); return; }
+  let url = document.getElementById('linkInsertUrlInput').value.trim();
+  if (!url) { showToast('Enter a link first.'); return; }
+  if (!/^https?:\\/\\//i.test(url)) url = 'https://' + url;
+  const inputEl = pendingLinkInput;
+  const { start, end, text } = pendingLinkRange;
+  const before = inputEl.value.slice(0, start);
+  const after = inputEl.value.slice(end);
+  const inserted = '[' + text + '](' + url + ')';
+  inputEl.value = before + inserted + after;
+  const newCursor = before.length + inserted.length;
+  inputEl.focus();
+  inputEl.setSelectionRange(newCursor, newCursor);
+  inputEl.dispatchEvent(new Event('input'));
+  closeLinkInsertOverlay();
+});
 
 function openTagSearch(inputEl){
   activeTagInput = inputEl;
@@ -1007,14 +1121,16 @@ async function toggleLikePost(postId, btn, countEl){
 }
 
 /* ── Following feed: floating icon + "POSTS" overlay ── */
-function goToProfile(username){
-  if (username) window.location.href = '/u/' + encodeURIComponent(username);
+function goToProfile(username, postId){
+  if (!username) return;
+  window.location.href = '/u/' + encodeURIComponent(username) + (postId ? '#post-' + postId : '');
 }
 
 function createFeedPostCard(post){
   const author = post.author || {};
   const card = document.createElement('div');
   card.className = 'feed-post';
+  card.addEventListener('click', () => goToProfile(author.username, post.id));
 
   const avatar = document.createElement('div');
   avatar.className = 'feed-post-avatar';
@@ -1023,7 +1139,7 @@ function createFeedPostCard(post){
   } else {
     avatar.textContent = ((author.firstName || '')[0] || (author.username || '?')[0] || '?').toUpperCase();
   }
-  avatar.addEventListener('click', () => goToProfile(author.username));
+  avatar.addEventListener('click', (e) => { e.stopPropagation(); goToProfile(author.username); });
   card.appendChild(avatar);
 
   const body = document.createElement('div');
@@ -1034,7 +1150,7 @@ function createFeedPostCard(post){
   nameEl.className = 'feed-post-name';
   nameEl.innerHTML = ((author.firstName || author.lastName) ? ((author.firstName || '') + ' ' + (author.lastName || '')).trim() : ('@' + (author.username || ''))) +
     ((author.isAdmin || author.verified) ? VERIFIED_BADGE : '');
-  nameEl.addEventListener('click', () => goToProfile(author.username));
+  nameEl.addEventListener('click', (e) => { e.stopPropagation(); goToProfile(author.username); });
   nameRow.appendChild(nameEl);
   body.appendChild(nameRow);
 
@@ -1069,7 +1185,7 @@ function createFeedPostCard(post){
   const likeCountEl = document.createElement('div');
   likeCountEl.className = 'pf-post-like-count';
   likeCountEl.textContent = post.likesCount > 0 ? formatCount(post.likesCount) : '';
-  heart.addEventListener('click', () => toggleLikePost(post.id, heart, likeCountEl));
+  heart.addEventListener('click', (e) => { e.stopPropagation(); toggleLikePost(post.id, heart, likeCountEl); });
   footer.appendChild(heart);
   footer.appendChild(likeCountEl);
 
@@ -1080,7 +1196,8 @@ function createFeedPostCard(post){
   const commentCountEl = document.createElement('div');
   commentCountEl.className = 'pf-post-comment-count';
   commentCountEl.textContent = post.commentsCount > 0 ? formatCount(post.commentsCount) : '';
-  commentBtn.addEventListener('click', () => {
+  commentBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
     if (post.commentsEnabled === false) { showToast('Comments are turned off for this post.'); return; }
     openComments(post.id, post);
   });
@@ -1495,7 +1612,8 @@ function enterEditMode(post, cardEl){
     saveBtn.disabled = textarea.value === originalText && newImage === originalImage;
   }
   textarea.addEventListener('input', checkChanged);
-  wireTagTrigger(textarea);
+  wireTagTrigger(textarea, { richFormatting: true });
+  setupLinkInsertion(textarea);
 
   saveBtn.addEventListener('click', async () => {
     saveBtn.disabled = true;
@@ -1838,11 +1956,30 @@ commentSendBtnEl.addEventListener('click', async () => {
   const originalIcon = commentSendBtnEl.innerHTML;
   commentSendBtnEl.innerHTML = '<span class="pf-mini-spinner"></span>';
   try {
-    await postJSON('/api/posts/' + activeCommentsPostId + '/comments', { text: payloadText, taggedUsernames: extractTags(text) });
+    const data = await postJSON('/api/posts/' + activeCommentsPostId + '/comments', { text: payloadText, taggedUsernames: extractTags(text) });
     commentInputEl.value = '';
     commentInputEl.placeholder = commentInputDefaultPlaceholder;
     cancelReplyToComment();
-    loadComments(activeCommentsPostId);
+
+    // Build the new row straight from what the server just confirmed it
+    // wrote, rather than re-fetching the list — a GET right after the
+    // write could occasionally land before the write was fully queryable,
+    // so the comment wouldn't show up until something else (like cancelling
+    // a reply) happened to trigger another reload.
+    if (data.comment) {
+      const c = data.comment;
+      const normalized = {
+        id: c.id, text: c.text, hidden: !!c.hidden, pinned: !!c.pinnedAt, createdAt: c.createdAt,
+        isOwnComment: true, likesCount: c.likesCount || 0, likedByViewer: !!c.likedByViewer, author: c.author,
+      };
+      loadedCommentsById[normalized.id] = normalized;
+      const listEl = document.getElementById('commentsList');
+      const emptyState = listEl.querySelector('.comments-empty');
+      if (emptyState) emptyState.remove();
+      listEl.appendChild(renderCommentRow(normalized, activeCommentsPostId));
+      listEl.scrollTop = listEl.scrollHeight;
+    }
+
     const countEl = document.getElementById('commentCount-' + activeCommentsPostId);
     if (countEl) {
       const current = (parseInt(countEl.dataset.raw || '0', 10) || 0) + 1;
@@ -1900,7 +2037,8 @@ function setupComposer(){
 
   const input = document.getElementById('pfComposerInput');
   const sendBtn = document.getElementById('pfComposerSendBtn');
-  wireTagTrigger(input);
+  wireTagTrigger(input, { richFormatting: true });
+  setupLinkInsertion(input);
   input.addEventListener('input', () => { sendBtn.disabled = !input.value.trim(); });
 
   sendBtn.addEventListener('click', async () => {
