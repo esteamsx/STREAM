@@ -156,6 +156,25 @@ input{font-family:inherit}
 .ad-modal-btn.ghost{background:var(--card2);color:var(--text);border:1px solid var(--border-strong)}
 .ad-modal-btn:disabled{opacity:.55}
 
+.ad-modal-wide{max-width:460px}
+.ad-bot-list{display:flex;flex-direction:column;gap:10px;max-height:52vh;overflow-y:auto;margin-bottom:4px}
+.ad-bot-card{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card2)}
+.ad-bot-card-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.ad-bot-card-name{font-weight:700;font-size:.86rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ad-bot-badge{
+  font-size:.64rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:20px;
+  flex-shrink:0;white-space:nowrap;
+}
+.ad-bot-badge.b-starting,.ad-bot-badge.b-installing,.ad-bot-badge.b-downloading,.ad-bot-badge.b-extracting{background:rgba(245,166,35,.15);color:#FFB020}
+.ad-bot-badge.b-pairing{background:rgba(0,224,255,.15);color:var(--accent)}
+.ad-bot-badge.b-connected{background:rgba(61,220,132,.15);color:#3DDC84}
+.ad-bot-badge.b-reconnecting{background:rgba(245,166,35,.15);color:#FFB020}
+.ad-bot-badge.b-stopped{background:rgba(255,255,255,.08);color:var(--muted)}
+.ad-bot-badge.b-crashed,.ad-bot-badge.b-needs_repair,.ad-bot-badge.b-disconnected{background:rgba(255,59,92,.15);color:var(--red)}
+.ad-bot-card-meta{font-size:.72rem;color:var(--muted);margin-bottom:8px}
+.ad-bot-card-actions{display:flex;gap:6px}
+.ad-bot-card-actions button{flex:1;padding:7px;font-size:.72rem;border-radius:8px}
+
 .ad-toast{
   position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card2);
   border:1px solid var(--border-strong);color:var(--text);padding:11px 18px;border-radius:12px;font-size:.82rem;
@@ -229,6 +248,17 @@ input{font-family:inherit}
       <button type="button" class="ad-loadmore" id="verifyLoadMore" style="display:none">Load more</button>
     </div></div>
   </div>
+  <div class="ad-card" id="botsCard">
+    <div class="ad-card-header" id="botsHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="8.5" cy="16" r="1.2"/><circle cx="15.5" cy="16" r="1.2"/><path stroke-linecap="round" d="M12 11V7m-3 0h6"/></svg>
+      <div class="ad-card-header-title">Bot Deployments</div>
+      <div class="ad-card-count" id="botsUsersCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="ad-list" id="botsUsersList"></div>
+    </div></div>
+  </div>
 
 </div>
 
@@ -262,6 +292,21 @@ input{font-family:inherit}
   </div>
 </div>
 
+<!-- A specific user's bot instances (opened by tapping a row in Bot Deployments) -->
+<div class="ad-overlay" id="botsOverlay">
+  <div class="ad-modal ad-modal-wide">
+    <div class="ad-modal-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="8.5" cy="16" r="1.2"/><circle cx="15.5" cy="16" r="1.2"/><path stroke-linecap="round" d="M12 11V7m-3 0h6"/></svg>
+      Bot instances
+    </div>
+    <div class="ad-modal-sub" id="botsModalSub"></div>
+    <div class="ad-bot-list" id="botsModalList"><div class="ad-empty">Loading…</div></div>
+    <div class="ad-modal-actions">
+      <button type="button" class="ad-modal-btn ghost" id="botsModalCloseBtn" style="flex:1">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
 
@@ -289,6 +334,12 @@ async function postJSON(url, body){
   if (!res.ok) throw new Error(data.error || 'Request failed.');
   return data;
 }
+async function deleteReq(url){
+  const res = await fetch(url, { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed.');
+  return data;
+}
 
 document.getElementById('adBackBtn').addEventListener('click', () => {
   if (window.history.length > 1) window.history.back();
@@ -304,6 +355,9 @@ document.getElementById('bannedHeader').addEventListener('click', () => {
 });
 document.getElementById('verifyHeader').addEventListener('click', () => {
   document.getElementById('verifyCard').classList.toggle('open');
+});
+document.getElementById('botsHeader').addEventListener('click', () => {
+  document.getElementById('botsCard').classList.toggle('open');
 });
 
 /* ── icons ── */
@@ -817,6 +871,158 @@ async function loadBannedUsers(){
   }
 }
 
+/* ── bot deployments (admin) ── */
+function renderBotUserRow(u){
+  const row = document.createElement('div');
+  row.className = 'ad-row';
+  row.style.cursor = 'pointer';
+  row.dataset.uid = u.uid;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'ad-row-avatar';
+  if (u.photoURL) { avatar.style.backgroundImage = 'url(' + u.photoURL + ')'; }
+  else { avatar.textContent = initialsOf(u); }
+
+  const info = document.createElement('div');
+  info.className = 'ad-row-info';
+  const name = document.createElement('div');
+  name.className = 'ad-row-name';
+  const displayName = ((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : (u.username ? '@' + u.username : u.uid));
+  name.textContent = displayName;
+  const email = document.createElement('div');
+  email.className = 'ad-row-email';
+  email.textContent = (u.email ? u.email + '  ·  ' : '') + u.activeCount + ' active / ' + u.count + ' total';
+  info.appendChild(name);
+  info.appendChild(email);
+
+  row.appendChild(avatar);
+  row.appendChild(info);
+  row.addEventListener('click', () => openBotsOverlay(u.uid, displayName));
+  return row;
+}
+
+async function loadBotsUsers(){
+  const list = document.getElementById('botsUsersList');
+  const countEl = document.getElementById('botsUsersCount');
+  try {
+    const data = await getJSON('/api/admin/bots/users');
+    const users = data.users || [];
+    countEl.style.display = users.length ? '' : 'none';
+    countEl.textContent = String(users.length);
+    if (!users.length) { list.innerHTML = '<div class="ad-empty">No one has deployed a bot yet.</div>'; return; }
+    list.innerHTML = '';
+    users.forEach((u) => list.appendChild(renderBotUserRow(u)));
+  } catch (err) {
+    list.innerHTML = '<div class="ad-empty">Could not load bot deployments.</div>';
+  }
+}
+
+const BOT_STATUS_LABELS = {
+  downloading: 'Downloading', extracting: 'Extracting', installing: 'Installing', starting: 'Starting',
+  pairing: 'Awaiting pairing', connected: 'Connected', reconnecting: 'Reconnecting', stopped: 'Stopped',
+  crashed: 'Crashed', needs_repair: 'Needs re-pair', disconnected: 'Disconnected',
+};
+const BOT_RUNNING_STATUSES = ['downloading', 'extracting', 'installing', 'starting', 'pairing', 'connected', 'reconnecting'];
+
+function renderBotCard(bot, targetUid){
+  const card = document.createElement('div');
+  card.className = 'ad-bot-card';
+  card.dataset.id = bot.id;
+
+  const head = document.createElement('div');
+  head.className = 'ad-bot-card-head';
+  const name = document.createElement('div');
+  name.className = 'ad-bot-card-name';
+  name.textContent = bot.label || 'Bot';
+  const badge = document.createElement('div');
+  badge.className = 'ad-bot-badge b-' + bot.status;
+  badge.textContent = BOT_STATUS_LABELS[bot.status] || bot.status;
+  head.appendChild(name);
+  head.appendChild(badge);
+
+  const meta = document.createElement('div');
+  meta.className = 'ad-bot-card-meta';
+  meta.textContent = 'Number: ' + (bot.phoneNumber || '—') + (bot.lastError ? ' · ' + bot.lastError : '');
+
+  const actions = document.createElement('div');
+  actions.className = 'ad-bot-card-actions';
+  const running = BOT_RUNNING_STATUSES.includes(bot.status);
+
+  if (running) {
+    const stopBtn = document.createElement('button');
+    stopBtn.type = 'button';
+    stopBtn.className = 'ad-modal-btn ghost';
+    stopBtn.textContent = 'Stop';
+    stopBtn.addEventListener('click', () => runBotAction(bot.id, targetUid, 'stop', stopBtn));
+    actions.appendChild(stopBtn);
+  }
+
+  const restartBtn = document.createElement('button');
+  restartBtn.type = 'button';
+  restartBtn.className = 'ad-modal-btn ghost';
+  restartBtn.textContent = 'Restart';
+  restartBtn.addEventListener('click', () => runBotAction(bot.id, targetUid, 'restart', restartBtn));
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'ad-modal-btn danger';
+  delBtn.textContent = 'Delete';
+  delBtn.addEventListener('click', () => runBotAction(bot.id, targetUid, 'delete', delBtn));
+
+  actions.appendChild(restartBtn);
+  actions.appendChild(delBtn);
+
+  card.appendChild(head);
+  card.appendChild(meta);
+  card.appendChild(actions);
+  return card;
+}
+
+async function refreshBotsModal(targetUid){
+  const list = document.getElementById('botsModalList');
+  try {
+    const data = await getJSON('/api/admin/bots/users/' + targetUid);
+    const bots = data.bots || [];
+    if (!bots.length) { list.innerHTML = '<div class="ad-empty">No deployments left for this user.</div>'; return; }
+    list.innerHTML = '';
+    bots.forEach((bot) => list.appendChild(renderBotCard(bot, targetUid)));
+  } catch (err) {
+    list.innerHTML = '<div class="ad-empty">Could not load this user\\'s deployments.</div>';
+  }
+}
+
+async function runBotAction(botId, targetUid, act, btn){
+  const confirmText = {
+    stop: ['Stop this bot?', 'It stays deployed — the owner can restart it later without re-pairing.'],
+    restart: ['Restart this bot?', 'It will reconnect using its saved session, or need a fresh pairing code if that session is no longer valid.'],
+    delete: ['Delete this deployment?', 'This stops the bot and permanently removes it. This cannot be undone.'],
+  }[act];
+  const ok = await askConfirm(confirmText[0], confirmText[1]);
+  if (!ok) return;
+  btn.disabled = true;
+  try {
+    if (act === 'stop') await postJSON('/api/admin/bots/' + botId + '/stop');
+    else if (act === 'restart') await postJSON('/api/admin/bots/' + botId + '/restart');
+    else if (act === 'delete') await deleteReq('/api/admin/bots/' + botId);
+    await refreshBotsModal(targetUid);
+    loadBotsUsers();
+  } catch (err) {
+    showToast(err.message || 'Could not do that.');
+    btn.disabled = false;
+  }
+}
+
+function openBotsOverlay(uid, displayName){
+  document.getElementById('botsModalSub').textContent = displayName + "'s deployments — tap an action to manage.";
+  document.getElementById('botsModalList').innerHTML = '<div class="ad-empty">Loading…</div>';
+  document.getElementById('botsOverlay').classList.add('show');
+  refreshBotsModal(uid);
+}
+
+document.getElementById('botsModalCloseBtn').addEventListener('click', () => {
+  document.getElementById('botsOverlay').classList.remove('show');
+});
+
 /* ── admin identity in the hero ── */
 (async function initHero(){
   try {
@@ -838,6 +1044,7 @@ async function loadBannedUsers(){
 loadUsersPage(true);
 loadBannedUsers();
 loadVerifyPage(true);
+loadBotsUsers();
 
 })();
 </script>
