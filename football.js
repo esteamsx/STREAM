@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0A0A0F">
     <title>⚽ Football Live</title>
@@ -16,11 +17,19 @@
           --card:#15151F;--card2:#1B1B27;
           --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.13);
           --text:#F3F3FA;--muted:rgba(255,255,255,.42);--muted2:rgba(255,255,255,.22);
+          --nav-bg:rgba(10,10,15,.98);
           --amber:#f59e0b;--nav-h:58px;
           --font-display:'Space Grotesk',Inter,-apple-system,sans-serif;
           --font-body:'Inter',-apple-system,sans-serif;
           --font-mono:'JetBrains Mono',ui-monospace,monospace;
           --ease:cubic-bezier(.22,1,.36,1);
+        }
+        :root[data-theme="light"]{
+          --dark:#F5F6FA;--dark2:#FFFFFF;--dark3:#ECEEF3;
+          --card:#FFFFFF;--card2:#F0F1F5;
+          --border:rgba(0,0,0,.08);--border-strong:rgba(0,0,0,.14);
+          --text:#14141C;--muted:rgba(20,20,28,.55);--muted2:rgba(20,20,28,.3);
+          --nav-bg:rgba(255,255,255,.92);
         }
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:rgba(0,224,255,.4)}
         :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
@@ -50,37 +59,22 @@
             z-index:100;
             display:flex;
             align-items:center;
-            justify-content:space-between;
-            padding:0 16px;
+            gap:14px;
+            padding:0 18px;
             height:58px;
-            background:rgba(10,10,15,.98);
+            background:var(--nav-bg);
             border-bottom:1px solid var(--border);
             backdrop-filter:blur(20px);
-            box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 8px 24px rgba(0,0,0,.35);
         }
-        .cx-nav img {
-            height:30px;
-            cursor:pointer;
+        .fb-back{
+            display:flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;
+            font-size:.85rem;font-weight:600;background:transparent;border:none;cursor:pointer;
+            font-family:inherit;padding:0;flex-shrink:0;transition:color .2s var(--ease);
         }
-        .back-btn{
-            width:36px;height:36px;border-radius:50%;
-            background:rgba(255,255,255,.07);border:1px solid var(--border);
-            color:var(--text);display:flex;align-items:center;justify-content:center;
-            flex-shrink:0;cursor:pointer;
-            transition:background .2s var(--ease),transform .15s var(--ease),border-color .2s var(--ease);
-        }
-        .back-btn:hover{background:rgba(255,255,255,.13);border-color:var(--border-strong)}
-        .back-btn:active{transform:scale(.9)}
-        .back-btn svg{width:18px;height:18px}
-        .cx-nav h2 {
-            font-family:var(--font-display);
-            font-size:1.05rem;
-            font-weight:700;
-            letter-spacing:-.02em;
-            background:linear-gradient(90deg,var(--accent),var(--accent2));
-            -webkit-background-clip:text;background-clip:text;color:transparent;
-        }
-        .nav-tv-icon{stroke:url(#navGrad);flex-shrink:0}
+        .fb-back:hover{color:var(--accent)}
+        .fb-back:active{opacity:.7}
+        .fb-back svg{width:18px;height:18px}
+        .fb-title{font-family:var(--font-display);font-weight:700;font-size:.95rem}
 
         /* ---- CATEGORY TABS ---- */
         .category-tabs {
@@ -736,25 +730,12 @@
 
 <!-- TOP NAV -->
 <nav class="cx-nav">
-    <button class="back-btn" onclick="location.href='/'" aria-label="Back">
-        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+    <button class="fb-back" onclick="location.href='/'" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+        Back
     </button>
-    <h2>
-        <svg class="nav-tv-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px;margin-right:6px"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 20h8M12 18v2"/></svg>
-        ES TEAMS TV
-    </h2>
-    <div style="width:36px;"></div>
+    <div class="fb-title">⚽ Football Live</div>
 </nav>
-
-<!-- SVG defs for gradients used in CSS -->
-<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
-  <defs>
-    <linearGradient id="navGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#00E0FF"/>
-      <stop offset="100%" stop-color="#7c5cff"/>
-    </linearGradient>
-  </defs>
-</svg>
 
 <div class="container">
     <!-- CATEGORY TABS -->
