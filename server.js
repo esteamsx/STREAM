@@ -353,7 +353,6 @@ app.get("/", async (req, res) => {
   const uid = await verifySession(sessionId);
   if (!uid) return res.redirect("/login");
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
-  refreshSession(sessionId).catch(() => {});
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1696,6 +1695,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         <div class="owner-avatar">
           <span class="owner-avatar-inner">ES</span>
           <span class="owner-status-ring"></span>
+          <span class="notif-nav-dot js-feed-dot" id="ownerAvatarDot"></span>
         </div>
         <div class="owner-info">
           <div class="owner-name">ES TEAMS TECH</div>
@@ -1704,13 +1704,13 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       </div>
       <a class="account-settings-btn" href="/account" aria-label="Account Settings" title="Account Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <span class="notif-nav-dot js-notif-dot" id="acctIconDot"></span>
+        <span class="notif-nav-dot js-account-dot" id="acctIconDot"></span>
       </a>
       <!-- Account menu -->
       <div class="user-menu-wrap">
         <button class="user-menu-btn" id="userMenuBtn" aria-label="Menu" title="Menu">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-          <span class="notif-nav-dot js-notif-dot" id="menuBtnDot"></span>
+          <span class="notif-nav-dot js-account-dot" id="menuBtnDot"></span>
         </button>
         <div class="user-menu-dropdown" id="userMenuDropdown">
           <button type="button" class="user-menu-item" id="menuApiItem">
@@ -1950,7 +1950,10 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
 <nav class="bottom-nav" id="bottomNav">
   <a href="/profile" class="bnav-item" id="bnavProfile" aria-label="Profile">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span class="bnav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="notif-nav-dot js-notif-dot" id="bnavProfileDot"></span>
+    </span>
     Profile
   </a>
   <button type="button" class="bnav-item" id="bnavSearch" aria-label="Search">
@@ -1961,7 +1964,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     <button type="button" class="bnav-item" id="bnavSettings" aria-label="Settings" style="padding:0;flex:none;width:100%">
       <span class="bnav-icon-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        <span class="notif-nav-dot js-notif-dot" id="bnavSettingsDot"></span>
+        <span class="notif-nav-dot js-account-dot" id="bnavSettingsDot"></span>
       </span>
       Settings
     </button>
@@ -1973,7 +1976,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       <a href="/account#pwCard" class="user-menu-item">
         <svg class="umi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         Account
-        <span class="notif-menu-dot js-notif-dot" id="bnavAccountDot"></span>
+        <span class="notif-menu-dot js-account-dot" id="bnavAccountDot"></span>
       </a>
       <a href="/admin" class="user-menu-item" id="bnavAdminItem">
         <svg class="umi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -3203,9 +3206,19 @@ function fsRunSearch(q){
         fetch('/api/notifications/unread').then(function(r){ return r.ok ? r.json() : { hasUnread: false }; }).catch(function(){ return { hasUnread: false }; }),
         fetch('/api/feed/following/unseen-count').then(function(r){ return r.ok ? r.json() : { count: 0 }; }).catch(function(){ return { count: 0 }; }),
       ]).then(function(results){
-        var show = !!results[0].hasUnread || results[1].count > 0;
+        var hasUnread = !!results[0].hasUnread;
+        var hasNewPosts = results[1].count > 0;
+        // Account/Settings icons: real notifications only (likes, comments, follows...).
+        document.querySelectorAll('.js-account-dot').forEach(function(el){
+          el.classList.toggle('show', hasUnread);
+        });
+        // Profile avatar: new posts from people you follow only.
+        document.querySelectorAll('.js-feed-dot').forEach(function(el){
+          el.classList.toggle('show', hasNewPosts);
+        });
+        // Bottom-nav Profile icon: either signal, unchanged from before.
         document.querySelectorAll('.js-notif-dot').forEach(function(el){
-          el.classList.toggle('show', show);
+          el.classList.toggle('show', hasUnread || hasNewPosts);
         });
       });
     }
@@ -4420,7 +4433,7 @@ app.get("/api/feed/following", requireAuth, async (req, res) => {
 
 app.get("/api/feed/following/unseen-count", requireAuth, async (req, res) => {
   try {
-    const count = await getFollowingFeedUnseenCount(req.uid);
+    const count = await getFollowingFeedUnseenCount(req.uid, req.userProfile);
     res.json({ count });
   } catch (err) {
     res.json({ count: 0 }); // best-effort — a badge count should never break page load
@@ -4860,7 +4873,7 @@ app.post("/api/reset-password", resetLimiter, async (req, res) => {
 sweepPendingDeletions().catch((err) => console.error("Deletion sweep failed:", err));
 setInterval(() => {
   sweepPendingDeletions().catch((err) => console.error("Deletion sweep failed:", err));
-}, 10000);
+}, 5 * 60 * 1000);
 
 sweepOrphanedUsers().catch((err) => console.error("Orphaned user sweep failed:", err));
 setInterval(() => {

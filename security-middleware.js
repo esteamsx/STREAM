@@ -108,6 +108,19 @@ export class SimpleRateLimiter {
     this.windowMs = windowMs;
     this.keyFn = keyFn;
     this.hits = new Map();
+    // Without this, every distinct key (IP, by default) that's ever made a
+    // request stays in the Map forever — only its timestamp array got
+    // pruned, never the key itself. Over long uptime with many unique
+    // visitors that's an unbounded leak. Sweep out fully-expired keys
+    // periodically instead.
+    setInterval(() => {
+      const now = Date.now();
+      for (const [key, timestamps] of this.hits) {
+        const fresh = timestamps.filter((t) => now - t < this.windowMs);
+        if (fresh.length === 0) this.hits.delete(key);
+        else if (fresh.length !== timestamps.length) this.hits.set(key, fresh);
+      }
+    }, Math.max(this.windowMs, 60000)).unref();
   }
 
   middleware() {
@@ -290,6 +303,21 @@ export class RepeatedRefusalGuard {
     this.banMs = banMs;
     this.refusals = new Map(); // ip -> timestamps[]
     this.bannedUntil = new Map(); // ip -> expiry ms
+    // Same leak shape as SimpleRateLimiter above: an IP that never crosses
+    // the ban threshold still keeps a key in `refusals` forever, and an
+    // expired ban still keeps a key in `bannedUntil` until that IP happens
+    // to make another request. Sweep both periodically.
+    setInterval(() => {
+      const now = Date.now();
+      for (const [ip, timestamps] of this.refusals) {
+        const fresh = timestamps.filter((t) => now - t < this.windowMs);
+        if (fresh.length === 0) this.refusals.delete(ip);
+        else if (fresh.length !== timestamps.length) this.refusals.set(ip, fresh);
+      }
+      for (const [ip, expiry] of this.bannedUntil) {
+        if (now >= expiry) this.bannedUntil.delete(ip);
+      }
+    }, Math.max(this.windowMs, 60000)).unref();
   }
 
   middleware() {
