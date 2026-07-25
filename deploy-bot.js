@@ -104,14 +104,38 @@ input{font-family:inherit}
 .db-status-stopped{background:rgba(255,255,255,.08);color:var(--muted)}
 .db-status-crashed,.db-status-needs_repair{background:rgba(255,59,92,.15);color:var(--red)}
 
+.db-pairing-row{display:flex;align-items:stretch;gap:8px;margin:8px 0}
 .db-pairing-code{
-  font-family:var(--font-mono);font-size:1.3rem;font-weight:700;letter-spacing:.08em;color:var(--accent);
-  background:var(--dark3);border:1px dashed var(--border-strong);border-radius:10px;padding:10px 14px;
-  text-align:center;margin:8px 0;
+  flex:1;min-width:0;font-family:var(--font-mono);font-size:1.2rem;font-weight:700;letter-spacing:.08em;color:var(--accent);
+  background:var(--dark3);border:1px dashed var(--border-strong);border-radius:10px;padding:10px 12px;
+  text-align:center;overflow-x:auto;white-space:nowrap;
 }
+.db-copy-btn{
+  flex-shrink:0;background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:10px;
+  padding:0 14px;font-size:.76rem;font-weight:700;display:flex;align-items:center;gap:5px;transition:all .2s var(--ease);
+}
+.db-copy-btn svg{width:14px;height:14px}
+.db-copy-btn.copied{background:rgba(18,196,139,.15);color:var(--green);border-color:var(--green)}
 .db-pairing-help{font-size:.74rem;color:var(--muted);text-align:center;margin-bottom:10px}
 
-.db-bot-meta{font-size:.74rem;color:var(--muted);margin-bottom:10px}
+.db-progress{margin:10px 0}
+.db-progress-track{height:6px;border-radius:6px;background:var(--dark3);overflow:hidden;margin-bottom:7px;position:relative}
+.db-progress-fill{
+  height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;
+  transition:width .5s var(--ease);position:relative;overflow:hidden;
+}
+.db-progress-fill::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);
+  width:40%;animation:db-progress-shimmer 1.3s linear infinite;
+}
+@keyframes db-progress-shimmer{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+.db-progress-labels{display:flex;justify-content:space-between;font-size:.64rem;color:var(--muted2);font-weight:700}
+.db-progress-labels span.done{color:var(--muted)}
+.db-progress-labels span.active{color:var(--accent)}
+
+.db-bot-meta{font-size:.74rem;color:var(--muted);margin-bottom:6px}
+.db-bot-err{color:var(--red);margin-bottom:10px}
 
 .db-logs{
   background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:10px;
@@ -123,6 +147,23 @@ input{font-family:inherit}
 
 .db-bot-actions{display:flex;gap:8px}
 .db-bot-actions button{flex:1;padding:8px;font-size:.78rem;border-radius:8px}
+
+/* ── confirmation overlay — same pattern as the rest of the site's
+   .page-overlay/.overlay-card modals (see logoutOverlay etc. on the main
+   pages), rebuilt here since this page doesn't share their markup ── */
+.db-overlay{
+  position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s var(--ease);
+}
+.db-overlay.show{opacity:1;pointer-events:auto}
+.db-overlay-card{
+  background:var(--card);border:1px solid var(--border-strong);border-radius:16px;padding:22px;
+  max-width:340px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5);
+}
+.db-overlay-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem;margin-bottom:8px}
+.db-overlay-sub{font-size:.85rem;color:var(--muted);margin-bottom:18px;line-height:1.4}
+.db-overlay-actions{display:flex;gap:10px}
+.db-overlay-actions .db-btn{width:auto;flex:1;padding:11px}
 </style>
 </head>
 <body>
@@ -163,12 +204,33 @@ input{font-family:inherit}
 
 </div>
 
+<div class="db-overlay" id="confirmOverlay">
+  <div class="db-overlay-card">
+    <div class="db-overlay-title" id="confirmTitle">Are you sure?</div>
+    <div class="db-overlay-sub" id="confirmSub"></div>
+    <div class="db-overlay-actions">
+      <button type="button" class="db-btn db-btn-ghost" id="confirmCancelBtn">Cancel</button>
+      <button type="button" class="db-btn db-btn-danger" id="confirmOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const STATUS_LABELS = {
-    starting: 'Starting', installing: 'Installing', pairing: 'Awaiting pairing',
-    connected: 'Connected', reconnecting: 'Reconnecting', stopped: 'Stopped',
+    downloading: 'Downloading', extracting: 'Extracting', starting: 'Starting', installing: 'Installing',
+    pairing: 'Awaiting pairing', connected: 'Connected', reconnecting: 'Reconnecting', stopped: 'Stopped',
     crashed: 'Crashed', needs_repair: 'Needs re-pair',
   };
+  const RUNNING_STATUSES = ['downloading','extracting','installing','starting','pairing','connected','reconnecting'];
+  // Steps shown in the progress bar, in order. "connected" isn't included —
+  // once connected the bar's job is done and the status badge alone covers it.
+  const PROGRESS_STAGES = [
+    { key: 'downloading', label: 'Download' },
+    { key: 'extracting', label: 'Extract' },
+    { key: 'installing', label: 'Install' },
+    { key: 'starting', label: 'Start' },
+    { key: 'pairing', label: 'Pair' },
+  ];
 
   async function getJSON(url){ const r = await fetch(url); const d = await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||'Request failed'); return d; }
   async function postJSON(url, body){ const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); const d = await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||'Request failed'); return d; }
@@ -176,72 +238,225 @@ input{font-family:inherit}
 
   function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
 
-  function botCard(bot){
-    const statusClass = 'db-status-' + bot.status;
-    const statusLabel = STATUS_LABELS[bot.status] || bot.status;
-    const pairing = bot.status === 'pairing' && bot.pairingCode
-      ? '<div class="db-pairing-code">' + escapeHtml(bot.pairingCode) + '</div><div class="db-pairing-help">Enter this in WhatsApp → Linked Devices → Link with phone number</div>'
-      : '';
-    const err = bot.lastError ? '<div class="db-bot-meta" style="color:var(--red)">' + escapeHtml(bot.lastError) + '</div>' : '';
-    const canStop = ['starting','installing','pairing','connected','reconnecting'].includes(bot.status);
-    return '' +
-      '<div class="db-bot" data-id="' + bot.id + '">' +
-        '<div class="db-bot-head">' +
-          '<div class="db-bot-name">' + escapeHtml(bot.label) + '</div>' +
-          '<div class="db-status ' + statusClass + '">' + escapeHtml(statusLabel) + '</div>' +
-        '</div>' +
-        '<div class="db-bot-meta">Number: ' + escapeHtml(bot.phoneNumber) + '</div>' +
-        pairing + err +
-        '<button type="button" class="db-toggle-logs">Show logs</button>' +
-        '<div class="db-logs"></div>' +
-        '<div class="db-bot-actions">' +
-          (canStop ? '<button type="button" class="db-btn db-btn-ghost" data-act="stop">Stop</button>' : '<button type="button" class="db-btn db-btn-ghost" data-act="restart">Restart</button>') +
-          '<button type="button" class="db-btn db-btn-danger" data-act="delete">Delete</button>' +
-        '</div>' +
-      '</div>';
+  /* ── confirmation overlay (replaces native confirm()) ── */
+  function confirmAction(title, sub, onConfirm){
+    const overlay = document.getElementById('confirmOverlay');
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmSub').textContent = sub;
+    overlay.classList.add('show');
+    const okBtn = document.getElementById('confirmOkBtn');
+    const cancelBtn = document.getElementById('confirmCancelBtn');
+    // Replace with clones so previous actions' listeners never stack up.
+    const newOk = okBtn.cloneNode(true);
+    okBtn.replaceWith(newOk);
+    const newCancel = cancelBtn.cloneNode(true);
+    cancelBtn.replaceWith(newCancel);
+    function close(){ overlay.classList.remove('show'); }
+    newCancel.addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); }, { once: true });
+    newOk.addEventListener('click', () => { close(); onConfirm(); });
   }
 
-  let expandedLogsFor = new Set();
+  /* ── copy-to-clipboard for the pairing code ── */
+  async function copyCode(code, btn){
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch {}
+      ta.remove();
+    }
+    const original = btn.innerHTML;
+    btn.innerHTML = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.innerHTML = original; btn.classList.remove('copied'); }, 1500);
+  }
 
-  async function refreshList(){
-    let bots;
-    try { bots = (await getJSON('/api/bots')).bots; } catch { return; }
-    const list = document.getElementById('botsList');
-    if (!bots.length) { list.innerHTML = '<div class="db-empty">No deployments yet.</div>'; return; }
-    list.innerHTML = bots.map(botCard).join('');
-    list.querySelectorAll('.db-bot').forEach((el) => {
-      const id = el.dataset.id;
-      const logsEl = el.querySelector('.db-logs');
-      const toggleBtn = el.querySelector('.db-toggle-logs');
-      if (expandedLogsFor.has(id)) { logsEl.classList.add('show'); toggleBtn.textContent = 'Hide logs'; loadLogs(id, logsEl); }
-      toggleBtn.addEventListener('click', () => {
-        const show = logsEl.classList.toggle('show');
-        toggleBtn.textContent = show ? 'Hide logs' : 'Show logs';
-        if (show) { expandedLogsFor.add(id); loadLogs(id, logsEl); } else { expandedLogsFor.delete(id); }
-      });
-      el.querySelectorAll('button[data-act]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const act = btn.dataset.act;
-          if (act === 'delete' && !confirm('Delete this deployment? This stops the bot and cannot be undone.')) return;
+  function copyBtnHtml(){
+    return '<button type="button" class="db-copy-btn">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>' +
+      'Copy</button>';
+  }
+
+  /* ── build a brand-new card (only called once per bot id) ── */
+  function botCardEl(bot){
+    const wrap = document.createElement('div');
+    wrap.className = 'db-bot';
+    wrap.dataset.id = bot.id;
+    wrap.innerHTML =
+      '<div class="db-bot-head">' +
+        '<div class="db-bot-name"></div>' +
+        '<div class="db-status"></div>' +
+      '</div>' +
+      '<div class="db-bot-meta db-bot-number"></div>' +
+      '<div class="db-progress-slot"></div>' +
+      '<div class="db-pairing-slot"></div>' +
+      '<div class="db-bot-meta db-bot-err" style="display:none"></div>' +
+      '<button type="button" class="db-toggle-logs">Show logs</button>' +
+      '<div class="db-logs"></div>' +
+      '<div class="db-bot-actions"></div>';
+    wrap.querySelector('.db-bot-name').textContent = bot.label;
+    wrap.querySelector('.db-bot-number').textContent = 'Number: ' + bot.phoneNumber;
+
+    const logsEl = wrap.querySelector('.db-logs');
+    const toggleBtn = wrap.querySelector('.db-toggle-logs');
+    toggleBtn.addEventListener('click', () => {
+      const show = logsEl.classList.toggle('show');
+      toggleBtn.textContent = show ? 'Hide logs' : 'Show logs';
+      if (show) { expandedLogsFor.add(bot.id); loadLogs(bot.id, logsEl); } else { expandedLogsFor.delete(bot.id); }
+    });
+
+    return wrap;
+  }
+
+  /* ── patch an existing card's mutable bits in place — never touches the
+     logs box's open/closed state or scroll position, which is what was
+     making the logs panel look like it was opening/closing on its own
+     (the old code rebuilt every card's whole HTML every 5s poll) ── */
+  function patchBotCard(el, bot){
+    const statusEl = el.querySelector('.db-status');
+    statusEl.className = 'db-status db-status-' + bot.status;
+    statusEl.textContent = STATUS_LABELS[bot.status] || bot.status;
+
+    const progressSlot = el.querySelector('.db-progress-slot');
+    const stageIndex = PROGRESS_STAGES.findIndex((s) => s.key === bot.status);
+    if (stageIndex !== -1) {
+      if (progressSlot.dataset.stage !== bot.status) {
+        progressSlot.dataset.stage = bot.status;
+        const pct = Math.round(((stageIndex + 1) / PROGRESS_STAGES.length) * 100);
+        const labels = PROGRESS_STAGES.map((s, i) =>
+          '<span class="' + (i < stageIndex ? 'done' : i === stageIndex ? 'active' : '') + '">' + s.label + '</span>'
+        ).join('');
+        progressSlot.innerHTML =
+          '<div class="db-progress">' +
+            '<div class="db-progress-track"><div class="db-progress-fill" style="width:' + pct + '%"></div></div>' +
+            '<div class="db-progress-labels">' + labels + '</div>' +
+          '</div>';
+      }
+    } else if (progressSlot.dataset.stage) {
+      progressSlot.innerHTML = '';
+      delete progressSlot.dataset.stage;
+    }
+
+    const pairingSlot = el.querySelector('.db-pairing-slot');
+    if (bot.status === 'pairing' && bot.pairingCode) {
+      if (pairingSlot.dataset.code !== bot.pairingCode) {
+        pairingSlot.dataset.code = bot.pairingCode;
+        pairingSlot.innerHTML =
+          '<div class="db-pairing-row"><div class="db-pairing-code"></div>' + copyBtnHtml() + '</div>' +
+          '<div class="db-pairing-help">Enter this in WhatsApp → Linked Devices → Link with phone number</div>';
+        pairingSlot.querySelector('.db-pairing-code').textContent = bot.pairingCode;
+        pairingSlot.querySelector('.db-copy-btn').addEventListener('click', (e) => copyCode(bot.pairingCode, e.currentTarget));
+      }
+    } else if (pairingSlot.dataset.code) {
+      pairingSlot.innerHTML = '';
+      delete pairingSlot.dataset.code;
+    }
+
+    const errEl = el.querySelector('.db-bot-err');
+    if (bot.lastError) { errEl.textContent = bot.lastError; errEl.style.display = ''; }
+    else { errEl.style.display = 'none'; }
+
+    const running = RUNNING_STATUSES.includes(bot.status);
+    const actionsEl = el.querySelector('.db-bot-actions');
+    const wantKey = running ? 'stop+restart+delete' : 'restart+delete';
+    if (actionsEl.dataset.key !== wantKey) {
+      actionsEl.dataset.key = wantKey;
+      actionsEl.innerHTML =
+        (running ? '<button type="button" class="db-btn db-btn-ghost" data-act="stop">Stop</button>' : '') +
+        '<button type="button" class="db-btn db-btn-ghost" data-act="restart">Restart</button>' +
+        '<button type="button" class="db-btn db-btn-danger" data-act="delete">Delete</button>';
+      wireActions(el, bot.id);
+    }
+  }
+
+  function wireActions(el, id){
+    el.querySelectorAll('button[data-act]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const act = btn.dataset.act;
+        const confirmText = {
+          stop: ['Stop this bot?', 'It stays deployed — you can restart it later without re-pairing.'],
+          restart: ['Restart this bot?', 'It will reconnect using its saved session, or ask you to pair again if that session is no longer valid.'],
+          delete: ['Delete this deployment?', 'This stops the bot and permanently removes it. This cannot be undone.'],
+        }[act];
+        confirmAction(confirmText[0], confirmText[1], async () => {
           btn.disabled = true;
           try {
             if (act === 'stop') await postJSON('/api/bots/' + id + '/stop');
             else if (act === 'restart') await postJSON('/api/bots/' + id + '/restart');
             else if (act === 'delete') await deleteReq('/api/bots/' + id);
             refreshList();
-          } catch (e) { alert(e.message); btn.disabled = false; }
+          } catch (e) {
+            showInlineError(el, e.message);
+            btn.disabled = false;
+          }
         });
       });
     });
   }
 
+  function showInlineError(el, message){
+    let err = el.querySelector('.db-action-err');
+    if (!err) {
+      err = document.createElement('div');
+      err.className = 'db-bot-meta db-action-err';
+      err.style.color = 'var(--red)';
+      el.querySelector('.db-bot-actions').insertAdjacentElement('afterend', err);
+    }
+    err.textContent = message;
+  }
+
+  let expandedLogsFor = new Set();
+  const cardsById = new Map();
+
+  async function refreshList(){
+    let bots;
+    try { bots = (await getJSON('/api/bots')).bots; } catch { return; }
+    const list = document.getElementById('botsList');
+
+    if (!bots.length) {
+      cardsById.clear();
+      list.innerHTML = '<div class="db-empty">No deployments yet.</div>';
+      return;
+    }
+    if (list.querySelector('.db-empty')) list.innerHTML = '';
+
+    const seen = new Set();
+    for (const bot of bots) {
+      seen.add(bot.id);
+      let el = cardsById.get(bot.id);
+      if (!el) {
+        el = botCardEl(bot);
+        cardsById.set(bot.id, el);
+        list.appendChild(el);
+      }
+      patchBotCard(el, bot);
+    }
+    // Remove cards for deployments that no longer exist (deleted elsewhere).
+    for (const [id, el] of cardsById) {
+      if (!seen.has(id)) { el.remove(); cardsById.delete(id); expandedLogsFor.delete(id); }
+    }
+  }
+
   async function loadLogs(id, logsEl){
+    const wasAtBottom = logsEl.scrollTop + logsEl.clientHeight >= logsEl.scrollHeight - 4;
     try {
       const data = await getJSON('/api/bots/' + id + '/status');
       logsEl.textContent = (data.logs || []).join('\\n') || 'No logs yet.';
-      logsEl.scrollTop = logsEl.scrollHeight;
+      if (wasAtBottom) logsEl.scrollTop = logsEl.scrollHeight;
     } catch { /* keep whatever was there */ }
   }
+
+  // Poll open logs panels independently of the main list refresh, so
+  // switching tabs/statuses doesn't interrupt someone reading a log.
+  setInterval(() => {
+    for (const id of expandedLogsFor) {
+      const el = cardsById.get(id);
+      if (el) loadLogs(id, el.querySelector('.db-logs'));
+    }
+  }, 4000);
 
   document.getElementById('deployForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -269,7 +484,7 @@ input{font-family:inherit}
   async function refreshCap(){
     try {
       const data = await getJSON('/api/bots/cap');
-      document.getElementById('capLabel').textContent = data.active + ' / ' + data.max + ' active';
+      document.getElementById('capLabel').textContent = data.active + '/' + data.max;
     } catch { document.getElementById('capLabel').textContent = ''; }
   }
 

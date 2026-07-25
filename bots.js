@@ -20,12 +20,27 @@ import admin from "firebase-admin";
 // ./ES_TEAMS-SESSION inside the working directory — those files are
 // backed up to Firestore periodically so a server restart can restore
 // the session and reconnect without forcing everyone to re-pair.
+//
+// SPEED: the source + npm install are identical for every deployment (same
+// fixed repo), so downloading and `npm install`-ing from scratch on every
+// single deploy was the main reason deploys were slow. Instead, that work
+// happens ONCE into a shared "template" directory; every deployment after
+// that just copies the small source tree and symlinks the (large,
+// read-only-in-practice) node_modules from the template rather than
+// reinstalling it. Only the very first deploy on a fresh server (or after
+// the template's TTL expires) pays the full download+install cost.
 
 const REPO_TARBALL_URL = "https://github.com/paskito002/ES_TEAMS-V1/archive/refs/heads/main.tar.gz";
 const BOTS_ROOT = path.join(process.cwd(), ".bot-deployments");
+const TEMPLATE_DIR = path.join(BOTS_ROOT, "_template");
+const TEMPLATE_MARKER = path.join(TEMPLATE_DIR, ".built-at");
+const TEMPLATE_TTL_MS = 6 * 60 * 60 * 1000; // rebuild the shared template at most every 6h
 const SESSION_DIR_NAME = "ES_TEAMS-SESSION";
 const MAX_ACTIVE_BOTS = 100;
-const ACTIVE_STATUSES = ["starting", "installing", "pairing", "connected", "reconnecting"];
+// Every one of these counts as "in progress or running" for the cap and
+// for boot-time restore — including the fast-moving download/extract/
+// install stages, which mostly only appear on the very first deploy.
+const ACTIVE_STATUSES = ["downloading", "extracting", "installing", "starting", "pairing", "connected", "reconnecting"];
 const LOG_LINES_KEPT = 300;
 const SESSION_BACKUP_INTERVAL_MS = 2 * 60 * 1000;
 
@@ -74,14 +89,14 @@ async function deployBot(uid, { label, phoneNumber }) {
 
   const activeCount = await countActiveBots();
   if (activeCount >= MAX_ACTIVE_BOTS) {
-    throw new Error(`Deployment limit reached (${MAX_ACTIVE_BOTS}/${MAX_ACTIVE_BOTS} active). Try again once a slot frees up.`);
+    throw new Error(`Deployment limit reached (${MAX_ACTIVE_BOTS}/${MAX_ACTIVE_BOTS}). Try again once a slot frees up.`);
   }
 
   const ref = db.collection("botDeployments").doc();
   const now = Date.now();
   await ref.set({
     uid, label: cleanLabel, phoneNumber: cleanNumber,
-    status: "starting", pairingCode: null, pairingCodeAt: null, connectedAt: null,
+    status: "downloading", pairingCode: null, pairingCodeAt: null, connectedAt: null,
     lastError: null, stoppedByUser: false, createdAt: now, updatedAt: now,
   });
 
@@ -121,6 +136,57 @@ function run(cmd, opts) {
   });
 }
 
+// ── Shared template (download + install ONCE, reused by every deploy) ───
+let templateReadyPromise = null;
+
+function templateIsFresh() {
+  try {
+    const builtAt = parseInt(fs.readFileSync(TEMPLATE_MARKER, "utf8"), 10);
+    return Number.isFinite(builtAt) && Date.now() - builtAt < TEMPLATE_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
+// onStage(status) is called as the template moves through the slow steps —
+// only relevant to whichever deployment happened to trigger the (re)build;
+// every deployment that finds a fresh template skips straight past this.
+async function ensureTemplate(onStage) {
+  if (templateIsFresh()) return;
+  if (!templateReadyPromise) {
+    templateReadyPromise = (async () => {
+      fs.rmSync(TEMPLATE_DIR, { recursive: true, force: true });
+      fs.mkdirSync(TEMPLATE_DIR, { recursive: true });
+      await onStage?.("downloading");
+      const tarPath = path.join(TEMPLATE_DIR, "_src.tar.gz");
+      await downloadTarball(tarPath);
+      await onStage?.("extracting");
+      await run(`tar -xzf "${tarPath}" -C "${TEMPLATE_DIR}" --strip-components=1`, { cwd: TEMPLATE_DIR });
+      fs.unlinkSync(tarPath);
+      await onStage?.("installing");
+      await run("npm install --omit=dev --no-audit --no-fund", { cwd: TEMPLATE_DIR });
+      fs.writeFileSync(TEMPLATE_MARKER, String(Date.now()));
+    })();
+    templateReadyPromise.finally(() => { templateReadyPromise = null; });
+  }
+  await templateReadyPromise;
+}
+
+// Fast per-deployment setup once the template exists: copy the (small)
+// source tree, and symlink node_modules instead of copying it — it's
+// identical across every instance and can be tens/hundreds of MB, so
+// copying it per-bot would eat disk and time for no benefit.
+function materializeFromTemplate(workDir) {
+  const entries = fs.readdirSync(TEMPLATE_DIR);
+  for (const name of entries) {
+    if (name === "node_modules" || name === ".built-at") continue;
+    fs.cpSync(path.join(TEMPLATE_DIR, name), path.join(workDir, name), { recursive: true, force: true });
+  }
+  const linkPath = path.join(workDir, "node_modules");
+  try { fs.rmSync(linkPath, { recursive: true, force: true }); } catch { /* fine if it didn't exist */ }
+  fs.symlinkSync(path.join(TEMPLATE_DIR, "node_modules"), linkPath, "dir");
+}
+
 async function fetchDoc(botId) {
   return db.collection("botDeployments").doc(botId).get();
 }
@@ -151,8 +217,8 @@ async function backupSessionFiles(workDir, botId) {
   await db.collection("botDeployments").doc(botId).update({ sessionFiles: files, updatedAt: Date.now() }).catch(() => {});
 }
 
-// The actual clone → install → run pipeline. Used both for a fresh deploy
-// and for restoring a bot that was running before a server restart.
+// The actual materialize → run pipeline. Used both for a fresh deploy and
+// for restoring a bot that was running before a server restart.
 async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}) {
   const ref = db.collection("botDeployments").doc(botId);
   const workDir = path.join(BOTS_ROOT, botId);
@@ -161,23 +227,24 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
 
   fs.mkdirSync(workDir, { recursive: true });
 
+  const setStatus = (status, extra = {}) => ref.update({ status, updatedAt: Date.now(), ...extra }).catch(() => {});
+
+  if (!templateIsFresh()) pushLog(entry, "Preparing shared files (first deploy on this server — this one's slower, later ones won't be)…");
+  await ensureTemplate(async (stage) => {
+    pushLog(entry, stage === "downloading" ? "Downloading ES_TEAMS-V1…" : stage === "extracting" ? "Extracting…" : "Installing dependencies…");
+    await setStatus(stage);
+  });
+
+  await setStatus("installing");
+  pushLog(entry, "Preparing your instance…");
+  materializeFromTemplate(workDir);
+
   if (isRestore) {
     await restoreSessionFiles(workDir, botId);
   }
 
-  await ref.update({ status: "installing", updatedAt: Date.now() });
-  pushLog(entry, "Downloading ES_TEAMS-V1…");
-  const tarPath = path.join(workDir, "_src.tar.gz");
-  await downloadTarball(tarPath);
-  pushLog(entry, "Extracting…");
-  await run(`tar -xzf "${tarPath}" -C "${workDir}" --strip-components=1`, { cwd: workDir });
-  fs.unlinkSync(tarPath);
-
-  pushLog(entry, "Installing dependencies (this can take a minute)…");
-  await run("npm install --omit=dev --no-audit --no-fund", { cwd: workDir });
   pushLog(entry, "Starting bot…");
-
-  await ref.update({ status: "starting", updatedAt: Date.now() });
+  await setStatus("starting");
 
   const proc = spawn("node", ["index.js"], {
     cwd: workDir,
@@ -192,18 +259,18 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
 
       const codeMatch = line.match(/Pairing Code\s*:\s*([A-Za-z0-9-]{4,20})/i);
       if (codeMatch) {
-        ref.update({ status: "pairing", pairingCode: codeMatch[1], pairingCodeAt: Date.now(), updatedAt: Date.now() }).catch(() => {});
+        setStatus("pairing", { pairingCode: codeMatch[1], pairingCodeAt: Date.now() });
         return;
       }
       if (/^Connected to\s*:/i.test(line)) {
-        ref.update({ status: "connected", connectedAt: Date.now(), lastError: null, updatedAt: Date.now() }).catch(() => {});
+        setStatus("connected", { connectedAt: Date.now(), lastError: null });
         if (!entry.backupTimer) {
           entry.backupTimer = setInterval(() => backupSessionFiles(workDir, botId), SESSION_BACKUP_INTERVAL_MS);
         }
         return;
       }
       if (/Delete Session and Scan again/i.test(line)) {
-        ref.update({ status: "needs_repair", lastError: "Session invalid — redeploy to get a new pairing code.", updatedAt: Date.now() }).catch(() => {});
+        setStatus("needs_repair", { lastError: "Session invalid — redeploy to get a new pairing code." });
       }
     });
   };
