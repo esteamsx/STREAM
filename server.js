@@ -93,6 +93,8 @@ import {
   toggleNotificationRead,
   deleteNotification,
   getFollowList,
+  getFollowingFeed,
+  getFollowingFeedUnseenCount,
   addNotification,
   getNotifications,
   hasUnreadNotifications,
@@ -155,11 +157,18 @@ app.use(botBlocker);
 app.use(suspiciousRequestDetector);
 // HLS playlist/segment traffic is exempted here — it already has its own,
 // higher limiter (hlsLimiter, 600/min in api.js) sized for live streaming.
-// Left in this global 120/min limiter, a single active stream blows past it
-// in well under a minute (a new segment every few seconds, across quality
+// Left in this global limiter, a single active stream blows past it in
+// well under a minute (a new segment every few seconds, across quality
 // levels), so this one was rate-limiting playback itself before requests
 // ever reached the HLS routes.
-const globalLimiter = new SimpleRateLimiter(120, 60000).middleware(); // 120 req/min per IP
+//
+// Raised from 120 to 400/min per IP — 120 was tripping on ordinary fast
+// navigation (each page can fire off several background requests: profile
+// info, unread badges, feed counts, etc.), returning a raw JSON 429 in
+// place of the page itself. 400/min is still a real ceiling against actual
+// scraping/abuse, just with enough headroom for a real person clicking
+// around quickly, or several people behind one shared/NAT'd IP.
+const globalLimiter = new SimpleRateLimiter(400, 60000).middleware(); // 400 req/min per IP
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/v1/hls/")) return next();
   return globalLimiter(req, res, next);
@@ -3190,11 +3199,15 @@ function fsRunSearch(q){
       });
     }
     function refreshNotifDots(){
-      fetch('/api/notifications/unread').then(function(r){ return r.ok ? r.json() : Promise.reject(); }).then(function(data){
+      Promise.all([
+        fetch('/api/notifications/unread').then(function(r){ return r.ok ? r.json() : { hasUnread: false }; }).catch(function(){ return { hasUnread: false }; }),
+        fetch('/api/feed/following/unseen-count').then(function(r){ return r.ok ? r.json() : { count: 0 }; }).catch(function(){ return { count: 0 }; }),
+      ]).then(function(results){
+        var show = !!results[0].hasUnread || results[1].count > 0;
         document.querySelectorAll('.js-notif-dot').forEach(function(el){
-          el.classList.toggle('show', !!data.hasUnread);
+          el.classList.toggle('show', show);
         });
-      }).catch(function(){});
+      });
     }
     refreshNotifDots();
     setInterval(refreshNotifDots, 20000);
@@ -4387,6 +4400,30 @@ app.post("/api/posts/:postId/reshare", requireAuth, async (req, res) => {
     res.json({ ok: true, post });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not reshare that post." });
+  }
+});
+
+// ── Following feed — powers the "POSTS" overlay on the profile page.
+// Fetching the feed itself marks it seen (lastSeenFeedAt), same as opening
+// a panel of unread things elsewhere on the site. The separate unseen-count
+// endpoint below is for polling — it never marks anything seen, so the
+// badge stays accurate until the user actually opens the panel. ──
+app.get("/api/feed/following", requireAuth, async (req, res) => {
+  try {
+    const posts = await getFollowingFeed(req.uid, { limit: 20, markSeen: true });
+    res.json({ posts });
+  } catch (err) {
+    console.error("following feed error:", err.message);
+    res.status(400).json({ error: "Could not load your feed." });
+  }
+});
+
+app.get("/api/feed/following/unseen-count", requireAuth, async (req, res) => {
+  try {
+    const count = await getFollowingFeedUnseenCount(req.uid);
+    res.json({ count });
+  } catch (err) {
+    res.json({ count: 0 }); // best-effort — a badge count should never break page load
   }
 });
 

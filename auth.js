@@ -1811,6 +1811,108 @@ async function getFollowList(uid, type) {
   return users;
 }
 
+// ── Following feed — posts from people you follow, shown via the small
+// "POSTS" overlay on the profile page. Mirrors getFollowList's approach of
+// chunked, unordered queries + sorting in JS (no .orderBy() combined with
+// an 'in' filter), so this never needs a new Firestore composite index. ──
+async function getFollowingUids(uid) {
+  const snap = await db.collection("follows").where("followerUid", "==", uid).limit(500).get();
+  return [...new Set(snap.docs.map((d) => d.data().targetUid))];
+}
+
+async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
+  const followingUids = await getFollowingUids(uid);
+  if (!followingUids.length) {
+    if (markSeen) await updateUserProfile(uid, { lastSeenFeedAt: Date.now() }).catch(() => {});
+    return [];
+  }
+
+  const rawPosts = [];
+  for (let i = 0; i < followingUids.length; i += 30) {
+    const chunk = followingUids.slice(i, i + 30);
+    const snap = await db.collection("posts").where("uid", "in", chunk).limit(50).get();
+    snap.docs.forEach((d) => rawPosts.push({ id: d.id, ...d.data() }));
+  }
+  rawPosts.sort((a, b) => b.createdAt - a.createdAt);
+
+  // Visibility: "everyone" shown to anyone, "only_me" never shown to
+  // someone else, "friends" only if that author follows the viewer back
+  // too. isFollowing() is a single doc get (deterministic id), not a
+  // query, so batching it per distinct author needs no index either.
+  const distinctAuthorUids = [...new Set(rawPosts.map((p) => p.uid))];
+  const mutualChecks = await Promise.all(distinctAuthorUids.map((a) => isFollowing(a, uid)));
+  const mutualSet = new Set(distinctAuthorUids.filter((_, i) => mutualChecks[i]));
+
+  const visible = rawPosts
+    .filter((p) => {
+      const vis = p.visibility || "everyone";
+      if (vis === "only_me") return false;
+      if (vis === "friends") return mutualSet.has(p.uid);
+      return true;
+    })
+    .slice(0, limit);
+
+  const authorUids = [...new Set(visible.map((p) => p.uid))];
+  const authorsByUid = new Map();
+  for (let i = 0; i < authorUids.length; i += 30) {
+    const chunk = authorUids.slice(i, i + 30);
+    const usnap = await db.collection("users")
+      .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+      .get();
+    usnap.forEach((d) => {
+      const data = d.data();
+      authorsByUid.set(d.id, {
+        uid: d.id,
+        username: data.username || "",
+        firstName: data.firstName || "",
+        lastName: data.lastName || "",
+        photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
+        isAdmin: isAdminEmail(data.email), verified: !!data.verified,
+      });
+    });
+  }
+
+  const posts = visible.map((p) => ({
+    id: p.id,
+    author: authorsByUid.get(p.uid) || { uid: p.uid, username: "", firstName: "", lastName: "", photoURL: null },
+    text: p.text || "",
+    imageDataUrl: p.imageDataUrl || null,
+    createdAt: p.createdAt,
+    likesCount: (p.likedBy || []).length,
+    likedByViewer: (p.likedBy || []).includes(uid),
+    commentsCount: p.commentsCount || 0,
+    commentsEnabled: p.commentsEnabled !== false,
+  }));
+
+  if (markSeen) await updateUserProfile(uid, { lastSeenFeedAt: Date.now() }).catch(() => {});
+  return posts;
+}
+
+async function getFollowingFeedUnseenCount(uid) {
+  const followingUids = await getFollowingUids(uid);
+  if (!followingUids.length) return 0;
+  const profile = await getUserProfile(uid);
+  const lastSeenFeedAt = profile?.lastSeenFeedAt || 0;
+
+  let count = 0;
+  for (let i = 0; i < followingUids.length; i += 30) {
+    const chunk = followingUids.slice(i, i + 30);
+    const snap = await db.collection("posts").where("uid", "in", chunk).limit(50).get();
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      if (data.createdAt <= lastSeenFeedAt) return;
+      // Not re-checking "friends"-visibility mutual-follow here — the badge
+      // is a lightweight heads-up, and getFollowingFeed above is what
+      // actually gates what's shown. Slightly over-counting a friends-only
+      // post you can't see yet is a minor cosmetic edge case, not a
+      // security issue, and avoids extra reads on every poll of this.
+      if ((data.visibility || "everyone") === "only_me") return;
+      count++;
+    });
+  }
+  return Math.min(count, 99);
+}
+
 // Prefix search on the (already-lowercased) username field — the standard
 // Firestore trick for "starts with" search without a separate search index.
 async function searchUsersByUsername(query, excludeUid, limit = 15) {
@@ -2138,6 +2240,8 @@ export {
   toggleNotificationRead,
   deleteNotification,
   getFollowList,
+  getFollowingFeed,
+  getFollowingFeedUnseenCount,
   addNotification,
   getNotifications,
   hasUnreadNotifications,
