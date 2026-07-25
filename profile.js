@@ -952,7 +952,7 @@ function attachTagHighlight(inputEl, opts){
   inputEl.style.width = '100%';
   inputEl.style.background = 'transparent';
   inputEl.style.color = 'transparent';
-  // WebKit (iOS Safari, and Chrome on iOS) ignores `color:transparent` for
+  // WebKit (iOS Safari, and Chrome on iOS) ignores color:transparent for
   // the text inside a form field — it kept painting the real text on top of
   // the mirrored copy, so every character showed twice with a slight offset.
   // That doubling is what read as "blurry". -webkit-text-fill-color is the
