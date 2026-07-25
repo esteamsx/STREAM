@@ -21,7 +21,7 @@ import { apiRouter } from "./api.js";
 import { renderDeployBot } from "./deploy-bot.js";
 import {
   deployBot, listBotsForUser, getBotStatus, stopBot, restartBot, deleteBot,
-  countActiveBots, MAX_ACTIVE_BOTS, countBotsForUser, MAX_INSTANCES_PER_USER, restoreBotsOnBoot,
+  countActiveBots, MAX_ACTIVE_BOTS, countBotsForUser, MAX_INSTANCES_PER_USER, restoreBotsOnBoot, startBotUpdateChecker,
   adminStopBot, adminRestartBot, adminDeleteBot, adminListDeployingUsers, adminListBotsForUser,
 } from "./bots.js";
 import QRCode from "qrcode";
@@ -190,6 +190,9 @@ const usernameCheckLimiter = new SimpleRateLimiter(40, 60 * 1000).middleware(); 
 // requireAuth, so the thing worth throttling is one account hammering it
 // from anywhere, not one IP (which a scraper can just rotate).
 const channelApiLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware(); // 60 / min per account
+const botDeployLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000, (req) => req.uid).middleware(); // deploying spawns real processes — 5 / hour per account
+const botActionLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware(); // stop/restart/delete — 30 / min per account
+const botStatusLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.uid).middleware(); // log polling, up to a few panels open at once — 120 / min per account
 
 // (devtools-blocking bundle route removed — was breaking pages via false-positive trips)
 
@@ -3613,7 +3616,7 @@ app.get("/api/bots", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/bots/deploy", requireAuth, async (req, res) => {
+app.post("/api/bots/deploy", requireAuth, botDeployLimiter, async (req, res) => {
   try {
     const isAdmin = isAdminEmail(req.userProfile?.email);
     const result = await deployBot(req.uid, req.body || {}, isAdmin);
@@ -3623,7 +3626,7 @@ app.post("/api/bots/deploy", requireAuth, async (req, res) => {
   }
 });
 
-app.get("/api/bots/:id/status", requireAuth, async (req, res) => {
+app.get("/api/bots/:id/status", requireAuth, botStatusLimiter, async (req, res) => {
   try {
     const status = await getBotStatus(req.uid, req.params.id);
     res.json(status);
@@ -3632,7 +3635,7 @@ app.get("/api/bots/:id/status", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/bots/:id/stop", requireAuth, async (req, res) => {
+app.post("/api/bots/:id/stop", requireAuth, botActionLimiter, async (req, res) => {
   try {
     res.json(await stopBot(req.uid, req.params.id));
   } catch (err) {
@@ -3640,7 +3643,7 @@ app.post("/api/bots/:id/stop", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/bots/:id/restart", requireAuth, async (req, res) => {
+app.post("/api/bots/:id/restart", requireAuth, botActionLimiter, async (req, res) => {
   try {
     res.json(await restartBot(req.uid, req.params.id));
   } catch (err) {
@@ -3648,7 +3651,7 @@ app.post("/api/bots/:id/restart", requireAuth, async (req, res) => {
   }
 });
 
-app.delete("/api/bots/:id", requireAuth, async (req, res) => {
+app.delete("/api/bots/:id", requireAuth, botActionLimiter, async (req, res) => {
   try {
     res.json(await deleteBot(req.uid, req.params.id));
   } catch (err) {
@@ -5024,6 +5027,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 restoreBotsOnBoot().catch((err) => console.error("Bot restore-on-boot failed:", err));
+startBotUpdateChecker();
 
 sweepOrphanedUsers().catch((err) => console.error("Orphaned user sweep failed:", err));
 setInterval(() => {

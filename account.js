@@ -43,6 +43,17 @@ button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
+/* ── floating "Deploy Bot" shortcut — same treatment as profile.js's
+   floating feed button (.pf-feed-fab), just a different icon/destination ── */
+.acc-deploy-fab{
+  position:fixed;right:20px;bottom:20px;z-index:90;width:52px;height:52px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
+  cursor:pointer;transition:transform .15s var(--ease);text-decoration:none;
+}
+.acc-deploy-fab:active{transform:scale(.94)}
+.acc-deploy-fab svg{width:24px;height:24px}
+
 .acc-nav{
   position:sticky;top:0;z-index:10;height:58px;display:flex;align-items:center;gap:14px;padding:0 18px;
   background:var(--nav-bg);border-bottom:1px solid var(--border);backdrop-filter:blur(20px);
@@ -870,6 +881,15 @@ body:has(.page-overlay.show){overflow:hidden}
     <div class="flist-list" id="notifList"></div>
   </div>
 </div>
+
+<a class="acc-deploy-fab" href="/deploy-bot" aria-label="Deploy Bot" title="Deploy Bot">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="11" width="18" height="10" rx="2"/>
+    <circle cx="8.5" cy="16" r="1.2" fill="currentColor" stroke="none"/>
+    <circle cx="15.5" cy="16" r="1.2" fill="currentColor" stroke="none"/>
+    <path d="M12 11V7m-3 0h6"/>
+  </svg>
+</a>
 
 <script>
 const params = new URLSearchParams(window.location.search);

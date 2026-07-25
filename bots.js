@@ -30,11 +30,18 @@ import admin from "firebase-admin";
 // reinstalling it. Only the very first deploy on a fresh server (or after
 // the template's TTL expires) pays the full download+install cost.
 
+// AUTO-UPDATE: a periodic job checks GitHub for a new commit on the repo's
+// main branch (a cheap API call, not a full download) and, if one is found,
+// rebuilds the shared template and restarts every currently-running bot so
+// it picks up the new code — using the same restart path as a manual
+// restart, so it reconnects from its saved session without re-pairing.
+
 const REPO_TARBALL_URL = "https://github.com/paskito002/ES_TEAMS-V1/archive/refs/heads/main.tar.gz";
+const REPO_LATEST_COMMIT_API = "https://api.github.com/repos/paskito002/ES_TEAMS-V1/commits/main";
 const BOTS_ROOT = path.join(process.cwd(), ".bot-deployments");
 const TEMPLATE_DIR = path.join(BOTS_ROOT, "_template");
-const TEMPLATE_MARKER = path.join(TEMPLATE_DIR, ".built-at");
-const TEMPLATE_TTL_MS = 6 * 60 * 60 * 1000; // rebuild the shared template at most every 6h
+const TEMPLATE_MARKER = path.join(TEMPLATE_DIR, ".built-meta.json");
+const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // check GitHub for a new commit every 30 min
 const SESSION_DIR_NAME = "ES_TEAMS-SESSION";
 const MAX_ACTIVE_BOTS = 100;
 const MAX_INSTANCES_PER_USER = 3; // admin (isAdminEmail) bypasses this; the global 100 cap above still applies to everyone
@@ -149,23 +156,41 @@ function run(cmd, opts) {
   });
 }
 
-// ── Shared template (download + install ONCE, reused by every deploy) ───
-let templateReadyPromise = null;
+async function fetchLatestCommitSha() {
+  return new Promise((resolve, reject) => {
+    https.get(REPO_LATEST_COMMIT_API, { headers: { "User-Agent": "es-teams-tv-deploy", Accept: "application/vnd.github+json" } }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => {
+        if (res.statusCode !== 200) { reject(new Error(`GitHub API HTTP ${res.statusCode}`)); return; }
+        try { resolve(JSON.parse(body).sha || null); } catch (err) { reject(err); }
+      });
+    }).on("error", reject);
+  });
+}
 
-function templateIsFresh() {
+function readTemplateMeta() {
   try {
-    const builtAt = parseInt(fs.readFileSync(TEMPLATE_MARKER, "utf8"), 10);
-    return Number.isFinite(builtAt) && Date.now() - builtAt < TEMPLATE_TTL_MS;
+    const parsed = JSON.parse(fs.readFileSync(TEMPLATE_MARKER, "utf8"));
+    return parsed && typeof parsed.builtAt === "number" ? parsed : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-// onStage(status) is called as the template moves through the slow steps —
-// only relevant to whichever deployment happened to trigger the (re)build;
-// every deployment that finds a fresh template skips straight past this.
-async function ensureTemplate(onStage) {
-  if (templateIsFresh()) return;
+function templateExists() {
+  return !!readTemplateMeta();
+}
+
+// ── Shared template (download + install ONCE, reused by every deploy) ───
+let templateReadyPromise = null;
+
+// The actual download → extract → install → record-what-commit-this-is
+// pipeline. Shared by ensureTemplate() (first deploy ever, no template
+// exists yet) and checkForUpdates() (an existing template needs refreshing
+// because GitHub has a newer commit) — a single in-flight-build mutex means
+// the two paths can never race each other into building it twice at once.
+async function buildTemplate(onStage) {
   if (!templateReadyPromise) {
     templateReadyPromise = (async () => {
       fs.rmSync(TEMPLATE_DIR, { recursive: true, force: true });
@@ -178,11 +203,50 @@ async function ensureTemplate(onStage) {
       fs.unlinkSync(tarPath);
       await onStage?.("installing");
       await run("npm install --omit=dev --no-audit --no-fund", { cwd: TEMPLATE_DIR });
-      fs.writeFileSync(TEMPLATE_MARKER, String(Date.now()));
+      let sha = null;
+      try { sha = await fetchLatestCommitSha(); } catch { /* update-check will just retry later */ }
+      fs.writeFileSync(TEMPLATE_MARKER, JSON.stringify({ builtAt: Date.now(), sha }));
     })();
     templateReadyPromise.finally(() => { templateReadyPromise = null; });
   }
   await templateReadyPromise;
+}
+
+// onStage(status) is called as the template moves through the slow steps —
+// only relevant to whichever deployment happened to trigger the (re)build;
+// every deployment that finds an existing template skips straight past this.
+async function ensureTemplate(onStage) {
+  if (templateExists()) return;
+  await buildTemplate(onStage);
+}
+
+// Periodic job: is there a newer commit on GitHub than what the template
+// was built from? If so, rebuild it and restart every currently-running
+// bot so it actually picks up the change — a template update alone
+// wouldn't reach bots that are already running, since they only re-read
+// the source tree when (re)started.
+async function checkForUpdates() {
+  try {
+    if (!templateExists() || templateReadyPromise) return; // nothing built yet, or a build's already in flight
+    const meta = readTemplateMeta();
+    const latestSha = await fetchLatestCommitSha();
+    if (!latestSha || meta.sha === latestSha) return; // already current, or GitHub didn't give us a usable answer
+
+    console.log(`🤖 New commit on ES_TEAMS-V1 (${latestSha.slice(0, 7)}) — updating the shared template…`);
+    await buildTemplate();
+
+    const snap = await db.collection("botDeployments").where("status", "in", ACTIVE_STATUSES).get();
+    for (const doc of snap.docs) {
+      _restartBotDoc(doc.ref, doc.data()).catch((err) => console.error(`Auto-update restart failed for ${doc.id}:`, err.message));
+    }
+    if (snap.size) console.log(`🤖 Restarted ${snap.size} bot(s) to apply the update.`);
+  } catch (err) {
+    console.error("Bot update check failed:", err.message);
+  }
+}
+
+export function startBotUpdateChecker() {
+  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
 }
 
 // Fast per-deployment setup once the template exists: copy the (small)
@@ -242,7 +306,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
 
   const setStatus = (status, extra = {}) => ref.update({ status, updatedAt: Date.now(), ...extra }).catch(() => {});
 
-  if (!templateIsFresh()) pushLog(entry, "Preparing shared files (first deploy on this server — this one's slower, later ones won't be)…");
+  if (!templateExists()) pushLog(entry, "Preparing shared files (first deploy on this server — this one's slower, later ones won't be)…");
   await ensureTemplate(async (stage) => {
     pushLog(entry, stage === "downloading" ? "Downloading ES_TEAMS-V1…" : stage === "extracting" ? "Extracting…" : "Installing dependencies…");
     await setStatus(stage);
