@@ -379,7 +379,7 @@ input{font-family:inherit}
         const act = btn.dataset.act;
         const confirmText = {
           stop: ['Stop this bot?', 'It stays deployed — you can restart it later without re-pairing.'],
-          restart: ['Restart this bot?', 'It will reconnect using its saved session, or ask you to pair again if that session is no longer valid.'],
+          restart: ['Restart this bot?', 'This pulls the latest code and starts fresh — the current WhatsApp session is cleared, so you\\'ll get a new pairing code.'],
           delete: ['Delete this deployment?', 'This stops the bot and permanently removes it. This cannot be undone.'],
         }[act];
         confirmAction(confirmText[0], confirmText[1], async () => {

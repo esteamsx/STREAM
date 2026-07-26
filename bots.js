@@ -41,7 +41,7 @@ const REPO_LATEST_COMMIT_API = "https://api.github.com/repos/paskito002/ES_TEAMS
 const BOTS_ROOT = path.join(process.cwd(), ".bot-deployments");
 const TEMPLATE_DIR = path.join(BOTS_ROOT, "_template");
 const TEMPLATE_MARKER = path.join(TEMPLATE_DIR, ".built-meta.json");
-const UPDATE_CHECK_INTERVAL_MS = 60 * 1000; // check GitHub for a new commit every 1 min
+const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // background safety net — "Check now" in admin is the immediate option
 const SESSION_DIR_NAME = "ES_TEAMS-SESSION";
 const MAX_ACTIVE_BOTS = 100;
 const MAX_INSTANCES_PER_USER = 3; // admin (isAdminEmail) bypasses this; the global 100 cap above still applies to everyone
@@ -245,7 +245,7 @@ async function checkForUpdates() {
 
     const snap = await db.collection("botDeployments").where("status", "in", ACTIVE_STATUSES).get();
     for (const doc of snap.docs) {
-      _restartBotDoc(doc.ref, doc.data()).catch((err) => console.error(`Auto-update restart failed for ${doc.id}:`, err.message));
+      _restartBotDoc(doc.ref, doc.data(), { skipTemplateCheck: true }).catch((err) => console.error(`Auto-update restart failed for ${doc.id}:`, err.message));
     }
     if (snap.size) console.log(`🤖 Restarted ${snap.size} bot(s) to apply the update.`);
     return { checked: true, updated: true, previousSha: meta.sha, currentSha: latestSha, restarted: snap.size };
@@ -267,6 +267,24 @@ async function getTemplateStatus() {
     latestShaError,
     upToDate: !!meta && !!latestSha && meta.sha === latestSha,
   };
+}
+
+// Used by an explicit Restart — unlike the periodic checkForUpdates(), this
+// doesn't cascade-restart every other running bot, it just guarantees the
+// template this specific restart is about to use is actually current.
+async function ensureLatestTemplate() {
+  if (!templateExists()) { await buildTemplate(); return; }
+  if (templateReadyPromise) { await templateReadyPromise; return; }
+  try {
+    const meta = readTemplateMeta();
+    const latestSha = await fetchLatestCommitSha();
+    if (latestSha && meta.sha !== latestSha) {
+      console.log(`🤖 Restart triggered a refetch — new commit found (${latestSha.slice(0, 7)}).`);
+      await buildTemplate();
+    }
+  } catch (err) {
+    console.error("Could not check for the latest commit before restarting — using the existing template:", err.message);
+  }
 }
 
 export function startBotUpdateChecker() {
@@ -432,10 +450,20 @@ async function _stopBotDoc(ref, data) {
   return { ok: true };
 }
 
-async function _restartBotDoc(ref, data) {
+async function _restartBotDoc(ref, data, { skipTemplateCheck = false } = {}) {
   if (running.has(ref.id)) await _stopBotDoc(ref, data);
-  await ref.update({ status: "starting", stoppedByUser: false, lastError: null, pairingCode: null, updatedAt: Date.now() });
-  runDeployment(ref.id, data.uid, data.phoneNumber, { isRestore: true }).catch((err) => {
+
+  // Fresh redeploy, not a resume: pick up the latest commit, and drop the
+  // saved session so this starts completely clean — a new pairing code,
+  // not a silent reconnect to whatever was there before.
+  if (!skipTemplateCheck) await ensureLatestTemplate();
+  await ref.update({
+    status: "starting", stoppedByUser: false, lastError: null, pairingCode: null,
+    sessionFiles: admin.firestore.FieldValue.delete(), updatedAt: Date.now(),
+  });
+  try { fs.rmSync(path.join(BOTS_ROOT, ref.id, SESSION_DIR_NAME), { recursive: true, force: true }); } catch { /* fine if it wasn't there */ }
+
+  runDeployment(ref.id, data.uid, data.phoneNumber, { isRestore: false }).catch((err) => {
     ref.update({ status: "crashed", lastError: err.message, updatedAt: Date.now() }).catch(() => {});
   });
   return { ok: true };
@@ -522,13 +550,12 @@ export async function restoreBotsOnBoot() {
   try {
     const snap = await db.collection("botDeployments").where("status", "in", ACTIVE_STATUSES).get();
     for (const doc of snap.docs) {
-      const data = doc.data();
-      await doc.ref.update({ status: "reconnecting", updatedAt: Date.now() }).catch(() => {});
-      runDeployment(doc.id, data.uid, data.phoneNumber, { isRestore: true }).catch((err) => {
-        doc.ref.update({ status: "crashed", lastError: err.message, updatedAt: Date.now() }).catch(() => {});
-      });
+      await doc.ref.update({
+        status: "stopped", stoppedByUser: true, pairingCode: null,
+        lastError: "Server restarted — tap Restart to redeploy.", updatedAt: Date.now(),
+      }).catch(() => {});
     }
-    if (snap.size) console.log(`🤖 Restoring ${snap.size} bot deployment(s) after restart…`);
+    if (snap.size) console.log(`🤖 Marked ${snap.size} bot deployment(s) stopped after a server restart (not auto-restarting them).`);
   } catch (err) {
     console.error("Bot restore-on-boot failed:", err.message);
   }
