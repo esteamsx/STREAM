@@ -144,6 +144,7 @@ input{font-family:inherit}
   white-space:pre-wrap;word-break:break-all;margin-bottom:10px;display:none;
 }
 .db-logs.show{display:block}
+.db-log-err{color:var(--red);background:rgba(255,59,92,.08);margin:0 -10px;padding:1px 10px}
 .db-toggle-logs{font-size:.74rem;color:var(--accent);background:none;border:none;padding:0;margin-bottom:8px;font-weight:600}
 
 .db-bot-actions{display:flex;gap:8px}
@@ -445,7 +446,22 @@ input{font-family:inherit}
     const wasAtBottom = logsEl.scrollTop + logsEl.clientHeight >= logsEl.scrollHeight - 4;
     try {
       const data = await getJSON('/api/bots/' + id + '/status');
-      logsEl.textContent = (data.logs || []).join('\\n') || 'No logs yet.';
+      const lines = data.logs || [];
+      if (!lines.length) {
+        logsEl.textContent = 'No logs yet.';
+      } else {
+        logsEl.innerHTML = '';
+        lines.forEach((entry) => {
+          // Backward compatible: older entries were plain strings before
+          // stdout/stderr got tagged separately.
+          const isErr = typeof entry === 'object' && entry && entry.t === 'err';
+          const text = typeof entry === 'object' && entry ? entry.l : entry;
+          const row = document.createElement('div');
+          if (isErr) row.className = 'db-log-err';
+          row.textContent = text;
+          logsEl.appendChild(row);
+        });
+      }
       if (wasAtBottom) logsEl.scrollTop = logsEl.scrollHeight;
     } catch { /* keep whatever was there */ }
   }
