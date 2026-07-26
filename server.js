@@ -3533,6 +3533,9 @@ app.get("/api/admin/bots/users", requireAuth, requireAdmin, async (req, res) => 
         firstName: profile?.firstName || "",
         lastName: profile?.lastName || "",
         email: profile?.email || "",
+        photoURL: profile?.showProfilePhoto === false ? null : (profile?.photoURL || null),
+        verified: !!profile?.verified,
+        isAdmin: isAdminEmail(profile?.email),
       };
     }));
     res.json({ users: enriched });

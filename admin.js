@@ -147,6 +147,8 @@ input{font-family:inherit}
 .ad-modal-msg.err{color:var(--red)}
 .ad-modal-msg.ok{color:#3DDC84}
 .ad-modal-actions{display:flex;gap:10px;margin-top:6px}
+.ad-modal-actions.single{justify-content:center}
+.ad-modal-actions.single .ad-modal-btn{flex:none;min-width:130px}
 .ad-modal-btn{
   flex:1;padding:11px;border-radius:10px;border:none;font-weight:700;font-size:.84rem;
   display:flex;align-items:center;justify-content:center;gap:7px;
@@ -301,8 +303,8 @@ input{font-family:inherit}
     </div>
     <div class="ad-modal-sub" id="botsModalSub"></div>
     <div class="ad-bot-list" id="botsModalList"><div class="ad-empty">Loading…</div></div>
-    <div class="ad-modal-actions">
-      <button type="button" class="ad-modal-btn ghost" id="botsModalCloseBtn" style="flex:1">Close</button>
+    <div class="ad-modal-actions single">
+      <button type="button" class="ad-modal-btn ghost" id="botsModalCloseBtn">Close</button>
     </div>
   </div>
 </div>
@@ -888,7 +890,7 @@ function renderBotUserRow(u){
   const name = document.createElement('div');
   name.className = 'ad-row-name';
   const displayName = ((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : (u.username ? '@' + u.username : u.uid));
-  name.textContent = displayName;
+  name.innerHTML = '<span>' + displayName + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
   const email = document.createElement('div');
   email.className = 'ad-row-email';
   email.textContent = (u.email ? u.email + '  ·  ' : '') + u.activeCount + ' active / ' + u.count + ' total';
