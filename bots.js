@@ -550,12 +550,13 @@ export async function restoreBotsOnBoot() {
   try {
     const snap = await db.collection("botDeployments").where("status", "in", ACTIVE_STATUSES).get();
     for (const doc of snap.docs) {
-      await doc.ref.update({
-        status: "stopped", stoppedByUser: true, pairingCode: null,
-        lastError: "Server restarted — tap Restart to redeploy.", updatedAt: Date.now(),
-      }).catch(() => {});
+      const data = doc.data();
+      await doc.ref.update({ status: "reconnecting", updatedAt: Date.now() }).catch(() => {});
+      runDeployment(doc.id, data.uid, data.phoneNumber, { isRestore: true }).catch((err) => {
+        doc.ref.update({ status: "crashed", lastError: err.message, updatedAt: Date.now() }).catch(() => {});
+      });
     }
-    if (snap.size) console.log(`🤖 Marked ${snap.size} bot deployment(s) stopped after a server restart (not auto-restarting them).`);
+    if (snap.size) console.log(`🤖 Reconnecting ${snap.size} bot deployment(s) after server restart, using their saved sessions…`);
   } catch (err) {
     console.error("Bot restore-on-boot failed:", err.message);
   }
