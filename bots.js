@@ -346,6 +346,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   const ref = db.collection("botDeployments").doc(botId);
   const workDir = path.join(BOTS_ROOT, botId);
   const entry = { proc: null, logs: [], stoppedByUser: false, backupTimer: null };
+  entry.exited = new Promise((resolve) => { entry._resolveExited = resolve; });
   running.set(botId, entry);
 
   fs.mkdirSync(workDir, { recursive: true });
@@ -417,7 +418,12 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   proc.on("exit", (code) => {
     if (entry.backupTimer) clearInterval(entry.backupTimer);
     backupSessionFiles(workDir, botId).finally(() => {
-      running.delete(botId);
+      // Only remove OUR entry — if a restart already spawned a new process
+      // for this botId while this one was still shutting down, running.get
+      // now points at that newer entry, and this must not delete it out
+      // from under it.
+      if (running.get(botId) === entry) running.delete(botId);
+      entry._resolveExited?.();
       if (entry.stoppedByUser) return; // stopBot() already set the final status
       ref.get().then((snap) => {
         if (snap.exists && ["needs_repair", "disconnected"].includes(snap.data().status)) return; // already handled above
@@ -446,7 +452,25 @@ async function _stopBotDoc(ref, data) {
   if (entry) {
     entry.stoppedByUser = true;
     if (entry.backupTimer) clearInterval(entry.backupTimer);
-    if (entry.proc) entry.proc.kill("SIGTERM");
+    if (entry.proc && entry.proc.exitCode === null && entry.proc.signalCode === null) {
+      entry.proc.kill("SIGTERM");
+      const killTimer = setTimeout(() => {
+        try { entry.proc.kill("SIGKILL"); } catch { /* already gone */ }
+      }, 8000);
+      // Wait for the exit handler's full cleanup (not just the OS signal)
+      // before returning, so a caller like restart can safely reuse this
+      // bot's working directory right after — with a hard ceiling so a
+      // truly stuck process can't hang the whole stop/restart flow forever.
+      await Promise.race([
+        entry.exited,
+        new Promise((resolve) => setTimeout(resolve, 10000)),
+      ]);
+      clearTimeout(killTimer);
+    } else {
+      // Never actually spawned (e.g. crashed during download/install), or
+      // already exited — nothing to wait for.
+      entry._resolveExited?.();
+    }
   }
   const update = { status: "stopped", stoppedByUser: true, updatedAt: Date.now() };
   if (entry) update.logs = entry.logs.slice(-150);
