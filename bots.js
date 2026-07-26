@@ -41,7 +41,7 @@ const REPO_LATEST_COMMIT_API = "https://api.github.com/repos/paskito002/ES_TEAMS
 const BOTS_ROOT = path.join(process.cwd(), ".bot-deployments");
 const TEMPLATE_DIR = path.join(BOTS_ROOT, "_template");
 const TEMPLATE_MARKER = path.join(TEMPLATE_DIR, ".built-meta.json");
-const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // check GitHub for a new commit every 30 min
+const UPDATE_CHECK_INTERVAL_MS = 60 * 1000; // check GitHub for a new commit every 1 min
 const SESSION_DIR_NAME = "ES_TEAMS-SESSION";
 const MAX_ACTIVE_BOTS = 100;
 const MAX_INSTANCES_PER_USER = 3; // admin (isAdminEmail) bypasses this; the global 100 cap above still applies to everyone
@@ -127,14 +127,20 @@ async function deployBot(uid, { label, phoneNumber }, isAdmin = false) {
   return { id: ref.id };
 }
 
+function githubHeaders(extra = {}) {
+  const headers = { "User-Agent": "es-teams-tv-deploy", ...extra };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  return headers;
+}
+
 async function downloadTarball(destFile) {
   await new Promise((resolve, reject) => {
     const file = fs.createWriteStream(destFile);
-    https.get(REPO_TARBALL_URL, { headers: { "User-Agent": "es-teams-tv-deploy" } }, (res) => {
+    https.get(REPO_TARBALL_URL, { headers: githubHeaders() }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         // GitHub archive links usually redirect once — follow it manually
         // rather than pulling in a whole HTTP client just for this.
-        https.get(res.headers.location, { headers: { "User-Agent": "es-teams-tv-deploy" } }, (res2) => {
+        https.get(res.headers.location, { headers: githubHeaders() }, (res2) => {
           res2.pipe(file);
           file.on("finish", () => file.close(resolve));
         }).on("error", reject);
@@ -158,11 +164,11 @@ function run(cmd, opts) {
 
 async function fetchLatestCommitSha() {
   return new Promise((resolve, reject) => {
-    https.get(REPO_LATEST_COMMIT_API, { headers: { "User-Agent": "es-teams-tv-deploy", Accept: "application/vnd.github+json" } }, (res) => {
+    https.get(REPO_LATEST_COMMIT_API, { headers: githubHeaders({ Accept: "application/vnd.github+json" }) }, (res) => {
       let body = "";
       res.on("data", (chunk) => { body += chunk; });
       res.on("end", () => {
-        if (res.statusCode !== 200) { reject(new Error(`GitHub API HTTP ${res.statusCode}`)); return; }
+        if (res.statusCode !== 200) { reject(new Error(`GitHub API HTTP ${res.statusCode}: ${body.slice(0, 200)}`)); return; }
         try { resolve(JSON.parse(body).sha || null); } catch (err) { reject(err); }
       });
     }).on("error", reject);
@@ -227,10 +233,12 @@ async function ensureTemplate(onStage) {
 // the source tree when (re)started.
 async function checkForUpdates() {
   try {
-    if (!templateExists() || templateReadyPromise) return; // nothing built yet, or a build's already in flight
+    if (!templateExists()) return { checked: false, reason: "No template built yet — deploy a bot first." };
+    if (templateReadyPromise) return { checked: false, reason: "A build is already in progress." };
     const meta = readTemplateMeta();
     const latestSha = await fetchLatestCommitSha();
-    if (!latestSha || meta.sha === latestSha) return; // already current, or GitHub didn't give us a usable answer
+    if (!latestSha) return { checked: false, reason: "GitHub didn't return a usable commit SHA." };
+    if (meta.sha === latestSha) return { checked: true, updated: false, currentSha: meta.sha, latestSha };
 
     console.log(`🤖 New commit on ES_TEAMS-V1 (${latestSha.slice(0, 7)}) — updating the shared template…`);
     await buildTemplate();
@@ -240,13 +248,32 @@ async function checkForUpdates() {
       _restartBotDoc(doc.ref, doc.data()).catch((err) => console.error(`Auto-update restart failed for ${doc.id}:`, err.message));
     }
     if (snap.size) console.log(`🤖 Restarted ${snap.size} bot(s) to apply the update.`);
+    return { checked: true, updated: true, previousSha: meta.sha, currentSha: latestSha, restarted: snap.size };
   } catch (err) {
     console.error("Bot update check failed:", err.message);
+    return { checked: false, reason: err.message };
   }
 }
 
+async function getTemplateStatus() {
+  const meta = readTemplateMeta();
+  let latestSha = null, latestShaError = null;
+  try { latestSha = await fetchLatestCommitSha(); } catch (err) { latestShaError = err.message; }
+  return {
+    exists: !!meta,
+    builtAt: meta?.builtAt || null,
+    currentSha: meta?.sha || null,
+    latestSha,
+    latestShaError,
+    upToDate: !!meta && !!latestSha && meta.sha === latestSha,
+  };
+}
+
 export function startBotUpdateChecker() {
-  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
+  checkForUpdates().catch((err) => console.error("Initial bot update check failed:", err.message));
+  setInterval(() => {
+    checkForUpdates().catch((err) => console.error("Bot update check failed:", err.message));
+  }, UPDATE_CHECK_INTERVAL_MS);
 }
 
 // Fast per-deployment setup once the template exists: copy the (small)
@@ -342,6 +369,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
       if (/^Connected to\s*:/i.test(line)) {
         setStatus("connected", { connectedAt: Date.now(), lastError: null });
         if (!entry.backupTimer) {
+          backupSessionFiles(workDir, botId); // capture it right away — don't wait for the first interval tick
           entry.backupTimer = setInterval(() => backupSessionFiles(workDir, botId), SESSION_BACKUP_INTERVAL_MS);
         }
         return;
@@ -510,4 +538,5 @@ export {
   deployBot, listBotsForUser, getBotStatus, stopBot, restartBot, deleteBot,
   countActiveBots, MAX_ACTIVE_BOTS, countBotsForUser, MAX_INSTANCES_PER_USER,
   adminStopBot, adminRestartBot, adminDeleteBot, adminListDeployingUsers, adminListBotsForUser,
+  checkForUpdates, getTemplateStatus,
 };

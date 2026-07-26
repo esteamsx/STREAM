@@ -23,6 +23,7 @@ import {
   deployBot, listBotsForUser, getBotStatus, stopBot, restartBot, deleteBot,
   countActiveBots, MAX_ACTIVE_BOTS, countBotsForUser, MAX_INSTANCES_PER_USER, restoreBotsOnBoot, startBotUpdateChecker,
   adminStopBot, adminRestartBot, adminDeleteBot, adminListDeployingUsers, adminListBotsForUser,
+  checkForUpdates, getTemplateStatus,
 } from "./bots.js";
 import QRCode from "qrcode";
 import {
@@ -3577,6 +3578,21 @@ app.delete("/api/admin/bots/:id", requireAuth, requireAdmin, async (req, res) =>
   }
 });
 
+app.get("/api/admin/bots/template-status", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await getTemplateStatus());
+  } catch (err) {
+    res.status(500).json({ error: "Could not check template status." });
+  }
+});
+
+app.post("/api/admin/bots/check-updates", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await checkForUpdates());
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Update check failed." });
+  }
+});
 
 
 
