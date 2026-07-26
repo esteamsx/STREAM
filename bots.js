@@ -63,7 +63,8 @@ function stripAnsi(s) {
 }
 
 function pushLog(entry, line) {
-  entry.logs.push(line);
+  const trimmed = line.length > 2000 ? line.slice(0, 2000) + "…" : line;
+  entry.logs.push(trimmed);
   if (entry.logs.length > LOG_LINES_KEPT) entry.logs.splice(0, entry.logs.length - LOG_LINES_KEPT);
 }
 
@@ -349,7 +350,8 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
 
   fs.mkdirSync(workDir, { recursive: true });
 
-  const setStatus = (status, extra = {}) => ref.update({ status, updatedAt: Date.now(), ...extra }).catch(() => {});
+  const setStatus = (status, extra = {}) =>
+    ref.update({ status, updatedAt: Date.now(), logs: entry.logs.slice(-150), ...extra }).catch(() => {});
 
   if (!templateExists()) pushLog(entry, "Preparing shared files (first deploy on this server — this one's slower, later ones won't be)…");
   await ensureTemplate(async (stage) => {
@@ -419,7 +421,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
       if (entry.stoppedByUser) return; // stopBot() already set the final status
       ref.get().then((snap) => {
         if (snap.exists && ["needs_repair", "disconnected"].includes(snap.data().status)) return; // already handled above
-        ref.update({ status: "crashed", lastError: `Process exited (code ${code}).`, updatedAt: Date.now() }).catch(() => {});
+        ref.update({ status: "crashed", lastError: `Process exited (code ${code}).`, logs: entry.logs.slice(-150), updatedAt: Date.now() }).catch(() => {});
       }).catch(() => {});
     });
   });
@@ -436,7 +438,7 @@ async function listBotsForUser(uid) {
 async function getBotStatus(uid, botId) {
   const { data } = await getBotDoc(uid, botId);
   const entry = running.get(botId);
-  return { ...data, id: botId, logs: entry ? entry.logs : [] };
+  return { ...data, id: botId, logs: entry ? entry.logs : (data.logs || []) };
 }
 
 async function _stopBotDoc(ref, data) {
@@ -446,24 +448,22 @@ async function _stopBotDoc(ref, data) {
     if (entry.backupTimer) clearInterval(entry.backupTimer);
     if (entry.proc) entry.proc.kill("SIGTERM");
   }
-  await ref.update({ status: "stopped", stoppedByUser: true, updatedAt: Date.now() });
+  const update = { status: "stopped", stoppedByUser: true, updatedAt: Date.now() };
+  if (entry) update.logs = entry.logs.slice(-150);
+  await ref.update(update);
   return { ok: true };
 }
 
 async function _restartBotDoc(ref, data, { skipTemplateCheck = false } = {}) {
   if (running.has(ref.id)) await _stopBotDoc(ref, data);
 
-  // Fresh redeploy, not a resume: pick up the latest commit, and drop the
-  // saved session so this starts completely clean — a new pairing code,
-  // not a silent reconnect to whatever was there before.
+  // Latest code, same session: pick up any new commit, but reconnect using
+  // the saved WhatsApp credentials rather than forcing a fresh pairing
+  // code on every restart.
   if (!skipTemplateCheck) await ensureLatestTemplate();
-  await ref.update({
-    status: "starting", stoppedByUser: false, lastError: null, pairingCode: null,
-    sessionFiles: admin.firestore.FieldValue.delete(), updatedAt: Date.now(),
-  });
-  try { fs.rmSync(path.join(BOTS_ROOT, ref.id, SESSION_DIR_NAME), { recursive: true, force: true }); } catch { /* fine if it wasn't there */ }
+  await ref.update({ status: "starting", stoppedByUser: false, lastError: null, pairingCode: null, updatedAt: Date.now() });
 
-  runDeployment(ref.id, data.uid, data.phoneNumber, { isRestore: false }).catch((err) => {
+  runDeployment(ref.id, data.uid, data.phoneNumber, { isRestore: true }).catch((err) => {
     ref.update({ status: "crashed", lastError: err.message, updatedAt: Date.now() }).catch(() => {});
   });
   return { ok: true };

@@ -1071,7 +1071,7 @@ async function refreshBotsModal(targetUid){
 async function runBotAction(botId, targetUid, act, btn){
   const confirmText = {
     stop: ['Stop this bot?', 'It stays deployed — the owner can restart it later without re-pairing.'],
-    restart: ['Restart this bot?', 'This pulls the latest code and starts fresh — the current WhatsApp session is cleared, so a new pairing code will be needed.'],
+    restart: ['Restart this bot?', 'This pulls the latest code and reconnects using its saved session — no new pairing code needed unless that session is no longer valid.'],
     delete: ['Delete this deployment?', 'This stops the bot and permanently removes it. This cannot be undone.'],
   }[act];
   const ok = await askConfirm(confirmText[0], confirmText[1]);
