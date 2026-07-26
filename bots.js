@@ -62,9 +62,9 @@ function stripAnsi(s) {
   return s.replace(/\x1b\[[0-9;]*m/g, "");
 }
 
-function pushLog(entry, line) {
+function pushLog(entry, line, type = "out") {
   const trimmed = line.length > 2000 ? line.slice(0, 2000) + "…" : line;
-  entry.logs.push(trimmed);
+  entry.logs.push({ t: type, l: trimmed });
   if (entry.logs.length > LOG_LINES_KEPT) entry.logs.splice(0, entry.logs.length - LOG_LINES_KEPT);
 }
 
@@ -371,16 +371,19 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   pushLog(entry, "Starting bot…");
   await setStatus("starting");
 
+  const childEnv = { ...process.env, PHONE_NUMBER: phoneNumber };
+  delete childEnv.PORT; // avoid every bot process fighting over the main site's port
+
   const proc = spawn("node", ["index.js"], {
     cwd: workDir,
-    env: { ...process.env, PHONE_NUMBER: phoneNumber },
+    env: childEnv,
   });
   entry.proc = proc;
 
-  const onOutput = (buf) => {
+  const onOutput = (buf, type) => {
     const clean = stripAnsi(buf.toString());
     clean.split(/\r?\n/).filter(Boolean).forEach((line) => {
-      pushLog(entry, line);
+      pushLog(entry, line, type);
 
       const codeMatch = line.match(/Pairing Code\s*:\s*([A-Za-z0-9-]{4,20})/i);
       if (codeMatch) {
@@ -412,8 +415,8 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
       }
     });
   };
-  proc.stdout.on("data", onOutput);
-  proc.stderr.on("data", onOutput);
+  proc.stdout.on("data", (buf) => onOutput(buf, "out"));
+  proc.stderr.on("data", (buf) => onOutput(buf, "err"));
 
   proc.on("exit", (code) => {
     if (entry.backupTimer) clearInterval(entry.backupTimer);
