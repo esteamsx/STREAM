@@ -177,6 +177,19 @@ input{font-family:inherit}
 .ad-bot-card-actions{display:flex;gap:6px}
 .ad-bot-card-actions button{flex:1;padding:7px;font-size:.72rem;border-radius:8px}
 
+.ad-tpl-status{
+  display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:12px;
+  padding:10px 12px;background:var(--card2);border:1px solid var(--border);border-radius:10px;
+  font-size:.76rem;color:var(--muted);
+}
+.ad-tpl-status.stale{color:#FFB020}
+.ad-tpl-status.current{color:#3DDC84}
+.ad-tpl-check-btn{
+  flex-shrink:0;background:transparent;border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:6px 12px;font-size:.72rem;font-weight:700;
+}
+.ad-tpl-check-btn:disabled{opacity:.5}
+
 .ad-toast{
   position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card2);
   border:1px solid var(--border-strong);color:var(--text);padding:11px 18px;border-radius:12px;font-size:.82rem;
@@ -258,6 +271,10 @@ input{font-family:inherit}
       <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
     </div>
     <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="ad-tpl-status" id="tplStatusRow">
+        <span id="tplStatusText">Checking template status…</span>
+        <button type="button" class="ad-tpl-check-btn" id="tplCheckBtn">Check now</button>
+      </div>
       <div class="ad-list" id="botsUsersList"></div>
     </div></div>
   </div>
@@ -903,6 +920,64 @@ function renderBotUserRow(u){
   return row;
 }
 
+function formatTplTime(ms){
+  if (!ms) return 'never';
+  const mins = Math.round((Date.now() - ms) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.round(hrs / 24) + 'd ago';
+}
+
+async function loadTemplateStatus(){
+  const row = document.getElementById('tplStatusRow');
+  const text = document.getElementById('tplStatusText');
+  try {
+    const data = await getJSON('/api/admin/bots/template-status');
+    if (!data.exists) {
+      row.className = 'ad-tpl-status';
+      text.textContent = 'No template built yet — nothing deployed so far.';
+    } else if (data.latestShaError) {
+      row.className = 'ad-tpl-status stale';
+      text.textContent = 'Running ' + (data.currentSha || '?').slice(0, 7) + ' — could not reach GitHub to compare (' + data.latestShaError + ').';
+    } else if (data.upToDate) {
+      row.className = 'ad-tpl-status current';
+      text.textContent = 'Up to date (' + data.currentSha.slice(0, 7) + ') — built ' + formatTplTime(data.builtAt) + '.';
+    } else {
+      row.className = 'ad-tpl-status stale';
+      text.textContent = 'Update available: running ' + (data.currentSha || '?').slice(0, 7) + ', latest is ' + data.latestSha.slice(0, 7) + '.';
+    }
+  } catch (err) {
+    row.className = 'ad-tpl-status stale';
+    text.textContent = 'Could not load template status.';
+  }
+}
+
+document.getElementById('tplCheckBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('tplCheckBtn');
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Checking…';
+  try {
+    const result = await postJSON('/api/admin/bots/check-updates');
+    if (!result.checked) {
+      showToast(result.reason || 'Could not check right now.');
+    } else if (result.updated) {
+      showToast('Updated to ' + result.currentSha.slice(0, 7) + ' — restarted ' + result.restarted + ' bot(s).');
+      loadBotsUsers();
+    } else {
+      showToast('Already up to date.');
+    }
+    loadTemplateStatus();
+  } catch (err) {
+    showToast(err.message || 'Update check failed.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+
 async function loadBotsUsers(){
   const list = document.getElementById('botsUsersList');
   const countEl = document.getElementById('botsUsersCount');
@@ -1047,6 +1122,7 @@ loadUsersPage(true);
 loadBannedUsers();
 loadVerifyPage(true);
 loadBotsUsers();
+loadTemplateStatus();
 
 })();
 </script>
