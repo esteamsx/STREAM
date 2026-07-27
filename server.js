@@ -182,6 +182,11 @@ app.use((req, res, next) => {
 });
 app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
 
+// Cheap keep-alive target for an external uptime pinger (e.g. UptimeRobot,
+// cron-job.org) — hit this every 5-10 min to stop Render's free tier from
+// sleeping. Placed before rate limiters/auth so it stays fast and unblocked.
+app.get("/health", (req, res) => res.status(200).send("ok"));
+
 const signupLimiter = new SimpleRateLimiter(8, 15 * 60 * 1000).middleware(); // signup + verify + resend: 8 / 15min
 const loginLimiter = new SimpleRateLimiter(8, 15 * 60 * 1000).middleware(); // login sessions: 8 / 15min
 const resetLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000).middleware(); // password reset flow: 5 / 15min
@@ -5056,6 +5061,21 @@ setInterval(() => {
 setInterval(() => {
   growAdminFollowerCount().catch((err) => console.error("Admin follower growth failed:", err));
 }, 60 * 60 * 1000);
+
+//============== SITE KEEP-ALIVE (same pattern as the Telegram bot) ==============//
+// Set SELF_URL in Render's env vars to this service's own public URL,
+// e.g. https://your-app.onrender.com — pings itself every 4 min so Render's
+// free tier never sees 15 min of inbound silence and spins the dyno down.
+const SELF_URL = process.env.SELF_URL || `http://localhost:${process.env.PORT || 3000}`;
+
+setInterval(async () => {
+  try {
+    await fetch(`${SELF_URL}/health`);
+    console.log("✅ ES TEAMS TV IS PINGING...");
+  } catch (err) {
+    console.error("❌ ES TEAMS TV PING FAILED:", err.message);
+  }
+}, 240000); // every 4 minutes
 
 app.listen(process.env.PORT || 3000, function(){
   console.log("ES TEAMS TV running on port " + (process.env.PORT || 3000));
