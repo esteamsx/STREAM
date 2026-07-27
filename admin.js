@@ -1150,14 +1150,18 @@ async function loadStorage(){
   const list = document.getElementById('storageList');
   try {
     const data = await getJSON('/api/admin/system/storage');
-    // No confirmed quota to compare against on Render's free tier, so this
-    // is a rough "getting large" line, not a real percentage-of-limit.
+    // No confirmed quota to compare against on Render's free tier, so the
+    // bar is scaled against a soft 1GB reference just to give it a visual
+    // sense of scale — the MB number itself is the real, honest figure.
+    const REFERENCE_MB = 1024;
+    const pct = Math.min((data.usedMB / REFERENCE_MB) * 100, 100);
     const warn = data.usedMB >= 500;
     list.innerHTML =
       '<div class="ad-storage-row">' +
-        '<div class="ad-storage-label"><span' + (warn ? ' style="color:var(--red)"' : '') + '>' + data.usedMB + ' MB</span>' +
+        '<div class="ad-storage-label"><span>' + data.usedMB + ' MB used</span>' +
         '<span class="ad-storage-amt">' + data.activeDeployments + ' active deployment' + (data.activeDeployments === 1 ? '' : 's') + '</span></div>' +
-        '<div class="ad-storage-sub" style="font-size:.72rem;color:var(--muted)">Disk used by downloaded bot templates and saved sessions.</div>' +
+        '<div class="ad-storage-track"><div class="ad-storage-fill' + (warn ? ' warn' : '') + '" style="width:' + pct + '%"></div></div>' +
+        '<div class="ad-storage-sub" style="font-size:.72rem;color:var(--muted);margin-top:6px">Disk used by downloaded bot templates and saved sessions.</div>' +
       '</div>';
   } catch (err) {
     list.innerHTML = '<div class="ad-empty">Could not load storage info.</div>';
