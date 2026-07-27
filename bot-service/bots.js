@@ -43,7 +43,7 @@ const TEMPLATE_DIR = path.join(BOTS_ROOT, "_template");
 const TEMPLATE_MARKER = path.join(TEMPLATE_DIR, ".built-meta.json");
 const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // background safety net — "Check now" in admin is the immediate option
 const SESSION_DIR_NAME = "ES_TEAMS-SESSION";
-const MAX_ACTIVE_BOTS = 100;
+const MAX_ACTIVE_BOTS = 10; // 512MB free tier — 100 was an OOM crash waiting to happen
 const MAX_INSTANCES_PER_USER = 3; // admin (isAdminEmail) bypasses this; the global 100 cap above still applies to everyone
 // Every one of these counts as "in progress or running" for the cap and
 // for boot-time restore — including the fast-moving download/extract/
