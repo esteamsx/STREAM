@@ -50,7 +50,7 @@ const MAX_INSTANCES_PER_USER = 1; // admin (isAdminEmail) bypasses this; the glo
 // install stages, which mostly only appear on the very first deploy.
 const ACTIVE_STATUSES = ["downloading", "extracting", "installing", "starting", "pairing", "connected", "reconnecting"];
 const LOG_LINES_KEPT = 300;
-const SESSION_BACKUP_INTERVAL_MS = 2 * 60 * 1000;
+const SESSION_BACKUP_INTERVAL_MS = 30 * 1000; // shorter than before — the wider this gap, the more stale a restart's restored session can be, which is what triggers Signal ratchet desync (Bad MAC errors)
 
 // uid+botId -> { proc, logs: string[], stoppedByUser: bool, backupTimer }
 // In-memory only — this is process state (a running child process can't be
@@ -408,6 +408,18 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
       }
       if (/Delete Session and Scan again/i.test(line)) {
         setStatus("needs_repair", { lastError: "Session invalid — restart to get a new pairing code." });
+        return;
+      }
+      // A Signal-protocol ratchet desync (usually from restoring a
+      // slightly-stale session backup after a restart) — WhatsApp shows
+      // "Connected" at the transport level while every message silently
+      // fails to decrypt. A couple of isolated Bad MAC lines can be a
+      // one-off blip, so only flag it once it's clearly persistent.
+      if (/Bad MAC|Failed to decrypt message with any known session/i.test(line)) {
+        entry.badMacCount = (entry.badMacCount || 0) + 1;
+        if (entry.badMacCount >= 3) {
+          setStatus("needs_repair", { lastError: "Session out of sync with WhatsApp (messages failing to decrypt) — restart to get a new pairing code." });
+        }
         return;
       }
       // The bot's own reconnect logic only covers connectionLost/Closed/
