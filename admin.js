@@ -133,9 +133,9 @@ input{font-family:inherit}
 /* confirmOverlay can be opened from *within* another overlay (e.g. the
    bots modal's stop/restart/delete buttons) — .ad-overlay's shared z-index
    means DOM order decides stacking, and confirmOverlay is earlier in the
-   markup than botsOverlay, so without this it rendered behind it and was
-   unreachable until the other overlay was closed first. */
-#confirmOverlay{z-index:80}
+   markup than botsOverlay, so it renders behind it. Reverted the z-index
+   override per request — back to original behavior (close the bots
+   overlay first, then the confirm prompt is visible underneath). */
 
 .ad-storage-row{margin-bottom:16px}
 .ad-storage-row:last-child{margin-bottom:0}
@@ -296,7 +296,7 @@ input{font-family:inherit}
   <div class="ad-card" id="storageCard">
     <div class="ad-card-header" id="storageHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
-      <div class="ad-card-header-title">Storage</div>
+      <div class="ad-card-header-title">Bot Deployment Storage</div>
       <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
     </div>
     <div class="ad-card-body"><div class="ad-card-body-inner">
@@ -1150,23 +1150,15 @@ async function loadStorage(){
   const list = document.getElementById('storageList');
   try {
     const data = await getJSON('/api/admin/system/storage');
-    list.innerHTML = '';
-    data.services.forEach((svc) => {
-      const row = document.createElement('div');
-      row.className = 'ad-storage-row';
-      if (svc.error) {
-        row.innerHTML =
-          '<div class="ad-storage-label"><span>' + svc.name + '</span></div>' +
-          '<div class="ad-storage-err">' + svc.error + '</div>';
-      } else {
-        const warn = svc.percent >= 85;
-        row.innerHTML =
-          '<div class="ad-storage-label"><span>' + svc.name + '</span>' +
-          '<span class="ad-storage-amt">' + svc.usedGB + ' / ' + svc.totalGB + ' GB (' + svc.percent + '%)</span></div>' +
-          '<div class="ad-storage-track"><div class="ad-storage-fill' + (warn ? ' warn' : '') + '" style="width:' + Math.min(svc.percent, 100) + '%"></div></div>';
-      }
-      list.appendChild(row);
-    });
+    // No confirmed quota to compare against on Render's free tier, so this
+    // is a rough "getting large" line, not a real percentage-of-limit.
+    const warn = data.usedMB >= 500;
+    list.innerHTML =
+      '<div class="ad-storage-row">' +
+        '<div class="ad-storage-label"><span' + (warn ? ' style="color:var(--red)"' : '') + '>' + data.usedMB + ' MB</span>' +
+        '<span class="ad-storage-amt">' + data.activeDeployments + ' active deployment' + (data.activeDeployments === 1 ? '' : 's') + '</span></div>' +
+        '<div class="ad-storage-sub" style="font-size:.72rem;color:var(--muted)">Disk used by downloaded bot templates and saved sessions.</div>' +
+      '</div>';
   } catch (err) {
     list.innerHTML = '<div class="ad-empty">Could not load storage info.</div>';
   }

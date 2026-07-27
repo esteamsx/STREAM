@@ -31,26 +31,28 @@ app.use((req, res, next) => {
 
 app.get("/internal/health", (req, res) => res.status(200).send("ok"));
 
-function getDiskUsage() {
+// df on a shared host reports the WHOLE machine's disk, not this
+// container's slice — that's why it showed ~84% full on both services
+// regardless of how many bots were deployed. This measures the one thing
+// that actually matters: how much space your bot deployments themselves
+// are using (their downloaded template + session files).
+function getBotDeploymentsUsage() {
   return new Promise((resolve) => {
-    exec("df -k .", (err, stdout) => {
-      if (err) return resolve(null);
-      const line = stdout.trim().split("\n")[1];
-      if (!line) return resolve(null);
-      const parts = line.split(/\s+/);
-      const totalKB = parseInt(parts[1], 10);
-      const usedKB = parseInt(parts[2], 10);
-      const percent = parseInt(parts[4], 10);
-      if (!Number.isFinite(totalKB) || !Number.isFinite(usedKB) || !Number.isFinite(percent)) return resolve(null);
-      resolve({ usedGB: +(usedKB / 1024 / 1024).toFixed(2), totalGB: +(totalKB / 1024 / 1024).toFixed(2), percent });
+    exec("du -sk .bot-deployments", (err, stdout) => {
+      if (err) return resolve(0); // folder doesn't exist yet — nothing deployed
+      const kb = parseInt(stdout.trim().split(/\s+/)[0], 10);
+      resolve(Number.isFinite(kb) ? +(kb / 1024).toFixed(1) : 0);
     });
   });
 }
 
 app.get("/internal/system/storage", async (req, res) => {
-  const usage = await getDiskUsage();
-  if (!usage) return res.status(500).json({ error: "Could not read disk usage." });
-  res.json(usage);
+  try {
+    const [usedMB, active] = await Promise.all([getBotDeploymentsUsage(), countActiveBots()]);
+    res.json({ usedMB, activeDeployments: active });
+  } catch (err) {
+    res.status(500).json({ error: "Could not read bot deployment storage." });
+  }
 });
 
 // ── Per-user bot management (uid supplied by the main site, which has
@@ -180,4 +182,16 @@ app.listen(PORT, () => {
   console.log(`🤖 Bot service listening on port ${PORT}`);
   startBotUpdateChecker();
   restoreBotsOnBoot().catch((err) => console.error("Bot restore-on-boot failed:", err));
+
+  // Render tracks inactivity PER service — the main site staying awake
+  // doesn't keep this one awake too. Set SELF_URL to this service's own
+  // public Render URL (same idea as the main site's keep-alive) so it
+  // doesn't spin down and cause the first bot deploy/action after a nap
+  // to fail or time out.
+  const SELF_URL = process.env.SELF_URL || `http://localhost:${PORT}`;
+  setInterval(() => {
+    fetch(`${SELF_URL}/internal/health`)
+      .then(() => console.log("✅ Bot service self-ping OK"))
+      .catch((err) => console.error("❌ Bot service self-ping failed:", err.message));
+  }, 240000); // every 4 minutes
 });
