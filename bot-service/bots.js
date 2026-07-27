@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import https from "https";
 import { spawn, exec } from "child_process";
-import { db } from "./firebase.js";
+import { db } from "./bot-firebase.js";
 import admin from "firebase-admin";
 
 // ── WhatsApp bot deployment engine ──────────────────────────────────────
