@@ -130,7 +130,21 @@ input{font-family:inherit}
   display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;
   transition:opacity .25s var(--ease);
 }
-.ad-overlay.show{opacity:1;pointer-events:auto}
+/* confirmOverlay can be opened from *within* another overlay (e.g. the
+   bots modal's stop/restart/delete buttons) — .ad-overlay's shared z-index
+   means DOM order decides stacking, and confirmOverlay is earlier in the
+   markup than botsOverlay, so without this it rendered behind it and was
+   unreachable until the other overlay was closed first. */
+#confirmOverlay{z-index:80}
+
+.ad-storage-row{margin-bottom:16px}
+.ad-storage-row:last-child{margin-bottom:0}
+.ad-storage-label{display:flex;justify-content:space-between;align-items:baseline;font-size:.85rem;font-weight:700;margin-bottom:7px}
+.ad-storage-amt{font-size:.74rem;color:var(--muted);font-weight:600}
+.ad-storage-track{height:10px;border-radius:6px;background:var(--card2);overflow:hidden;border:1px solid var(--border)}
+.ad-storage-fill{height:100%;border-radius:6px;transition:width .4s var(--ease);background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.ad-storage-fill.warn{background:var(--red)}
+.ad-storage-err{font-size:.78rem;color:var(--muted)}
 .ad-modal{
   width:100%;max-width:340px;background:var(--card);border:1px solid var(--border-strong);border-radius:18px;
   padding:24px 22px;transform:translateY(10px) scale(.97);transition:transform .25s var(--ease);
@@ -279,6 +293,17 @@ input{font-family:inherit}
     </div></div>
   </div>
 
+  <div class="ad-card" id="storageCard">
+    <div class="ad-card-header" id="storageHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
+      <div class="ad-card-header-title">Storage</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div id="storageList"><div class="ad-empty">Loading…</div></div>
+    </div></div>
+  </div>
+
 </div>
 
 <!-- Reset password overlay -->
@@ -377,6 +402,9 @@ document.getElementById('verifyHeader').addEventListener('click', () => {
 });
 document.getElementById('botsHeader').addEventListener('click', () => {
   document.getElementById('botsCard').classList.toggle('open');
+});
+document.getElementById('storageHeader').addEventListener('click', () => {
+  document.getElementById('storageCard').classList.toggle('open');
 });
 
 /* ── icons ── */
@@ -1118,11 +1146,38 @@ document.getElementById('botsModalCloseBtn').addEventListener('click', () => {
   }
 })();
 
+async function loadStorage(){
+  const list = document.getElementById('storageList');
+  try {
+    const data = await getJSON('/api/admin/system/storage');
+    list.innerHTML = '';
+    data.services.forEach((svc) => {
+      const row = document.createElement('div');
+      row.className = 'ad-storage-row';
+      if (svc.error) {
+        row.innerHTML =
+          '<div class="ad-storage-label"><span>' + svc.name + '</span></div>' +
+          '<div class="ad-storage-err">' + svc.error + '</div>';
+      } else {
+        const warn = svc.percent >= 85;
+        row.innerHTML =
+          '<div class="ad-storage-label"><span>' + svc.name + '</span>' +
+          '<span class="ad-storage-amt">' + svc.usedGB + ' / ' + svc.totalGB + ' GB (' + svc.percent + '%)</span></div>' +
+          '<div class="ad-storage-track"><div class="ad-storage-fill' + (warn ? ' warn' : '') + '" style="width:' + Math.min(svc.percent, 100) + '%"></div></div>';
+      }
+      list.appendChild(row);
+    });
+  } catch (err) {
+    list.innerHTML = '<div class="ad-empty">Could not load storage info.</div>';
+  }
+}
+
 loadUsersPage(true);
 loadBannedUsers();
 loadVerifyPage(true);
 loadBotsUsers();
 loadTemplateStatus();
+loadStorage();
 
 })();
 </script>

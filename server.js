@@ -3,6 +3,7 @@ import crypto from "crypto";
 import compression from "compression";
 import fs from "fs";
 import path from "path";
+import { exec } from "child_process";
 import cookieParser from "cookie-parser";
 import "dotenv/config";
 import { fileURLToPath } from "url";
@@ -19,12 +20,46 @@ import { renderAdmin } from "./admin.js";
 import { domainLock } from "./lock.js";
 import { apiRouter } from "./api.js";
 import { renderDeployBot } from "./deploy-bot.js";
-import {
-  deployBot, listBotsForUser, getBotStatus, stopBot, restartBot, deleteBot,
-  countActiveBots, MAX_ACTIVE_BOTS, countBotsForUser, MAX_INSTANCES_PER_USER, restoreBotsOnBoot, startBotUpdateChecker,
-  adminStopBot, adminRestartBot, adminDeleteBot, adminListDeployingUsers, adminListBotsForUser,
-  checkForUpdates, getTemplateStatus,
-} from "./bots.js";
+
+// ── Bot deployment now lives in its own Render service (see /bot-service),
+// so a memory-hungry bot process can't crash the main site anymore. This
+// site only proxies requests to it, authenticated with a shared secret —
+// set BOT_SERVICE_URL and INTERNAL_API_KEY (same value on both services)
+// in this service's Render env vars.
+const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+async function botServiceFetch(pathAndQuery, options = {}) {
+  if (!BOT_SERVICE_URL || !INTERNAL_API_KEY) {
+    throw Object.assign(new Error("Bot service is not configured."), { status: 503 });
+  }
+  const resp = await fetch(`${BOT_SERVICE_URL}${pathAndQuery}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY, ...(options.headers || {}) },
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw Object.assign(new Error(data.error || "Bot service request failed."), { status: resp.status });
+  return data;
+}
+
+// Reads this container's own disk usage via `df` — used for the admin
+// panel's storage bar. Render's free tier gives a fixed, small disk per
+// service, so this is what tells you you're about to run out (separate
+// from the RAM/OOM concern the bot split addressed).
+function getDiskUsage() {
+  return new Promise((resolve) => {
+    exec("df -k .", (err, stdout) => {
+      if (err) return resolve(null);
+      const line = stdout.trim().split("\n")[1];
+      if (!line) return resolve(null);
+      const parts = line.split(/\s+/);
+      const totalKB = parseInt(parts[1], 10);
+      const usedKB = parseInt(parts[2], 10);
+      const percent = parseInt(parts[4], 10);
+      if (!Number.isFinite(totalKB) || !Number.isFinite(usedKB) || !Number.isFinite(percent)) return resolve(null);
+      resolve({ usedGB: +(usedKB / 1024 / 1024).toFixed(2), totalGB: +(totalKB / 1024 / 1024).toFixed(2), percent });
+    });
+  });
+}
 import QRCode from "qrcode";
 import {
   issueCode,
@@ -3530,7 +3565,7 @@ app.post("/api/admin/users/:uid/reset-password", requireAuth, requireAdmin, asyn
 
 app.get("/api/admin/bots/users", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const rows = await adminListDeployingUsers();
+    const { users: rows } = await botServiceFetch("/internal/admin/bots/users");
     const enriched = await Promise.all(rows.map(async (r) => {
       const profile = await getUserProfile(r.uid).catch(() => null);
       return {
@@ -3546,57 +3581,70 @@ app.get("/api/admin/bots/users", requireAuth, requireAdmin, async (req, res) => 
     }));
     res.json({ users: enriched });
   } catch (err) {
-    res.status(500).json({ error: "Could not load deploying users." });
+    res.status(err.status || 500).json({ error: "Could not load deploying users." });
   }
 });
 
 app.get("/api/admin/bots/users/:uid", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const bots = await adminListBotsForUser(req.params.uid);
-    res.json({ bots });
+    res.json(await botServiceFetch(`/internal/admin/bots/users/${req.params.uid}`));
   } catch (err) {
-    res.status(500).json({ error: "Could not load that user's deployments." });
+    res.status(err.status || 500).json({ error: "Could not load that user's deployments." });
   }
 });
 
 app.post("/api/admin/bots/:id/stop", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await adminStopBot(req.params.id));
+    res.json(await botServiceFetch(`/internal/admin/bots/${req.params.id}/stop`, { method: "POST" }));
   } catch (err) {
-    res.status(400).json({ error: err.message || "Could not stop that deployment." });
+    res.status(err.status || 400).json({ error: err.message || "Could not stop that deployment." });
   }
 });
 
 app.post("/api/admin/bots/:id/restart", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await adminRestartBot(req.params.id));
+    res.json(await botServiceFetch(`/internal/admin/bots/${req.params.id}/restart`, { method: "POST" }));
   } catch (err) {
-    res.status(400).json({ error: err.message || "Could not restart that deployment." });
+    res.status(err.status || 400).json({ error: err.message || "Could not restart that deployment." });
   }
 });
 
 app.delete("/api/admin/bots/:id", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await adminDeleteBot(req.params.id));
+    res.json(await botServiceFetch(`/internal/admin/bots/${req.params.id}`, { method: "DELETE" }));
   } catch (err) {
-    res.status(400).json({ error: err.message || "Could not delete that deployment." });
+    res.status(err.status || 400).json({ error: err.message || "Could not delete that deployment." });
   }
 });
 
 app.get("/api/admin/bots/template-status", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await getTemplateStatus());
+    res.json(await botServiceFetch("/internal/admin/bots/template-status"));
   } catch (err) {
-    res.status(500).json({ error: "Could not check template status." });
+    res.status(err.status || 500).json({ error: "Could not check template status." });
   }
 });
 
 app.post("/api/admin/bots/check-updates", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await checkForUpdates());
+    res.json(await botServiceFetch("/internal/admin/bots/check-updates", { method: "POST" }));
   } catch (err) {
-    res.status(500).json({ error: err.message || "Update check failed." });
+    res.status(err.status || 500).json({ error: err.message || "Update check failed." });
   }
+});
+
+// Disk usage for every Render service, for the admin panel's storage bar.
+app.get("/api/admin/system/storage", requireAuth, requireAdmin, async (req, res) => {
+  const services = [];
+  const mine = await getDiskUsage();
+  services.push({ name: "Main Site", ...(mine || { error: "Could not read disk usage." }) });
+  try {
+    const botStorage = await botServiceFetch("/internal/system/storage");
+    services.push({ name: "Bot Service", ...botStorage });
+  } catch (err) {
+    services.push({ name: "Bot Service", error: err.message || "Unreachable." });
+  }
+  res.json({ services });
 });
 
 
@@ -3624,62 +3672,66 @@ app.get("/deploy-bot", (req, res) => {
 app.get("/api/bots/cap", requireAuth, async (req, res) => {
   try {
     const isAdmin = isAdminEmail(req.userProfile?.email);
-    const [active, mine] = await Promise.all([countActiveBots(), countBotsForUser(req.uid)]);
-    res.json({ active, max: MAX_ACTIVE_BOTS, mine, maxMine: isAdmin ? null : MAX_INSTANCES_PER_USER, isAdmin });
+    res.json(await botServiceFetch(`/internal/bots/cap?uid=${encodeURIComponent(req.uid)}&isAdmin=${isAdmin}`));
   } catch (err) {
-    res.status(500).json({ error: "Could not load deployment capacity." });
+    res.status(err.status || 500).json({ error: "Could not load deployment capacity." });
   }
 });
 
 app.get("/api/bots", requireAuth, async (req, res) => {
   try {
-    const bots = await listBotsForUser(req.uid);
-    res.json({ bots });
+    res.json(await botServiceFetch(`/internal/bots?uid=${encodeURIComponent(req.uid)}`));
   } catch (err) {
-    res.status(500).json({ error: "Could not load your deployments." });
+    res.status(err.status || 500).json({ error: "Could not load your deployments." });
   }
 });
 
 app.post("/api/bots/deploy", requireAuth, botDeployLimiter, async (req, res) => {
   try {
     const isAdmin = isAdminEmail(req.userProfile?.email);
-    const result = await deployBot(req.uid, req.body || {}, isAdmin);
+    const result = await botServiceFetch("/internal/bots/deploy", {
+      method: "POST",
+      body: JSON.stringify({ ...(req.body || {}), uid: req.uid, isAdmin }),
+    });
     res.json(result);
   } catch (err) {
-    res.status(400).json({ error: err.message || "Deploy failed." });
+    res.status(err.status || 400).json({ error: err.message || "Deploy failed." });
   }
 });
 
 app.get("/api/bots/:id/status", requireAuth, botStatusLimiter, async (req, res) => {
   try {
-    const status = await getBotStatus(req.uid, req.params.id);
-    res.json(status);
+    res.json(await botServiceFetch(`/internal/bots/${req.params.id}/status?uid=${encodeURIComponent(req.uid)}`));
   } catch (err) {
-    res.status(404).json({ error: err.message || "Deployment not found." });
+    res.status(err.status || 404).json({ error: err.message || "Deployment not found." });
   }
 });
 
 app.post("/api/bots/:id/stop", requireAuth, botActionLimiter, async (req, res) => {
   try {
-    res.json(await stopBot(req.uid, req.params.id));
+    res.json(await botServiceFetch(`/internal/bots/${req.params.id}/stop`, {
+      method: "POST", body: JSON.stringify({ uid: req.uid }),
+    }));
   } catch (err) {
-    res.status(400).json({ error: err.message || "Could not stop deployment." });
+    res.status(err.status || 400).json({ error: err.message || "Could not stop deployment." });
   }
 });
 
 app.post("/api/bots/:id/restart", requireAuth, botActionLimiter, async (req, res) => {
   try {
-    res.json(await restartBot(req.uid, req.params.id));
+    res.json(await botServiceFetch(`/internal/bots/${req.params.id}/restart`, {
+      method: "POST", body: JSON.stringify({ uid: req.uid }),
+    }));
   } catch (err) {
-    res.status(400).json({ error: err.message || "Could not restart deployment." });
+    res.status(err.status || 400).json({ error: err.message || "Could not restart deployment." });
   }
 });
 
 app.delete("/api/bots/:id", requireAuth, botActionLimiter, async (req, res) => {
   try {
-    res.json(await deleteBot(req.uid, req.params.id));
+    res.json(await botServiceFetch(`/internal/bots/${req.params.id}?uid=${encodeURIComponent(req.uid)}`, { method: "DELETE" }));
   } catch (err) {
-    res.status(400).json({ error: err.message || "Could not delete deployment." });
+    res.status(err.status || 400).json({ error: err.message || "Could not delete deployment." });
   }
 });
 
@@ -5049,9 +5101,6 @@ sweepPendingDeletions().catch((err) => console.error("Deletion sweep failed:", e
 setInterval(() => {
   sweepPendingDeletions().catch((err) => console.error("Deletion sweep failed:", err));
 }, 5 * 60 * 1000);
-
-restoreBotsOnBoot().catch((err) => console.error("Bot restore-on-boot failed:", err));
-startBotUpdateChecker();
 
 sweepOrphanedUsers().catch((err) => console.error("Orphaned user sweep failed:", err));
 setInterval(() => {
