@@ -1092,7 +1092,7 @@ async function refreshBotsModal(targetUid){
     list.innerHTML = '';
     bots.forEach((bot) => list.appendChild(renderBotCard(bot, targetUid)));
   } catch (err) {
-    list.innerHTML = '<div class="ad-empty">Could not load this user\\'s deployments.</div>';
+    list.innerHTML = '<div class="ad-empty">Could not load this user\'s deployments.</div>';
   }
 }
 

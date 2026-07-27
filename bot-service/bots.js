@@ -44,7 +44,7 @@ const TEMPLATE_MARKER = path.join(TEMPLATE_DIR, ".built-meta.json");
 const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // background safety net — "Check now" in admin is the immediate option
 const SESSION_DIR_NAME = "ES_TEAMS-SESSION";
 const MAX_ACTIVE_BOTS = 10; // 512MB free tier — 100 was an OOM crash waiting to happen
-const MAX_INSTANCES_PER_USER = 3; // admin (isAdminEmail) bypasses this; the global 100 cap above still applies to everyone
+const MAX_INSTANCES_PER_USER = 1; // admin (isAdminEmail) bypasses this; the global MAX_ACTIVE_BOTS cap above still applies to everyone
 // Every one of these counts as "in progress or running" for the cap and
 // for boot-time restore — including the fast-moving download/extract/
 // install stages, which mostly only appear on the very first deploy.
@@ -57,6 +57,13 @@ const SESSION_BACKUP_INTERVAL_MS = 2 * 60 * 1000;
 // reconstructed from Firestore), separate from the Firestore doc which is
 // the durable record of what *should* be running.
 const running = new Map();
+
+// botId -> consecutive auto-restart count since it last connected. Resets
+// to 0 on a successful connection; capped so a bot that's genuinely broken
+// (bad session, etc.) doesn't restart-loop forever burning CPU/RAM.
+const crashRestartCounts = new Map();
+const MAX_AUTO_RESTARTS = 5;
+const AUTO_RESTART_DELAY_MS = 5000;
 
 function stripAnsi(s) {
   return s.replace(/\x1b\[[0-9;]*m/g, "");
@@ -392,6 +399,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
       }
       if (/^Connected to\s*:/i.test(line)) {
         setStatus("connected", { connectedAt: Date.now(), lastError: null });
+        crashRestartCounts.delete(botId);
         if (!entry.backupTimer) {
           backupSessionFiles(workDir, botId); // capture it right away — don't wait for the first interval tick
           entry.backupTimer = setInterval(() => backupSessionFiles(workDir, botId), SESSION_BACKUP_INTERVAL_MS);
@@ -418,6 +426,18 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   proc.stdout.on("data", (buf) => onOutput(buf, "out"));
   proc.stderr.on("data", (buf) => onOutput(buf, "err"));
 
+  // Without this, a spawn failure (e.g. resource limits, missing binary)
+  // emits an unhandled 'error' event, which Node treats as fatal — it
+  // crashes this ENTIRE process, taking every other running bot down
+  // with it and forcing a full container restart. This keeps a failed
+  // spawn contained to just this one deployment.
+  proc.on("error", (err) => {
+    pushLog(entry, `Failed to start: ${err.message}`, "err");
+    setStatus("error", { lastError: err.message });
+    if (running.get(botId) === entry) running.delete(botId);
+    entry._resolveExited?.();
+  });
+
   proc.on("exit", (code) => {
     if (entry.backupTimer) clearInterval(entry.backupTimer);
     backupSessionFiles(workDir, botId).finally(() => {
@@ -429,8 +449,28 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
       entry._resolveExited?.();
       if (entry.stoppedByUser) return; // stopBot() already set the final status
       ref.get().then((snap) => {
-        if (snap.exists && ["needs_repair", "disconnected"].includes(snap.data().status)) return; // already handled above
+        if (!snap.exists) return;
+        const status = snap.data().status;
+        if (["needs_repair", "disconnected"].includes(status)) return; // already handled above — these need a fresh pairing, not an auto-restart
         ref.update({ status: "crashed", lastError: `Process exited (code ${code}).`, logs: entry.logs.slice(-150), updatedAt: Date.now() }).catch(() => {});
+
+        // Auto-restart, so a dropped connection or transient crash doesn't
+        // sit dead until someone notices — this is the actual fix for
+        // "the bot doesn't last, it just stops at some point."
+        const attempts = (crashRestartCounts.get(botId) || 0) + 1;
+        crashRestartCounts.set(botId, attempts);
+        if (attempts > MAX_AUTO_RESTARTS) {
+          ref.update({ lastError: `Crashed ${attempts} times in a row — stopped auto-restarting. Restart manually once it's fixed.` }).catch(() => {});
+          return;
+        }
+        setTimeout(() => {
+          db.collection("botDeployments").doc(botId).get().then((freshSnap) => {
+            if (!freshSnap.exists) return; // deleted while we were waiting
+            const d = freshSnap.data();
+            if (running.has(botId)) return; // something else already restarted it
+            runDeployment(botId, d.uid, d.phoneNumber, { isRestore: true }).catch(() => {});
+          }).catch(() => {});
+        }, AUTO_RESTART_DELAY_MS);
       }).catch(() => {});
     });
   });
@@ -483,6 +523,7 @@ async function _stopBotDoc(ref, data) {
 
 async function _restartBotDoc(ref, data, { skipTemplateCheck = false } = {}) {
   if (running.has(ref.id)) await _stopBotDoc(ref, data);
+  crashRestartCounts.delete(ref.id); // manual restart gets a fresh auto-restart budget
 
   // Latest code, same session: pick up any new commit, but reconnect using
   // the saved WhatsApp credentials rather than forcing a fresh pairing
@@ -504,6 +545,7 @@ async function _deleteBotDoc(ref, data) {
     if (entry.proc) entry.proc.kill("SIGTERM");
     running.delete(ref.id);
   }
+  crashRestartCounts.delete(ref.id);
   await ref.delete();
   fs.rm(path.join(BOTS_ROOT, ref.id), { recursive: true, force: true }, () => {});
   return { ok: true };
