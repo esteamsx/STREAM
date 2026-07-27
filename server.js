@@ -3,7 +3,6 @@ import crypto from "crypto";
 import compression from "compression";
 import fs from "fs";
 import path from "path";
-import { exec } from "child_process";
 import cookieParser from "cookie-parser";
 import "dotenv/config";
 import { fileURLToPath } from "url";
@@ -41,25 +40,6 @@ async function botServiceFetch(pathAndQuery, options = {}) {
   return data;
 }
 
-// Reads this container's own disk usage via `df` — used for the admin
-// panel's storage bar. Render's free tier gives a fixed, small disk per
-// service, so this is what tells you you're about to run out (separate
-// from the RAM/OOM concern the bot split addressed).
-function getDiskUsage() {
-  return new Promise((resolve) => {
-    exec("df -k .", (err, stdout) => {
-      if (err) return resolve(null);
-      const line = stdout.trim().split("\n")[1];
-      if (!line) return resolve(null);
-      const parts = line.split(/\s+/);
-      const totalKB = parseInt(parts[1], 10);
-      const usedKB = parseInt(parts[2], 10);
-      const percent = parseInt(parts[4], 10);
-      if (!Number.isFinite(totalKB) || !Number.isFinite(usedKB) || !Number.isFinite(percent)) return resolve(null);
-      resolve({ usedGB: +(usedKB / 1024 / 1024).toFixed(2), totalGB: +(totalKB / 1024 / 1024).toFixed(2), percent });
-    });
-  });
-}
 import QRCode from "qrcode";
 import {
   issueCode,
@@ -3633,18 +3613,16 @@ app.post("/api/admin/bots/check-updates", requireAuth, requireAdmin, async (req,
   }
 });
 
-// Disk usage for every Render service, for the admin panel's storage bar.
+// Actual disk used by bot deployments (their downloaded template + saved
+// session files) — not the whole shared host disk, which was reporting a
+// near-identical, meaningless number on both services regardless of how
+// many bots were deployed.
 app.get("/api/admin/system/storage", requireAuth, requireAdmin, async (req, res) => {
-  const services = [];
-  const mine = await getDiskUsage();
-  services.push({ name: "Main Site", ...(mine || { error: "Could not read disk usage." }) });
   try {
-    const botStorage = await botServiceFetch("/internal/system/storage");
-    services.push({ name: "Bot Service", ...botStorage });
+    res.json(await botServiceFetch("/internal/system/storage"));
   } catch (err) {
-    services.push({ name: "Bot Service", error: err.message || "Unreachable." });
+    res.status(err.status || 500).json({ error: err.message || "Could not load bot deployment storage." });
   }
-  res.json({ services });
 });
 
 
