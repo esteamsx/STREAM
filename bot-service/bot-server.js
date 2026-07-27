@@ -12,6 +12,18 @@ import {
 const app = express();
 app.use(express.json());
 
+// Without these, ANY unexpected error anywhere (not just the spawn one
+// fixed in bots.js) crashes this whole process — which kills every
+// currently-running bot at once and forces a full restart, exactly the
+// "one deploy takes everyone else offline" problem. Log and keep running
+// instead of going down.
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception (service kept running):", err);
+});
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection (service kept running):", err);
+});
+
 // ── Shared-secret auth ──────────────────────────────────────────────────
 // This service is never talked to directly by browsers — only by the main
 // site's server, over the network, using this key. Set the SAME value for
