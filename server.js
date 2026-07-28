@@ -3029,7 +3029,19 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     var totalSec = 0;
     var unsyncedSec = 0;
     var ready = false;
-    var SYNC_EVERY_MS = 20000;
+    // Each sync is a Firestore write (watchSeconds increment). At the previous
+    // 20s this was 180 writes/hour for every open tab, and it runs on every
+    // page rather than only while something is playing — roughly 111 tab-hours
+    // exhausted the Spark plan's 20,000 writes/day. Once that quota is gone
+    // Firestore stops accepting writes and the client retries indefinitely
+    // instead of erroring, so sign-in hung at createSession while reads (and
+    // therefore the cached pages) carried on working normally.
+    //
+    // 5 minutes cuts that 15x, to 12 writes/hour per tab. Accuracy is
+    // unaffected in practice: the counter still ticks locally every second,
+    // and the beforeunload/visibilitychange handlers below flush on the way
+    // out. Only an abruptly killed tab loses anything, and at most 5 minutes.
+    var SYNC_EVERY_MS = 300000;
 
     function fmt(s){
       var h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
