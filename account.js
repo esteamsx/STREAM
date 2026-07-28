@@ -790,6 +790,21 @@ body:has(.page-overlay.show){overflow:hidden}
       <button class="acc-btn" id="tfaVerifyBtn" style="width:100%">Verify & Enable</button>
       <button class="overlay-cancel" id="tfaCancel2">Cancel</button>
     </div>
+    <div class="overlay-step" id="tfaStepDisable">
+      <div class="overlay-title">Confirm disabling 2FA</div>
+      <div class="overlay-sub">Enter the 6-digit code currently shown in your authenticator app to turn two-factor authentication off.</div>
+      <div class="code-row">
+        <input class="code-digit tfa-disable-digit" maxlength="1" inputmode="numeric" autocomplete="one-time-code">
+        <input class="code-digit tfa-disable-digit" maxlength="1" inputmode="numeric">
+        <input class="code-digit tfa-disable-digit" maxlength="1" inputmode="numeric">
+        <input class="code-digit tfa-disable-digit" maxlength="1" inputmode="numeric">
+        <input class="code-digit tfa-disable-digit" maxlength="1" inputmode="numeric">
+        <input class="code-digit tfa-disable-digit" maxlength="1" inputmode="numeric">
+      </div>
+      <div class="acc-msg" id="tfaDisableMsg"></div>
+      <button class="acc-btn acc-btn-danger" id="tfaDisableBtn" style="width:100%;border-color:var(--red)">Confirm & Disable</button>
+      <button class="overlay-cancel" id="tfaCancel3">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -2173,13 +2188,17 @@ function renderTfaState(){
 const tfaOverlay = document.getElementById('tfaOverlay');
 const tfaStepScan = document.getElementById('tfaStepScan');
 const tfaStepVerify = document.getElementById('tfaStepVerify');
+const tfaStepDisable = document.getElementById('tfaStepDisable');
 
 function closeTfaOverlay(){
   tfaOverlay.classList.remove('show');
-  tfaStepScan.classList.add('active');
+  tfaStepScan.classList.remove('active');
   tfaStepVerify.classList.remove('active');
+  tfaStepDisable.classList.remove('active');
+  tfaStepScan.classList.add('active');
 }
 document.getElementById('tfaCancel1').addEventListener('click', closeTfaOverlay);
+document.getElementById('tfaCancel3').addEventListener('click', closeTfaOverlay);
 document.getElementById('tfaCancel2').addEventListener('click', closeTfaOverlay);
 
 document.getElementById('tfaSetupBtn').addEventListener('click', async () => {
@@ -2251,6 +2270,22 @@ document.getElementById('tfaSwitch').addEventListener('click', async () => {
   const sw = document.getElementById('tfaSwitch');
   const sub = document.getElementById('tfaToggleSub');
   const next = !profile.twoFactorEnabled;
+
+  // Turning 2FA off requires proving you still hold the authenticator —
+  // otherwise a stolen session cookie alone could disable it. Turning it
+  // back on (secret already set up) doesn't reduce security, so that path
+  // stays a direct toggle.
+  if (!next) {
+    tfaStepScan.classList.remove('active');
+    tfaStepVerify.classList.remove('active');
+    tfaStepDisable.classList.add('active');
+    tfaOverlay.classList.add('show');
+    tfaDisableDigits.forEach(d => d.value = '');
+    document.getElementById('tfaDisableMsg').textContent = '';
+    tfaDisableDigits[0].focus();
+    return;
+  }
+
   sw.classList.add('busy');
   try {
     await postJSON('/api/2fa/toggle', { enabled: next });
@@ -2261,6 +2296,44 @@ document.getElementById('tfaSwitch').addEventListener('click', async () => {
     flashMsg(document.getElementById('profileMsg'), err.message, false);
   }
   sw.classList.remove('busy');
+});
+
+const tfaDisableDigits = Array.from(document.querySelectorAll('.tfa-disable-digit'));
+tfaDisableDigits.forEach((d, i) => {
+  d.addEventListener('input', () => {
+    d.value = d.value.replace(/[^0-9]/g, '');
+    if (d.value && i < tfaDisableDigits.length - 1) tfaDisableDigits[i + 1].focus();
+  });
+  d.addEventListener('keydown', (e) => {
+    if (e.key === 'Backspace' && !d.value && i > 0) tfaDisableDigits[i - 1].focus();
+  });
+  d.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData.getData('text') || '').replace(/[^0-9]/g, '').slice(0, 6);
+    text.split('').forEach((ch, idx) => { if (tfaDisableDigits[idx]) tfaDisableDigits[idx].value = ch; });
+    if (tfaDisableDigits[text.length - 1]) tfaDisableDigits[text.length - 1].focus();
+  });
+});
+
+document.getElementById('tfaDisableBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('tfaDisableBtn');
+  const msg = document.getElementById('tfaDisableMsg');
+  const code = tfaDisableDigits.map(d => d.value).join('');
+  if (code.length !== 6) { flashMsg(msg, 'Enter all 6 digits.', false); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span>Disabling…';
+  try {
+    await postJSON('/api/2fa/toggle', { enabled: false, code });
+    profile.twoFactorEnabled = false;
+    document.getElementById('tfaSwitch').classList.toggle('on', false);
+    document.getElementById('tfaToggleSub').textContent = 'Off';
+    closeTfaOverlay();
+    flashMsg(document.getElementById('profileMsg'), 'Two-factor authentication disabled.', true);
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Confirm & Disable';
 });
 </script>
 </body>
