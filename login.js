@@ -533,10 +533,45 @@ suUsername.addEventListener('input', () => {
   }, 450);
 });
 
+// Every sign-in path — password, Google, Telegram, GitHub, passkey — funnels
+// through postJSON and the Firebase SDK. When either stalled, the overlay spun
+// forever with nothing logged and no error shown, which is undiagnosable from
+// a phone. These put a hard ceiling on both, so a stall surfaces as an error
+// naming the exact step that hung.
+const NET_TIMEOUT_MS = 20000;
+
+function withTimeout(promise, label, ms = NET_TIMEOUT_MS){
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label + ' timed out after ' + Math.round(ms / 1000) + 's.')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function postJSON(url, body){
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), NET_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('The server did not respond to ' + url + ' within ' + Math.round(NET_TIMEOUT_MS / 1000) + 's.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Something went wrong');
+  // Blocks from the security middleware (rate-limit bans, IP blocklist, bot
+  // filter) reply with a plain-text body, so data.error is empty and the old
+  // message was a bare "Something went wrong". Surface the status instead.
+  if (!res.ok) throw new Error(data.error || ('Request to ' + url + ' failed (HTTP ' + res.status + ').'));
   return data;
 }
 
@@ -706,12 +741,17 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner"></span>Logging in…';
 
+  let stage = 'resolve-identifier';
   try {
     const { email } = await postJSON('/api/resolve-login-identifier', { identifier });
-    const cred = await signInWithEmailAndPassword(fbAuth, email, password);
-    const idToken = await cred.user.getIdToken();
+    stage = 'firebase-sign-in';
+    const cred = await withTimeout(signInWithEmailAndPassword(fbAuth, email, password), 'Firebase sign-in');
+    stage = 'get-id-token';
+    const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+    stage = 'establish-session';
     await establishSession(idToken, remember, loginCaptchaValue);
   } catch (err) {
+    console.error('[password-signin] failed at stage "' + stage + '":', err);
     btn.disabled = false;
     btn.textContent = 'Sign In';
     const msg = err.code === 'auth/user-disabled' 
@@ -769,12 +809,17 @@ if (${JSON.stringify(!!cfg.googleClientId)}) {
     const overlay = document.getElementById('pageOverlay');
     document.getElementById('pageOverlayText').textContent = 'Signing in with Google…';
     overlay.classList.add('show');
+    let stage = 'build-credential';
     try {
       const credential = GoogleAuthProvider.credential(response.credential);
-      const cred = await signInWithCredential(fbAuth, credential);
-      const idToken = await cred.user.getIdToken();
+      stage = 'firebase-sign-in';
+      const cred = await withTimeout(signInWithCredential(fbAuth, credential), 'Firebase sign-in');
+      stage = 'get-id-token';
+      const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+      stage = 'establish-session';
       await establishSession(idToken, true);
     } catch (err) {
+      console.error('[google-signin] failed at stage "' + stage + '":', err);
       overlay.classList.remove('show');
       showError(err.code === 'auth/user-disabled' ? 'This account has been recently deactivated.' : err.message);
     }
@@ -843,11 +888,15 @@ document.getElementById('ghSquareBtn').addEventListener('click', signInWithGithu
     const overlay = document.getElementById('pageOverlay');
     document.getElementById('pageOverlayText').textContent = 'Signing in with Telegram…';
     overlay.classList.add('show');
+    let stage = 'firebase-sign-in';
     try {
-      const cred = await signInWithCustomToken(fbAuth, tgToken);
-      const idToken = await cred.user.getIdToken();
+      const cred = await withTimeout(signInWithCustomToken(fbAuth, tgToken), 'Firebase sign-in');
+      stage = 'get-id-token';
+      const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+      stage = 'establish-session';
       await establishSession(idToken, true);
     } catch (err) {
+      console.error('[telegram-signin] failed at stage "' + stage + '":', err);
       overlay.classList.remove('show');
       showError(err.message);
     }
@@ -874,11 +923,15 @@ document.getElementById('ghSquareBtn').addEventListener('click', signInWithGithu
     const overlay = document.getElementById('pageOverlay');
     document.getElementById('pageOverlayText').textContent = 'Signing in with GitHub…';
     overlay.classList.add('show');
+    let stage = 'firebase-sign-in';
     try {
-      const cred = await signInWithCustomToken(fbAuth, ghToken);
-      const idToken = await cred.user.getIdToken();
+      const cred = await withTimeout(signInWithCustomToken(fbAuth, ghToken), 'Firebase sign-in');
+      stage = 'get-id-token';
+      const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+      stage = 'establish-session';
       await establishSession(idToken, true);
     } catch (err) {
+      console.error('[github-signin] failed at stage "' + stage + '":', err);
       overlay.classList.remove('show');
       showError(err.message);
     }
@@ -937,8 +990,10 @@ async function signInWithPasskey(){
     const { customToken } = await postJSON('/api/passkey/authentication-verify', { token, ...response });
 
     stage = 'firebase-sign-in';
-    const cred = await signInWithCustomToken(fbAuth, customToken);
-    const idToken = await cred.user.getIdToken();
+    const cred = await withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in');
+    stage = 'get-id-token';
+    const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+    stage = 'establish-session';
     await establishSession(idToken, true);
   } catch (err) {
     // Logs which of the 5 stages above threw, plus the full error object —
