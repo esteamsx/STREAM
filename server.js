@@ -27,14 +27,24 @@ import { renderDeployBot } from "./deploy-bot.js";
 // in this service's Render env vars.
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+const BOT_SERVICE_TIMEOUT_MS = 15000; // bot-service is a separate Render service that can be asleep/slow to wake — without a timeout every /api/bots/* request hung indefinitely waiting on it
 async function botServiceFetch(pathAndQuery, options = {}) {
   if (!BOT_SERVICE_URL || !INTERNAL_API_KEY) {
     throw Object.assign(new Error("Bot service is not configured."), { status: 503 });
   }
-  const resp = await fetch(`${BOT_SERVICE_URL}${pathAndQuery}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY, ...(options.headers || {}) },
-  });
+  let resp;
+  try {
+    resp = await fetch(`${BOT_SERVICE_URL}${pathAndQuery}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY, ...(options.headers || {}) },
+      signal: AbortSignal.timeout(BOT_SERVICE_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err.name === "TimeoutError" || err.name === "AbortError") {
+      throw Object.assign(new Error("Bot service didn't respond in time. It may be waking up — try again shortly."), { status: 504 });
+    }
+    throw Object.assign(new Error("Could not reach the bot service."), { status: 502 });
+  }
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) throw Object.assign(new Error(data.error || "Bot service request failed."), { status: resp.status });
   return data;
@@ -203,7 +213,26 @@ app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
 const signupLimiter = new SimpleRateLimiter(8, 15 * 60 * 1000).middleware(); // signup + verify + resend: 8 / 15min
-const loginLimiter = new SimpleRateLimiter(8, 15 * 60 * 1000).middleware(); // login sessions: 8 / 15min
+// Previously a single `loginLimiter` instance was reused as middleware on 9
+// unrelated routes (password sign-in, 2FA verify, passkey, OAuth start +
+// callback, identifier lookup). Since SimpleRateLimiter keys by IP, every one
+// of those actions drained the *same* 8-req/15min bucket — a normal login
+// (identifier lookup + password submit + maybe a 2FA code) could burn 3+ of
+// the 8 slots by itself, and a shared/NAT IP hit the cap for everyone behind
+// it. Each flow now gets its own bucket sized to what it actually needs.
+const passwordLoginLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware(); // /api/session password submits: 10 / 15min
+const twoFactorLoginLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware(); // /api/2fa/login-verify: 10 / 15min
+const passkeyOptionsLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware(); // requesting a passkey challenge is read-only, not brute-forceable
+const passkeyVerifyLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware(); // /api/passkey/authentication-verify: 10 / 15min
+const oauthStartLimiter = new SimpleRateLimiter(15, 15 * 60 * 1000).middleware(); // telegram/github OAuth redirect kickoff
+const oauthCallbackLimiter = new SimpleRateLimiter(15, 15 * 60 * 1000).middleware(); // telegram/github OAuth callback
+const identifierLookupLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware(); // username->email lookup, not the actual auth check
+const twoFactorToggleLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000, (req) => req.uid).middleware(); // enable/disable 2FA, keyed per account
+// issueCode() (auth.js) sends an email/Telegram DM with zero internal cooldown
+// of its own — /api/account/request-email in particular lets the caller name
+// an arbitrary target address, so without this an authenticated account could
+// be used to email-bomb any inbox, limited only by the blunt global per-IP cap.
+const emailCodeLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000, (req) => req.uid).middleware();
 const resetLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000).middleware(); // password reset flow: 5 / 15min
 const dmcaLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000).middleware(); // DMCA report submissions: 5 / hour per IP
 const usernameCheckLimiter = new SimpleRateLimiter(40, 60 * 1000).middleware(); // live-typing availability checks: 40 / min, separate from the signup quota above
@@ -312,6 +341,26 @@ a, button, [role="button"] {
 }
 `,
 };
+
+// These pages' render*() functions take only authPageConfig — built once
+// above from env vars, with nothing per-request (no cookies, no user data,
+// confirmed no Date.now()/Math.random() runs at render time, only inside
+// the client-side <script> text they output). Their HTML is therefore
+// identical on every request, so it's computed once here at boot instead of
+// re-running a multi-thousand-line template-literal build on every single
+// GET — meaningful CPU savings under load, and one less thing an attacker
+// can spend real server work on by just repeatedly hitting these public
+// pages (several, like /deploy-bot, require no auth at all).
+const cachedLoginHtml = renderLogin(authPageConfig);
+const cachedVerifyHtml = renderVerify(authPageConfig);
+const cachedAccountHtml = renderAccount(authPageConfig);
+const cachedProfileHtml = renderProfile(authPageConfig);
+const cachedAdminHtml = renderAdmin(authPageConfig);
+const cachedResetHtml = renderReset(authPageConfig);
+const cachedDmcaHtml = renderDmca(authPageConfig);
+const cachedPrivacyHtml = renderPrivacy(authPageConfig);
+const cachedDevelopersHtml = renderDevelopers(authPageConfig);
+const cachedDeployBotHtml = renderDeployBot(authPageConfig);
 
 /* category display icon — CSS SVG icons, no emoji */
 const CATEGORY_ICON = {
@@ -2083,6 +2132,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   var search     = document.getElementById('searchInput');
   var noResults  = document.getElementById('noResults');
   var hlsInstance= null;
+  var loadSeq = 0; // guards against a slow token fetch resolving after the user has already switched channels again
 
   /* ── sidebar ── */
   function openSB(){ sidebar.classList.add('open'); overlay.classList.add('open'); }
@@ -2152,7 +2202,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
     video.src = '';
 
-    var url = 'https://cinexora.emmyhenztech.site/api/hls?ch=' + id;
+    var mySeq = ++loadSeq; // this call's turn — a later loadChannel() call bumps loadSeq and supersedes it
     setStatus('Connecting…', 'buffering');
     showConnecting();
     armConnectTimeout(id, name);
@@ -2173,95 +2223,114 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       if(_waitingTimer){ clearTimeout(_waitingTimer); _waitingTimer = null; }
     }
 
-    /* native HLS (Safari / iOS) */
-    if(!Hls.isSupported() && video.canPlayType('application/vnd.apple.mpegurl')){
-      video.src = url;
-      video.addEventListener('loadedmetadata', function(){ setStatus('Playing', ''); });
-      video.addEventListener('waiting',        function(){ if(video.readyState < 3) onStall(); });
-      video.addEventListener('playing',        function(){ onRecovered(); setStatus('Playing', ''); hideConnecting(); setLivePillOn(); hideChDown(); });
-      video.addEventListener('canplay',        function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
-      video.addEventListener('loadeddata',     function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
-      video.addEventListener('error',          function(){ onRecovered(); setStatus('Stream error', 'error'); hideConnecting(); setLivePillOff(); showChDown(id, name); });
-      video.play().catch(function(){});
-      if(window.innerWidth <= 768) closeSB();
-      return;
-    }
+    /* Ask our own server for a short-lived, token-gated proxy URL for this
+       channel instead of pointing the player straight at the real upstream
+       restream host — keeps that host out of the browser's network tab and
+       routes playback through the same rate-limited, expiring-token proxy
+       the public developer API uses (/api/v1/hls/...). */
+    fetch('/api/stream-token/' + encodeURIComponent(id))
+      .then(function(r){ if(!r.ok) throw new Error('token request failed'); return r.json(); })
+      .then(function(data){
+        if(mySeq !== loadSeq) return; // superseded by a later channel switch
+        var url = data.url;
 
-    /* hls.js (Chrome, Firefox, etc.) */
-    if(!Hls.isSupported()){
-      setStatus('HLS not supported in this browser', 'error');
-      return;
-    }
-
-    var hls = new Hls({
-      enableWorker: true,
-      lowLatencyMode: true,
-      maxBufferLength: 30,
-    });
-
-    hlsInstance = hls;
-    hls.loadSource(url);
-    hls.attachMedia(video);
-
-    var _netRetries = 0;
-    var MAX_NET_RETRIES = 3;
-
-    hls.on(Hls.Events.MANIFEST_PARSED, function(){
-      onRecovered();
-      setStatus('Playing', '');
-      hideChDown();
-      hideConnecting();
-      setLivePillOn();
-      video.play().catch(function(){});
-    });
-
-    hls.on(Hls.Events.ERROR, function(event, data){
-      if(!data.fatal){ return; } /* non-fatal HLS chatter is normal during live playback — never touch the overlay or status for this */
-      if(data.type === Hls.ErrorTypes.NETWORK_ERROR){
-        _netRetries++;
-        if(_netRetries <= MAX_NET_RETRIES){
-          setStatus('Network error — retrying (' + _netRetries + '/' + MAX_NET_RETRIES + ')…', 'error');
-          if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
-          hls.startLoad();
-        } else {
-          onRecovered();
-          setStatus('Stream unavailable', 'error');
-          hideConnecting();
-          setLivePillOff();
-          showChDown(id, name);
-          var dBtn = document.querySelector('.ch-btn[data-id="' + id + '"]');
-          if(dBtn){ var d=dBtn.querySelector('.ch-dot'); if(d){d.classList.add('ch-dot-down');d.classList.remove('ch-dot-up');} dBtn.dataset.chStatus='down'; }
+        /* native HLS (Safari / iOS) */
+        if(!Hls.isSupported() && video.canPlayType('application/vnd.apple.mpegurl')){
+          video.src = url;
+          video.addEventListener('loadedmetadata', function(){ setStatus('Playing', ''); });
+          video.addEventListener('waiting',        function(){ if(video.readyState < 3) onStall(); });
+          video.addEventListener('playing',        function(){ onRecovered(); setStatus('Playing', ''); hideConnecting(); setLivePillOn(); hideChDown(); });
+          video.addEventListener('canplay',        function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
+          video.addEventListener('loadeddata',     function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
+          video.addEventListener('error',          function(){ onRecovered(); setStatus('Stream error', 'error'); hideConnecting(); setLivePillOff(); showChDown(id, name); });
+          video.play().catch(function(){});
+          if(window.innerWidth <= 768) closeSB();
+          return;
         }
-      } else if(data.type === Hls.ErrorTypes.MEDIA_ERROR){
-        setStatus('Media error — recovering…', 'error');
-        if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
-        hls.recoverMediaError();
-      } else {
-        onRecovered();
-        setStatus('Stream unavailable', 'error');
+
+        /* hls.js (Chrome, Firefox, etc.) */
+        if(!Hls.isSupported()){
+          setStatus('HLS not supported in this browser', 'error');
+          return;
+        }
+
+        var hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          maxBufferLength: 30,
+        });
+
+        hlsInstance = hls;
+        hls.loadSource(url);
+        hls.attachMedia(video);
+
+        var _netRetries = 0;
+        var MAX_NET_RETRIES = 3;
+
+        hls.on(Hls.Events.MANIFEST_PARSED, function(){
+          onRecovered();
+          setStatus('Playing', '');
+          hideChDown();
+          hideConnecting();
+          setLivePillOn();
+          video.play().catch(function(){});
+        });
+
+        hls.on(Hls.Events.ERROR, function(event, data){
+          if(!data.fatal){ return; } /* non-fatal HLS chatter is normal during live playback — never touch the overlay or status for this */
+          if(data.type === Hls.ErrorTypes.NETWORK_ERROR){
+            _netRetries++;
+            if(_netRetries <= MAX_NET_RETRIES){
+              setStatus('Network error — retrying (' + _netRetries + '/' + MAX_NET_RETRIES + ')…', 'error');
+              if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
+              hls.startLoad();
+            } else {
+              onRecovered();
+              setStatus('Stream unavailable', 'error');
+              hideConnecting();
+              setLivePillOff();
+              showChDown(id, name);
+              var dBtn = document.querySelector('.ch-btn[data-id="' + id + '"]');
+              if(dBtn){ var d=dBtn.querySelector('.ch-dot'); if(d){d.classList.add('ch-dot-down');d.classList.remove('ch-dot-up');} dBtn.dataset.chStatus='down'; }
+            }
+          } else if(data.type === Hls.ErrorTypes.MEDIA_ERROR){
+            setStatus('Media error — recovering…', 'error');
+            if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
+            hls.recoverMediaError();
+          } else {
+            onRecovered();
+            setStatus('Stream unavailable', 'error');
+            hideConnecting();
+            setLivePillOff();
+            showChDown(id, name);
+            /* mark this channel's dot red */
+            var dBtn = document.querySelector('.ch-btn[data-id="' + id + '"]');
+            if(dBtn){ var d=dBtn.querySelector('.ch-dot'); if(d){d.classList.add('ch-dot-down');d.classList.remove('ch-dot-up');} dBtn.dataset.chStatus='down'; }
+          }
+        });
+
+        video.addEventListener('waiting',  function(){
+          /* only treat this as "still loading" if the video has no playable frames yet (readyState < 3) */
+          if(video.readyState < 3) onStall();
+        });
+        video.addEventListener('playing',  function(){ onRecovered(); setStatus('Playing', ''); hideConnecting(); setLivePillOn(); hideChDown(); });
+        /* the video can be fully decoded and ready to display (readyState >= 3) even if a blocked
+           autoplay silently prevented the "playing" event from ever firing — clear the overlay here too
+           so startup never gets stuck waiting on a user tap, without touching playback itself */
+        video.addEventListener('canplay',  function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
+        video.addEventListener('loadeddata', function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
+
+        window.__hls = hls;
+
+        if(window.innerWidth <= 768) closeSB();
+      })
+      .catch(function(){
+        if(mySeq !== loadSeq) return;
+        setStatus('Stream error', 'error');
         hideConnecting();
         setLivePillOff();
         showChDown(id, name);
-        /* mark this channel's dot red */
-        var dBtn = document.querySelector('.ch-btn[data-id="' + id + '"]');
-        if(dBtn){ var d=dBtn.querySelector('.ch-dot'); if(d){d.classList.add('ch-dot-down');d.classList.remove('ch-dot-up');} dBtn.dataset.chStatus='down'; }
-      }
-    });
-
-    video.addEventListener('waiting',  function(){
-      /* only treat this as "still loading" if the video has no playable frames yet (readyState < 3) */
-      if(video.readyState < 3) onStall();
-    });
-    video.addEventListener('playing',  function(){ onRecovered(); setStatus('Playing', ''); hideConnecting(); setLivePillOn(); hideChDown(); });
-    /* the video can be fully decoded and ready to display (readyState >= 3) even if a blocked
-       autoplay silently prevented the "playing" event from ever firing — clear the overlay here too
-       so startup never gets stuck waiting on a user tap, without touching playback itself */
-    video.addEventListener('canplay',  function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
-    video.addEventListener('loadeddata', function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
-
-    window.__hls = hls;
-
-    if(window.innerWidth <= 768) closeSB();
+      });
   }
 
   /* ── channel buttons ── */
@@ -3387,23 +3456,23 @@ app.get("/login", async (req, res) => {
   const uid = await verifySession(sessionId);
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   if (uid) return res.redirect("/");
-  res.send(renderLogin(authPageConfig));
+  res.send(cachedLoginHtml);
 });
 
 app.get("/verify", (req, res) => {
-  res.send(renderVerify(authPageConfig));
+  res.send(cachedVerifyHtml);
 });
 
 app.get("/account", (req, res) => {
-  res.send(renderAccount(authPageConfig));
+  res.send(cachedAccountHtml);
 });
 
 app.get("/profile", (req, res) => {
-  res.send(renderProfile(authPageConfig));
+  res.send(cachedProfileHtml);
 });
 
 app.get("/u/:username", (req, res) => {
-  res.send(renderProfile(authPageConfig));
+  res.send(cachedProfileHtml);
 });
 
 // Session-cookie based admin gate for the page itself (mirrors the /admin
@@ -3415,14 +3484,17 @@ app.get("/admin", async (req, res) => {
   if (!uid) return res.redirect("/login");
   const profile = await getUserProfile(uid);
   if (!profile || !isAdminEmail(profile.email)) return res.redirect("/");
-  res.send(renderAdmin(authPageConfig));
+  res.send(cachedAdminHtml);
 });
 
 // requireAuth already resolves req.uid; this just adds the admin-only check
 // on top of it for every /api/admin/* route below.
 async function requireAdmin(req, res, next) {
   try {
-    const profile = await getUserProfile(req.uid);
+    // requireAuth (which always runs before this) already fetched this
+    // profile onto req.userProfile — re-fetching it here was a second,
+    // redundant Firestore read on every single /api/admin/* request.
+    const profile = req.userProfile || (await getUserProfile(req.uid));
     if (!profile || !isAdminEmail(profile.email)) return res.status(403).json({ error: "Not authorized." });
     next();
   } catch (err) {
@@ -3628,23 +3700,23 @@ app.get("/api/admin/system/storage", requireAuth, requireAdmin, async (req, res)
 
 
 app.get("/reset", (req, res) => {
-  res.send(renderReset(authPageConfig));
+  res.send(cachedResetHtml);
 });
 
 app.get("/dmca", (req, res) => {
-  res.send(renderDmca(authPageConfig));
+  res.send(cachedDmcaHtml);
 });
 
 app.get("/privacy", (req, res) => {
-  res.send(renderPrivacy(authPageConfig));
+  res.send(cachedPrivacyHtml);
 });
 
 app.get("/developers", (req, res) => {
-  res.send(renderDevelopers(authPageConfig));
+  res.send(cachedDevelopersHtml);
 });
 
 app.get("/deploy-bot", (req, res) => {
-  res.send(renderDeployBot(authPageConfig));
+  res.send(cachedDeployBotHtml);
 });
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {
@@ -3967,7 +4039,7 @@ function base64url(buf) {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-app.get("/api/telegram-auth/start", loginLimiter, async (req, res) => {
+app.get("/api/telegram-auth/start", oauthStartLimiter, async (req, res) => {
   try {
     if (!TELEGRAM_CLIENT_ID || !TELEGRAM_CLIENT_SECRET) {
       return res.redirect("/login?tg_error=" + encodeURIComponent("Telegram sign-in isn't configured."));
@@ -3992,7 +4064,7 @@ app.get("/api/telegram-auth/start", loginLimiter, async (req, res) => {
   }
 });
 
-app.get("/api/telegram-auth/callback", loginLimiter, async (req, res) => {
+app.get("/api/telegram-auth/callback", oauthCallbackLimiter, async (req, res) => {
   try {
     const { code, state, error } = req.query;
     if (error) return res.redirect("/login?tg_error=" + encodeURIComponent("Telegram sign-in was cancelled."));
@@ -4046,7 +4118,7 @@ const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || "";
 const GITHUB_REDIRECT_URI = "https://esteamstv.devs.surf/api/github-auth/callback";
 
-app.get("/api/github-auth/start", loginLimiter, async (req, res) => {
+app.get("/api/github-auth/start", oauthStartLimiter, async (req, res) => {
   try {
     if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
       return res.redirect("/login?gh_error=" + encodeURIComponent("GitHub sign-in isn't configured."));
@@ -4066,7 +4138,7 @@ app.get("/api/github-auth/start", loginLimiter, async (req, res) => {
   }
 });
 
-app.get("/api/github-auth/callback", loginLimiter, async (req, res) => {
+app.get("/api/github-auth/callback", oauthCallbackLimiter, async (req, res) => {
   try {
     const { code, state, error } = req.query;
     if (error) return res.redirect("/login?gh_error=" + encodeURIComponent("GitHub sign-in was cancelled."));
@@ -4130,7 +4202,7 @@ app.get("/api/github-auth/callback", loginLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/session", loginLimiter, async (req, res) => {
+app.post("/api/session", passwordLoginLimiter, async (req, res) => {
   try {
     const { idToken, remember, altcha } = req.body;
     const decoded = await firebaseAuth.verifyIdToken(idToken);
@@ -4158,7 +4230,7 @@ app.post("/api/session", loginLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/2fa/login-verify", loginLimiter, async (req, res) => {
+app.post("/api/2fa/login-verify", twoFactorLoginLimiter, async (req, res) => {
   try {
     const { pendingToken, code } = req.body;
     const pending = await getTwoFactorPendingLogin(pendingToken);
@@ -4750,7 +4822,7 @@ app.post("/api/notifications/:id/delete", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/request-password-change", requireAuth, async (req, res) => {
+app.post("/api/request-password-change", requireAuth, emailCodeLimiter, async (req, res) => {
   try {
     const profile = await getUserProfile(req.uid);
     if (!profile) return res.status(404).json({ error: "Profile not found." });
@@ -4780,7 +4852,7 @@ app.post("/api/change-password", resetLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/account/request-email", requireAuth, async (req, res) => {
+app.post("/api/account/request-email", requireAuth, emailCodeLimiter, async (req, res) => {
   try {
     const email = String(req.body.email || "").trim().toLowerCase();
     const domain = (email.split("@")[1] || "").toLowerCase();
@@ -4883,7 +4955,7 @@ app.post("/api/passkey/delete", requireAuth, async (req, res) => {
 // verifying the passkey response IS the login. Discoverable credentials
 // mean the browser shows the person's own saved passkey(s) for this site
 // without needing an email/username first.
-app.post("/api/passkey/authentication-options", loginLimiter, async (req, res) => {
+app.post("/api/passkey/authentication-options", passkeyOptionsLimiter, async (req, res) => {
   try {
     const { options, token } = await beginPasskeyAuthentication(PASSKEY_RP_ID);
     res.json({ options, token });
@@ -4893,7 +4965,7 @@ app.post("/api/passkey/authentication-options", loginLimiter, async (req, res) =
   }
 });
 
-app.post("/api/passkey/authentication-verify", loginLimiter, async (req, res) => {
+app.post("/api/passkey/authentication-verify", passkeyVerifyLimiter, async (req, res) => {
   try {
     const { token, ...response } = req.body || {};
     if (!token) return res.status(400).json({ error: "Missing passkey session token." });
@@ -4933,9 +5005,19 @@ app.post("/api/2fa/verify-setup", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/2fa/toggle", requireAuth, async (req, res) => {
+app.post("/api/2fa/toggle", requireAuth, twoFactorToggleLimiter, async (req, res) => {
   try {
-    const { enabled } = req.body;
+    const { enabled, code } = req.body;
+    // Turning 2FA OFF is the security-relevant direction: a hijacked/stolen
+    // session (XSS, shared device) could otherwise disable 2FA with nothing
+    // but the session cookie, defeating the whole point of having it. Require
+    // a valid current TOTP code, same as turning it on for the first time
+    // does via /api/2fa/verify-setup. Re-enabling an already-set-up secret
+    // doesn't reduce security, so that direction is left as-is.
+    if (!enabled) {
+      const valid = await verifyTwoFactorCode(req.uid, code);
+      if (!valid) return res.status(400).json({ error: "Incorrect code." });
+    }
     await setTwoFactorEnabled(req.uid, enabled);
     addNotification(req.uid, "2fa", enabled ? "Two-factor authentication was turned on." : "Two-factor authentication was turned off.");
     res.json({ ok: true, enabled: !!enabled });
@@ -4945,7 +5027,7 @@ app.post("/api/2fa/toggle", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/request-account-deletion", requireAuth, async (req, res) => {
+app.post("/api/request-account-deletion", requireAuth, emailCodeLimiter, async (req, res) => {
   try {
     const { altcha } = req.body;
     if (!(await verifyCaptcha(altcha))) return res.status(400).json({ error: "Captcha not completed." });
@@ -5008,7 +5090,7 @@ app.post("/api/request-password-reset", resetLimiter, async (req, res) => {
 
 // Login accepts an email OR a username; resolve it to an email address before
 // handing off to Firebase client-side sign-in, which only understands email.
-app.post("/api/resolve-login-identifier", loginLimiter, async (req, res) => {
+app.post("/api/resolve-login-identifier", identifierLookupLimiter, async (req, res) => {
   try {
     const identifier = String(req.body.identifier || "").trim();
     if (!identifier) return res.status(400).json({ error: "Please enter your email or username." });

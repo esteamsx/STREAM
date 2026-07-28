@@ -568,7 +568,7 @@ router.get("/embed/:channel", (req, res) => {
   var statusEl = document.getElementById('status');
   var wrapEl = document.querySelector('.wrap');
   var muteBtn = document.getElementById('muteBtn');
-  var src = 'https://cinexora.emmyhenztech.site/api/hls?ch=${encodeURIComponent(channel)}';
+  var src = '/api/v1/hls/${encodeURIComponent(channel)}/master.m3u8?token=${encodeURIComponent(token)}';
   if (Hls.isSupported()) {
     var hls = new Hls({ enableWorker: true, lowLatencyMode: true, maxBufferLength: 30 });
     hls.loadSource(src);

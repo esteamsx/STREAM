@@ -108,24 +108,32 @@ async function deployBot(uid, { label, phoneNumber }, isAdmin = false) {
   const cleanNumber = isValidPhoneNumber(phoneNumber);
   if (!cleanNumber) throw new Error("Enter a valid phone number, digits only (with country code, no + or spaces).");
 
-  if (!isAdmin) {
-    const mineCount = await countBotsForUser(uid);
-    if (mineCount >= MAX_INSTANCES_PER_USER) {
-      throw new Error(`You can only deploy ${MAX_INSTANCES_PER_USER} instances.`);
-    }
-  }
-
-  const activeCount = await countActiveBots();
-  if (activeCount >= MAX_ACTIVE_BOTS) {
-    throw new Error(`Deployment limit reached (${MAX_ACTIVE_BOTS}/${MAX_ACTIVE_BOTS}). Try again once a slot frees up.`);
-  }
-
   const ref = db.collection("botDeployments").doc();
   const now = Date.now();
-  await ref.set({
-    uid, label: cleanLabel, phoneNumber: cleanNumber,
-    status: "downloading", pairingCode: null, pairingCodeAt: null, connectedAt: null,
-    lastError: null, stoppedByUser: false, createdAt: now, updatedAt: now,
+
+  // The cap checks and the new doc's creation must be atomic. Read-then-write
+  // with no transaction let two deploy requests arriving close together
+  // (double-click, two tabs, two users at once) both pass the same cap
+  // checks before either commit, overshooting MAX_ACTIVE_BOTS — the exact
+  // OOM crash that cap exists to prevent (512MB free tier). Wrapping both
+  // queries and the write in one transaction makes Firestore retry the
+  // whole thing if a matching document changes underneath it.
+  await db.runTransaction(async (tx) => {
+    if (!isAdmin) {
+      const mineSnap = await tx.get(db.collection("botDeployments").where("uid", "==", uid));
+      if (mineSnap.size >= MAX_INSTANCES_PER_USER) {
+        throw new Error(`You can only deploy ${MAX_INSTANCES_PER_USER} instances.`);
+      }
+    }
+    const activeSnap = await tx.get(db.collection("botDeployments").where("status", "in", ACTIVE_STATUSES));
+    if (activeSnap.size >= MAX_ACTIVE_BOTS) {
+      throw new Error(`Deployment limit reached (${MAX_ACTIVE_BOTS}/${MAX_ACTIVE_BOTS}). Try again once a slot frees up.`);
+    }
+    tx.set(ref, {
+      uid, label: cleanLabel, phoneNumber: cleanNumber,
+      status: "downloading", pairingCode: null, pairingCodeAt: null, connectedAt: null,
+      lastError: null, stoppedByUser: false, createdAt: now, updatedAt: now,
+    });
   });
 
   runDeployment(ref.id, uid, cleanNumber).catch((err) => {
@@ -199,6 +207,34 @@ function templateExists() {
 // ── Shared template (download + install ONCE, reused by every deploy) ───
 let templateReadyPromise = null;
 
+// A deploy already past its ensureTemplate()/ensureLatestTemplate() gate
+// does a synchronous read of TEMPLATE_DIR in materializeFromTemplate()
+// below, with no lock against a rebuild starting concurrently (the 30-min
+// auto-update check, or an admin's "Check now"). buildTemplate()'s first
+// step is rm -rf on that same directory — without coordination, a rebuild
+// landing mid-copy deletes the directory out from under it, and the
+// deploy fails with a confusing ENOENT tied purely to timing. This tiny
+// readers/writer counter makes buildTemplate() wait for any in-progress
+// materializeFromTemplate() calls to finish before it wipes the directory.
+let templateReaders = 0;
+let templateDrainWaiters = [];
+
+function acquireTemplateRead() {
+  templateReaders++;
+}
+function releaseTemplateRead() {
+  templateReaders--;
+  if (templateReaders === 0 && templateDrainWaiters.length) {
+    const waiters = templateDrainWaiters;
+    templateDrainWaiters = [];
+    waiters.forEach((resolve) => resolve());
+  }
+}
+function waitForTemplateReadersToDrain() {
+  if (templateReaders === 0) return Promise.resolve();
+  return new Promise((resolve) => templateDrainWaiters.push(resolve));
+}
+
 // The actual download → extract → install → record-what-commit-this-is
 // pipeline. Shared by ensureTemplate() (first deploy ever, no template
 // exists yet) and checkForUpdates() (an existing template needs refreshing
@@ -207,6 +243,7 @@ let templateReadyPromise = null;
 async function buildTemplate(onStage) {
   if (!templateReadyPromise) {
     templateReadyPromise = (async () => {
+      await waitForTemplateReadersToDrain();
       fs.rmSync(TEMPLATE_DIR, { recursive: true, force: true });
       fs.mkdirSync(TEMPLATE_DIR, { recursive: true });
       await onStage?.("downloading");
@@ -253,7 +290,10 @@ async function checkForUpdates() {
 
     const snap = await db.collection("botDeployments").where("status", "in", ACTIVE_STATUSES).get();
     for (const doc of snap.docs) {
-      _restartBotDoc(doc.ref, doc.data(), { skipTemplateCheck: true }).catch((err) => console.error(`Auto-update restart failed for ${doc.id}:`, err.message));
+      // Goes through the same per-bot lock as manual stop/restart/delete so
+      // this background restart can't race a user action on the same bot.
+      withBotLock(doc.id, () => _restartBotDoc(doc.ref, doc.data(), { skipTemplateCheck: true }))
+        .catch((err) => console.error(`Auto-update restart failed for ${doc.id}:`, err.message));
     }
     if (snap.size) console.log(`🤖 Restarted ${snap.size} bot(s) to apply the update.`);
     return { checked: true, updated: true, previousSha: meta.sha, currentSha: latestSha, restarted: snap.size };
@@ -369,7 +409,12 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
 
   await setStatus("installing");
   pushLog(entry, "Preparing your instance…");
-  materializeFromTemplate(workDir);
+  acquireTemplateRead();
+  try {
+    materializeFromTemplate(workDir);
+  } finally {
+    releaseTemplateRead();
+  }
 
   if (isRestore) {
     await restoreSessionFiles(workDir, botId);
@@ -563,19 +608,40 @@ async function _deleteBotDoc(ref, data) {
   return { ok: true };
 }
 
+// botId -> tail of an in-flight stop/restart/delete chain for that bot.
+// Without this, two overlapping requests for the same bot (double-click,
+// stuck-button retry, or a user + auto-update-restart landing together) can
+// both pass `running.has(id)` before either finishes stopping it, so both
+// go on to spawn their own child process — one of which becomes untracked
+// (can't be stopped/killed by the app anymore) while two Baileys clients
+// fight over the same WhatsApp session. Serializing per bot id fixes that
+// without affecting different bots, which still run fully in parallel.
+const botLocks = new Map();
+
+function withBotLock(botId, fn) {
+  const prev = botLocks.get(botId) || Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.then(() => {}, () => {});
+  botLocks.set(botId, tail);
+  tail.finally(() => {
+    if (botLocks.get(botId) === tail) botLocks.delete(botId);
+  });
+  return run;
+}
+
 async function stopBot(uid, botId) {
   const { ref, data } = await getBotDoc(uid, botId);
-  return _stopBotDoc(ref, data);
+  return withBotLock(botId, () => _stopBotDoc(ref, data));
 }
 
 async function restartBot(uid, botId) {
   const { ref, data } = await getBotDoc(uid, botId);
-  return _restartBotDoc(ref, data);
+  return withBotLock(botId, () => _restartBotDoc(ref, data));
 }
 
 async function deleteBot(uid, botId) {
   const { ref, data } = await getBotDoc(uid, botId);
-  return _deleteBotDoc(ref, data);
+  return withBotLock(botId, () => _deleteBotDoc(ref, data));
 }
 
 // ── Admin management — same actions, no ownership check ──────────────────
@@ -591,17 +657,17 @@ async function adminGetBotDoc(botId) {
 
 async function adminStopBot(botId) {
   const { ref, data } = await adminGetBotDoc(botId);
-  return _stopBotDoc(ref, data);
+  return withBotLock(botId, () => _stopBotDoc(ref, data));
 }
 
 async function adminRestartBot(botId) {
   const { ref, data } = await adminGetBotDoc(botId);
-  return _restartBotDoc(ref, data);
+  return withBotLock(botId, () => _restartBotDoc(ref, data));
 }
 
 async function adminDeleteBot(botId) {
   const { ref, data } = await adminGetBotDoc(botId);
-  return _deleteBotDoc(ref, data);
+  return withBotLock(botId, () => _deleteBotDoc(ref, data));
 }
 
 // One row per user who has ever deployed a bot, with counts — powers the
