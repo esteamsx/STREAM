@@ -166,6 +166,15 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Render terminates TLS at its edge and forwards over plain HTTP, so without
+// this every request's req.ip is Render's proxy address rather than the
+// visitor's. Every IP-keyed guard below (globalLimiter, passwordLoginLimiter,
+// RepeatedRefusalGuard, ipBlocklist) then shares a single bucket across all
+// users at once — 10 logins per 15 minutes site-wide, and one guard trip
+// banning everybody. Trust exactly one hop: `true` would let a client forge
+// X-Forwarded-For and pick its own rate-limit key.
+app.set("trust proxy", 1);
+
 // Domain lock runs first, before spending cycles on anything else — blocks
 // requests whose Host header doesn't match the canonical domain (unless a
 // valid DEVTOOLS_BYPASS_KEY is supplied). See lock.js for exactly what this
