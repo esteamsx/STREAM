@@ -4243,9 +4243,32 @@ class AuthOpTimeout extends Error {
 
 function withDeadline(promise, label, ms = AUTH_OP_TIMEOUT_MS) {
   let timer;
+  let timedOut = false;
   const deadline = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new AuthOpTimeout(label, ms)), ms);
+    timer = setTimeout(() => {
+      timedOut = true;
+      reject(new AuthOpTimeout(label, ms));
+    }, ms);
   });
+
+  // Losing the race doesn't cancel the underlying call — it keeps retrying and
+  // eventually settles. Firestore reports the real gRPC status when it gives
+  // up, and that status is the one thing that separates the possible causes:
+  //   RESOURCE_EXHAUSTED  -> daily quota spent
+  //   PERMISSION_DENIED   -> API disabled or the key lacks Datastore access
+  //   UNAUTHENTICATED     -> service-account key revoked or malformed
+  //   UNAVAILABLE         -> transient outage or blocked egress
+  // Log it instead of discarding it. This also keeps the abandoned promise
+  // from surfacing as an unhandled rejection.
+  promise.then(
+    () => {
+      if (timedOut) console.error(`[/api/session] ${label} eventually succeeded, after missing its ${Math.round(ms / 1000)}s deadline`);
+    },
+    (err) => {
+      if (timedOut) console.error(`[/api/session] ${label} eventually failed: code=${err?.code ?? "none"} ${err?.message ?? err}`);
+    }
+  );
+
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
