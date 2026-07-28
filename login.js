@@ -831,7 +831,14 @@ if (${JSON.stringify(!!cfg.googleClientId)}) {
       callback: window.handleGoogleCredential,
     });
     window.google.accounts.id.renderButton(document.getElementById('gsiWrap'), { type: 'icon', shape: 'square', theme: 'filled_black', size: 'large' });
-    window.google.accounts.id.prompt();
+    // One Tap (.prompt()) is deliberately not called. Chrome now runs it only
+    // through FedCM, and this project isn't registered as a FedCM provider —
+    // Chrome fetches accounts.google.com/.well-known/web-identity, doesn't
+    // find the config listed, and aborts. The prompt therefore never appears;
+    // the only thing calling it achieved was two console errors on every page
+    // load ("Provider's FedCM config file not listed in its well-known file"
+    // and "FedCM get() rejects with AbortError"). The rendered button below
+    // uses its own flow and is unaffected.
   });
 }
 
@@ -951,10 +958,15 @@ troubleSigningOverlay.addEventListener('click', (e) => {
 });
 document.getElementById('troubleGoogleBtn').addEventListener('click', () => {
   troubleSigningOverlay.classList.remove('show');
-  if (window.google && window.google.accounts && window.google.accounts.id) {
-    window.google.accounts.id.prompt();
+  // Previously called google.accounts.id.prompt(), which is One Tap — and One
+  // Tap can't run here (see the FedCM note above), so this button silently did
+  // nothing every time. Forward the click to the real rendered Google button
+  // instead, which is the same control the user would tap on the form.
+  const gsiButton = document.querySelector('#gsiWrap [role="button"], #gsiWrap div[tabindex]');
+  if (gsiButton) {
+    gsiButton.click();
   } else {
-    showError('Google sign-in is not available right now.');
+    showError('Google sign-in is not available right now — use the Google icon on the sign-in form.');
   }
 });
 document.getElementById('troubleTelegramBtn').addEventListener('click', () => {
