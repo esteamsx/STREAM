@@ -4222,15 +4222,17 @@ app.get("/api/github-auth/callback", oauthCallbackLimiter, async (req, res) => {
 // causes.
 const AUTH_OP_TIMEOUT_MS = 10000;
 
-class AuthOpTimeout extends Error {}
+class AuthOpTimeout extends Error {
+  constructor(label, ms) {
+    super(`${label} did not complete within ${Math.round(ms / 1000)}s`);
+    this.label = label;
+  }
+}
 
 function withDeadline(promise, label, ms = AUTH_OP_TIMEOUT_MS) {
   let timer;
   const deadline = new Promise((_, reject) => {
-    timer = setTimeout(
-      () => reject(new AuthOpTimeout(`${label} did not complete within ${Math.round(ms / 1000)}s`)),
-      ms
-    );
+    timer = setTimeout(() => reject(new AuthOpTimeout(label, ms)), ms);
   });
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
@@ -4263,7 +4265,14 @@ app.post("/api/session", passwordLoginLimiter, async (req, res) => {
     // was never wrong. Separate the two.
     if (err instanceof AuthOpTimeout) {
       console.error(`[/api/session] backend stalled: ${err.message}`);
-      return res.status(503).json({ error: "Sign-in is temporarily unavailable. Please try again shortly." });
+      // The operation name is echoed to the client on purpose: it is the one
+      // piece of information that identifies which backend is down, and
+      // reading it off the screen beats hunting for it in the host's log
+      // viewer. It is an internal function name, nothing sensitive. Drop the
+      // parenthetical once this is diagnosed.
+      return res.status(503).json({
+        error: `Sign-in is temporarily unavailable (${err.label} timed out). Please try again shortly.`,
+      });
     }
     console.error("[/api/session] failed:", err);
     res.status(401).json({ error: "Could not sign in." });
