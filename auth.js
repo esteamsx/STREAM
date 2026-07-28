@@ -682,46 +682,133 @@ async function consumeResetToken(token) {
   return data.uid;
 }
 
+/* ── Sessions ──────────────────────────────────────────────────────────────
+   Sessions are signed rather than stored: the cookie carries the uid and its
+   own expiry, authenticated by an HMAC. Signing in therefore costs no
+   Firestore write, and checking a session costs no Firestore read.
+
+   The stored-session version wrote a document per sign-in and read one on
+   every single request. When Firestore stopped accepting writes, that write
+   didn't fail — the client retried it indefinitely — so /api/session hung
+   forever at createSession and every sign-in method broke at once while the
+   cached pages carried on serving normally.
+
+   The tradeoff is that a signed token can't be deleted server-side. Anything
+   that must invalidate sessions early stamps `sessionsValidFrom` on the user
+   document instead, and tokens issued before that instant are refused; see
+   sessionIssuedAt() and its use in requireAuth. That check runs where the
+   profile has already been fetched, so revocation costs nothing extra.
+   ───────────────────────────────────────────────────────────────────────── */
+
+// Prefer an explicit SESSION_SECRET. Failing that, derive a key from the
+// service-account credentials: already secret, already required for the app to
+// boot, and identical across restarts and instances — so no new environment
+// variable is needed for this to work on deploy, and existing signed cookies
+// survive a restart.
+const SESSION_SIGNING_KEY = (() => {
+  const explicit = process.env.SESSION_SECRET;
+  if (explicit) return crypto.createHash("sha256").update(`session-v1:${explicit}`).digest();
+  const fallback = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!fallback) throw new Error("Set SESSION_SECRET so session cookies can be signed.");
+  return crypto.createHash("sha256").update(`session-v1:${fallback}`).digest();
+})();
+
+const LEGACY_SESSION_ID = /^[a-f0-9]{64}$/;
+
+function signSessionToken(payload) {
+  const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const sig = crypto.createHmac("sha256", SESSION_SIGNING_KEY).update(body).digest("base64url");
+  return `v1.${body}.${sig}`;
+}
+
+// Returns the payload only for a token whose signature verifies. Never throws:
+// every malformed, truncated or forged cookie is just a null.
+function readSessionToken(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3 || parts[0] !== "v1") return null;
+  const [, body, sig] = parts;
+  const expected = crypto.createHmac("sha256", SESSION_SIGNING_KEY).update(body).digest();
+  const given = Buffer.from(sig, "base64url");
+  // timingSafeEqual throws on a length mismatch, so check that first.
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+    return payload && typeof payload.uid === "string" ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+// When the token was issued, for revocation checks. Null for legacy session
+// ids, which carry no issue time — those are refused outright once a
+// revocation instant is set, since their age can't be established.
+function sessionIssuedAt(token) {
+  const payload = readSessionToken(token);
+  return payload && typeof payload.iat === "number" ? payload.iat : null;
+}
+
+// True when this token predates the account's revocation instant — set by a
+// ban, a scheduled deletion, or any other "sign this account out everywhere".
+function isSessionRevoked(token, profile) {
+  const validFrom = profile?.sessionsValidFrom;
+  if (typeof validFrom !== "number") return false;
+  const issuedAt = sessionIssuedAt(token);
+  if (issuedAt === null) return true; // legacy id: unknown age, so don't trust it
+  return issuedAt < validFrom;
+}
+
 async function createSession(uid) {
-  const sessionId = crypto.randomBytes(32).toString("hex");
-  await db.collection("sessions").doc(sessionId).set({
-    uid,
-    expiresAt: Date.now() + SESSION_TTL_MS,
-  });
-  return sessionId;
+  const now = Date.now();
+  return signSessionToken({ uid, iat: now, exp: now + SESSION_TTL_MS });
 }
 
 async function verifySession(sessionId) {
   if (!sessionId) return null;
-  const ref = db.collection("sessions").doc(sessionId);
-  const snap = await ref.get();
-  if (!snap.exists) return null;
-  const data = snap.data();
-  if (Date.now() > data.expiresAt) {
-    await ref.delete();
+
+  const payload = readSessionToken(sessionId);
+  if (payload) {
+    if (typeof payload.exp !== "number" || Date.now() >= payload.exp) return null;
+    return payload.uid;
+  }
+
+  // Sessions issued before the switch to signed cookies are still Firestore
+  // document ids. Honoured so nobody was signed out by the change; they age
+  // out on their own within SESSION_TTL_MS.
+  if (!LEGACY_SESSION_ID.test(sessionId)) return null;
+  try {
+    const snap = await db.collection("sessions").doc(sessionId).get();
+    if (!snap.exists) return null;
+    const data = snap.data();
+    if (Date.now() > data.expiresAt) return null;
+    return data.uid;
+  } catch {
     return null;
   }
-  // Sliding expiry, throttled: only actually re-extend once the session is
-  // more than halfway to expiring, instead of writing on every single
-  // request. verifySession is called far more often than a 24h session
-  // ever needs renewing, so this cuts an unconditional Firestore write on
-  // every request down to roughly once every ~12h per active session.
-  // Fire-and-forget — never worth delaying the request on.
-  if (data.expiresAt - Date.now() < SESSION_TTL_MS / 2) {
-    ref.update({ expiresAt: Date.now() + SESSION_TTL_MS }).catch(() => {});
-  }
-  return data.uid;
 }
 
 async function refreshSession(sessionId) {
+  if (!sessionId || !LEGACY_SESSION_ID.test(sessionId)) return;
   await db.collection("sessions").doc(sessionId).update({
     expiresAt: Date.now() + SESSION_TTL_MS,
-  });
+  }).catch(() => {});
 }
 
+// A signed token has no server-side record to remove — logout clears the
+// cookie, which is what ends the session. Legacy ids still get cleaned up.
 async function deleteSession(sessionId) {
-  if (!sessionId) return;
+  if (!sessionId || !LEGACY_SESSION_ID.test(sessionId)) return;
   await db.collection("sessions").doc(sessionId).delete().catch(() => {});
+}
+
+// Invalidates every session for an account, including signed cookies already
+// out in the wild, by moving the account's revocation instant to now.
+async function revokeAllSessions(uid) {
+  await db.collection("users").doc(uid).update({ sessionsValidFrom: Date.now() }).catch(() => {});
+  // Legacy stored sessions still need their documents removed; signed cookies
+  // are handled entirely by the stamp above.
+  await db.collection("sessions").where("uid", "==", uid).get().then((snap) => {
+    return Promise.all(snap.docs.map((d) => d.ref.delete()));
+  }).catch(() => {});
 }
 
 const TWOFA_PENDING_TTL_MS = 5 * 60 * 1000;
@@ -834,9 +921,7 @@ async function cleanupFollowRelationships(uid) {
 
 async function purgeUser(uid) {
   pendingDeletionTimers.delete(uid);
-  await db.collection("sessions").where("uid", "==", uid).get().then((snap) => {
-    return Promise.all(snap.docs.map((d) => d.ref.delete()));
-  }).catch(() => {});
+  await revokeAllSessions(uid);
   await cleanupFollowRelationships(uid).catch(() => {});
   await db.collection("users").doc(uid).delete().catch(() => {});
   await auth.deleteUser(uid).catch(() => {});
@@ -846,9 +931,7 @@ async function scheduleAccountDeletion(uid) {
   const deletionAt = Date.now() + DELETION_GRACE_MS;
   await auth.updateUser(uid, { disabled: true });
   await db.collection("users").doc(uid).update({ pendingDeletion: true, deletionAt });
-  await db.collection("sessions").where("uid", "==", uid).get().then((snap) => {
-    return Promise.all(snap.docs.map((d) => d.ref.delete()));
-  }).catch(() => {});
+  await revokeAllSessions(uid);
   if (pendingDeletionTimers.has(uid)) clearTimeout(pendingDeletionTimers.get(uid));
   const timer = setTimeout(() => purgeUser(uid), DELETION_GRACE_MS);
   pendingDeletionTimers.set(uid, timer);
@@ -2085,7 +2168,12 @@ function requireAuth(req, res, next) {
     .then(async (uid) => {
       if (!uid) return res.status(401).json({ error: "not_authenticated" });
       const profile = await getUserProfile(uid);
-      if (!profile || profile.pendingDeletion) {
+      // `banned` is enforced here rather than relying on the ban having
+      // deleted the session: a signed cookie can't be deleted, and this check
+      // is free because the profile is already loaded. isSessionRevoked
+      // covers cookies issued before the account was banned or scheduled for
+      // deletion.
+      if (!profile || profile.pendingDeletion || profile.banned || isSessionRevoked(sessionId, profile)) {
         await deleteSession(sessionId);
         return res.status(401).json({ error: "not_authenticated" });
       }
@@ -2186,9 +2274,7 @@ async function adminBanUser(uid) {
   if (isAdminEmail(profile.email)) throw new Error("You can't ban the admin account.");
   await auth.updateUser(uid, { disabled: true });
   await db.collection("users").doc(uid).update({ banned: true, bannedAt: Date.now() });
-  await db.collection("sessions").where("uid", "==", uid).get().then((snap) => {
-    return Promise.all(snap.docs.map((d) => d.ref.delete()));
-  }).catch(() => {});
+  await revokeAllSessions(uid);
 
   // Best-effort ban notification — never let an email hiccup block the ban itself.
   if (profile.email) {
@@ -2321,6 +2407,8 @@ export {
   verifySession,
   refreshSession,
   deleteSession,
+  revokeAllSessions,
+  isSessionRevoked,
   scheduleAccountDeletion,
   sweepPendingDeletions,
   sweepOrphanedUsers,

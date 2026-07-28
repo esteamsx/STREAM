@@ -91,6 +91,7 @@ import {
   verifySession,
   refreshSession,
   deleteSession,
+  isSessionRevoked,
   scheduleAccountDeletion,
   sweepPendingDeletions,
   sweepOrphanedUsers,
@@ -3504,7 +3505,10 @@ app.get("/admin", async (req, res) => {
   const uid = await verifySession(sessionId);
   if (!uid) return res.redirect("/login");
   const profile = await getUserProfile(uid);
-  if (!profile || !isAdminEmail(profile.email)) return res.redirect("/");
+  // Mirrors requireAuth: a signed cookie can't be deleted, so a banned or
+  // revoked session has to be refused here too rather than assumed gone.
+  if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.redirect("/login");
+  if (!isAdminEmail(profile.email)) return res.redirect("/");
   res.send(cachedAdminHtml);
 });
 
