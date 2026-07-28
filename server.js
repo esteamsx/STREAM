@@ -4211,21 +4211,45 @@ app.get("/api/github-auth/callback", oauthCallbackLimiter, async (req, res) => {
   }
 });
 
+// Firebase Admin and Firestore retry an unreachable backend indefinitely with
+// backoff instead of failing fast. A revoked service-account key, a disabled
+// API or an exhausted quota therefore doesn't raise an error — the call simply
+// never settles, so /api/session accepts the request and never answers, the
+// browser spins forever, and nothing is logged. Giving each call a deadline
+// turns that silence into a logged failure naming the exact operation that
+// stalled, which also separates Firebase Auth (verifyIdToken) from Firestore
+// (the profile/session reads and writes) — different services, different
+// causes.
+const AUTH_OP_TIMEOUT_MS = 10000;
+
+class AuthOpTimeout extends Error {}
+
+function withDeadline(promise, label, ms = AUTH_OP_TIMEOUT_MS) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new AuthOpTimeout(`${label} did not complete within ${Math.round(ms / 1000)}s`)),
+      ms
+    );
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
 app.post("/api/session", passwordLoginLimiter, async (req, res) => {
   try {
     const { idToken, remember, altcha } = req.body;
-    const decoded = await firebaseAuth.verifyIdToken(idToken);
+    const decoded = await withDeadline(firebaseAuth.verifyIdToken(idToken), "firebaseAuth.verifyIdToken");
     if (decoded.firebase.sign_in_provider === "google.com") {
-      await ensureGoogleUserProfile(decoded);
+      await withDeadline(ensureGoogleUserProfile(decoded), "ensureGoogleUserProfile");
     } else if (decoded.firebase.sign_in_provider === "password" && !(await verifyCaptcha(altcha))) {
       return res.status(400).json({ error: "Captcha not completed." });
     }
-    const profile = await getUserProfile(decoded.uid);
+    const profile = await withDeadline(getUserProfile(decoded.uid), "getUserProfile");
     if (profile?.twoFactorEnabled) {
-      const pendingToken = await issueTwoFactorPendingLogin(decoded.uid, remember);
+      const pendingToken = await withDeadline(issueTwoFactorPendingLogin(decoded.uid, remember), "issueTwoFactorPendingLogin");
       return res.json({ requires2FA: true, pendingToken });
     }
-    const sessionId = await createSession(decoded.uid);
+    const sessionId = await withDeadline(createSession(decoded.uid), "createSession");
     res.cookie("session", sessionId, {
       httpOnly: true,
       secure: true,
@@ -4234,7 +4258,14 @@ app.post("/api/session", passwordLoginLimiter, async (req, res) => {
     });
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    // A stalled backend is an outage, not a rejected credential — reporting it
+    // as 401 "Could not sign in." sends people off resetting a password that
+    // was never wrong. Separate the two.
+    if (err instanceof AuthOpTimeout) {
+      console.error(`[/api/session] backend stalled: ${err.message}`);
+      return res.status(503).json({ error: "Sign-in is temporarily unavailable. Please try again shortly." });
+    }
+    console.error("[/api/session] failed:", err);
     res.status(401).json({ error: "Could not sign in." });
   }
 });
