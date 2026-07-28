@@ -784,15 +784,15 @@ if (${JSON.stringify(!!cfg.googleClientId)}) {
     window.google.accounts.id.initialize({
       client_id: ${JSON.stringify(cfg.googleClientId)},
       callback: window.handleGoogleCredential,
-      // This Google Cloud project isn't registered for Chrome's FedCM identity
-      // flow ("Provider's FedCM config file not listed in its well-known
-      // file" in the console). Without this flag, Chrome still tries FedCM
-      // first for the One Tap prompt, that attempt aborts, and the fallback
-      // path collides with this site's Cross-Origin-Opener-Policy header —
-      // so picking an account in the prompt never actually delivers a
-      // credential back to the page. Forcing the classic (non-FedCM) flow,
-      // which the COOP policy above is already tuned for, avoids all of it.
-      use_fedcm_for_prompt: false,
+      // Google's FedCM migration window ended August 2025 — FedCM is now the
+      // supported path for both One Tap and the button, not an opt-in
+      // experiment. It's browser-mediated (no popup, no cross-window
+      // postMessage), so it doesn't run into the Cross-Origin-Opener-Policy
+      // conflict the old popup/iframe-relay flow did. Explicitly opting into
+      // both here rather than leaving it to a mid-migration default that can
+      // vary by Chrome version.
+      use_fedcm_for_prompt: true,
+      use_fedcm_for_button: true,
     });
     window.google.accounts.id.renderButton(document.getElementById('gsiWrap'), { type: 'icon', shape: 'square', theme: 'filled_black', size: 'large' });
     window.google.accounts.id.prompt();
