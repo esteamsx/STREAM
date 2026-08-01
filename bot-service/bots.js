@@ -473,9 +473,24 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
       // (multideviceMismatch / connectionReplaced) it just logs and sits
       // idle without exiting, which was leaving the dashboard stuck
       // showing "Connected" forever. Catch those and reflect reality.
+      //
+      // A single one of these lines can also show up as a one-off/transitional
+      // message during an otherwise-normal reconnect (e.g. restoring a saved
+      // session right after a restart) rather than a real logout. Killing the
+      // process and freezing the dashboard on "Disconnected" over that first
+      // line was the bug behind "I restart and it says disconnected, but
+      // WhatsApp still shows it connected" — a SIGTERM here doesn't send
+      // WhatsApp a real logout, so the phone's Linked Devices view lags
+      // behind our (wrong) status, and since "disconnected" is deliberately
+      // excluded from auto-restart below, it never recovers on its own.
+      // Require the signal to repeat before acting on it — same debounce
+      // already used for Bad MAC above, for the same reason.
       if (/^Scan again/i.test(line) || /Close current Session first/i.test(line)) {
-        setStatus("disconnected", { lastError: "Disconnected from WhatsApp — restart to get a new pairing code." });
-        if (entry.proc) entry.proc.kill("SIGTERM");
+        entry.disconnectSignalCount = (entry.disconnectSignalCount || 0) + 1;
+        if (entry.disconnectSignalCount >= 2) {
+          setStatus("disconnected", { lastError: "Disconnected from WhatsApp — restart to get a new pairing code." });
+          if (entry.proc) entry.proc.kill("SIGTERM");
+        }
         return;
       }
     });
