@@ -17,6 +17,7 @@ import { renderPrivacy } from "./views/privacy.js";
 import { renderDevelopers } from "./views/developers.js";
 import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
+import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
 import { renderDeployBot } from "./views/deploy-bot.js";
 
@@ -437,7 +438,7 @@ app.get(["/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"], (req, re
 // silent 404-per-reload source, same problem as favicon.ico above.
 app.get("/.well-known/appspecific/com.chrome.devtools.json", (req, res) => res.status(204).end());
 
-app.get("/", async (req, res) => {
+app.get("/", scrapeGate, async (req, res) => {
   const sessionId = req.cookies?.session;
   const uid = await verifySession(sessionId);
   if (!uid) return res.redirect("/login");
@@ -3465,7 +3466,7 @@ function fsRunSearch(q){
 </html>`);
 });
 
-app.get("/football", (req, res) => {
+app.get("/football", scrapeGate, (req, res) => {
   fs.readFile(path.join(__dirname, "views", "football.js"), "utf8", (err, html) => {
     if (err) return res.status(404).end();
     res.set("Content-Type", "text/html");
@@ -3473,7 +3474,7 @@ app.get("/football", (req, res) => {
   });
 });
 
-app.get("/login", async (req, res) => {
+app.get("/login", scrapeGate, async (req, res) => {
   const sessionId = req.cookies?.session;
   const uid = await verifySession(sessionId);
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
@@ -3481,26 +3482,26 @@ app.get("/login", async (req, res) => {
   res.send(cachedLoginHtml);
 });
 
-app.get("/verify", (req, res) => {
+app.get("/verify", scrapeGate, (req, res) => {
   res.send(cachedVerifyHtml);
 });
 
-app.get("/account", (req, res) => {
+app.get("/account", scrapeGate, (req, res) => {
   res.send(cachedAccountHtml);
 });
 
-app.get("/profile", (req, res) => {
+app.get("/profile", scrapeGate, (req, res) => {
   res.send(cachedProfileHtml);
 });
 
-app.get("/u/:username", (req, res) => {
+app.get("/u/:username", scrapeGate, (req, res) => {
   res.send(cachedProfileHtml);
 });
 
 // Session-cookie based admin gate for the page itself (mirrors the /admin
 // redirect logic already in place) — kept separate from requireAuth/requireAdmin
 // below since those two are for the JSON API and expect req.uid to already be set.
-app.get("/admin", async (req, res) => {
+app.get("/admin", scrapeGate, async (req, res) => {
   const sessionId = req.cookies?.session;
   const uid = await verifySession(sessionId);
   if (!uid) return res.redirect("/login");
@@ -3724,23 +3725,23 @@ app.get("/api/admin/system/storage", requireAuth, requireAdmin, async (req, res)
 
 
 
-app.get("/reset", (req, res) => {
+app.get("/reset", scrapeGate, (req, res) => {
   res.send(cachedResetHtml);
 });
 
-app.get("/dmca", (req, res) => {
+app.get("/dmca", scrapeGate, (req, res) => {
   res.send(cachedDmcaHtml);
 });
 
-app.get("/privacy", (req, res) => {
+app.get("/privacy", scrapeGate, (req, res) => {
   res.send(cachedPrivacyHtml);
 });
 
-app.get("/developers", (req, res) => {
+app.get("/developers", scrapeGate, (req, res) => {
   res.send(cachedDevelopersHtml);
 });
 
-app.get("/deploy-bot", (req, res) => {
+app.get("/deploy-bot", scrapeGate, (req, res) => {
   res.send(cachedDeployBotHtml);
 });
 

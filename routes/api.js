@@ -401,6 +401,13 @@ router.get("/api/stream-token/:channel", requireAuth, internalTokenLimiter, (req
 async function requireApiKey(req, res, next) {
   const key = req.headers["x-api-key"] || req.query.key;
   if (!key) return res.status(401).json({ error: "Missing API key. Pass it in the x-api-key header." });
+  // A key passed as ?key=... ends up in server access logs, any proxy/CDN
+  // in front of this app, and the caller's own browser/shell history — a
+  // header never does. Still honored (existing integrations use it), but
+  // steer people off it going forward rather than silently keep encouraging it.
+  if (req.query.key && !req.headers["x-api-key"]) {
+    res.set("Warning", '299 - "Passing the API key as ?key= is deprecated and less safe than the x-api-key header; it gets logged in more places. Please switch to the header."');
+  }
   try {
     const found = await findApiKeyByRawKey(String(key));
     if (!found) return res.status(401).json({ error: "Invalid or revoked API key." });
@@ -459,6 +466,12 @@ router.get("/embed/:channel", (req, res) => {
   // security-middleware.js sets on every response — this route is meant
   // to be embedded on someone else's page.
   res.removeHeader("X-Frame-Options");
+  // The URL itself carries someone's stream token — an intermediate/shared
+  // cache (a corporate proxy, a CDN in front of whoever embeds this) caching
+  // this response by URL would hand that token to the next person who hits
+  // the same cache, expired or not. Same reasoning as no-store on the
+  // manifest/segment routes below, just for the page that links to them.
+  res.set("Cache-Control", "no-store");
 
   if (!check.valid) {
     res.status(403).type("html").send(`<!doctype html><html><head><meta charset="utf-8">
