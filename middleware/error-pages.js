@@ -1,29 +1,6 @@
-// middleware/error-pages.js — the last two links in the middleware chain.
-//
-// Before this existed, anything that fell past the routes got Express's stock
-// behavior, which is what a bare Express app does and not what a finished site
-// does:
-//   - An unknown URL returned the framework's plain-text "Cannot GET /whatever"
-//     — no styling, and it advertises the stack it's running on.
-//   - A route that threw (or rejected, or handed next() an error) returned a
-//     500 page containing the full stack trace, since Express only hides it
-//     when NODE_ENV=production is set — easy to forget, and worth not
-//     depending on. Anyone hitting the bug got file paths and internals.
-//
-// Both now end at one place that renders in the site's own palette, says
-// nothing about internals, and prints a request id the visitor can quote so a
-// report can be matched to the exact line in the logs.
-//
-// Order matters: these two must be registered after every route, and the error
-// handler must be last of all. Express identifies an error handler purely by
-// its four-argument signature, so the unused `next` below has to stay.
 
 import crypto from "crypto";
 
-// A short id per request, echoed in the X-Request-Id response header, in every
-// server-side log line about that request, and on the error page itself.
-// Honors an id supplied by the edge (proxy/CDN) when there is one, so a single
-// id follows the request across both sets of logs.
 export function requestId(req, res, next) {
   const supplied = String(req.get("x-request-id") || "").trim();
   req.id = /^[A-Za-z0-9._-]{1,64}$/.test(supplied) ? supplied : crypto.randomBytes(8).toString("hex");
@@ -31,17 +8,6 @@ export function requestId(req, res, next) {
   next();
 }
 
-// SAFETY NET, not a feature. This app runs on Express 4, where an async route
-// handler that rejects is NOT routed to the error handler — the rejection
-// surfaces as an unhandledRejection and the request itself just hangs, leaving
-// the visitor on a spinner until their browser or the platform proxy gives up,
-// with nothing in the logs tying the two together. The routes here all do
-// their own try/catch, but one missed path should not be an invisible hang.
-// If nothing has begun writing a response by the deadline, end it with a real
-// error page and log the route so the underlying bug is findable.
-//
-// exemptPrefixes exists for responses that are meant to stay open — live HLS
-// streams — where a deadline would be the bug.
 export function responseWatchdog({ timeoutMs = 30000, exemptPrefixes = [] } = {}) {
   return (req, res, next) => {
     if (exemptPrefixes.some((p) => req.path.startsWith(p))) return next();
@@ -59,10 +25,6 @@ export function responseWatchdog({ timeoutMs = 30000, exemptPrefixes = [] } = {}
   };
 }
 
-// JSON callers get JSON. Anything else gets the page. Deciding by path rather
-// than by Accept header keeps it predictable: fetch() from our own pages sends
-// an Accept the browser also sends for navigations, so keying on that returns
-// an HTML error document to code expecting JSON.
 function wantsJson(req) {
   return req.path.startsWith("/api/") || req.path.startsWith("/embed/");
 }
@@ -115,11 +77,7 @@ export function notFoundHandler(req, res) {
   );
 }
 
-// eslint-disable-next-line no-unused-vars -- the 4th parameter is how Express recognizes an error handler
 export function errorHandler(err, req, res, next) {
-  // body-parser and friends attach a status to the errors they raise; those
-  // are the caller's fault, not a server fault, and shouldn't be logged as
-  // outages or reported as 500s. Anything without one is a genuine bug.
   const status = Number(err?.status || err?.statusCode) || 500;
   const id = req.id || "-";
 
@@ -129,9 +87,6 @@ export function errorHandler(err, req, res, next) {
     console.warn(`[${id}] ${req.method} ${req.originalUrl} — ${status} ${err?.message || err}`);
   }
 
-  // Something already started writing this response (a streamed HLS segment,
-  // say). Anything appended now would corrupt it, so hand back to Express,
-  // whose default in this case is to destroy the socket.
   if (res.headersSent) return next(err);
 
   res.set("Cache-Control", "no-store");

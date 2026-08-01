@@ -5,62 +5,21 @@ import { spawn, exec } from "child_process";
 import { db } from "./bot-firebase.js";
 import admin from "firebase-admin";
 
-// ── WhatsApp bot deployment engine ──────────────────────────────────────
-// Deploys ONE fixed repo (paskito002/ES_TEAMS-V1) per user request, the
-// way a Render web service deploy works: download the repo, npm install,
-// run it as a long-lived child process, stream its logs, and manage its
-// lifecycle (stop/restart/delete). Nothing here accepts an arbitrary
-// repo URL — the source is hardcoded on purpose.
-//
-// The bot itself is a Baileys WhatsApp client. It authenticates via a
-// "pairing code" (an 8-digit code entered in WhatsApp > Linked Devices),
-// requested using a phone number passed in as the PHONE_NUMBER env var
-// (confirmed directly from the repo's index.js: `process.env.PHONE_NUMBER
-// || phoneNumber`). Once paired, Baileys writes session credentials to
-// ./ES_TEAMS-SESSION inside the working directory — those files are
-// backed up to Firestore periodically so a server restart can restore
-// the session and reconnect without forcing everyone to re-pair.
-//
-// SPEED: the source + npm install are identical for every deployment (same
-// fixed repo), so downloading and `npm install`-ing from scratch on every
-// single deploy was the main reason deploys were slow. Instead, that work
-// happens ONCE into a shared "template" directory; every deployment after
-// that just copies the small source tree and symlinks the (large,
-// read-only-in-practice) node_modules from the template rather than
-// reinstalling it. Only the very first deploy on a fresh server (or after
-// the template's TTL expires) pays the full download+install cost.
-
-// AUTO-UPDATE: a periodic job checks GitHub for a new commit on the repo's
-// main branch (a cheap API call, not a full download) and, if one is found,
-// rebuilds the shared template and restarts every currently-running bot so
-// it picks up the new code — using the same restart path as a manual
-// restart, so it reconnects from its saved session without re-pairing.
-
 const REPO_TARBALL_URL = "https://github.com/paskito002/ES_TEAMS-V1/archive/refs/heads/main.tar.gz";
 const REPO_LATEST_COMMIT_API = "https://api.github.com/repos/paskito002/ES_TEAMS-V1/commits/main";
 const BOTS_ROOT = path.join(process.cwd(), ".bot-deployments");
 const TEMPLATE_DIR = path.join(BOTS_ROOT, "_template");
 const TEMPLATE_MARKER = path.join(TEMPLATE_DIR, ".built-meta.json");
-const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // background safety net — "Check now" in admin is the immediate option
+const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const SESSION_DIR_NAME = "ES_TEAMS-SESSION";
-const MAX_ACTIVE_BOTS = 10; // 512MB free tier — 100 was an OOM crash waiting to happen
-const MAX_INSTANCES_PER_USER = 1; // admin (isAdminEmail) bypasses this; the global MAX_ACTIVE_BOTS cap above still applies to everyone
-// Every one of these counts as "in progress or running" for the cap and
-// for boot-time restore — including the fast-moving download/extract/
-// install stages, which mostly only appear on the very first deploy.
+const MAX_ACTIVE_BOTS = 10;
+const MAX_INSTANCES_PER_USER = 1;
 const ACTIVE_STATUSES = ["downloading", "extracting", "installing", "starting", "pairing", "connected", "reconnecting"];
 const LOG_LINES_KEPT = 300;
-const SESSION_BACKUP_INTERVAL_MS = 30 * 1000; // shorter than before — the wider this gap, the more stale a restart's restored session can be, which is what triggers Signal ratchet desync (Bad MAC errors)
+const SESSION_BACKUP_INTERVAL_MS = 30 * 1000;
 
-// uid+botId -> { proc, logs: string[], stoppedByUser: bool, backupTimer }
-// In-memory only — this is process state (a running child process can't be
-// reconstructed from Firestore), separate from the Firestore doc which is
-// the durable record of what *should* be running.
 const running = new Map();
 
-// botId -> consecutive auto-restart count since it last connected. Resets
-// to 0 on a successful connection; capped so a bot that's genuinely broken
-// (bad session, etc.) doesn't restart-loop forever burning CPU/RAM.
 const crashRestartCounts = new Map();
 const MAX_AUTO_RESTARTS = 5;
 const AUTO_RESTART_DELAY_MS = 5000;
@@ -81,9 +40,6 @@ function isValidPhoneNumber(raw) {
 }
 
 async function countActiveBots() {
-  // Firestore has no server-side COUNT-with-multiple-values query here
-  // without a composite index, so pull ids/status only for the active
-  // set — cheap, this collection is small (capped at 100 rows total).
   const snap = await db.collection("botDeployments").where("status", "in", ACTIVE_STATUSES).get();
   return snap.size;
 }
@@ -102,7 +58,6 @@ async function countBotsForUser(uid) {
   return snap.size;
 }
 
-// ── Deploy ────────────────────────────────────────────────────────────
 async function deployBot(uid, { label, phoneNumber }, isAdmin = false) {
   const cleanLabel = (label || "My Bot").toString().trim().slice(0, 60) || "My Bot";
   const cleanNumber = isValidPhoneNumber(phoneNumber);
@@ -111,13 +66,6 @@ async function deployBot(uid, { label, phoneNumber }, isAdmin = false) {
   const ref = db.collection("botDeployments").doc();
   const now = Date.now();
 
-  // The cap checks and the new doc's creation must be atomic. Read-then-write
-  // with no transaction let two deploy requests arriving close together
-  // (double-click, two tabs, two users at once) both pass the same cap
-  // checks before either commit, overshooting MAX_ACTIVE_BOTS — the exact
-  // OOM crash that cap exists to prevent (512MB free tier). Wrapping both
-  // queries and the write in one transaction makes Firestore retry the
-  // whole thing if a matching document changes underneath it.
   await db.runTransaction(async (tx) => {
     if (!isAdmin) {
       const mineSnap = await tx.get(db.collection("botDeployments").where("uid", "==", uid));
@@ -154,8 +102,6 @@ async function downloadTarball(destFile) {
     const file = fs.createWriteStream(destFile);
     https.get(REPO_TARBALL_URL, { headers: githubHeaders() }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        // GitHub archive links usually redirect once — follow it manually
-        // rather than pulling in a whole HTTP client just for this.
         https.get(res.headers.location, { headers: githubHeaders() }, (res2) => {
           res2.pipe(file);
           file.on("finish", () => file.close(resolve));
@@ -204,18 +150,8 @@ function templateExists() {
   return !!readTemplateMeta();
 }
 
-// ── Shared template (download + install ONCE, reused by every deploy) ───
 let templateReadyPromise = null;
 
-// A deploy already past its ensureTemplate()/ensureLatestTemplate() gate
-// does a synchronous read of TEMPLATE_DIR in materializeFromTemplate()
-// below, with no lock against a rebuild starting concurrently (the 30-min
-// auto-update check, or an admin's "Check now"). buildTemplate()'s first
-// step is rm -rf on that same directory — without coordination, a rebuild
-// landing mid-copy deletes the directory out from under it, and the
-// deploy fails with a confusing ENOENT tied purely to timing. This tiny
-// readers/writer counter makes buildTemplate() wait for any in-progress
-// materializeFromTemplate() calls to finish before it wipes the directory.
 let templateReaders = 0;
 let templateDrainWaiters = [];
 
@@ -235,11 +171,6 @@ function waitForTemplateReadersToDrain() {
   return new Promise((resolve) => templateDrainWaiters.push(resolve));
 }
 
-// The actual download → extract → install → record-what-commit-this-is
-// pipeline. Shared by ensureTemplate() (first deploy ever, no template
-// exists yet) and checkForUpdates() (an existing template needs refreshing
-// because GitHub has a newer commit) — a single in-flight-build mutex means
-// the two paths can never race each other into building it twice at once.
 async function buildTemplate(onStage) {
   if (!templateReadyPromise) {
     templateReadyPromise = (async () => {
@@ -255,7 +186,7 @@ async function buildTemplate(onStage) {
       await onStage?.("installing");
       await run("npm install --omit=dev --no-audit --no-fund", { cwd: TEMPLATE_DIR });
       let sha = null;
-      try { sha = await fetchLatestCommitSha(); } catch { /* update-check will just retry later */ }
+      try { sha = await fetchLatestCommitSha(); } catch {  }
       fs.writeFileSync(TEMPLATE_MARKER, JSON.stringify({ builtAt: Date.now(), sha }));
     })();
     templateReadyPromise.finally(() => { templateReadyPromise = null; });
@@ -263,19 +194,11 @@ async function buildTemplate(onStage) {
   await templateReadyPromise;
 }
 
-// onStage(status) is called as the template moves through the slow steps —
-// only relevant to whichever deployment happened to trigger the (re)build;
-// every deployment that finds an existing template skips straight past this.
 async function ensureTemplate(onStage) {
   if (templateExists()) return;
   await buildTemplate(onStage);
 }
 
-// Periodic job: is there a newer commit on GitHub than what the template
-// was built from? If so, rebuild it and restart every currently-running
-// bot so it actually picks up the change — a template update alone
-// wouldn't reach bots that are already running, since they only re-read
-// the source tree when (re)started.
 async function checkForUpdates() {
   try {
     if (!templateExists()) return { checked: false, reason: "No template built yet — deploy a bot first." };
@@ -290,8 +213,6 @@ async function checkForUpdates() {
 
     const snap = await db.collection("botDeployments").where("status", "in", ACTIVE_STATUSES).get();
     for (const doc of snap.docs) {
-      // Goes through the same per-bot lock as manual stop/restart/delete so
-      // this background restart can't race a user action on the same bot.
       withBotLock(doc.id, () => _restartBotDoc(doc.ref, doc.data(), { skipTemplateCheck: true }))
         .catch((err) => console.error(`Auto-update restart failed for ${doc.id}:`, err.message));
     }
@@ -317,9 +238,6 @@ async function getTemplateStatus() {
   };
 }
 
-// Used by an explicit Restart — unlike the periodic checkForUpdates(), this
-// doesn't cascade-restart every other running bot, it just guarantees the
-// template this specific restart is about to use is actually current.
 async function ensureLatestTemplate() {
   if (!templateExists()) { await buildTemplate(); return; }
   if (templateReadyPromise) { await templateReadyPromise; return; }
@@ -342,10 +260,6 @@ export function startBotUpdateChecker() {
   }, UPDATE_CHECK_INTERVAL_MS);
 }
 
-// Fast per-deployment setup once the template exists: copy the (small)
-// source tree, and symlink node_modules instead of copying it — it's
-// identical across every instance and can be tens/hundreds of MB, so
-// copying it per-bot would eat disk and time for no benefit.
 function materializeFromTemplate(workDir) {
   const entries = fs.readdirSync(TEMPLATE_DIR);
   for (const name of entries) {
@@ -353,7 +267,7 @@ function materializeFromTemplate(workDir) {
     fs.cpSync(path.join(TEMPLATE_DIR, name), path.join(workDir, name), { recursive: true, force: true });
   }
   const linkPath = path.join(workDir, "node_modules");
-  try { fs.rmSync(linkPath, { recursive: true, force: true }); } catch { /* fine if it didn't exist */ }
+  try { fs.rmSync(linkPath, { recursive: true, force: true }); } catch {  }
   fs.symlinkSync(path.join(TEMPLATE_DIR, "node_modules"), linkPath, "dir");
 }
 
@@ -368,7 +282,7 @@ async function restoreSessionFiles(workDir, botId) {
   const sessionDir = path.join(workDir, SESSION_DIR_NAME);
   fs.mkdirSync(sessionDir, { recursive: true });
   for (const [name, base64] of Object.entries(files)) {
-    try { fs.writeFileSync(path.join(sessionDir, name), Buffer.from(base64, "base64")); } catch { /* best-effort */ }
+    try { fs.writeFileSync(path.join(sessionDir, name), Buffer.from(base64, "base64")); } catch {  }
   }
 }
 
@@ -381,14 +295,12 @@ async function backupSessionFiles(workDir, botId) {
     try {
       const full = path.join(sessionDir, name);
       if (fs.statSync(full).isFile()) files[name] = fs.readFileSync(full).toString("base64");
-    } catch { /* skip unreadable file, don't fail the whole backup */ }
+    } catch {  }
   }
   if (!Object.keys(files).length) return;
   await db.collection("botDeployments").doc(botId).update({ sessionFiles: files, updatedAt: Date.now() }).catch(() => {});
 }
 
-// The actual materialize → run pipeline. Used both for a fresh deploy and
-// for restoring a bot that was running before a server restart.
 async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}) {
   const ref = db.collection("botDeployments").doc(botId);
   const workDir = path.join(BOTS_ROOT, botId);
@@ -424,7 +336,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   await setStatus("starting");
 
   const childEnv = { ...process.env, PHONE_NUMBER: phoneNumber };
-  delete childEnv.PORT; // avoid every bot process fighting over the main site's port
+  delete childEnv.PORT;
 
   const proc = spawn("node", ["index.js"], {
     cwd: workDir,
@@ -446,7 +358,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         setStatus("connected", { connectedAt: Date.now(), lastError: null });
         crashRestartCounts.delete(botId);
         if (!entry.backupTimer) {
-          backupSessionFiles(workDir, botId); // capture it right away — don't wait for the first interval tick
+          backupSessionFiles(workDir, botId);
           entry.backupTimer = setInterval(() => backupSessionFiles(workDir, botId), SESSION_BACKUP_INTERVAL_MS);
         }
         return;
@@ -455,11 +367,6 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         setStatus("needs_repair", { lastError: "Session invalid — restart to get a new pairing code." });
         return;
       }
-      // A Signal-protocol ratchet desync (usually from restoring a
-      // slightly-stale session backup after a restart) — WhatsApp shows
-      // "Connected" at the transport level while every message silently
-      // fails to decrypt. A couple of isolated Bad MAC lines can be a
-      // one-off blip, so only flag it once it's clearly persistent.
       if (/Bad MAC|Failed to decrypt message with any known session/i.test(line)) {
         entry.badMacCount = (entry.badMacCount || 0) + 1;
         if (entry.badMacCount >= 3) {
@@ -467,24 +374,6 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         }
         return;
       }
-      // The bot's own reconnect logic only covers connectionLost/Closed/
-      // restartRequired/timedOut — for a manual "unlink this device" in
-      // WhatsApp (loggedOut) or a session replaced elsewhere
-      // (multideviceMismatch / connectionReplaced) it just logs and sits
-      // idle without exiting, which was leaving the dashboard stuck
-      // showing "Connected" forever. Catch those and reflect reality.
-      //
-      // A single one of these lines can also show up as a one-off/transitional
-      // message during an otherwise-normal reconnect (e.g. restoring a saved
-      // session right after a restart) rather than a real logout. Killing the
-      // process and freezing the dashboard on "Disconnected" over that first
-      // line was the bug behind "I restart and it says disconnected, but
-      // WhatsApp still shows it connected" — a SIGTERM here doesn't send
-      // WhatsApp a real logout, so the phone's Linked Devices view lags
-      // behind our (wrong) status, and since "disconnected" is deliberately
-      // excluded from auto-restart below, it never recovers on its own.
-      // Require the signal to repeat before acting on it — same debounce
-      // already used for Bad MAC above, for the same reason.
       if (/^Scan again/i.test(line) || /Close current Session first/i.test(line)) {
         entry.disconnectSignalCount = (entry.disconnectSignalCount || 0) + 1;
         if (entry.disconnectSignalCount >= 2) {
@@ -498,11 +387,6 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   proc.stdout.on("data", (buf) => onOutput(buf, "out"));
   proc.stderr.on("data", (buf) => onOutput(buf, "err"));
 
-  // Without this, a spawn failure (e.g. resource limits, missing binary)
-  // emits an unhandled 'error' event, which Node treats as fatal — it
-  // crashes this ENTIRE process, taking every other running bot down
-  // with it and forcing a full container restart. This keeps a failed
-  // spawn contained to just this one deployment.
   proc.on("error", (err) => {
     pushLog(entry, `Failed to start: ${err.message}`, "err");
     setStatus("error", { lastError: err.message });
@@ -513,22 +397,15 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   proc.on("exit", (code) => {
     if (entry.backupTimer) clearInterval(entry.backupTimer);
     backupSessionFiles(workDir, botId).finally(() => {
-      // Only remove OUR entry — if a restart already spawned a new process
-      // for this botId while this one was still shutting down, running.get
-      // now points at that newer entry, and this must not delete it out
-      // from under it.
       if (running.get(botId) === entry) running.delete(botId);
       entry._resolveExited?.();
-      if (entry.stoppedByUser) return; // stopBot() already set the final status
+      if (entry.stoppedByUser) return;
       ref.get().then((snap) => {
         if (!snap.exists) return;
         const status = snap.data().status;
-        if (["needs_repair", "disconnected"].includes(status)) return; // already handled above — these need a fresh pairing, not an auto-restart
+        if (["needs_repair", "disconnected"].includes(status)) return;
         ref.update({ status: "crashed", lastError: `Process exited (code ${code}).`, logs: entry.logs.slice(-150), updatedAt: Date.now() }).catch(() => {});
 
-        // Auto-restart, so a dropped connection or transient crash doesn't
-        // sit dead until someone notices — this is the actual fix for
-        // "the bot doesn't last, it just stops at some point."
         const attempts = (crashRestartCounts.get(botId) || 0) + 1;
         crashRestartCounts.set(botId, attempts);
         if (attempts > MAX_AUTO_RESTARTS) {
@@ -537,9 +414,9 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         }
         setTimeout(() => {
           db.collection("botDeployments").doc(botId).get().then((freshSnap) => {
-            if (!freshSnap.exists) return; // deleted while we were waiting
+            if (!freshSnap.exists) return;
             const d = freshSnap.data();
-            if (running.has(botId)) return; // something else already restarted it
+            if (running.has(botId)) return;
             runDeployment(botId, d.uid, d.phoneNumber, { isRestore: true }).catch(() => {});
           }).catch(() => {});
         }, AUTO_RESTART_DELAY_MS);
@@ -548,7 +425,6 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   });
 }
 
-// ── Management ──────────────────────────────────────────────────────────
 async function listBotsForUser(uid) {
   const snap = await db.collection("botDeployments").where("uid", "==", uid).get();
   return snap.docs
@@ -570,20 +446,14 @@ async function _stopBotDoc(ref, data) {
     if (entry.proc && entry.proc.exitCode === null && entry.proc.signalCode === null) {
       entry.proc.kill("SIGTERM");
       const killTimer = setTimeout(() => {
-        try { entry.proc.kill("SIGKILL"); } catch { /* already gone */ }
+        try { entry.proc.kill("SIGKILL"); } catch {  }
       }, 8000);
-      // Wait for the exit handler's full cleanup (not just the OS signal)
-      // before returning, so a caller like restart can safely reuse this
-      // bot's working directory right after — with a hard ceiling so a
-      // truly stuck process can't hang the whole stop/restart flow forever.
       await Promise.race([
         entry.exited,
         new Promise((resolve) => setTimeout(resolve, 10000)),
       ]);
       clearTimeout(killTimer);
     } else {
-      // Never actually spawned (e.g. crashed during download/install), or
-      // already exited — nothing to wait for.
       entry._resolveExited?.();
     }
   }
@@ -595,11 +465,8 @@ async function _stopBotDoc(ref, data) {
 
 async function _restartBotDoc(ref, data, { skipTemplateCheck = false } = {}) {
   if (running.has(ref.id)) await _stopBotDoc(ref, data);
-  crashRestartCounts.delete(ref.id); // manual restart gets a fresh auto-restart budget
+  crashRestartCounts.delete(ref.id);
 
-  // Latest code, same session: pick up any new commit, but reconnect using
-  // the saved WhatsApp credentials rather than forcing a fresh pairing
-  // code on every restart.
   if (!skipTemplateCheck) await ensureLatestTemplate();
   await ref.update({ status: "starting", stoppedByUser: false, lastError: null, pairingCode: null, updatedAt: Date.now() });
 
@@ -623,14 +490,6 @@ async function _deleteBotDoc(ref, data) {
   return { ok: true };
 }
 
-// botId -> tail of an in-flight stop/restart/delete chain for that bot.
-// Without this, two overlapping requests for the same bot (double-click,
-// stuck-button retry, or a user + auto-update-restart landing together) can
-// both pass `running.has(id)` before either finishes stopping it, so both
-// go on to spawn their own child process — one of which becomes untracked
-// (can't be stopped/killed by the app anymore) while two Baileys clients
-// fight over the same WhatsApp session. Serializing per bot id fixes that
-// without affecting different bots, which still run fully in parallel.
 const botLocks = new Map();
 
 function withBotLock(botId, fn) {
@@ -659,10 +518,6 @@ async function deleteBot(uid, botId) {
   return withBotLock(botId, () => _deleteBotDoc(ref, data));
 }
 
-// ── Admin management — same actions, no ownership check ──────────────────
-// Gating on isAdminEmail happens at the route level (server.js), same as
-// every other admin-only endpoint in this app; these assume that's already
-// been checked.
 async function adminGetBotDoc(botId) {
   const ref = db.collection("botDeployments").doc(botId);
   const snap = await ref.get();
@@ -685,8 +540,6 @@ async function adminDeleteBot(botId) {
   return withBotLock(botId, () => _deleteBotDoc(ref, data));
 }
 
-// One row per user who has ever deployed a bot, with counts — powers the
-// admin "Bot Deployments" section's user list.
 async function adminListDeployingUsers() {
   const snap = await db.collection("botDeployments").get();
   const byUid = new Map();
@@ -705,9 +558,6 @@ async function adminListBotsForUser(targetUid) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-// Called once at server boot. Anything that was active before a restart
-// gets its session restored from Firestore and respawned — this is what
-// makes a redeploy/restart of the *main site* not kill everyone's bot.
 export async function restoreBotsOnBoot() {
   try {
     const snap = await db.collection("botDeployments").where("status", "in", ACTIVE_STATUSES).get();

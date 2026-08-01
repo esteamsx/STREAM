@@ -1,22 +1,3 @@
-// lock.js — domain lock + devtools bypass key.
-//
-// HONEST SCOPE OF WHAT THIS DOES AND DOESN'T DO:
-// This blocks requests whose Host header doesn't match the canonical domain,
-// unless a valid DEVTOOLS_BYPASS_KEY is supplied. That has real value against
-// someone reverse-proxying, iframing, or DNS/CNAME-pointing a different
-// hostname at this *live, running* backend to disguise or rebrand it.
-//
-// It is NOT, and cannot be, a defense against someone who copies this source
-// code and runs it on their own server. On their own server, this file is
-// just more code they can delete before starting it — no check written here
-// or anywhere else can prevent that. Nothing server-side or client-side can;
-// that's true of any web app, not a gap specific to this one. Obfuscating
-// this file only raises the effort to find and remove the check, it doesn't
-// make removing it impossible.
-//
-// Deliberately does not duplicate anything in security-middleware.js
-// (bot-blocking, rate limiting, suspicious-request detection already live
-// there) — this file only adds the domain lock and bypass key.
 
 import crypto from "crypto";
 
@@ -30,22 +11,17 @@ const ALLOWED_HOST_HASHES = new Set(
 
 const BYPASS_KEY = process.env.DEVTOOLS_BYPASS_KEY || "";
 const BYPASS_COOKIE_NAME = "dtb";
-const BYPASS_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12h — re-enter the key after that
+const BYPASS_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 function normalizeHost(hostHeader) {
   return String(hostHeader || "").toLowerCase().replace(/:\d+$/, "");
 }
 
-// The domain itself isn't a secret (it's the URL in the address bar), but
-// this keeps the actual comparison target from sitting in the file as a
-// plain, greppable string — a skim-read of this file won't show it directly.
 function isAllowedHost(hostHeader) {
   const hash = crypto.createHash("sha256").update(normalizeHost(hostHeader)).digest("hex");
   return ALLOWED_HOST_HASHES.has(hash);
 }
 
-// Constant-time comparison so a mistyped/guessed key can't be brute-forced
-// faster by timing how quickly the comparison fails.
 function safeEqual(a, b) {
   const bufA = Buffer.from(String(a || ""), "utf8");
   const bufB = Buffer.from(String(b || ""), "utf8");
@@ -53,9 +29,6 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
-// Reads the bypass cookie directly from the raw header — deliberately
-// avoids depending on cookie-parser's middleware position, so this can run
-// as the very first thing in the stack.
 function readCookie(req, name) {
   const header = req.headers.cookie;
   if (!header) return null;
@@ -66,9 +39,6 @@ function readCookie(req, name) {
     const key = part.slice(0, idx).trim();
     if (key !== name) continue;
     const raw = part.slice(idx + 1).trim();
-    // A malformed percent-escape makes decodeURIComponent throw, and this runs
-    // first in the stack — an unhandled URIError here took out every request
-    // carrying that cookie, not just this check.
     try {
       return decodeURIComponent(raw);
     } catch {
@@ -124,13 +94,6 @@ function blockedPageHtml() {
 </html>`;
 }
 
-// The platform's own health check does not come through the public hostname.
-// Render sends the container's internal address as Host, Railway sends
-// healthcheck.railway.app, and neither is (or should be) in ALLOWED_HOSTS — so
-// the lock answered the health check with a 403, the platform read that as a
-// dead instance, and restarted or refused to promote the deploy. Users saw
-// that as the site being intermittently unreachable. /health returns a literal
-// "ok" and nothing else, so exempting it gives away nothing.
 const HOST_EXEMPT_PATHS = new Set(["/health"]);
 
 export function domainLock(req, res, next) {
@@ -138,9 +101,6 @@ export function domainLock(req, res, next) {
   if (isAllowedHost(req.headers.host)) return next();
 
   if (hasValidBypass(req)) {
-    // Re-supplying the key on every request is annoying for a human
-    // developer testing in a browser — persist it for a while so they only
-    // need to pass it once per session.
     res.cookie(BYPASS_COOKIE_NAME, BYPASS_KEY, {
       httpOnly: true,
       sameSite: "lax",

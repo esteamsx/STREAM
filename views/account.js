@@ -1,3 +1,5 @@
+import { siteHeadFor } from "../config/site.js";
+
 export function renderAccount(cfg) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -6,6 +8,7 @@ export function renderAccount(cfg) {
 ${cfg.devToolsBlock || ""}
 <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+${siteHeadFor("account")}
 <title>Account Settings — ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1145,8 +1148,6 @@ function initAltUsernames(){
     altUnameCheckSeq++;
   });
 
-  // Live availability check as the person types — same debounce/endpoint/status
-  // pattern as the main username field above.
   input.addEventListener('input', () => {
     confirmBtn.classList.remove('ready');
     const val = input.value.trim().toLowerCase();
@@ -1182,7 +1183,7 @@ function initAltUsernames(){
           return;
         }
         let data = null;
-        try { data = await res.json(); } catch { /* non-JSON response, handled below */ }
+        try { data = await res.json(); } catch {  }
         if (seq !== altUnameCheckSeq) return;
         if (data && data.available) {
           confirmBtn.classList.add('ready');
@@ -1255,8 +1256,6 @@ async function loadProfile(){
   }
   
   document.getElementById('heroName').innerHTML = 'Hi, ' + profile.firstName + ((profile.isAdmin || profile.verified) ? VERIFIED_BADGE : '');
-  // Verified users (and admins, who always carry the badge) already have
-  // the badge — no reason to prompt them to go get verified again.
   document.getElementById('getVerifiedLink').style.display = (profile.isAdmin || profile.verified) ? 'none' : 'flex';
   updateHeroIdentity();
   document.getElementById('firstName').value = profile.firstName || '';
@@ -1583,7 +1582,6 @@ async function loadPasskeys(){
     addRow.style.display = atMax ? 'none' : 'block';
     maxMsg.style.display = atMax ? 'block' : 'none';
   } catch (err) {
-    // silently ignore — card just shows empty until opened again
   }
 }
 
@@ -1630,7 +1628,6 @@ async function loadApiKeys(){
     addRow.style.display = atMax ? 'none' : 'block';
     maxMsg.style.display = atMax ? 'block' : 'none';
   } catch (err) {
-    // silently ignore — card just shows empty until opened again
   }
 }
 
@@ -2271,10 +2268,6 @@ document.getElementById('tfaSwitch').addEventListener('click', async () => {
   const sub = document.getElementById('tfaToggleSub');
   const next = !profile.twoFactorEnabled;
 
-  // Turning 2FA off requires proving you still hold the authenticator —
-  // otherwise a stolen session cookie alone could disable it. Turning it
-  // back on (secret already set up) doesn't reduce security, so that path
-  // stays a direct toggle.
   if (!next) {
     tfaStepScan.classList.remove('active');
     tfaStepVerify.classList.remove('active');

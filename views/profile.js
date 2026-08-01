@@ -1,3 +1,5 @@
+import { siteHeadFor } from "../config/site.js";
+
 export function renderProfile(cfg) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -6,6 +8,7 @@ export function renderProfile(cfg) {
 ${cfg.devToolsBlock || ""}
 <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+${siteHeadFor("profile")}
 <title>Profile — ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -879,7 +882,6 @@ async function toggleFollow(uid, btn){
   }
 }
 
-/* ── Posts: composer, tagging, and the post list ── */
 const PLANE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>';
 const CAMERA_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8a2 2 0 012-2h1.5l1-1.5h7l1 1.5H18a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 const HEART_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7.2-4.5-9.8-9C.6 8.7 2 5 5.6 4.4 8 4 10.2 5.2 12 7.5 13.8 5.2 16 4 18.4 4.4 22 5 23.4 8.7 21.8 12c-2.6 4.5-9.8 9-9.8 9z"/></svg>';
@@ -897,18 +899,11 @@ function escapeHtml(s){
 }
 function renderPostText(text){
   let html = escapeHtml(text);
-  // [label](https://url) — Telegram-style inline links. Only http(s) is
-  // allowed (the regex itself enforces the scheme), and the url is
-  // separately quote-escaped since escapeHtml above doesn't touch quotes —
-  // needed so a url containing a \" can't break out of the href attribute.
   html = html.replace(/\\[([^\\[\\]]+)\\]\\((https?:\\/\\/[^\\s()]+)\\)/g, function(m, label, url){
     return '<a href="' + url.replace(/\"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer" class="post-link">' + label + '</a>';
   });
-  // *bold*
   html = html.replace(/\\*([^\\s*][^*]*?)\\*/g, '<b>$1</b>');
-  // _italic_
   html = html.replace(/_([^\\s_][^_]*?)_/g, '<i>$1</i>');
-  // @tags
   html = html.replace(/@(\\w+)/g, '<a href="/u/$1">@$1</a>');
   return html;
 }
@@ -924,10 +919,6 @@ function attachTagHighlight(inputEl, opts){
   if (inputEl.dataset.tagHighlightWired) return;
   inputEl.dataset.tagHighlightWired = '1';
 
-  // Must happen BEFORE reading computed style below — native form-control
-  // chrome can carry its own internal metrics, so the padding/font values
-  // we're about to copy to the backdrop need to reflect the box the input
-  // will actually render as, not its pre-appearance-none box.
   inputEl.style.webkitAppearance = 'none';
   inputEl.style.appearance = 'none';
 
@@ -953,10 +944,6 @@ function attachTagHighlight(inputEl, opts){
   backdrop.style.borderColor = 'transparent';
   backdrop.style.color = originalColor;
   backdrop.style.whiteSpace = isTextarea ? 'pre-wrap' : 'pre';
-  // Match the input's own box model and text rendering exactly — any
-  // mismatch here shifts the mirrored text by a fraction of a pixel against
-  // the real (invisible) text underneath, which is what made this look
-  // blurry/ghosted rather than crisp.
   backdrop.style.boxSizing = cs.boxSizing;
   backdrop.style.webkitFontSmoothing = cs.webkitFontSmoothing || 'antialiased';
   backdrop.style.textRendering = 'geometricPrecision';
@@ -965,20 +952,11 @@ function attachTagHighlight(inputEl, opts){
   inputEl.style.width = '100%';
   inputEl.style.background = 'transparent';
   inputEl.style.color = 'transparent';
-  // WebKit (iOS Safari, and Chrome on iOS) ignores color:transparent for
-  // the text inside a form field — it kept painting the real text on top of
-  // the mirrored copy, so every character showed twice with a slight offset.
-  // That doubling is what read as "blurry". -webkit-text-fill-color is the
-  // property WebKit actually honours here.
   inputEl.style.webkitTextFillColor = 'transparent';
   inputEl.style.caretColor = originalColor;
   inputEl.style.zIndex = '1';
   backdrop.style.webkitAppearance = 'none';
   backdrop.style.appearance = 'none';
-  // Mobile browsers independently auto-inflate text size per element
-  // unless pinned — two elements can end up at different effective sizes
-  // even with an identical font-size, which reads as misalignment. Locking
-  // both to 100% keeps them in lockstep.
   inputEl.style.webkitTextSizeAdjust = '100%';
   inputEl.style.textSizeAdjust = '100%';
   backdrop.style.webkitTextSizeAdjust = '100%';
@@ -1015,18 +993,9 @@ function wireTagTrigger(inputEl, opts){
   });
 }
 
-/* ── Select text in a rich-formatting input to insert a [text](url) link,
-   same idea as tag-highlighting: the mini button appears inside the same
-   .tag-highlight-wrap that attachTagHighlight already creates, so call this
-   AFTER wireTagTrigger/attachTagHighlight has run on the input. ── */
 let pendingLinkInput = null;
 let pendingLinkRange = null;
 
-/* setupLinkInsertion runs again on a brand-new element every time a post
-   enters edit mode, so the 'selectionchange' listener it needs is registered
-   ONCE here at document level and dispatched to whichever wired input is
-   currently focused. Registering it per-input would leave a permanent
-   listener holding a reference to every discarded textarea. */
 const linkSelectionCheckers = new WeakMap();
 document.addEventListener('selectionchange', () => {
   const el = document.activeElement;
@@ -1036,7 +1005,7 @@ document.addEventListener('selectionchange', () => {
 });
 
 function setupLinkInsertion(inputEl){
-  const container = inputEl.parentNode; // the .tag-highlight-wrap attachTagHighlight created
+  const container = inputEl.parentNode; 
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'insert-link-btn';
@@ -1047,24 +1016,13 @@ function setupLinkInsertion(inputEl){
   function checkSelection(){
     const start = inputEl.selectionStart, end = inputEl.selectionEnd;
     const hasSelection = start !== end;
-    // Remember the range: tapping the button can collapse the field's live
-    // selection before the click handler gets to read it, so the click falls
-    // back to this cached copy instead of silently doing nothing.
     if (hasSelection) lastSelection = { start, end, text: inputEl.value.slice(start, end) };
     btn.classList.toggle('show', hasSelection);
   }
-  // A double-tap-to-select-word on mobile finalises the selection *after*
-  // touchend/mouseup have already fired, so checking only on those events
-  // always saw an empty selection and the button never appeared — which is
-  // why only the browser's own menu showed up. 'selectionchange' fires when
-  // the selection actually settles, which is the reliable signal here; it's
-  // handled by the single shared document listener above.
   linkSelectionCheckers.set(inputEl, checkSelection);
   inputEl.addEventListener('select', checkSelection);
   inputEl.addEventListener('mouseup', checkSelection);
   inputEl.addEventListener('keyup', checkSelection);
-  // Belt-and-braces for engines that don't fire selectionchange inside form
-  // fields: re-check shortly after the touch settles, too.
   inputEl.addEventListener('touchend', () => {
     checkSelection();
     setTimeout(checkSelection, 60);
@@ -1073,10 +1031,9 @@ function setupLinkInsertion(inputEl){
   inputEl.addEventListener('blur', () => {
     setTimeout(() => { if (document.activeElement !== btn) btn.classList.remove('show'); }, 150);
   });
-  // Editing the text invalidates the cached range.
   inputEl.addEventListener('input', () => { lastSelection = null; });
 
-  btn.addEventListener('mousedown', (e) => e.preventDefault()); // don't steal focus/selection from the input
+  btn.addEventListener('mousedown', (e) => e.preventDefault()); 
   btn.addEventListener('click', () => {
     let range = null;
     if (inputEl.selectionStart !== inputEl.selectionEnd) {
@@ -1209,7 +1166,6 @@ async function toggleLikePost(postId, btn, countEl){
   }
 }
 
-/* ── Following feed: floating icon + "POSTS" overlay ── */
 function goToProfile(username, postId){
   if (!username) return;
   window.location.href = '/u/' + encodeURIComponent(username) + (postId ? '#post-' + postId : '');
@@ -1313,7 +1269,7 @@ async function loadFollowingFeed(){
   } catch (err) {
     listEl.innerHTML = '<div class="feed-empty">Could not load posts. Try again.</div>';
   }
-  refreshFeedBadge(); // this fetch marked the feed seen server-side, so the badge should now read 0
+  refreshFeedBadge(); 
 }
 
 async function refreshFeedBadge(){
@@ -1325,7 +1281,6 @@ async function refreshFeedBadge(){
     badge.textContent = count > 0 ? String(count) : '';
     badge.classList.toggle('show', count > 0);
   } catch (err) {
-    // best-effort — leave the badge as it was
   }
 }
 
@@ -1335,7 +1290,7 @@ function initFollowingFeedFab(){
   fab.style.display = 'flex';
   fab.addEventListener('click', () => {
     document.getElementById('followingFeedOverlay').classList.add('show');
-    document.getElementById('feedFabBadge').classList.remove('show'); // clear optimistically; loadFollowingFeed confirms via the server
+    document.getElementById('feedFabBadge').classList.remove('show'); 
     loadFollowingFeed();
   });
   document.getElementById('followingFeedCloseBtn').addEventListener('click', () => {
@@ -1729,7 +1684,6 @@ function enterEditMode(post, cardEl){
   textarea.focus();
 }
 
-/* ── Comments ── */
 let activeCommentsPostId = null;
 let activeCommentsPost = null;
 let longPressTimer = null;
@@ -2050,11 +2004,6 @@ commentSendBtnEl.addEventListener('click', async () => {
     commentInputEl.placeholder = commentInputDefaultPlaceholder;
     cancelReplyToComment();
 
-    // Build the new row straight from what the server just confirmed it
-    // wrote, rather than re-fetching the list — a GET right after the
-    // write could occasionally land before the write was fully queryable,
-    // so the comment wouldn't show up until something else (like cancelling
-    // a reply) happened to trigger another reload.
     if (data.comment) {
       const c = data.comment;
       const normalized = {
@@ -2191,7 +2140,6 @@ function setupComposer(){
   });
 }
 
-/* ── Followers / Following list + mini profile preview ── */
 let flistData = [];
 function flistRenderRow(u){
   const row = document.createElement('div');
@@ -2295,7 +2243,6 @@ document.getElementById('mpvOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'mpvOverlay') document.getElementById('mpvOverlay').classList.remove('show');
 });
 
-/* ── Avatar upload: resize client-side, spinner while uploading, checkmark on success ── */
 const PHOTO_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 let ownProfile = null;
 
@@ -2329,7 +2276,7 @@ function photoCooldownDaysLeft(){
 }
 
 document.getElementById('pfAvatarWrap').addEventListener('click', () => {
-  if (!ownProfile) return; // not clickable on someone else's profile
+  if (!ownProfile) return; 
   const daysLeft = photoCooldownDaysLeft();
   if (daysLeft > 0) {
     showToast('You can change your profile picture again in ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + '.');
@@ -2370,7 +2317,6 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
   const match = path.startsWith('/u/') ? [null, path.slice(3).split('/')[0]] : null;
 
   if (match) {
-    // Viewing someone else's public profile — read-only, avatar not editable, stats not tappable.
     let user;
     try {
       user = await getJSON('/api/users/' + encodeURIComponent(match[1]) + '/public');
@@ -2461,7 +2407,6 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
     return;
   }
 
-  // Viewing your own profile.
   let profile;
   try {
     profile = await getJSON('/api/profile');
@@ -2538,8 +2483,6 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
     bioSaveBtn.textContent = 'Save Changes';
   });
 
-  // "View as" — a read-only preview of what other people see on your profile,
-  // built from data already on the page. Not editable, no extra API call needed.
   document.getElementById('pfViewAsBtn').style.display = 'flex';
   document.getElementById('pfViewAsBtn').addEventListener('click', () => {
     const vaAvatar = document.getElementById('vaAvatar');
@@ -2597,13 +2540,11 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
     if (e.target.id === 'viewAsOverlay') document.getElementById('viewAsOverlay').classList.remove('show');
   });
 
-  // Followers / Following are tappable on your own profile; Likes is display-only for now.
   document.getElementById('pfFollowingBtn').classList.add('tappable');
   document.getElementById('pfFollowersBtn').classList.add('tappable');
   document.getElementById('pfFollowingBtn').addEventListener('click', () => openFlist('following'));
   document.getElementById('pfFollowersBtn').addEventListener('click', () => openFlist('followers'));
 
-  // Read-only Profile Information — mirrors Account Settings, edits happen there only.
   const infoCard = document.createElement('div');
   infoCard.className = 'acc-card pf-info-card';
   const emailFieldHtml = profile.email

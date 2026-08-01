@@ -11,9 +11,6 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 8000,
 });
 
-// Sends directly over Gmail SMTP. Keeps returning { provider: 'gmail' } so
-// callers relying on that shape (e.g. server.js's /api/account/change-password
-// response) don't need to change.
 async function sendMailWithFallback(mailOptions) {
   try {
     await transporter.sendMail(mailOptions);
@@ -54,9 +51,6 @@ async function sendVerificationCode(email, code, purpose) {
   });
 }
 
-// Signup verification codes get their own send path/env vars, kept separate
-// from sendVerificationCode (used by account.js for password reset / 2FA /
-// delete-account) so each can be configured and debugged independently.
 const SIGNUP_GMAIL_USER = process.env.SIGNUP_GMAIL_USER || process.env.GMAIL_USER;
 
 async function sendSignupVerificationCode(email, code) {

@@ -19,11 +19,6 @@ import {
 
 const router = express.Router();
 
-// ── Config ──────────────────────────────────────────────────────────────
-// This is the third-party restream API the main site's player already
-// calls (previously straight from the browser — see server.js loadChannel).
-// It now only gets called from here, server-side, so it's never visible
-// to a browser network tab again, on the main site or through this API.
 const UPSTREAM_BASE = "https://cinexora.emmyhenztech.site/api/hls";
 
 const UPSTREAM_HEADERS = {
@@ -34,21 +29,6 @@ const UPSTREAM_HEADERS = {
 
 const PUBLIC_BASE = "https://esteamstv.devs.surf";
 
-// A stream token is short-lived and self-contained (HMAC-signed), so
-// verifying it never needs a database round trip. Only the initial
-// /api/v1/stream/:channel issuance (or the internal main-site equivalent)
-// checks the database — that's the one request per viewing session, not
-// per segment.
-//
-// The secret used to sign tokens has to stay the same across restarts, or
-// every currently-active link breaks the instant the process restarts —
-// regardless of how much of its 6-hour window was left. process.env is the
-// most reliable place for it (survives redeploys too), but if it isn't set
-// there, fall back to a value persisted on disk instead of a fresh random
-// one every boot: that way a plain restart/crash-recovery (same filesystem)
-// keeps existing links alive, expiring at exactly their original 6-hour
-// mark instead of dying early. Only a full redeploy that wipes the
-// filesystem would still rotate it in that fallback case.
 function getStreamTokenSecret() {
   if (process.env.STREAM_TOKEN_SECRET) return process.env.STREAM_TOKEN_SECRET;
 
@@ -61,7 +41,6 @@ function getStreamTokenSecret() {
       return existing;
     }
   } catch {
-    // no file yet — fall through and create one
   }
 
   const generated = crypto.randomBytes(32).toString("hex");
@@ -89,10 +68,6 @@ function signStreamToken(channel, ttlMs, keyId) {
   return `${payloadB64}.${sig}`;
 }
 
-// Decodes + checks the signature only — doesn't care whether the token has
-// expired or its issuing key has since been revoked. Used by the "status
-// lookup" endpoint below, which needs to describe *why* a well-formed token
-// is no longer active (expired vs. revoked) instead of just rejecting it.
 function decodeStreamToken(token) {
   if (!token || typeof token !== "string" || !token.includes(".")) return { ok: false };
   const [payloadB64, sig] = token.split(".");
@@ -117,24 +92,11 @@ function verifyStreamToken(token, expectedChannel) {
   if (!decoded.ok) return { valid: false };
   if (Date.now() > decoded.exp) return { valid: false };
   if (expectedChannel && decoded.channel !== expectedChannel) return { valid: false };
-  // If the API key that generated this link has since been revoked/deleted,
-  // the link stops working immediately too — even if it hasn't hit its
-  // 6-hour expiry yet.
   if (decoded.keyId && revokedApiKeyIds.has(decoded.keyId)) return { valid: false };
   return { valid: true, channel: decoded.channel, exp: decoded.exp, keyId: decoded.keyId };
 }
 
-// ── Per-token resource maps ──────────────────────────────────────────────
-// Every real upstream URL a token is allowed to touch (variant playlists,
-// segments, encryption keys) gets replaced with a small numeric id instead
-// of being exposed — even base64-encoded — anywhere the client can see it.
-// The mapping only lives in memory for the token's lifetime.
-//
-// NOTE: this is per-process. If this app ever runs on more than one Render
-// instance/dyno, a token's sub-requests need to land on the same instance
-// that issued the mapping (sticky sessions), or this needs to move to a
-// shared store (Redis, Firestore). Fine for a single instance.
-const resourceStores = new Map(); // token -> { map, reverse, nextId, expiresAt }
+const resourceStores = new Map();
 
 function getResourceStore(token, exp) {
   let store = resourceStores.get(token);
@@ -160,23 +122,8 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
-// How long an issued embed link/stream token stays valid. Shared as a
-// constant because the lookup endpoint below needs to derive a token's
-// "created at" time from its expiry (exp - STREAM_LINK_TTL_MS), and that
-// only works if it's the same value used at issuance.
-const STREAM_LINK_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const STREAM_LINK_TTL_MS = 6 * 60 * 60 * 1000;
 
-// Every API key id that's been revoked/deleted through this app's own
-// /api/dev/keys/:id DELETE route. Checked inside verifyStreamToken so any
-// link generated with a since-deleted key stops working immediately,
-// instead of staying valid until its normal 6-hour expiry.
-//
-// Persisted to disk (same pattern as the token secret) so a plain
-// restart/crash-recovery doesn't forget a revocation and let an
-// already-dead key's old links start working again. A full redeploy that
-// wipes the filesystem would still lose it, same caveat as the secret
-// fallback file — there's no env-var equivalent for a growing list like
-// this one, so disk is the persistence mechanism here either way.
 const REVOKED_KEYS_PATH = path.join(process.cwd(), ".revoked-api-keys.log");
 const revokedApiKeyIds = new Set();
 try {
@@ -186,34 +133,14 @@ try {
     .filter(Boolean)
     .forEach((id) => revokedApiKeyIds.add(id));
 } catch {
-  // no file yet — nothing revoked so far, that's fine
 }
 function persistRevokedKeyId(id) {
-  // Non-blocking: a slow disk write here must never stall the request
-  // that's already in flight (or, worse, any other concurrent request —
-  // Node's single event loop means a *synchronous* write here would pause
-  // every other request being served at that moment, video segments
-  // included).
   fs.appendFile(REVOKED_KEYS_PATH, id + "\n", (err) => {
     if (err) console.warn("⚠️ Could not persist revoked API key id to disk (" + err.message + ") — " +
       "it's still revoked for this process, but a restart before its links naturally expire would let them work again.");
   });
 }
 
-// ── Issued-link history (for the "Generated Links" dashboard section) ────
-// Per-account list of links issued via /api/v1/stream/:channel, newest
-// first, capped so it can't grow unbounded. This is a viewing convenience
-// only — it doesn't gate anything, a link's actual validity is entirely
-// determined by its own signed token (see verifyStreamToken), independent
-// of whether it's still remembered here. The "paste a link" lookup below
-// never depended on this list at all, since it decodes everything it
-// needs straight from the token itself.
-//
-// Persisted in Firestore (via auth.js) rather than a local disk file, so
-// the dashboard's list survives a full redeploy/file upload, not just a
-// plain restart. recordIssuedStreamLink() is fire-and-forget, same as the
-// old disk append — it must never stall the request that's already in
-// flight.
 function recordIssuedLink(uid, entry) {
   recordIssuedStreamLink(uid, entry).catch((err) => {
     console.warn("⚠️ Could not persist issued link (" + err.message + ") — " +
@@ -221,23 +148,17 @@ function recordIssuedLink(uid, entry) {
   });
 }
 
-
 function channelDisplayName(channel) {
   const meta = liveTV.flatMap((c) => c.channels).find((c) => c.id === channel);
   return meta ? meta.name : channel;
 }
 
-// ── HLS fetch + rewrite ──────────────────────────────────────────────────
 async function fetchUpstream(url) {
   const res = await fetch(url, { headers: UPSTREAM_HEADERS, redirect: "follow" });
   if (!res.ok) throw new Error(`Upstream responded ${res.status}`);
   return res;
 }
 
-// Rewrites every URI in an HLS playlist (variant playlists, segments,
-// #EXT-X-KEY / #EXT-X-MAP / #EXT-X-MEDIA references) to point back through
-// our own proxy routes, so the real upstream host never appears in anything
-// the client receives.
 function rewritePlaylist(text, baseUrl, token, channel, exp) {
   const store = getResourceStore(token, exp);
   const lines = text.split(/\r?\n/);
@@ -250,8 +171,6 @@ function rewritePlaylist(text, baseUrl, token, channel, exp) {
       });
     }
     if (line.startsWith("#EXT-X-MEDIA") && line.includes("URI=")) {
-      // Alternate renditions (e.g. TYPE=AUDIO) point at their own sub-playlist —
-      // same rewrite as a bare playlist/segment line below, just inside a tag.
       return line.replace(/URI="([^"]+)"/, (_, uri) => {
         const abs = new URL(uri, baseUrl).toString();
         const id = storeResource(store, abs);
@@ -270,9 +189,8 @@ function rewritePlaylist(text, baseUrl, token, channel, exp) {
   return rewritten.join("\n");
 }
 
-const hlsLimiter = new SimpleRateLimiter(600, 60 * 1000, (req) => req.ip).middleware(); // generous — this carries every segment request
+const hlsLimiter = new SimpleRateLimiter(600, 60 * 1000, (req) => req.ip).middleware();
 
-// Master manifest: the one request that actually calls the upstream API by channel id.
 router.get("/api/v1/hls/:channel/master.m3u8", hlsLimiter, async (req, res) => {
   const { channel } = req.params;
   const { token } = req.query;
@@ -292,7 +210,6 @@ router.get("/api/v1/hls/:channel/master.m3u8", hlsLimiter, async (req, res) => {
   }
 });
 
-// Variant/sub-playlists referenced from the master.
 router.get("/api/v1/hls/:channel/playlist.m3u8", hlsLimiter, async (req, res) => {
   const { channel } = req.params;
   const { token, r } = req.query;
@@ -316,8 +233,6 @@ router.get("/api/v1/hls/:channel/playlist.m3u8", hlsLimiter, async (req, res) =>
   }
 });
 
-// Video segments, encryption keys, and init (fMP4) segments — all binary,
-// all streamed straight through rather than buffered in memory.
 router.get("/api/v1/hls/:channel/seg", hlsLimiter, async (req, res) => {
   const { channel } = req.params;
   const { token, r } = req.query;
@@ -351,16 +266,9 @@ router.get("/api/v1/hls/:channel/seg", hlsLimiter, async (req, res) => {
   }
 });
 
-// ── Channel status check (for the sidebar's up/down dots) ──────────────
-// The browser used to HEAD the upstream restream API directly to color
-// each channel's status dot. That both leaked the real upstream host into
-// every visitor's Network tab and broke silently once the upstream started
-// rejecting cross-origin requests without CORS headers. This does the same
-// check server-side instead, so the browser only ever talks to our own
-// origin, same as the actual stream traffic.
 const statusLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.ip).middleware();
-const statusCache = new Map(); // channel -> { up, checkedAt }
-const STATUS_CACHE_MS = 30 * 1000; // dots re-probe every 90s client-side anyway; this just absorbs bursts
+const statusCache = new Map();
+const STATUS_CACHE_MS = 30 * 1000;
 
 router.get("/api/channel-status/:channel", statusLimiter, async (req, res) => {
   const { channel } = req.params;
@@ -386,33 +294,25 @@ router.get("/api/channel-status/:channel", statusLimiter, async (req, res) => {
   }
 });
 
-// ── Internal token issuance (for the main site's own logged-in player) ──
 const internalTokenLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
 
 router.get("/api/stream-token/:channel", requireAuth, internalTokenLimiter, (req, res) => {
   const { channel } = req.params;
   if (!VALID_CHANNEL_IDS.has(channel)) return res.status(404).json({ error: "Unknown channel." });
-  const ttlMs = 30 * 60 * 1000; // 30 min — the main-site player re-requests this on channel switch/reload
+  const ttlMs = 30 * 60 * 1000;
   const token = signStreamToken(channel, ttlMs, "");
   res.json({ url: `/api/v1/hls/${channel}/master.m3u8?token=${encodeURIComponent(token)}` });
 });
 
-// ── Public developer API ─────────────────────────────────────────────────
 async function requireApiKey(req, res, next) {
   const key = req.headers["x-api-key"] || req.query.key;
   if (!key) return res.status(401).json({ error: "Missing API key. Pass it in the x-api-key header." });
-  // A key passed as ?key=... ends up in server access logs, any proxy/CDN
-  // in front of this app, and the caller's own browser/shell history — a
-  // header never does. Still honored (existing integrations use it), but
-  // steer people off it going forward rather than silently keep encouraging it.
   if (req.query.key && !req.headers["x-api-key"]) {
     res.set("Warning", '299 - "Passing the API key as ?key= is deprecated and less safe than the x-api-key header; it gets logged in more places. Please switch to the header."');
   }
   try {
     const found = await findApiKeyByRawKey(String(key));
     if (!found) return res.status(401).json({ error: "Invalid or revoked API key." });
-    // Quota lives on the ACCOUNT (uid), not the key — revoking this key and
-    // making a new one does not grant a fresh allowance.
     const usage = await checkAndIncrementAccountApiUsage(found.uid);
     if (!usage.allowed) {
       return res.status(429).json({
@@ -456,21 +356,12 @@ router.get("/api/v1/stream/:channel", requireApiKey, devApiLimiter, (req, res) =
   });
 });
 
-// ── Embed page: token-gated, watermarked player ──────────────────────────
 router.get("/embed/:channel", (req, res) => {
   const { channel } = req.params;
   const { token } = req.query;
   const check = verifyStreamToken(token, channel);
 
-  // Iframes only work if we drop the site-wide X-Frame-Options: DENY that
-  // security-middleware.js sets on every response — this route is meant
-  // to be embedded on someone else's page.
   res.removeHeader("X-Frame-Options");
-  // The URL itself carries someone's stream token — an intermediate/shared
-  // cache (a corporate proxy, a CDN in front of whoever embeds this) caching
-  // this response by URL would hand that token to the next person who hits
-  // the same cache, expired or not. Same reasoning as no-store on the
-  // manifest/segment routes below, just for the page that links to them.
   res.set("Cache-Control", "no-store");
 
   if (!check.valid) {
@@ -595,10 +486,6 @@ router.get("/embed/:channel", (req, res) => {
     statusEl.textContent = 'HLS not supported in this browser.';
   }
 
-  /* Sound: autoplay must start muted (browser policy), and there was previously no
-     way at all to turn it on — no controls, nothing. This adds a visible mute/unmute
-     button, plus unmuting on the first tap/click anywhere on the player, same pattern
-     as the main site's watch page. */
   function setMuted(muted){
     video.muted = muted;
     muteBtn.classList.toggle('muted', muted);
@@ -617,8 +504,6 @@ router.get("/embed/:channel", (req, res) => {
 </html>`);
 });
 
-
-// ── Account-facing API key management (session-based, powers the Settings → API tab) ──
 router.post("/api/dev/keys", requireAuth, async (req, res) => {
   try {
     const label = ((req.body && req.body.label) || "").trim();
@@ -626,7 +511,7 @@ router.post("/api/dev/keys", requireAuth, async (req, res) => {
     const existing = await listApiKeysForUser(req.uid);
     if (existing.length >= 5) return res.status(400).json({ error: "You can have up to 5 API keys. Revoke one first." });
     const { id, rawKey } = await createApiKey(req.uid, label);
-    res.json({ id, key: rawKey }); // rawKey is shown exactly once
+    res.json({ id, key: rawKey });
   } catch (err) {
     console.error("create api key error:", err.message);
     res.status(500).json({ error: "Could not create API key." });
@@ -669,7 +554,6 @@ router.delete("/api/dev/keys/:id", requireAuth, async (req, res) => {
   }
 });
 
-// ── Generated links: history + status lookup ─────────────────────────────
 function describeLink(channel, createdAt, exp, token, keyId) {
   const now = Date.now();
   const revoked = !!keyId && revokedApiKeyIds.has(keyId);
@@ -703,20 +587,14 @@ router.get("/api/dev/links/lookup", requireAuth, (req, res) => {
   const q = String(req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "Paste a link or token to look up." });
 
-  // Accept either a full embed URL (?token=...) or a bare token.
   let token = q;
   try {
     const asUrl = new URL(q);
     const fromQuery = asUrl.searchParams.get("token");
     if (fromQuery) token = fromQuery;
   } catch {
-    // not a URL — treat q as a raw token as-is
   }
 
-  // Decode (signature + shape only) rather than the strict access-control
-  // check — a well-formed token that's expired or whose key was revoked
-  // should still report *why* here, instead of just "invalid", so this
-  // search box can actually show "Inactive" with real timestamps.
   const decoded = decodeStreamToken(token);
   if (!decoded.ok) return res.json({ valid: false });
 

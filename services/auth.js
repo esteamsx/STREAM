@@ -14,24 +14,19 @@ const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
-// Only this account gets Admin access — checked here so both the /admin route
-// gate in server.js and the auto-follow-on-signup below share one source of truth.
 const ADMIN_EMAIL = "etimpaschal95@gmail.com";
 function isAdminEmail(email) {
   return String(email || "").trim().toLowerCase() === ADMIN_EMAIL;
 }
 
-// Every new account automatically follows the admin account on first sign-up.
-// Best-effort: a hiccup here should never block someone from finishing signup.
 async function autoFollowAdmin(newUid, newUserEmail) {
   try {
-    if (isAdminEmail(newUserEmail)) return; // the admin doesn't follow themselves
+    if (isAdminEmail(newUserEmail)) return;
     const snap = await db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get();
     if (snap.empty) return;
     const adminUid = snap.docs[0].id;
     await followUser(newUid, adminUid);
   } catch {
-    // non-fatal — signup should still succeed even if this fails
   }
 }
 
@@ -51,10 +46,6 @@ async function issueCode(uid, contact, purpose, channel = "email") {
   return sendVerificationCode(contact, code, purpose);
 }
 
-// Sends a verification code as a Telegram DM instead of email — used for
-// account-deletion codes on Telegram-only accounts, which have no email.
-// Requires the user to have granted the bot "write" access, which our
-// Telegram login flow already requests.
 async function sendTelegramCode(telegramId, code, purpose) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) {
@@ -117,7 +108,6 @@ async function createUserAccount({ firstName, lastName, email, password, usernam
   return userRecord.uid;
 }
 
-// ── Username lookups: usernames are stored lowercase so checks are case-insensitive ──
 async function findUserByUsername(username) {
   if (!username) return null;
   const snap = await db.collection("users").where("username", "==", username).limit(1).get();
@@ -125,9 +115,6 @@ async function findUserByUsername(username) {
   return { uid: snap.docs[0].id, ...snap.docs[0].data() };
 }
 
-// True if `username` is free to use. Pass `excludeUid` when checking during a
-// profile edit so a user's own current username doesn't flag as taken.
-// Accounts scheduled for deletion no longer hold their username.
 async function isUsernameAvailable(username, excludeUid) {
   if (!username) return false;
   const snap = await db.collection("users").where("username", "==", username).limit(1).get();
@@ -140,9 +127,6 @@ async function isUsernameAvailable(username, excludeUid) {
   return true;
 }
 
-// True if `username` is claimed by an in-flight (not yet verified) signup.
-// `excludeEmail` lets a person re-check the same username they already have pending.
-// An expired/abandoned pending signup no longer holds the name — it's cleaned up here.
 async function isUsernamePending(username, excludeEmail) {
   if (!username) return false;
   const snap = await db.collection("pending_signups").where("username", "==", username).limit(1).get();
@@ -157,8 +141,6 @@ async function isUsernamePending(username, excludeEmail) {
   return true;
 }
 
-// Builds a short, available username from a display name (e.g. a Google first name),
-// falling back to appending a number — "paschal", "paschal2", "paschal3"… — until one is free.
 async function generateUniqueUsername(base) {
   let clean = String(base || "user").toLowerCase().replace(/[^a-z0-9_]/g, "");
   if (!clean) clean = "user";
@@ -184,9 +166,6 @@ async function upsertUserProfile(uid, data) {
   else await ref.set({ ...data, createdAt: Date.now() });
 }
 
-// ── Pending signups: nothing is created in Firebase Auth or Firestore ──
-// until the emailed code is actually verified. Keyed by email so a refresh
-// before verifying and re-signing up with the same email just overwrites it.
 async function issuePendingSignup({ firstName, lastName, email, username, password }) {
   const code = generateCode();
   const expiresAt = Date.now() + CODE_TTL_MS;
@@ -228,7 +207,6 @@ async function updateUserProfile(uid, data) {
   await db.collection("users").doc(uid).update(data);
 }
 
-// ── Admin-only alternate usernames — extra handles reserved so nobody else can sign up with them ──
 const MAX_ALT_USERNAMES = 10;
 
 async function addAltUsername(uid, rawUsername) {
@@ -276,9 +254,7 @@ async function updatePrivacySettings(uid, updates) {
   return data;
 }
 
-/* ── Watch hours — persisted in Firestore so it survives redeploys/devices,
-   instead of living only in the browser's localStorage. ── */
-const MAX_WATCH_SYNC_SECONDS = 300; // ignore absurd deltas from a stale/backgrounded tab
+const MAX_WATCH_SYNC_SECONDS = 300;
 
 async function getWatchSeconds(uid) {
   const profile = await getUserProfile(uid);
@@ -294,8 +270,6 @@ async function addWatchSeconds(uid, deltaSeconds) {
   return Math.max(0, Math.floor(snap.data()?.watchSeconds || 0));
 }
 
-// One-time migration helper: if the account has no server-side total yet,
-// seed it from whatever the browser had stored locally so nobody loses their hours.
 async function seedWatchSecondsIfEmpty(uid, seedSeconds) {
   const seed = Math.max(0, Math.floor(Number(seedSeconds) || 0));
   const profile = await getUserProfile(uid);
@@ -335,9 +309,6 @@ async function ensureGoogleUserProfile(decodedToken) {
   return profile;
 }
 
-// ── Telegram Login Widget: verifies the payload's signature against the bot
-// token per Telegram's documented algorithm, then finds or creates the
-// matching account. No email or password is ever required for this path.
 function verifyTelegramLoginPayload(data, botToken) {
   if (!botToken || !data || !data.hash || !data.id) return false;
   const { hash, ...rest } = data;
@@ -350,7 +321,7 @@ function verifyTelegramLoginPayload(data, botToken) {
   if (computedHash.length !== hash.length) return false;
   if (!crypto.timingSafeEqual(Buffer.from(computedHash), Buffer.from(hash))) return false;
   const authAge = Date.now() / 1000 - Number(data.auth_date || 0);
-  if (!(authAge >= 0) || authAge > 86400) return false; // reject stale/replayed logins
+  if (!(authAge >= 0) || authAge > 86400) return false;
   return true;
 }
 
@@ -378,10 +349,6 @@ const TELEGRAM_JWT_ALGS = {
   ES256: { import: { name: "ECDSA", namedCurve: "P-256" }, verify: { name: "ECDSA", hash: "SHA-256" } },
 };
 
-// Telegram's newer "Log In With Telegram" (OIDC) flow hands back a signed
-// id_token instead of the legacy hash-signed fields. This verifies it against
-// Telegram's published JWKS (no bot secret needed — signature is asymmetric)
-// and checks issuer/audience/expiry before trusting anything inside it.
 async function verifyTelegramIdToken(idToken, expectedBotId) {
   try {
     const parts = String(idToken).split(".");
@@ -390,7 +357,7 @@ async function verifyTelegramIdToken(idToken, expectedBotId) {
     const header = JSON.parse(base64UrlToBuffer(headerB64).toString("utf8"));
     const payload = JSON.parse(base64UrlToBuffer(payloadB64).toString("utf8"));
     const algSpec = TELEGRAM_JWT_ALGS[header.alg];
-    if (!algSpec) return null; // unexpected/unsupported signing algorithm
+    if (!algSpec) return null;
 
     const keys = await getTelegramJwks();
     const jwk = keys.find((k) => k.kid === header.kid) || keys.find((k) => k.alg === header.alg);
@@ -417,9 +384,6 @@ async function findUserByTelegramId(telegramId) {
   return { uid: snap.docs[0].id, ...snap.docs[0].data() };
 }
 
-// Finds the account for this Telegram ID, or creates one. Firebase Auth users
-// created here have no email/password — the Telegram ID is the identifier —
-// so this mirrors createUserAccount/ensureGoogleUserProfile but stays passwordless.
 async function createOrGetTelegramUser({ id, first_name, last_name, username, photo_url }) {
   const telegramId = String(id);
   const existing = await findUserByTelegramId(telegramId);
@@ -430,9 +394,6 @@ async function createOrGetTelegramUser({ id, first_name, last_name, username, ph
   try {
     await auth.createUser({ uid, displayName });
   } catch (err) {
-    // A prior attempt may have created the Auth user but failed before the
-    // Firestore doc was written (network blip, etc.) — pick up where it left
-    // off instead of failing the retry too.
     if (err.code !== "auth/uid-already-exists") throw err;
   }
 
@@ -456,9 +417,6 @@ async function createOrGetTelegramUser({ id, first_name, last_name, username, ph
   return uid;
 }
 
-// ── Telegram OIDC redirect flow: short-lived PKCE state storage ──────────
-// The state doc is deleted on first read (one-time use) and self-expires
-// after 10 minutes even if the redirect never comes back.
 async function saveTelegramOAuthState(state, codeVerifier) {
   await db.collection("telegram_oauth_state").doc(state).set({
     codeVerifier,
@@ -476,11 +434,6 @@ async function consumeTelegramOAuthState(state) {
   return codeVerifier;
 }
 
-// ── GitHub OAuth: standard authorization-code flow (GitHub OAuth Apps are
-// confidential clients — the exchange happens server-side with a client
-// secret, so no PKCE code_verifier is needed here, just a CSRF-guarding
-// `state`). Mirrors the Telegram state storage below so both flows share
-// the same "one-time use, self-expiring" shape.
 async function saveGithubOAuthState(state) {
   await db.collection("github_oauth_state").doc(state).set({
     expiresAt: Date.now() + 10 * 60 * 1000,
@@ -502,11 +455,6 @@ async function findUserByGithubId(githubId) {
   return { uid: snap.docs[0].id, ...snap.docs[0].data() };
 }
 
-// Finds the account for this GitHub user, or creates one. GitHub accounts
-// may not expose a public email (many devs hide it), so `email` here is
-// whatever the caller already resolved via GitHub's /user/emails endpoint —
-// it may be null, in which case the account is created email-less, same as
-// a Telegram-only account.
 async function createOrGetGithubUser({ id, login, name, email, avatar_url }) {
   const githubId = String(id);
   const existing = await findUserByGithubId(githubId);
@@ -517,9 +465,6 @@ async function createOrGetGithubUser({ id, login, name, email, avatar_url }) {
   try {
     await auth.createUser({ uid, displayName, email: email || undefined, emailVerified: !!email });
   } catch (err) {
-    // A prior attempt may have created the Auth user but failed before the
-    // Firestore doc was written (network blip, etc.) — pick up where it left
-    // off instead of failing the retry too.
     if (err.code !== "auth/uid-already-exists") throw err;
   }
 
@@ -545,18 +490,10 @@ async function createOrGetGithubUser({ id, login, name, email, avatar_url }) {
   return uid;
 }
 
-// ── Developer API keys. Raw key is only ever shown once, at creation —
-// we store just its SHA-256 hash as the Firestore doc id, so a lookup is a
-// single doc.get() and a leaked database export never reveals usable keys.
 function hashApiKey(rawKey) {
   return crypto.createHash("sha256").update(rawKey).digest("hex");
 }
 
-// Monthly request quota. Tracked per ACCOUNT (uid), not per key — revoking a
-// key and creating a new one does not grant a fresh allowance, since the
-// counter lives on the account's own doc, not on any individual key's doc.
-// Not enforced by SimpleRateLimiter (that's the separate per-minute burst
-// cap in api.js) — this is the hard monthly ceiling.
 const API_KEY_MONTHLY_LIMIT = 100;
 
 function currentUsageMonth() {
@@ -564,8 +501,6 @@ function currentUsageMonth() {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-// Read-only: for display (the dashboard's usage bar). Never writes, so it's
-// safe to call as often as needed without affecting the count itself.
 async function getAccountApiUsage(uid) {
   const nowMonth = currentUsageMonth();
   const snap = await db.collection("apiUsage").doc(uid).get();
@@ -574,9 +509,6 @@ async function getAccountApiUsage(uid) {
   return { requestsThisMonth, monthlyLimit: API_KEY_MONTHLY_LIMIT };
 }
 
-// Called once per authenticated API request (from requireApiKey in api.js).
-// Returns allowed:false without incrementing once the account is already at
-// its cap, so a blocked account can't be pushed further over by retries.
 async function checkAndIncrementAccountApiUsage(uid) {
   const nowMonth = currentUsageMonth();
   const ref = db.collection("apiUsage").doc(uid);
@@ -602,7 +534,6 @@ async function createApiKey(uid, label) {
     lastUsedAt: null,
     revoked: false,
   });
-  // rawKey is returned exactly once — the caller must show it to the user now.
   return { id: keyHash, rawKey };
 }
 
@@ -621,32 +552,20 @@ async function revokeApiKey(uid, keyId) {
   await ref.update({ revoked: true });
 }
 
-// Looks up a raw key presented by a developer's request. Returns null for
-// missing/revoked keys so callers can respond with a generic 401 either way
-// (no need to distinguish "wrong key" from "revoked key" to the caller).
 async function findApiKeyByRawKey(rawKey) {
   if (!rawKey || typeof rawKey !== "string") return null;
   const keyHash = hashApiKey(rawKey);
   const ref = db.collection("apiKeys").doc(keyHash);
   const snap = await ref.get();
   if (!snap.exists || snap.data().revoked) return null;
-  ref.update({ lastUsedAt: Date.now() }).catch(() => {}); // best-effort, don't block the request on it
+  ref.update({ lastUsedAt: Date.now() }).catch(() => {});
   return { id: snap.id, uid: snap.data().uid };
 }
 
-// ── Issued stream links (Settings → API → "Generated Links") ─────────────
-// Stored in Firestore rather than a local file next to server.js — a local
-// dotfile survives a plain process restart, but gets wiped along with the
-// rest of the old filesystem on a redeploy/fresh file upload, which was
-// making the dashboard's link history disappear even though the app itself
-// came back up fine. Firestore isn't affected by that, same as every other
-// piece of account data in this file.
 const MAX_ISSUED_LINKS_PER_ACCOUNT = 50;
 
 async function recordIssuedStreamLink(uid, entry) {
   await db.collection("issuedStreamLinks").add({ uid, ...entry });
-  // Best-effort trim so the collection doesn't grow forever — never blocks
-  // the caller, same spirit as the old fire-and-forget disk append.
   db.collection("issuedStreamLinks").where("uid", "==", uid).get().then((snap) => {
     const docs = snap.docs
       .map((d) => ({ ref: d.ref, createdAt: d.data().createdAt || 0 }))
@@ -682,29 +601,6 @@ async function consumeResetToken(token) {
   return data.uid;
 }
 
-/* ── Sessions ──────────────────────────────────────────────────────────────
-   Sessions are signed rather than stored: the cookie carries the uid and its
-   own expiry, authenticated by an HMAC. Signing in therefore costs no
-   Firestore write, and checking a session costs no Firestore read.
-
-   The stored-session version wrote a document per sign-in and read one on
-   every single request. When Firestore stopped accepting writes, that write
-   didn't fail — the client retried it indefinitely — so /api/session hung
-   forever at createSession and every sign-in method broke at once while the
-   cached pages carried on serving normally.
-
-   The tradeoff is that a signed token can't be deleted server-side. Anything
-   that must invalidate sessions early stamps `sessionsValidFrom` on the user
-   document instead, and tokens issued before that instant are refused; see
-   sessionIssuedAt() and its use in requireAuth. That check runs where the
-   profile has already been fetched, so revocation costs nothing extra.
-   ───────────────────────────────────────────────────────────────────────── */
-
-// Prefer an explicit SESSION_SECRET. Failing that, derive a key from the
-// service-account credentials: already secret, already required for the app to
-// boot, and identical across restarts and instances — so no new environment
-// variable is needed for this to work on deploy, and existing signed cookies
-// survive a restart.
 const SESSION_SIGNING_KEY = (() => {
   const explicit = process.env.SESSION_SECRET;
   if (explicit) return crypto.createHash("sha256").update(`session-v1:${explicit}`).digest();
@@ -721,15 +617,12 @@ function signSessionToken(payload) {
   return `v1.${body}.${sig}`;
 }
 
-// Returns the payload only for a token whose signature verifies. Never throws:
-// every malformed, truncated or forged cookie is just a null.
 function readSessionToken(token) {
   const parts = String(token || "").split(".");
   if (parts.length !== 3 || parts[0] !== "v1") return null;
   const [, body, sig] = parts;
   const expected = crypto.createHmac("sha256", SESSION_SIGNING_KEY).update(body).digest();
   const given = Buffer.from(sig, "base64url");
-  // timingSafeEqual throws on a length mismatch, so check that first.
   if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
@@ -739,21 +632,16 @@ function readSessionToken(token) {
   }
 }
 
-// When the token was issued, for revocation checks. Null for legacy session
-// ids, which carry no issue time — those are refused outright once a
-// revocation instant is set, since their age can't be established.
 function sessionIssuedAt(token) {
   const payload = readSessionToken(token);
   return payload && typeof payload.iat === "number" ? payload.iat : null;
 }
 
-// True when this token predates the account's revocation instant — set by a
-// ban, a scheduled deletion, or any other "sign this account out everywhere".
 function isSessionRevoked(token, profile) {
   const validFrom = profile?.sessionsValidFrom;
   if (typeof validFrom !== "number") return false;
   const issuedAt = sessionIssuedAt(token);
-  if (issuedAt === null) return true; // legacy id: unknown age, so don't trust it
+  if (issuedAt === null) return true;
   return issuedAt < validFrom;
 }
 
@@ -771,9 +659,6 @@ async function verifySession(sessionId) {
     return payload.uid;
   }
 
-  // Sessions issued before the switch to signed cookies are still Firestore
-  // document ids. Honoured so nobody was signed out by the change; they age
-  // out on their own within SESSION_TTL_MS.
   if (!LEGACY_SESSION_ID.test(sessionId)) return null;
   try {
     const snap = await db.collection("sessions").doc(sessionId).get();
@@ -793,19 +678,13 @@ async function refreshSession(sessionId) {
   }).catch(() => {});
 }
 
-// A signed token has no server-side record to remove — logout clears the
-// cookie, which is what ends the session. Legacy ids still get cleaned up.
 async function deleteSession(sessionId) {
   if (!sessionId || !LEGACY_SESSION_ID.test(sessionId)) return;
   await db.collection("sessions").doc(sessionId).delete().catch(() => {});
 }
 
-// Invalidates every session for an account, including signed cookies already
-// out in the wild, by moving the account's revocation instant to now.
 async function revokeAllSessions(uid) {
   await db.collection("users").doc(uid).update({ sessionsValidFrom: Date.now() }).catch(() => {});
-  // Legacy stored sessions still need their documents removed; signed cookies
-  // are handled entirely by the stamp above.
   await db.collection("sessions").where("uid", "==", uid).get().then((snap) => {
     return Promise.all(snap.docs.map((d) => d.ref.delete()));
   }).catch(() => {});
@@ -887,9 +766,6 @@ async function deleteTwoFactorPendingLogin(token) {
 const DELETION_GRACE_MS = 24 * 60 * 60 * 1000;
 const pendingDeletionTimers = new Map();
 
-// When an account is permanently deleted, every follow relationship it was
-// part of has to be unwound too — otherwise the other side's follower/following
-// counts stay inflated forever, pointing at an account that no longer exists.
 async function cleanupFollowRelationships(uid) {
   const [asFollower, asTarget] = await Promise.all([
     db.collection("follows").where("followerUid", "==", uid).get(),
@@ -897,19 +773,17 @@ async function cleanupFollowRelationships(uid) {
   ]);
 
   const docs = [...asFollower.docs, ...asTarget.docs];
-  const CHUNK = 400; // stay under Firestore's 500-write batch limit
+  const CHUNK = 400;
   for (let i = 0; i < docs.length; i += CHUNK) {
     const batch = db.batch();
     for (const doc of docs.slice(i, i + CHUNK)) {
       const { followerUid, targetUid } = doc.data();
       batch.delete(doc.ref);
       if (followerUid === uid) {
-        // This account was following someone — that account loses a follower.
         batch.update(db.collection("users").doc(targetUid), {
           followersCount: admin.firestore.FieldValue.increment(-1),
         });
       } else {
-        // Someone was following this account — they lose someone they follow.
         batch.update(db.collection("users").doc(followerUid), {
           followingCount: admin.firestore.FieldValue.increment(-1),
         });
@@ -952,10 +826,6 @@ async function sweepPendingDeletions() {
   }
 }
 
-// Releases usernames left behind by profiles whose Firebase Auth account is
-// gone (most commonly: someone was deleted straight from the Firebase console
-// instead of through the app). Without this the username stays permanently
-// unavailable even though nobody is actually using it anymore.
 async function sweepOrphanedUsers() {
   const snap = await db.collection("users").get().catch(() => null);
   if (!snap) return;
@@ -976,12 +846,6 @@ const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 const MAX_PASSKEYS_PER_USER = 3;
 
-// The browser's WebAuthn library (@simplewebauthn/browser) calls .replace() on
-// options.challenge, options.user.id, and every excludeCredentials/allowCredentials[].id
-// expecting each to be a base64url STRING. If any of those arrive as something else
-// (undefined, a raw Buffer that got JSON-serialized as {type:"Buffer",data:[...]}, etc.)
-// the browser library crashes with "Cannot read properties of undefined (reading 'replace')".
-// This helper guarantees a proper base64url string no matter what shape the value is in.
 function toBase64url(value) {
   if (typeof value === "string") return value;
   if (value == null) return value;
@@ -993,13 +857,6 @@ function toBase64url(value) {
   return value;
 }
 
-// Converts one excludeCredentials/allowCredentials descriptor and guarantees
-// its `id` came out as a real, non-empty string — this is the field the
-// browser library calls .replace()/base64url-decodes directly. A bad
-// (missing/malformed) entry here is exactly what surfaces client-side as
-// "Cannot read properties of undefined (reading 'replace')", so this throws
-// a clear server-side error instead of ever letting that shape reach the
-// browser.
 function toSafeCredentialDescriptor(c, label) {
   const id = toBase64url(c && c.id);
   if (!id || typeof id !== "string") {
@@ -1008,8 +865,6 @@ function toSafeCredentialDescriptor(c, label) {
   return { ...c, id };
 }
 
-// Walks the options object returned by @simplewebauthn/server and forces every field
-// the browser library expects to be a base64url string into that shape.
 function sanitizePasskeyOptions(options, { isRegistration } = {}) {
   const safe = { ...options };
   safe.challenge = toBase64url(safe.challenge);
@@ -1025,8 +880,6 @@ function sanitizePasskeyOptions(options, { isRegistration } = {}) {
     if (!safe.user.id || typeof safe.user.id !== "string") {
       throw new Error("Server failed to generate a valid passkey user ID.");
     }
-    // Always a real array — never undefined — so the browser library's
-    // .map() over it is never handed something it doesn't expect.
     safe.excludeCredentials = Array.isArray(safe.excludeCredentials)
       ? safe.excludeCredentials.map((c) => toSafeCredentialDescriptor(c, "excludeCredentials"))
       : [];
@@ -1044,7 +897,6 @@ async function getPasskeysForUser(uid) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-// Step 1 of adding a passkey to an already-signed-in account.
 async function beginPasskeyRegistration(uid, email, displayName, rpID) {
   const existing = await getPasskeysForUser(uid);
   if (existing.length >= MAX_PASSKEYS_PER_USER) {
@@ -1068,10 +920,8 @@ async function beginPasskeyRegistration(uid, email, displayName, rpID) {
   return options;
 }
 
-// Step 2: verify the browser's response and save the new credential.
 async function finishPasskeyRegistration(uid, response, rpID, origin, name) {
   try {
-    // Validate inputs
     if (!response || typeof response !== 'object') {
       throw new Error("Invalid passkey response format.");
     }
@@ -1088,7 +938,6 @@ async function finishPasskeyRegistration(uid, response, rpID, origin, name) {
       throw new Error(`You can only have up to ${MAX_PASSKEYS_PER_USER} passkeys. Delete one to add another.`);
     }
 
-    // Verify the registration response
     let verification;
     try {
       verification = await verifyRegistrationResponse({
@@ -1107,12 +956,10 @@ async function finishPasskeyRegistration(uid, response, rpID, origin, name) {
 
     const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
 
-    // Validate credential structure
     if (!credential || !credential.id || !credential.publicKey) {
       throw new Error("Invalid credential data from browser.");
     }
 
-    // Convert credential.id (Uint8Array) to base64url string for Firestore doc ID
     let credentialIdString;
     try {
       if (typeof credential.id === 'string') {
@@ -1126,7 +973,6 @@ async function finishPasskeyRegistration(uid, response, rpID, origin, name) {
       throw new Error(`Failed to process credential ID: ${idErr.message}`);
     }
 
-    // Check if credential already exists
     const existingCred = await db.collection("passkey_credentials").doc(credentialIdString).get();
     if (existingCred.exists) {
       throw new Error(existingCred.data().uid === uid
@@ -1134,19 +980,18 @@ async function finishPasskeyRegistration(uid, response, rpID, origin, name) {
         : "This passkey is already registered to another account.");
     }
 
-    // Store the credential
     try {
-      const publicKeyBuffer = Buffer.isBuffer(credential.publicKey) 
-        ? credential.publicKey 
+      const publicKeyBuffer = Buffer.isBuffer(credential.publicKey)
+        ? credential.publicKey
         : Buffer.from(credential.publicKey);
-      
+
       await db.collection("passkey_credentials").doc(credentialIdString).set({
         uid,
         name: String((name || "").trim().slice(0, 40)) || "Unnamed Passkey",
         publicKey: publicKeyBuffer.toString("base64url"),
         counter: Number(credential.counter) || 0,
-        transports: Array.isArray(response.response?.transports) 
-          ? response.response.transports.filter(t => typeof t === 'string') 
+        transports: Array.isArray(response.response?.transports)
+          ? response.response.transports.filter(t => typeof t === 'string')
           : [],
         deviceType: credentialDeviceType || null,
         backedUp: !!credentialBackedUp,
@@ -1156,7 +1001,6 @@ async function finishPasskeyRegistration(uid, response, rpID, origin, name) {
       throw new Error(`Failed to save credential: ${storeErr.message}`);
     }
   } catch (err) {
-    // Re-throw with context
     throw err;
   }
 }
@@ -1168,15 +1012,10 @@ async function deletePasskey(uid, credentialId) {
   await ref.delete();
 }
 
-// Step 1 of signing in with a passkey — no email or username needed. Discoverable
-// credentials mean the browser itself shows the matching passkey(s) for this site.
 async function beginPasskeyAuthentication(rpID) {
   const rawOptions = await generateAuthenticationOptions({
     rpID,
     userVerification: "preferred",
-    // Empty (not omitted) allowCredentials is the documented way to ask for
-    // a fully discoverable/passwordless flow — the browser shows whichever
-    // passkeys it has for this rpID instead of us needing to name one.
     allowCredentials: [],
   });
   const options = sanitizePasskeyOptions(rawOptions, { isRegistration: false });
@@ -1188,10 +1027,8 @@ async function beginPasskeyAuthentication(rpID) {
   return { options, token };
 }
 
-// Step 2: look up whichever credential the browser picked, verify it, and hand back the uid.
 async function finishPasskeyAuthentication(token, response, rpID, origin) {
   try {
-    // Validate inputs
     if (!response || typeof response !== 'object') {
       throw new Error("Invalid authentication response format.");
     }
@@ -1207,7 +1044,6 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
     await ref.delete();
     if (Date.now() > expiresAt) throw new Error("Passkey session expired. Try again.");
 
-    // Convert response.id to base64url if it's binary
     let credentialIdString;
     try {
       if (typeof response.id === 'string') {
@@ -1221,7 +1057,6 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
       throw new Error(`Failed to process credential ID: ${idErr.message}`);
     }
 
-    // Look up the credential
     const credDoc = await db.collection("passkey_credentials").doc(credentialIdString).get();
     if (!credDoc.exists) {
       const err = new Error("No account found with that passkey.");
@@ -1234,7 +1069,6 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
       throw new Error("Corrupted credential data in database.");
     }
 
-    // Prepare credential for verification
     let credentialIdBinary;
     try {
       credentialIdBinary = Buffer.from(credentialIdString, "base64url");
@@ -1249,13 +1083,6 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
       throw new Error(`Failed to decode public key: ${err.message}`);
     }
 
-    // Verify the authentication response
-    // NOTE: @simplewebauthn/server v10's `credential.id` must be the
-    // base64url STRING (its type is `Base64URLString`), not raw bytes —
-    // only `publicKey` is binary. Passing the decoded Buffer here (as this
-    // previously did) breaks the library's internal base64url handling and
-    // is what was surfacing client-side as "Cannot read properties of
-    // undefined (reading 'replace')".
     let verification;
     try {
       verification = await verifyAuthenticationResponse({
@@ -1278,37 +1105,26 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
       throw new Error("Could not verify passkey authentication.");
     }
 
-    // Update counter for replay attack protection
     try {
       await credDoc.ref.update({ counter: verification.authenticationInfo.newCounter });
     } catch (updateErr) {
       console.error("Failed to update counter:", updateErr);
-      // Don't throw - user already verified, just log the update failure
     }
 
     return credData.uid;
   } catch (err) {
-    // Re-throw with context
     throw err;
   }
 }
 
-// ── Follow system: users can follow each other. Each relationship is stored
-// once as `${followerUid}_${targetUid}` so it's cheap to check and idempotent.
-// followersCount/followingCount live on the user doc itself so the account
-// page can show them instantly without a separate count query. ──
 function followDocId(followerUid, targetUid) {
   return `${followerUid}_${targetUid}`;
 }
 
-// ── Notifications: a simple activity feed shown via the account page's bell
-// icon. Best-effort — a failure here should never block the underlying
-// action (password change, follow, etc). ──
 async function addNotification(uid, type, message, meta = null) {
   try {
     await db.collection("notifications").add({ uid, type, message, meta, createdAt: Date.now(), read: false });
   } catch {
-    // non-fatal
   }
 }
 
@@ -1321,9 +1137,6 @@ async function getNotifications(uid, limit = 50) {
 
 async function hasUnreadNotifications(uid) {
   const list = await getNotifications(uid, 200);
-  // Comments don't light up the notification dot — the per-post comment
-  // count badge already surfaces those. Likes/follows/tags/reshares still
-  // do; only "comment" is excluded here.
   return list.some((n) => !n.read && n.type !== "comment");
 }
 
@@ -1357,9 +1170,6 @@ async function deleteNotification(uid, notifId) {
   return { ok: true };
 }
 
-// ── "X viewed your profile" — de-duped so a viewer only triggers this once
-// per 7 days, tracked via a deterministic doc id so we can check with a
-// single cheap read instead of scanning the notifications collection. ──
 const PROFILE_VIEW_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function notifyProfileViewed(viewerUid, viewerProfile, targetUid) {
@@ -1369,7 +1179,7 @@ async function notifyProfileViewed(viewerUid, viewerProfile, targetUid) {
     const snap = await ref.get();
     const now = Date.now();
     if (snap.exists && now - (snap.data().lastNotifiedAt || 0) < PROFILE_VIEW_COOLDOWN_MS) {
-      return; // already notified this target about this viewer within 7 days
+      return;
     }
     await ref.set({ viewerUid, targetUid, lastNotifiedAt: now });
     const name = ((viewerProfile.firstName || "") + " " + (viewerProfile.lastName || "")).trim() || `@${viewerProfile.username}`;
@@ -1378,7 +1188,6 @@ async function notifyProfileViewed(viewerUid, viewerProfile, targetUid) {
       viewerUsername: viewerProfile.username || "",
     });
   } catch {
-    // non-fatal — a missed view notification should never break the profile page
   }
 }
 
@@ -1393,7 +1202,7 @@ async function followUser(followerUid, targetUid) {
   let created = false;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (snap.exists) return; // already following — no-op, never double counts
+    if (snap.exists) return;
     created = true;
     tx.set(ref, { followerUid, targetUid, createdAt: Date.now() });
     tx.update(db.collection("users").doc(targetUid), {
@@ -1437,8 +1246,6 @@ async function isFollowing(followerUid, targetUid) {
   return snap.exists;
 }
 
-// Stats shown on the account page. Falls back to 0 for accounts created
-// before these counters existed.
 async function getFollowStats(uid) {
   const profile = await getUserProfile(uid);
   return {
@@ -1448,20 +1255,15 @@ async function getFollowStats(uid) {
   };
 }
 
-// Admin-only cosmetic follower growth: adds 7 followers every hour to the
-// admin account's displayed count. No follow docs are created — this only
-// nudges the counter shown on the admin's own pages.
 async function growAdminFollowerCount() {
   try {
     const snap = await db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get();
     if (snap.empty) return;
     await snap.docs[0].ref.update({ followersCount: admin.firestore.FieldValue.increment(7) });
   } catch {
-    // best-effort
   }
 }
 
-// ── Posts: text/photo posts on a user's own profile, with likes and @tags ──
 const MAX_POST_IMAGE_BYTES = 900 * 1024;
 
 async function resolveTaggedUsers(uid, taggedUsernames) {
@@ -1520,12 +1322,6 @@ async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
   return { id: ref.id, ...post, likesCount: 0, likedByViewer: false, commentsCount: 0 };
 }
 
-// Reshares never carry their own likes OR comments — both are recorded on
-// the original post they point to (see togglePostLike / addComment below),
-// so a reshare's own `likedBy` and `commentsCount` stay empty forever.
-// This resolves the *real* stats (the original's, for a reshare; its own,
-// otherwise) for a batch of raw post docs, so list views show the same
-// like/comment counts a viewer would see on the original post itself.
 async function resolveEffectivePostStats(rawPosts) {
   const originalIds = [...new Set(
     rawPosts.filter((p) => p.resharedFrom && p.resharedFrom.postId).map((p) => p.resharedFrom.postId)
@@ -1542,18 +1338,12 @@ async function resolveEffectivePostStats(rawPosts) {
     result.set(p.id, {
       likedBy: src.likedBy || [],
       commentsCount: src.commentsCount || 0,
-      // Comments live on the original, so the original's on/off switch is
-      // the one that actually governs whether a reshare can be commented on.
       commentsEnabled: src.commentsEnabled !== false,
     });
   }
   return result;
 }
 
-// Comments on a reshare belong to the original post's thread — everyone
-// discussing the same content sees the same conversation, and the original
-// author keeps ownership/moderation of it. Resolves a postId to the id the
-// comment collection should actually key on.
 async function resolveCommentTargetPostId(postId) {
   const snap = await db.collection("posts").doc(postId).get();
   if (!snap.exists) return postId;
@@ -1748,7 +1538,6 @@ async function resharePost(uid, postId) {
   return { id: newRef.id, ...newPost, likesCount: 0, likedByViewer: false, commentsCount: 0 };
 }
 
-// ── Comments: single-level (no replies), with owner moderation (pin/hide/delete) and likes ──
 async function fetchUsersByUid(uids) {
   const unique = [...new Set(uids)].filter(Boolean);
   const map = {};
@@ -1760,14 +1549,10 @@ async function fetchUsersByUid(uids) {
   return map;
 }
 
-// Small lookup used by the comments API to know who to notify — added
-// alongside the existing comment functions without touching their logic.
 async function getPostOwner(postId) {
   const snap = await db.collection("posts").doc(postId).get();
   if (!snap.exists) return null;
   let data = snap.data();
-  // Comments on a reshare live on the original post, so the person to
-  // notify about a new comment is the original author, not the resharer.
   if (data.resharedFrom && data.resharedFrom.postId) {
     const origSnap = await db.collection("posts").doc(data.resharedFrom.postId).get();
     if (origSnap.exists) data = origSnap.data();
@@ -1776,8 +1561,6 @@ async function getPostOwner(postId) {
   return owner ? { uid: data.uid, username: owner.username } : { uid: data.uid, username: null };
 }
 
-// Small lookup used by the comments API to know who to notify on a reply —
-// additive, doesn't touch the existing comment functions' logic.
 async function getCommentAuthorUid(commentId) {
   const snap = await db.collection("comments").doc(commentId).get();
   if (!snap.exists) return null;
@@ -1787,9 +1570,6 @@ async function getCommentAuthorUid(commentId) {
 async function addComment(uid, postId, text, taggedUsernames) {
   const cleanText = (text || "").toString().trim().slice(0, 500);
   if (!cleanText) throw new Error("Write something first.");
-  // A reshare has no comment thread of its own — commenting on one adds to
-  // the original post's thread, so everyone sees the same conversation and
-  // the original author keeps ownership of it.
   const targetPostId = await resolveCommentTargetPostId(postId);
   const postRef = db.collection("posts").doc(targetPostId);
   const postSnap = await postRef.get();
@@ -1828,7 +1608,6 @@ async function addComment(uid, postId, text, taggedUsernames) {
 }
 
 async function getComments(postId, viewerUid) {
-  // Same redirection as addComment — a reshare shows the original's thread.
   const targetPostId = await resolveCommentTargetPostId(postId);
   const postSnap = await db.collection("posts").doc(targetPostId).get();
   if (!postSnap.exists) throw new Error("Post not found.");
@@ -1936,9 +1715,6 @@ async function togglePostLike(uid, postId) {
   if (!snap.exists) throw new Error("Post not found.");
   const post = snap.data();
 
-  // A reshare doesn't own likes — liking one always credits the original
-  // post it points to (its likedBy array, its author's likesCount, its
-  // notification), so a like never ends up attributed to the resharer.
   const isReshare = !!(post.resharedFrom && post.resharedFrom.postId);
   const targetRef = isReshare ? db.collection("posts").doc(post.resharedFrom.postId) : ref;
   const targetSnap = isReshare ? await targetRef.get() : snap;
@@ -1971,9 +1747,6 @@ async function togglePostLike(uid, postId) {
   return { likesCount: (updated.likedBy || []).length, likedByViewer: (updated.likedBy || []).includes(uid) };
 }
 
-// Fetches the actual list of people following (or followed by) a user, for
-// the followers/following overlay. Firestore 'in' queries cap at 30 ids, so
-// large lists are looked up in chunks.
 async function getFollowList(uid, type) {
   const field = type === "followers" ? "targetUid" : "followerUid";
   const otherField = type === "followers" ? "followerUid" : "targetUid";
@@ -2003,10 +1776,6 @@ async function getFollowList(uid, type) {
   return users;
 }
 
-// ── Following feed — posts from people you follow, shown via the small
-// "POSTS" overlay on the profile page. Mirrors getFollowList's approach of
-// chunked, unordered queries + sorting in JS (no .orderBy() combined with
-// an 'in' filter), so this never needs a new Firestore composite index. ──
 async function getFollowingUids(uid) {
   const snap = await db.collection("follows").where("followerUid", "==", uid).limit(500).get();
   return [...new Set(snap.docs.map((d) => d.data().targetUid))];
@@ -2027,10 +1796,6 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
   }
   rawPosts.sort((a, b) => b.createdAt - a.createdAt);
 
-  // Visibility: "everyone" shown to anyone, "only_me" never shown to
-  // someone else, "friends" only if that author follows the viewer back
-  // too. isFollowing() is a single doc get (deterministic id), not a
-  // query, so batching it per distinct author needs no index either.
   const distinctAuthorUids = [...new Set(rawPosts.map((p) => p.uid))];
   const mutualChecks = await Promise.all(distinctAuthorUids.map((a) => isFollowing(a, uid)));
   const mutualSet = new Set(distinctAuthorUids.filter((_, i) => mutualChecks[i]));
@@ -2094,20 +1859,11 @@ async function getFollowingFeedUnseenCount(uid, cachedProfile) {
   let count = 0;
   for (let i = 0; i < followingUids.length; i += 30) {
     const chunk = followingUids.slice(i, i + 30);
-    // Field mask: this only needs createdAt/visibility to produce a count,
-    // so there's no reason to pull full post bodies (text, base64 images)
-    // across the wire for what's ultimately just a badge number, polled
-    // every 20s from every open tab.
     const snap = await db.collection("posts").where("uid", "in", chunk).limit(50)
       .select("createdAt", "visibility").get();
     snap.docs.forEach((d) => {
       const data = d.data();
       if (data.createdAt <= lastSeenFeedAt) return;
-      // Not re-checking "friends"-visibility mutual-follow here — the badge
-      // is a lightweight heads-up, and getFollowingFeed above is what
-      // actually gates what's shown. Slightly over-counting a friends-only
-      // post you can't see yet is a minor cosmetic edge case, not a
-      // security issue, and avoids extra reads on every poll of this.
       if ((data.visibility || "everyone") === "only_me") return;
       count++;
     });
@@ -2115,8 +1871,6 @@ async function getFollowingFeedUnseenCount(uid, cachedProfile) {
   return Math.min(count, 99);
 }
 
-// Prefix search on the (already-lowercased) username field — the standard
-// Firestore trick for "starts with" search without a separate search index.
 async function searchUsersByUsername(query, excludeUid, limit = 15) {
   const q = String(query || "").trim().toLowerCase();
   if (!q) return [];
@@ -2126,8 +1880,6 @@ async function searchUsersByUsername(query, excludeUid, limit = 15) {
       .where("username", "<=", q + "\uf8ff")
       .limit(limit)
       .get(),
-    // Alt/reserved usernames are stored as exact strings (no prefix index),
-    // so this matches when the full alt username has been typed.
     db.collection("users")
       .where("altUsernames", "array-contains", q)
       .limit(limit)
@@ -2160,7 +1912,7 @@ async function searchUsersByUsername(query, excludeUid, limit = 15) {
     });
 }
 
-const LAST_ACTIVE_UPDATE_THROTTLE_MS = 2 * 60 * 1000; // don't write on every single request
+const LAST_ACTIVE_UPDATE_THROTTLE_MS = 2 * 60 * 1000;
 
 function requireAuth(req, res, next) {
   const sessionId = req.cookies?.session;
@@ -2168,19 +1920,12 @@ function requireAuth(req, res, next) {
     .then(async (uid) => {
       if (!uid) return res.status(401).json({ error: "not_authenticated" });
       const profile = await getUserProfile(uid);
-      // `banned` is enforced here rather than relying on the ban having
-      // deleted the session: a signed cookie can't be deleted, and this check
-      // is free because the profile is already loaded. isSessionRevoked
-      // covers cookies issued before the account was banned or scheduled for
-      // deletion.
       if (!profile || profile.pendingDeletion || profile.banned || isSessionRevoked(sessionId, profile)) {
         await deleteSession(sessionId);
         return res.status(401).json({ error: "not_authenticated" });
       }
       req.uid = uid;
-      req.userProfile = profile; // already fetched above — downstream handlers can reuse this instead of re-fetching
-      // Presence / "last seen" — best-effort, throttled so we're not writing
-      // to the user doc on every single authenticated request.
+      req.userProfile = profile;
       if (!profile.lastActiveAt || Date.now() - profile.lastActiveAt > LAST_ACTIVE_UPDATE_THROTTLE_MS) {
         updateUserProfile(uid, { lastActiveAt: Date.now() }).catch(() => {});
       }
@@ -2189,7 +1934,6 @@ function requireAuth(req, res, next) {
     .catch(() => res.status(401).json({ error: "not_authenticated" }));
 }
 
-// ── Admin user management (owner-only tools, gated by isAdminEmail) ──
 const ADMIN_PAGE_SIZE = 20;
 
 function adminUserView(uid, data) {
@@ -2209,7 +1953,6 @@ function adminUserView(uid, data) {
   };
 }
 
-// Paginated list of every account for the "User Accounts" panel — newest first.
 async function adminListUsers({ cursor } = {}) {
   let q = db.collection("users").orderBy("createdAt", "desc").limit(ADMIN_PAGE_SIZE);
   if (cursor) {
@@ -2224,7 +1967,6 @@ async function adminListUsers({ cursor } = {}) {
   return { results, nextCursor: last };
 }
 
-// Prefix search on username, for the quick-access search box in the admin panel.
 async function adminSearchUsers(query) {
   const q = String(query || "").trim().toLowerCase();
   if (!q) return [];
@@ -2238,7 +1980,6 @@ async function adminSearchUsers(query) {
     .filter((d) => d.data().username && !d.data().pendingDeletion && !isAdminEmail(d.data().email) && !d.data().banned)
     .forEach((d) => results.set(d.id, adminUserView(d.id, d.data())));
 
-  // Telegram-only accounts have no email — let admins look them up by their numeric Telegram ID too.
   if (/^\d+$/.test(q)) {
     const tgSnap = await db.collection("users").where("telegramId", "==", q).limit(5).get();
     tgSnap.docs
@@ -2246,7 +1987,6 @@ async function adminSearchUsers(query) {
       .forEach((d) => results.set(d.id, adminUserView(d.id, d.data())));
   }
 
-  // Same idea for GitHub-only accounts — searchable by numeric GitHub ID or @login.
   if (/^\d+$/.test(q)) {
     const ghIdSnap = await db.collection("users").where("githubId", "==", q).limit(5).get();
     ghIdSnap.docs
@@ -2276,7 +2016,6 @@ async function adminBanUser(uid) {
   await db.collection("users").doc(uid).update({ banned: true, bannedAt: Date.now() });
   await revokeAllSessions(uid);
 
-  // Best-effort ban notification — never let an email hiccup block the ban itself.
   if (profile.email) {
     try {
       const name = `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || profile.username || "there";
@@ -2305,7 +2044,6 @@ async function adminBanUser(uid) {
       ].join("\n");
       await sendBanNotificationEmail(profile.email, name, appealMailto, logFileText);
     } catch {
-      // non-fatal
     }
   }
 

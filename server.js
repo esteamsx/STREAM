@@ -21,14 +21,9 @@ import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
 import { renderDeployBot } from "./views/deploy-bot.js";
 
-// ── Bot deployment now lives in its own Render service (see /bot-service),
-// so a memory-hungry bot process can't crash the main site anymore. This
-// site only proxies requests to it, authenticated with a shared secret —
-// set BOT_SERVICE_URL and INTERNAL_API_KEY (same value on both services)
-// in this service's Render env vars.
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
-const BOT_SERVICE_TIMEOUT_MS = 15000; // bot-service is a separate Render service that can be asleep/slow to wake — without a timeout every /api/bots/* request hung indefinitely waiting on it
+const BOT_SERVICE_TIMEOUT_MS = 15000;
 async function botServiceFetch(pathAndQuery, options = {}) {
   if (!BOT_SERVICE_URL || !INTERNAL_API_KEY) {
     throw Object.assign(new Error("Bot service is not configured."), { status: 503 });
@@ -166,45 +161,24 @@ import {
   crossOriginWriteGuard,
 } from "./middleware/security-middleware.js";
 import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
+import { canonicalPath, pageGuards } from "./middleware/navigation.js";
+import { WEB_MANIFEST, siteHeadFor } from "./config/site.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-// Render terminates TLS at its edge and forwards over plain HTTP, so without
-// this every request's req.ip is Render's proxy address rather than the
-// visitor's. Every IP-keyed guard below (globalLimiter, passwordLoginLimiter,
-// RepeatedRefusalGuard, ipBlocklist) then shares a single bucket across all
-// users at once — 10 logins per 15 minutes site-wide, and one guard trip
-// banning everybody. Trust exactly one hop: `true` would let a client forge
-// X-Forwarded-For and pick its own rate-limit key.
 app.set("trust proxy", 1);
 
-// Don't advertise the framework in every response header.
 app.disable("x-powered-by");
 
-// Tags every request with an id (X-Request-Id, reused if the edge already set
-// one) so a visitor reporting "it broke" can quote a reference that points at
-// the exact request in the logs. First in the chain, so even requests refused
-// by the guards below carry one.
 app.use(requestId);
 
-// Turns a request that would otherwise hang forever into a logged error page.
-// See responseWatchdog in error-pages.js for why Express 4 makes this
-// necessary. Live HLS is exempt — those responses stay open by design.
 app.use(responseWatchdog({ timeoutMs: 30000, exemptPrefixes: ["/api/v1/hls/"] }));
 
-// Domain lock runs first, before spending cycles on anything else — blocks
-// requests whose Host header doesn't match the canonical domain (unless a
-// valid DEVTOOLS_BYPASS_KEY is supplied). See lock.js for exactly what this
-// does and doesn't protect against.
 app.use(domainLock);
 
-// Compresses every response (the profile/account pages are large inline
-// HTML+CSS+JS documents, and text compresses very well) — this cuts
-// transfer size substantially without changing any behavior.
 app.use(compression());
 
-// ── SECURITY: applied before everything else, purely additive ──
 app.use(helmetMiddleware);
 app.use(securityHeaders);
 app.use(permissionsPolicy);
@@ -214,67 +188,45 @@ app.use(new RepeatedRefusalGuard(15, 5 * 60 * 1000, 30 * 60 * 1000).middleware()
 app.use(ipBlocklist);
 app.use(botBlocker);
 app.use(suspiciousRequestDetector);
-// HLS playlist/segment traffic is exempted here — it already has its own,
-// higher limiter (hlsLimiter, 600/min in api.js) sized for live streaming.
-// Left in this global limiter, a single active stream blows past it in
-// well under a minute (a new segment every few seconds, across quality
-// levels), so this one was rate-limiting playback itself before requests
-// ever reached the HLS routes.
-//
-// Raised from 120 to 400/min per IP — 120 was tripping on ordinary fast
-// navigation (each page can fire off several background requests: profile
-// info, unread badges, feed counts, etc.), returning a raw JSON 429 in
-// place of the page itself. 400/min is still a real ceiling against actual
-// scraping/abuse, just with enough headroom for a real person clicking
-// around quickly, or several people behind one shared/NAT'd IP.
-const globalLimiter = new SimpleRateLimiter(400, 60000).middleware(); // 400 req/min per IP
+const globalLimiter = new SimpleRateLimiter(400, 60000).middleware();
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/v1/hls/")) return next();
   return globalLimiter(req, res, next);
 });
 app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
 
-// Cheap keep-alive target for an external uptime pinger (e.g. UptimeRobot,
-// cron-job.org) — hit this every 5-10 min to stop Render's free tier from
-// sleeping. Placed before rate limiters/auth so it stays fast and unblocked.
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
-const signupLimiter = new SimpleRateLimiter(8, 15 * 60 * 1000).middleware(); // signup + verify + resend: 8 / 15min
-// Previously a single `loginLimiter` instance was reused as middleware on 9
-// unrelated routes (password sign-in, 2FA verify, passkey, OAuth start +
-// callback, identifier lookup). Since SimpleRateLimiter keys by IP, every one
-// of those actions drained the *same* 8-req/15min bucket — a normal login
-// (identifier lookup + password submit + maybe a 2FA code) could burn 3+ of
-// the 8 slots by itself, and a shared/NAT IP hit the cap for everyone behind
-// it. Each flow now gets its own bucket sized to what it actually needs.
-const passwordLoginLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware(); // /api/session password submits: 10 / 15min
-const twoFactorLoginLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware(); // /api/2fa/login-verify: 10 / 15min
-const passkeyOptionsLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware(); // requesting a passkey challenge is read-only, not brute-forceable
-const passkeyVerifyLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware(); // /api/passkey/authentication-verify: 10 / 15min
-const oauthStartLimiter = new SimpleRateLimiter(15, 15 * 60 * 1000).middleware(); // telegram/github OAuth redirect kickoff
-const oauthCallbackLimiter = new SimpleRateLimiter(15, 15 * 60 * 1000).middleware(); // telegram/github OAuth callback
-const identifierLookupLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware(); // username->email lookup, not the actual auth check
-const twoFactorToggleLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000, (req) => req.uid).middleware(); // enable/disable 2FA, keyed per account
-// issueCode() (auth.js) sends an email/Telegram DM with zero internal cooldown
-// of its own — /api/account/request-email in particular lets the caller name
-// an arbitrary target address, so without this an authenticated account could
-// be used to email-bomb any inbox, limited only by the blunt global per-IP cap.
+app.use(
+  express.static(path.join(__dirname, "public"), {
+    maxAge: "7d",
+    etag: true,
+    index: false,
+    redirect: false,
+    dotfiles: "ignore",
+  })
+);
+
+app.use(canonicalPath);
+
+const signupLimiter = new SimpleRateLimiter(8, 15 * 60 * 1000).middleware();
+const passwordLoginLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware();
+const twoFactorLoginLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware();
+const passkeyOptionsLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware();
+const passkeyVerifyLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware();
+const oauthStartLimiter = new SimpleRateLimiter(15, 15 * 60 * 1000).middleware();
+const oauthCallbackLimiter = new SimpleRateLimiter(15, 15 * 60 * 1000).middleware();
+const identifierLookupLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware();
+const twoFactorToggleLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000, (req) => req.uid).middleware();
 const emailCodeLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000, (req) => req.uid).middleware();
-const resetLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000).middleware(); // password reset flow: 5 / 15min
-const dmcaLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000).middleware(); // DMCA report submissions: 5 / hour per IP
-const usernameCheckLimiter = new SimpleRateLimiter(40, 60 * 1000).middleware(); // live-typing availability checks: 40 / min, separate from the signup quota above
-// Keyed by account (req.uid), not IP — this endpoint is already behind
-// requireAuth, so the thing worth throttling is one account hammering it
-// from anywhere, not one IP (which a scraper can just rotate).
-const channelApiLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware(); // 60 / min per account
-const botDeployLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000, (req) => req.uid).middleware(); // deploying spawns real processes — 5 / hour per account
-const botActionLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware(); // stop/restart/delete — 30 / min per account
-const botStatusLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.uid).middleware(); // log polling, up to a few panels open at once — 120 / min per account
+const resetLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000).middleware();
+const dmcaLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000).middleware();
+const usernameCheckLimiter = new SimpleRateLimiter(40, 60 * 1000).middleware();
+const channelApiLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware();
+const botDeployLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000, (req) => req.uid).middleware();
+const botActionLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
+const botStatusLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.uid).middleware();
 
-// (devtools-blocking bundle route removed — was breaking pages via false-positive trips)
-
-
-// ── ALTCHA captcha: HMAC key used to sign/verify proof-of-work challenges ──
 const ALTCHA_HMAC_KEY = process.env.ALTCHA_SECRET;
 if (!ALTCHA_HMAC_KEY) {
   console.warn("WARNING: ALTCHA_SECRET is not set. Set it in your .env file or captcha verification will fail.");
@@ -289,12 +241,7 @@ async function verifyCaptcha(payload) {
     return false;
   }
 }
-// ── END SECURITY SETUP ──
 
-// Refuses POST/PUT/DELETE that announce a foreign origin, ahead of body
-// parsing so a rejected request never gets its payload read. Second lock
-// behind the session cookie's SameSite=lax — see LAYER 11 in
-// security-middleware.js for exactly what it does and doesn't refuse.
 app.use(crossOriginWriteGuard);
 
 app.use(express.json({ limit: "3mb" }));
@@ -311,35 +258,13 @@ const authPageConfig = {
     appId: process.env.FIREBASE_APP_ID,
   },
   googleClientId: process.env.GOOGLE_CLIENT_ID,
-  // Telegram Login Widget identifies the bot by its numeric ID, which is just
-  // the part of the bot token before the colon — no separate env var needed.
-  // The client no longer needs any Telegram identifier at all — sign-in is
-  // now a plain redirect to our own /api/telegram-auth/start, so this just
-  // tells the page whether to show the Telegram button at all.
   telegramConfigured: !!(process.env.TELEGRAM_CLIENT_ID && process.env.TELEGRAM_CLIENT_SECRET),
-  // Same idea as telegramConfigured above — the page just needs to know
-  // whether to show the button, the actual client ID stays server-side.
   githubConfigured: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
-  // Blocks the "hold to reveal link" callout/context menu on links, buttons,
-  // and images. -webkit-touch-callout covers iOS Safari's native long-press
-  // menu; the contextmenu listener covers Android Chrome, which fires that
-  // event on long-press over a link/image instead of showing a native menu.
-  //
-  // This is ONE shared string included on every page that takes authPageConfig
-  // (login, verify, account, profile, admin, reset — check each file's <head>
-  // for `${cfg.devToolsBlock || ""}`), so anything added here is automatically
-  // on all of them without touching those files individually.
   devToolsBlock: `<script>
 document.addEventListener('contextmenu', function(e){
   if (e.target.closest('a, button, img, [role="button"]')) e.preventDefault();
 });
 
-// Soft DevTools-open notice — NOT a hard block/redirect/blank-out. A harder
-// version of this (debugger-timing trap) was tried before and caused false
-// positives on real users, so this only ever shows a small, dismissible
-// banner. It cannot stop anyone determined from opening DevTools — nothing
-// running in the browser truly can — it just makes casual inspection less
-// invisible and matches across every page instead of only the login screen.
 (function(){
   var shown = false;
   function notify(){
@@ -375,15 +300,6 @@ a, button, [role="button"] {
 `,
 };
 
-// These pages' render*() functions take only authPageConfig — built once
-// above from env vars, with nothing per-request (no cookies, no user data,
-// confirmed no Date.now()/Math.random() runs at render time, only inside
-// the client-side <script> text they output). Their HTML is therefore
-// identical on every request, so it's computed once here at boot instead of
-// re-running a multi-thousand-line template-literal build on every single
-// GET — meaningful CPU savings under load, and one less thing an attacker
-// can spend real server work on by just repeatedly hitting these public
-// pages (several, like /deploy-bot, require no auth at all).
 const cachedLoginHtml = renderLogin(authPageConfig);
 const cachedVerifyHtml = renderVerify(authPageConfig);
 const cachedAccountHtml = renderAccount(authPageConfig);
@@ -395,7 +311,16 @@ const cachedPrivacyHtml = renderPrivacy(authPageConfig);
 const cachedDevelopersHtml = renderDevelopers(authPageConfig);
 const cachedDeployBotHtml = renderDeployBot(authPageConfig);
 
-/* category display icon — CSS SVG icons, no emoji */
+const cachedFootballHtml = (() => {
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, "views", "football.js"), "utf8");
+    return raw.replace("</title>", `</title>\n${siteHeadFor("football")}`);
+  } catch (err) {
+    console.error("Could not load the football page:", err.message);
+    return null;
+  }
+})();
+
 const CATEGORY_ICON = {
   sports:         `<svg class="ci" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/><path d="M2 12h20"/></svg>`,
   football:       `<svg class="ci" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/><path d="M2 12h20"/></svg>`,
@@ -420,7 +345,6 @@ function categoryIcon(name) {
   return match ? CATEGORY_ICON[match] : DEFAULT_ICON;
 }
 
-// ── Channel categories — feeds the "More Channels" panel under the player ──
 app.get("/api/channels/categories", requireAuth, channelApiLimiter, async (req, res) => {
   try {
     const categories = liveTV.map((cat) => ({
@@ -450,20 +374,16 @@ app.get("/api/channels/category/:name", requireAuth, channelApiLimiter, async (r
   }
 });
 
-// Every browser auto-requests this on every page load. With no route here it
-// 404s every time, and RepeatedRefusalGuard counts every 403/404 site-wide
-// toward its self-ban threshold — so normal browsing alone could trip it.
-app.get("/favicon.ico", (req, res) => res.status(204).end());
-app.get(["/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"], (req, res) => res.status(204).end());
-// Chrome DevTools auto-requests this on every single page load whenever
-// DevTools is open (its "Automatic Workspace Folders" feature) — another
-// silent 404-per-reload source, same problem as favicon.ico above.
+app.get(["/apple-touch-icon-precomposed.png"], (req, res) => res.redirect(301, "/apple-touch-icon.png"));
+app.get("/site.webmanifest", (req, res) => {
+  res.set("Cache-Control", "public, max-age=86400");
+  res.type("application/manifest+json").send(JSON.stringify(WEB_MANIFEST));
+});
 app.get("/.well-known/appspecific/com.chrome.devtools.json", (req, res) => res.status(204).end());
 
-app.get("/", scrapeGate, async (req, res) => {
-  const sessionId = req.cookies?.session;
-  const uid = await verifySession(sessionId);
-  if (!uid) return res.redirect("/login");
+const { requireUser, guestOnly } = pageGuards({ verifySession });
+
+app.get("/", scrapeGate, requireUser, async (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -476,6 +396,7 @@ document.addEventListener('contextmenu', function(e){
 });
 </script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+${siteHeadFor("home")}
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2165,15 +2086,13 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   var search     = document.getElementById('searchInput');
   var noResults  = document.getElementById('noResults');
   var hlsInstance= null;
-  var loadSeq = 0; // guards against a slow token fetch resolving after the user has already switched channels again
+  var loadSeq = 0; 
 
-  /* ── sidebar ── */
   function openSB(){ sidebar.classList.add('open'); overlay.classList.add('open'); }
   function closeSB(){ sidebar.classList.remove('open'); overlay.classList.remove('open'); }
   menuBtn.addEventListener('click', function(){ sidebar.classList.contains('open') ? closeSB() : openSB(); });
   overlay.addEventListener('click', closeSB);
 
-  /* ── accordion ── */
   document.querySelectorAll('.cat-header').forEach(function(hdr){
     hdr.addEventListener('click', function(){
       var list = document.getElementById('cl-' + hdr.dataset.ci);
@@ -2182,26 +2101,21 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     });
   });
 
-  /* ── status helpers ── */
   function setStatus(msg, type){
     statusText.textContent = msg;
     statusDot.className = 'status-dot' + (type ? ' ' + type : '');
   }
 
-  /* ── live-pill state ── */
   var livePill = document.querySelector('.live-pill');
   function setLivePillOn(){ if(livePill) livePill.classList.add('live-pill-on'); }
   function setLivePillOff(){ if(livePill) livePill.classList.remove('live-pill-on'); }
 
-  /* connecting overlay: stays visible through "Connecting…" AND any buffering in between,
-     only hides once the video has actually produced a real playable frame (readyState 0.000001s ready) */
   var _connectTimer = null;
   function showConnecting(){ if(connectingOverlay) connectingOverlay.classList.add('show'); }
   function hideConnecting(){
     if(connectingOverlay) connectingOverlay.classList.remove('show');
     if(_connectTimer){ clearTimeout(_connectTimer); _connectTimer = null; }
   }
-  /* Start a watchdog: if stream hasn't played within 14 s, give up and show unavailable screen */
   function armConnectTimeout(id, name){
     if(_connectTimer) clearTimeout(_connectTimer);
     _connectTimer = setTimeout(function(){
@@ -2217,35 +2131,27 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     }, 14000);
   }
 
-  /* ── HLS player ── */
   function loadChannel(id, name){
-    /* mark active */
     document.querySelectorAll('.ch-btn').forEach(function(b){ b.classList.remove('active'); });
     var btn = document.querySelector('.ch-btn[data-id="' + id + '"]');
     if(btn) btn.classList.add('active');
 
     liveName.textContent = name.toUpperCase();
 
-    /* show player, hide placeholder */
     placeholder.style.display = 'none';
     videoWrap.style.display   = 'block';
     videoWrap.style.flex = '1';
 
-    /* destroy previous hls instance */
     if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
     video.src = '';
 
-    var mySeq = ++loadSeq; // this call's turn — a later loadChannel() call bumps loadSeq and supersedes it
+    var mySeq = ++loadSeq; 
     setStatus('Connecting…', 'buffering');
     showConnecting();
     armConnectTimeout(id, name);
     setLivePillOff();
     hideChDown();
 
-    /* Debounce the "Connecting…" overlay: a live stream naturally hiccups for a few
-       hundred ms now and then (readyState briefly dropping below 3) — that's normal and
-       showing/hiding the overlay for it is what makes playback feel like it's "cutting".
-       Only surface the overlay if a stall lasts longer than this. */
     var _waitingTimer = null;
     function onStall(){
       setStatus('Buffering…', 'buffering');
@@ -2256,18 +2162,12 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       if(_waitingTimer){ clearTimeout(_waitingTimer); _waitingTimer = null; }
     }
 
-    /* Ask our own server for a short-lived, token-gated proxy URL for this
-       channel instead of pointing the player straight at the real upstream
-       restream host — keeps that host out of the browser's network tab and
-       routes playback through the same rate-limited, expiring-token proxy
-       the public developer API uses (/api/v1/hls/...). */
     fetch('/api/stream-token/' + encodeURIComponent(id))
       .then(function(r){ if(!r.ok) throw new Error('token request failed'); return r.json(); })
       .then(function(data){
-        if(mySeq !== loadSeq) return; // superseded by a later channel switch
+        if(mySeq !== loadSeq) return; 
         var url = data.url;
 
-        /* native HLS (Safari / iOS) */
         if(!Hls.isSupported() && video.canPlayType('application/vnd.apple.mpegurl')){
           video.src = url;
           video.addEventListener('loadedmetadata', function(){ setStatus('Playing', ''); });
@@ -2281,7 +2181,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           return;
         }
 
-        /* hls.js (Chrome, Firefox, etc.) */
         if(!Hls.isSupported()){
           setStatus('HLS not supported in this browser', 'error');
           return;
@@ -2310,7 +2209,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         });
 
         hls.on(Hls.Events.ERROR, function(event, data){
-          if(!data.fatal){ return; } /* non-fatal HLS chatter is normal during live playback — never touch the overlay or status for this */
+          if(!data.fatal){ return; } 
           if(data.type === Hls.ErrorTypes.NETWORK_ERROR){
             _netRetries++;
             if(_netRetries <= MAX_NET_RETRIES){
@@ -2336,20 +2235,15 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
             hideConnecting();
             setLivePillOff();
             showChDown(id, name);
-            /* mark this channel's dot red */
             var dBtn = document.querySelector('.ch-btn[data-id="' + id + '"]');
             if(dBtn){ var d=dBtn.querySelector('.ch-dot'); if(d){d.classList.add('ch-dot-down');d.classList.remove('ch-dot-up');} dBtn.dataset.chStatus='down'; }
           }
         });
 
         video.addEventListener('waiting',  function(){
-          /* only treat this as "still loading" if the video has no playable frames yet (readyState < 3) */
           if(video.readyState < 3) onStall();
         });
         video.addEventListener('playing',  function(){ onRecovered(); setStatus('Playing', ''); hideConnecting(); setLivePillOn(); hideChDown(); });
-        /* the video can be fully decoded and ready to display (readyState >= 3) even if a blocked
-           autoplay silently prevented the "playing" event from ever firing — clear the overlay here too
-           so startup never gets stuck waiting on a user tap, without touching playback itself */
         video.addEventListener('canplay',  function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
         video.addEventListener('loadeddata', function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
 
@@ -2366,7 +2260,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       });
   }
 
-  /* ── channel buttons ── */
   document.querySelectorAll('.ch-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
       if(btn.dataset.redirect){
@@ -2377,7 +2270,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     });
   });
 
-  /* ── MORE CHANNELS — category grid + channel-list panel ── */
   (function(){
     var wrap      = document.getElementById('moreChWrap');
     var grid      = document.getElementById('moreChGrid');
@@ -2387,7 +2279,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     var panelClose= document.getElementById('moreChPanelClose');
     if(!wrap || !grid) return;
 
-    /* on-brand gradients (cyan / purple / red — the site's own accent palette) rotated per card */
     var PALETTE = [
       'linear-gradient(135deg,#00C2E0,#0072FF)',
       'linear-gradient(135deg,#7C5CFF,#B26CFF)',
@@ -2487,7 +2378,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     loadCategories();
   })();
 
-  /* ── CHANNEL DOWN OVERLAY ── */
   var chDownOverlay = document.getElementById('chDownOverlay');
   var chDownName    = document.getElementById('chDownName');
   var chDownRetry   = document.getElementById('chDownRetry');
@@ -2504,7 +2394,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     chDownOverlay.classList.remove('show');
   }
 
-  /* retry button — spin 360°, then re-attempt loadChannel */
   chDownRetry.addEventListener('click', function(){
     if(!_currentChId) return;
     chDownRetry.classList.add('spinning');
@@ -2512,21 +2401,15 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       chDownRetry.classList.remove('spinning');
       hideChDown();
       loadChannel(_currentChId, _currentChName);
-    }, 680); /* let spin animation finish first */
+    }, 680); 
   });
 
-  /* ── CHANNEL STATUS PROBING ──
-     Ping each stream URL with HEAD; mark dots green (up) or red (down).
-     Re-probes every 90 s so the sidebar stays current. */
   var PROBE_TIMEOUT = 7000;
 
   function probeChannel(btn){
     var id  = btn.dataset.id;
     var dot = btn.querySelector('.ch-dot');
     if(!dot) return;
-    /* Same-origin status check — the browser never talks to the upstream
-       restream host directly (that would both leak it in the Network tab
-       and break on upstream CORS). The server does the real HEAD request. */
     var url  = '/api/channel-status/' + encodeURIComponent(id);
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, PROBE_TIMEOUT);
@@ -2549,14 +2432,13 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
   function probeAll(){
     document.querySelectorAll('.ch-btn').forEach(function(btn){
-      if(btn.dataset.redirect) return; /* not a stream — nothing to probe */
+      if(btn.dataset.redirect) return; 
       probeChannel(btn);
     });
   }
   setTimeout(probeAll, 1500);
   setInterval(probeAll, 90000);
 
-  /* ── search (sidebar filter — kept for fallback) ── */
   function doSearch(q){
     q = (q || '').trim().toLowerCase();
     document.querySelectorAll('.cat-group').forEach(function(grp){
@@ -2569,16 +2451,13 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       });
     });
   }
-  /* input is handled by dropdown; keep enter to close dropdown */
 
-  /* ── auto-load first channel ── */
   var first = Array.prototype.find.call(document.querySelectorAll('.ch-btn'), function(b){ return !b.dataset.redirect; });
   if(first) loadChannel(first.dataset.id, first.dataset.name);
 
-  /* ── WhatsApp button: press-and-hold to drag ── */
   (function(){
     var btn    = document.getElementById('waBtn');
-    var parent = btn.parentElement; /* .video-wrap / player-area */
+    var parent = btn.parentElement; 
     var holdTimer = null;
     var dragging  = false;
     var startX, startY, btnStartX, btnStartY;
@@ -2593,7 +2472,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       holdTimer = setTimeout(function(){
         dragging = true;
         btn.classList.add('dragging');
-        /* switch to absolute so we can position freely */
         var pr = parent.getBoundingClientRect();
         btn.style.position = 'absolute';
         btn.style.right    = 'auto';
@@ -2610,7 +2488,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       var pr = parent.getBoundingClientRect();
       var nx = (btnStartX - pr.left) + (p.clientX - startX);
       var ny = (btnStartY - pr.top)  + (p.clientY - startY);
-      /* clamp inside parent */
       nx = Math.max(4, Math.min(nx, pr.width  - btn.offsetWidth  - 4));
       ny = Math.max(4, Math.min(ny, pr.height - btn.offsetHeight - 4));
       btn.style.left = nx + 'px';
@@ -2622,7 +2499,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       if(dragging){
         dragging = false;
         btn.classList.remove('dragging');
-        e.preventDefault(); /* cancel the link click if we dragged */
+        e.preventDefault(); 
       }
     }
 
@@ -2634,7 +2511,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     document.addEventListener('touchend',  onUp);
   })();
 
-  /* ── VIDEO FRAME: fit overlays to actual rendered video rect ── */
   (function(){
     var vid   = document.getElementById('videoPlayer');
     var frame = document.getElementById('videoFrame');
@@ -2659,14 +2535,12 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     vid.addEventListener('loadedmetadata', fitFrame);
     vid.addEventListener('resize',         fitFrame);
     window.addEventListener('resize',      fitFrame);
-    /* also poll briefly after channel loads to catch late metadata */
     var pollTimer;
     function startPoll(){ clearInterval(pollTimer); var n=0; pollTimer=setInterval(function(){ fitFrame(); if(++n>20) clearInterval(pollTimer); },200); }
     vid.addEventListener('loadedmetadata', startPoll);
     fitFrame();
   })();
 
-  /* ── CUSTOM MEDIA CONTROLS ── */
   (function(){
     var vw       = document.getElementById('videoWrap');
     var vid      = document.getElementById('videoPlayer');
@@ -2684,7 +2558,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     var layout   = document.querySelector('.layout');
     var videoFrameEl = document.getElementById('videoFrame');
 
-    /* icons */
     var PLAY_ICON  = '<polygon points="5,3 19,12 5,21" fill="currentColor"/>';
     var PAUSE_ICON = '<rect x="5" y="3" width="4" height="18" rx="1" fill="currentColor"/><rect x="15" y="3" width="4" height="18" rx="1" fill="currentColor"/>';
     var VOL_ON     = '<polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor" stroke="none"/><path d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>';
@@ -2696,20 +2569,17 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     var LOCK_IC    = '<rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 11V7a4 4 0 018 0v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>';
     var UNLOCK_IC  = '<rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 11V7a4 4 0 017.8-1.2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>';
 
-    /* show controls on hover/touch */
     var hideTimer;
     function showCtrl(){ vw.classList.add('controls-visible'); clearTimeout(hideTimer); hideTimer = setTimeout(function(){ vw.classList.remove('controls-visible'); }, 3000); }
     vw.addEventListener('mousemove', showCtrl);
     vw.addEventListener('touchstart', showCtrl, {passive:true});
 
-    /* play/pause */
     function syncPlay(){ mcPlayIc.innerHTML = vid.paused ? PLAY_ICON : PAUSE_ICON; }
     mcPlay.addEventListener('click', function(){ vid.paused ? vid.play() : vid.pause(); });
     vid.addEventListener('play',  syncPlay);
     vid.addEventListener('pause', syncPlay);
     vid.addEventListener('waiting', function(){ mcPlayIc.innerHTML = PAUSE_ICON; });
 
-    /* volume */
     function syncVol(){
       mcVolIc.innerHTML = (vid.muted || vid.volume === 0) ? VOL_OFF : VOL_ON;
       mcSlider.style.setProperty('--vol', Math.round((vid.muted ? 0 : vid.volume) * 100) + '%');
@@ -2722,16 +2592,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     });
     syncVol();
 
-    /* autoplay must start muted (browser policy — silent until a user gesture), but the very
-       first tap/click ANYWHERE on the player now unmutes automatically, instead of requiring
-       the small mute icon specifically. This is the closest a website can get to "plays with
-       sound automatically": browsers will not allow sound before any interaction at all, but
-       this makes that one required interaction effortless instead of a hunt for a tiny icon.
-       Some browsers internally pause a video for a moment when it flips from muted to
-       unmuted mid-playback (re-checking the autoplay-with-sound policy now that audio would
-       actually play) — so right after unmuting we re-call play() while the same user gesture
-       is still active, to immediately resume if that happened. This never touches the HLS
-       instance or its config, only whether the <video> element itself is paused. */
     function autoUnmuteOnFirstTap(){
       if(vid.muted){
         vid.muted = false;
@@ -2745,7 +2605,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     vw.addEventListener('click',      autoUnmuteOnFirstTap, {once:true});
     vw.addEventListener('touchstart', autoUnmuteOnFirstTap, {once:true, passive:true});
 
-    /* maximize ↔ minimize — forces the whole site horizontal, doesn't touch video playback/decoding */
     var isMaximized = false;
     function syncFS(){ mcFullIc.innerHTML = isMaximized ? COMPRESS_IC : EXPAND_IC; }
     mcFull.addEventListener('click', function(){
@@ -2753,12 +2612,10 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       layout.classList.toggle('force-landscape', isMaximized);
       mcFull.setAttribute('aria-label', isMaximized ? 'Minimize' : 'Maximize');
       syncFS();
-      /* re-fit the video frame overlay to the new rect once the layout transform settles */
       setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 60);
     });
     syncFS();
 
-    /* layout toggle (landscape ↔ portrait stacked for mobile) */
     var vertMode = false;
     mcLayout.addEventListener('click', function(){
       vertMode = !vertMode;
@@ -2766,21 +2623,18 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       document.getElementById('mcLayoutIcon').innerHTML = vertMode ? VERT_IC : HORIZ_IC;
     });
 
-    /* lock — freezes every other control (CSS-disabled + dimmed) until tapped again */
     var locked = false;
     function syncLock(){
       mcLockIc.innerHTML = locked ? UNLOCK_IC : LOCK_IC;
       mcLock.classList.toggle('locked', locked);
       mediaControls.classList.toggle('mc-locked', locked);
       mcLock.setAttribute('aria-label', locked ? 'Unlock controls' : 'Lock controls');
-      if(videoFrameEl) videoFrameEl.classList.toggle('controls-locked', locked); /* also disables the brightness slide zone while locked */
+      if(videoFrameEl) videoFrameEl.classList.toggle('controls-locked', locked); 
     }
     mcLock.addEventListener('click', function(){ locked = !locked; syncLock(); });
     syncLock();
   })();
 
-  /* ── BRIGHTNESS — manual vertical slide (right edge of video) + time-of-day adaptive baseline ──
-     Pure CSS filter on the <video> element only; never touches HLS/decoding/playback speed. */
   (function(){
     var vid = document.getElementById('videoPlayer');
     var zone = document.getElementById('brightnessZone');
@@ -2789,21 +2643,18 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     var pctLabel = document.getElementById('brightnessPct');
     if(!vid || !zone) return;
 
-    var level = 1.0; /* 0 .. 1.6 internal range; 1.0 = neutral/default = the video's own native brightness, unmodified */
+    var level = 1.0; 
     var MAX_LEVEL = 1.6;
     var dragging = false;
     var startY = 0, startLevel = 1.0;
     var hideTimer;
 
     function applyBrightness(){
-      /* map internal level (0..1.6) to a CSS brightness() filter so that level=1.0 (default/no
-         slide yet) lands on brightness(1.0) exactly — i.e. the video's own native exposure as
-         it's actually decoded/buffered, not artificially brightened on load */
       var filterVal;
       if(level <= 1.0){
-        filterVal = 0.35 + (level / 1.0) * (1.0 - 0.35); /* 0..1.0 → 0.35..1.0 */
+        filterVal = 0.35 + (level / 1.0) * (1.0 - 0.35); 
       } else {
-        filterVal = 1.0 + ((level - 1.0) / (MAX_LEVEL - 1.0)) * (1.6 - 1.0); /* 1.0..1.6 → 1.0..1.6 */
+        filterVal = 1.0 + ((level - 1.0) / (MAX_LEVEL - 1.0)) * (1.6 - 1.0); 
       }
       vid.style.filter = 'brightness(' + filterVal.toFixed(3) + ')';
       var pct = Math.round((level / 1.0) * 100);
@@ -2816,7 +2667,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       readout.classList.add('show');
       clearTimeout(hideTimer);
       hideTimer = setTimeout(function(){
-        /* play the slide-out-left exit, then fully hide once it's done */
         readout.classList.remove('show');
         readout.classList.add('leaving');
         setTimeout(function(){ readout.classList.remove('leaving'); }, 400);
@@ -2829,22 +2679,18 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       dragging = true;
       startY = clientY;
       startLevel = level;
-      /* intentionally NOT calling showReadout() here — a plain tap/press with no
-         movement should not pop the HUD open, only an actual slide gesture should */
     }
     function onMove(clientY){
       if(!dragging) return;
-      var deltaY = startY - clientY; /* slide up = brighter */
-      if(Math.abs(deltaY) < 4) return; /* ignore tiny jitter so a stationary tap never counts as a slide */
-      var deltaLevel = (deltaY / 180) * MAX_LEVEL; /* 180px drag = full range */
+      var deltaY = startY - clientY; 
+      if(Math.abs(deltaY) < 4) return; 
+      var deltaLevel = (deltaY / 180) * MAX_LEVEL; 
       level = clamp(startLevel + deltaLevel);
       applyBrightness();
-      showReadout(); /* only the act of actually moving while pressed reveals the HUD */
+      showReadout(); 
     }
     function onEnd(){ dragging = false; }
 
-    /* pointer events cover mouse + most touch browsers; raw touch events added as a
-       fallback for older mobile browsers that don't fire pointer events reliably */
     zone.addEventListener('pointerdown', function(e){ onStart(e.clientY); e.preventDefault(); });
     window.addEventListener('pointermove', function(e){ if(dragging){ onMove(e.clientY); e.preventDefault(); } });
     window.addEventListener('pointerup', onEnd);
@@ -2857,10 +2703,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
     applyBrightness();
 
-    /* ── adaptive baseline by time of day ──
-       Real ambient-light / screen-brightness sensing isn't available to websites, so this
-       uses the viewer's local clock instead: brighter baseline in daytime hours, dimmer at
-       night. It blends in gently and steps aside for 15s after any manual slider drag. */
     var manualOverrideUntil = 0;
     zone.addEventListener('pointerdown', function(){ manualOverrideUntil = Date.now() + 15000; });
     zone.addEventListener('touchstart', function(){ manualOverrideUntil = Date.now() + 15000; }, {passive:true});
@@ -2882,9 +2724,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     setInterval(adaptiveTick, 4000);
   })();
 
-  /* ── VOLUME — vertical slide on the LEFT edge of the video ──
-     Slide up = louder, slide down = quieter. Readout HUD appears on the right.
-     Keeps the toolbar slider + mute button in sync. Default 50% on load. */
   (function(){
     var vid      = document.getElementById('videoPlayer');
     var zone     = document.getElementById('volumeZone');
@@ -2947,11 +2786,9 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     window.addEventListener('touchend', onEnd);
     window.addEventListener('touchcancel', onEnd);
 
-    /* set default 50% volume on load */
     applyVolume();
   })();
 
-  /* ── BLOCK SUBTITLES / CAPTIONS ── */
   (function(){
     var vid = document.getElementById('videoPlayer');
     if(!vid) return;
@@ -2965,11 +2802,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     vid.textTracks.addEventListener('addtrack', killTracks);
   })();
 
-  /* ── NETWORK STRENGTH BAR — CSS signal bars driven by Network Information API where available ──
-     This API only exists on Chromium-based browsers (Chrome/Edge/Android WebView).
-     Safari/iOS and Firefox do not expose it at all — there is no way for any website to
-     read real signal strength on those browsers, so on them this honestly shows a plain
-     "steady" indicator rather than a made-up generation label like "3G". */
   (function(){
     var badge = document.getElementById('netBadge');
     var label = document.getElementById('netLabel');
@@ -2983,7 +2815,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     function update(){
       var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
       if(!conn || !conn.effectiveType){
-        setLevel(4, ''); /* API not supported on this browser (e.g. Safari/iOS) — show full bars, no fake label */
+        setLevel(4, ''); 
         return;
       }
       switch(conn.effectiveType){
@@ -3001,12 +2833,10 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   })();
 
 
-  /* ── SEARCH DROPDOWN ── */
   (function(){
     var inp  = document.getElementById('searchInput');
     var drop = document.getElementById('searchDropdown');
 
-    /* build channel index */
     var allCh = [];
     document.querySelectorAll('.ch-btn').forEach(function(b){
       allCh.push({ id: b.dataset.id, name: b.dataset.name, btn: b });
@@ -3038,13 +2868,8 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     document.addEventListener('click', function(e){ if(!inp.contains(e.target)&&!drop.contains(e.target)){ drop.innerHTML=''; drop.classList.remove('open'); }});
   })();
 
-  /* ── WATCH HOURS ──
-     Persisted server-side (Firestore) so it survives redeploys and follows the
-     account across devices, instead of living only in this browser's localStorage.
-     The ring fills up over each 60-minute stretch, then resets and starts filling
-     again for the next hour. */
   (function(){
-    var LEGACY_KEY = 'estt_watch_sec'; // old localStorage-only counter, used once to migrate
+    var LEGACY_KEY = 'estt_watch_sec'; 
     var whVal    = document.getElementById('whVal');
     var whLabel  = document.getElementById('whLabel');
     var whCircle = document.getElementById('whCircle');
@@ -3053,25 +2878,12 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     var totalSec = 0;
     var unsyncedSec = 0;
     var ready = false;
-    // Each sync is a Firestore write (watchSeconds increment). At the previous
-    // 20s this was 180 writes/hour for every open tab, and it runs on every
-    // page rather than only while something is playing — roughly 111 tab-hours
-    // exhausted the Spark plan's 20,000 writes/day. Once that quota is gone
-    // Firestore stops accepting writes and the client retries indefinitely
-    // instead of erroring, so sign-in hung at createSession while reads (and
-    // therefore the cached pages) carried on working normally.
-    //
-    // 5 minutes cuts that 15x, to 12 writes/hour per tab. Accuracy is
-    // unaffected in practice: the counter still ticks locally every second,
-    // and the beforeunload/visibilitychange handlers below flush on the way
-    // out. Only an abruptly killed tab loses anything, and at most 5 minutes.
     var SYNC_EVERY_MS = 300000;
 
     function fmt(s){
       var h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
       whVal.textContent   = h+'h';
       whLabel.textContent = h+' hrs '+m+' mins';
-      // Ring fills across the current hour (0–59 min), then resets for the next one.
       var minuteOfHour = (s/60) % 60;
       var pct = Math.max(0, Math.min(100, (minuteOfHour / 60) * 100));
       whCircle.style.background = 'conic-gradient(var(--accent) 0% ' + pct + '%, rgba(255,255,255,.07) ' + pct + '% 100%)';
@@ -3086,7 +2898,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deltaSeconds: delta }),
         keepalive: true,
-      }).catch(function(){ unsyncedSec += delta; }); // retry on the next tick if it failed
+      }).catch(function(){ unsyncedSec += delta; }); 
     }
 
     fetch('/api/watch-hours').then(function(r){ return r.ok ? r.json() : null; }).then(function(data){
@@ -3096,7 +2908,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         fmt(totalSec);
         return;
       }
-      // Nothing on the server yet — migrate whatever this browser had stored locally.
       var legacy = parseInt(localStorage.getItem(LEGACY_KEY)||'0',10)||0;
       fetch('/api/watch-hours/seed', {
         method: 'POST',
@@ -3109,7 +2920,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         localStorage.removeItem(LEGACY_KEY);
       }).catch(function(){ totalSec = legacy; ready = true; fmt(totalSec); });
     }).catch(function(){
-      // Server unreachable — fall back to the local count for this session only.
       totalSec = parseInt(localStorage.getItem(LEGACY_KEY)||'0',10)||0;
       ready = true;
       fmt(totalSec);
@@ -3156,7 +2966,6 @@ function showLiquidToast(message){
   }, 2600);
 }
 
-/* ── Find Friends: search by username, follow/unfollow, TikTok/Instagram style ── */
 var FS_ADD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" d="M19 8v6M22 11h-6"/></svg>';
 var FS_FOLLOWING_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M17 11l2 2 4-4"/></svg>';
 var FS_VERIFIED_BADGE = '<svg class="fs-verified-badge" viewBox="0 0 24 24" width="14" height="14" aria-label="Verified"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
@@ -3295,7 +3104,7 @@ function fsRunSearch(q){
   fetch('/api/users/search?q=' + encodeURIComponent(q))
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(data){
-      if (myToken !== fsSearchToken) return; // a newer search has already started — drop this stale response
+      if (myToken !== fsSearchToken) return; 
       var list = data.results || [];
       results.innerHTML = '';
       if (!list.length) {
@@ -3360,15 +3169,12 @@ function fsRunSearch(q){
       ]).then(function(results){
         var hasUnread = !!results[0].hasUnread;
         var hasNewPosts = results[1].count > 0;
-        // Account/Settings icons: real notifications only (likes, comments, follows...).
         document.querySelectorAll('.js-account-dot').forEach(function(el){
           el.classList.toggle('show', hasUnread);
         });
-        // Profile avatar: new posts from people you follow only.
         document.querySelectorAll('.js-feed-dot').forEach(function(el){
           el.classList.toggle('show', hasNewPosts);
         });
-        // Bottom-nav Profile icon: either signal, unchanged from before.
         document.querySelectorAll('.js-notif-dot').forEach(function(el){
           el.classList.toggle('show', hasUnread || hasNewPosts);
         });
@@ -3415,7 +3221,6 @@ function fsRunSearch(q){
     setTimeout(initAccountMenu, 1200);
   }
 
-  /* ── bottom nav: Profile / Search / Settings (api, account, admin) ── */
   var bnavSearch = document.getElementById('bnavSearch');
   var bnavApiItem = document.getElementById('bnavApiItem');
   var bnavSettings = document.getElementById('bnavSettings');
@@ -3488,19 +3293,13 @@ function fsRunSearch(q){
 </html>`);
 });
 
-app.get("/football", scrapeGate, (req, res) => {
-  fs.readFile(path.join(__dirname, "views", "football.js"), "utf8", (err, html) => {
-    if (err) return res.status(404).end();
-    res.set("Content-Type", "text/html");
-    res.send(html);
-  });
+app.get("/football", scrapeGate, (req, res, next) => {
+  if (!cachedFootballHtml) return next();
+  res.type("html").send(cachedFootballHtml);
 });
 
-app.get("/login", scrapeGate, async (req, res) => {
-  const sessionId = req.cookies?.session;
-  const uid = await verifySession(sessionId);
+app.get("/login", scrapeGate, guestOnly, (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
-  if (uid) return res.redirect("/");
   res.send(cachedLoginHtml);
 });
 
@@ -3508,40 +3307,30 @@ app.get("/verify", scrapeGate, (req, res) => {
   res.send(cachedVerifyHtml);
 });
 
-app.get("/account", scrapeGate, (req, res) => {
+app.get("/account", scrapeGate, requireUser, (req, res) => {
   res.send(cachedAccountHtml);
 });
 
-app.get("/profile", scrapeGate, (req, res) => {
+app.get("/profile", scrapeGate, requireUser, (req, res) => {
   res.send(cachedProfileHtml);
 });
 
-app.get("/u/:username", scrapeGate, (req, res) => {
+app.get("/u/:username", scrapeGate, requireUser, (req, res) => {
   res.send(cachedProfileHtml);
 });
 
-// Session-cookie based admin gate for the page itself (mirrors the /admin
-// redirect logic already in place) — kept separate from requireAuth/requireAdmin
-// below since those two are for the JSON API and expect req.uid to already be set.
 app.get("/admin", scrapeGate, async (req, res) => {
   const sessionId = req.cookies?.session;
   const uid = await verifySession(sessionId);
   if (!uid) return res.redirect("/login");
   const profile = await getUserProfile(uid);
-  // Mirrors requireAuth: a signed cookie can't be deleted, so a banned or
-  // revoked session has to be refused here too rather than assumed gone.
   if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.redirect("/login");
   if (!isAdminEmail(profile.email)) return res.redirect("/");
   res.send(cachedAdminHtml);
 });
 
-// requireAuth already resolves req.uid; this just adds the admin-only check
-// on top of it for every /api/admin/* route below.
 async function requireAdmin(req, res, next) {
   try {
-    // requireAuth (which always runs before this) already fetched this
-    // profile onto req.userProfile — re-fetching it here was a second,
-    // redundant Firestore read on every single /api/admin/* request.
     const profile = req.userProfile || (await getUserProfile(req.uid));
     if (!profile || !isAdminEmail(profile.email)) return res.status(403).json({ error: "Not authorized." });
     next();
@@ -3557,11 +3346,6 @@ app.get("/api/admin/me", requireAuth, requireAdmin, async (req, res) => {
       firstName: profile.firstName || "",
       lastName: profile.lastName || "",
       username: profile.username || "",
-      // This is you looking at your own admin panel, not another user
-      // viewing your public profile — so the "hide my photo from others"
-      // privacy setting (showProfilePhoto) must not apply here. Applying
-      // it here was exactly why the avatar was blank in the admin hero
-      // while the same photo showed fine on your own profile/account pages.
       photoURL: profile.photoURL || null,
     });
   } catch (err) {
@@ -3733,10 +3517,6 @@ app.post("/api/admin/bots/check-updates", requireAuth, requireAdmin, async (req,
   }
 });
 
-// Actual disk used by bot deployments (their downloaded template + saved
-// session files) — not the whole shared host disk, which was reporting a
-// near-identical, meaningless number on both services regardless of how
-// many bots were deployed.
 app.get("/api/admin/system/storage", requireAuth, requireAdmin, async (req, res) => {
   try {
     res.json(await botServiceFetch("/internal/system/storage"));
@@ -3744,8 +3524,6 @@ app.get("/api/admin/system/storage", requireAuth, requireAdmin, async (req, res)
     res.status(err.status || 500).json({ error: err.message || "Could not load bot deployment storage." });
   }
 });
-
-
 
 app.get("/reset", scrapeGate, (req, res) => {
   res.send(cachedResetHtml);
@@ -3763,7 +3541,7 @@ app.get("/developers", scrapeGate, (req, res) => {
   res.send(cachedDevelopersHtml);
 });
 
-app.get("/deploy-bot", scrapeGate, (req, res) => {
+app.get("/deploy-bot", scrapeGate, requireUser, (req, res) => {
   res.send(cachedDeployBotHtml);
 });
 
@@ -3833,8 +3611,6 @@ app.delete("/api/bots/:id", requireAuth, botActionLimiter, async (req, res) => {
   }
 });
 
-// Public — just tells the page which address to display/send to. Never
-// exposes anything secret; it's whichever address DMCA notices go to.
 app.get("/api/dmca-agent-email", (req, res) => {
   res.json({ email: process.env.DMCA_AGENT_EMAIL || process.env.GMAIL_USER || "" });
 });
@@ -3866,7 +3642,6 @@ app.post("/api/dmca-report", dmcaLimiter, async (req, res) => {
     if (!EMAIL_RE.test(reporterEmail)) {
       return res.status(400).json({ error: "Please enter a valid email address." });
     }
-    // Cap sizes so a malicious payload can't be used to spam huge emails.
     if (
       String(workDescription).length > 5000 ||
       String(infringingUrls).length > 5000 ||
@@ -3900,7 +3675,6 @@ const ALLOWED_EMAIL_DOMAINS = [
   "icloud.com", "live.com", "aol.com", "protonmail.com",
 ];
 
-// letters, numbers, underscore only — 3 to 20 characters
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
 async function usernameFullyAvailable(username, { excludeUid, excludeEmail } = {}) {
@@ -3922,7 +3696,6 @@ app.get("/api/captcha/challenge", async (req, res) => {
   }
 });
 
-// Used while typing a username during signup — no session required yet.
 app.get("/api/check-username", usernameCheckLimiter, async (req, res) => {
   try {
     const username = String(req.query.username || "").trim().toLowerCase();
@@ -3937,7 +3710,6 @@ app.get("/api/check-username", usernameCheckLimiter, async (req, res) => {
   }
 });
 
-// Used while editing the username on the account settings page — excludes the caller's own current username.
 app.get("/api/account/check-username", usernameCheckLimiter, requireAuth, async (req, res) => {
   try {
     const username = String(req.query.username || "").trim().toLowerCase();
@@ -3952,7 +3724,6 @@ app.get("/api/account/check-username", usernameCheckLimiter, requireAuth, async 
   }
 });
 
-// Admin-only — extra usernames reserved on the admin's own account so nobody else can claim them.
 app.post("/api/account/alt-usernames", requireAuth, requireAdmin, async (req, res) => {
   try {
     const altUsernames = await addAltUsername(req.uid, req.body.username);
@@ -3986,8 +3757,6 @@ app.post("/api/signup", signupLimiter, async (req, res) => {
     if (!(await usernameFullyAvailable(username, { excludeEmail: email }))) {
       return res.status(400).json({ error: "Username has already been used." });
     }
-    // A code is emailed to the address first — nothing is created in Firebase
-    // Auth or Firestore until that code comes back verified via /api/verify-email.
     await issuePendingSignup({ firstName, lastName, email, username, password });
     res.json({ pendingVerification: true, email });
   } catch (err) {
@@ -4030,12 +3799,9 @@ app.post("/api/verify-email", signupLimiter, async (req, res) => {
         return res.status(400).json({ error: messages[result.reason] || "Invalid code." });
       }
       const { firstName, lastName, password, username } = result.data;
-      // Re-check the username here too — it may have been claimed by someone else
-      // while this signup's code was sitting unverified.
       if (!(await usernameFullyAvailable(username, { excludeEmail: email }))) {
         return res.status(400).json({ error: "That username was just taken. Please sign up again with a different username." });
       }
-      // Only now — after the code is actually verified — does anything get created.
       const existingUser = await firebaseAuth.getUserByEmail(email).catch(() => null);
       let newUid;
       if (existingUser) {
@@ -4068,17 +3834,6 @@ app.post("/api/verify-email", signupLimiter, async (req, res) => {
   }
 });
 
-// Telegram Login Widget: the browser gets signed user data straight from
-// Telegram, we just verify it wasn't tampered with, then find/create the
-// account and hand back a custom token (same shape as /api/signup's success
-// path). No email or password is ever required for this provider.
-// Telegram's "Log In With Telegram" OIDC flow, done as a full-page redirect
-// rather than a popup. Deliberately avoids any popup/window-messaging —
-// that's the exact mechanism that was flaky (Telegram's own docs warn popup
-// communication breaks under certain header configs, and browsers/popup
-// blockers vary). A redirect has no such fragility: Telegram's own hosted
-// authorization page handles the in-app approval UX, and simply sends the
-// browser back to us with a code once it's done.
 const TELEGRAM_CLIENT_ID = process.env.TELEGRAM_CLIENT_ID || "";
 const TELEGRAM_CLIENT_SECRET = process.env.TELEGRAM_CLIENT_SECRET || "";
 const TELEGRAM_REDIRECT_URI = "https://esteamstv.devs.surf/api/telegram-auth/callback";
@@ -4158,10 +3913,6 @@ app.get("/api/telegram-auth/callback", oauthCallbackLimiter, async (req, res) =>
   }
 });
 
-// GitHub OAuth: standard authorization-code redirect flow, same shape as
-// the Telegram flow above (state stored server-side, one-time use,
-// self-expiring). GitHub OAuth Apps are confidential clients so the code
-// exchange uses a client secret instead of PKCE.
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || "";
 const GITHUB_REDIRECT_URI = "https://esteamstv.devs.surf/api/github-auth/callback";
@@ -4223,8 +3974,6 @@ app.get("/api/github-auth/callback", oauthCallbackLimiter, async (req, res) => {
       return res.redirect("/login?gh_error=" + encodeURIComponent("Could not verify GitHub login."));
     }
 
-    // Public profile email is often null (many devs hide it) — fall back to
-    // the verified primary address from /user/emails when that happens.
     let email = ghUser.email || null;
     if (!email) {
       const emailsRes = await fetch("https://api.github.com/user/emails", { headers: ghHeaders });
@@ -4250,15 +3999,6 @@ app.get("/api/github-auth/callback", oauthCallbackLimiter, async (req, res) => {
   }
 });
 
-// Firebase Admin and Firestore retry an unreachable backend indefinitely with
-// backoff instead of failing fast. A revoked service-account key, a disabled
-// API or an exhausted quota therefore doesn't raise an error — the call simply
-// never settles, so /api/session accepts the request and never answers, the
-// browser spins forever, and nothing is logged. Giving each call a deadline
-// turns that silence into a logged failure naming the exact operation that
-// stalled, which also separates Firebase Auth (verifyIdToken) from Firestore
-// (the profile/session reads and writes) — different services, different
-// causes.
 const AUTH_OP_TIMEOUT_MS = 10000;
 
 class AuthOpTimeout extends Error {
@@ -4278,15 +4018,6 @@ function withDeadline(promise, label, ms = AUTH_OP_TIMEOUT_MS) {
     }, ms);
   });
 
-  // Losing the race doesn't cancel the underlying call — it keeps retrying and
-  // eventually settles. Firestore reports the real gRPC status when it gives
-  // up, and that status is the one thing that separates the possible causes:
-  //   RESOURCE_EXHAUSTED  -> daily quota spent
-  //   PERMISSION_DENIED   -> API disabled or the key lacks Datastore access
-  //   UNAUTHENTICATED     -> service-account key revoked or malformed
-  //   UNAVAILABLE         -> transient outage or blocked egress
-  // Log it instead of discarding it. This also keeps the abandoned promise
-  // from surfacing as an unhandled rejection.
   promise.then(
     () => {
       if (timedOut) console.error(`[/api/session] ${label} eventually succeeded, after missing its ${Math.round(ms / 1000)}s deadline`);
@@ -4322,16 +4053,8 @@ app.post("/api/session", passwordLoginLimiter, async (req, res) => {
     });
     res.json({ ok: true });
   } catch (err) {
-    // A stalled backend is an outage, not a rejected credential — reporting it
-    // as 401 "Could not sign in." sends people off resetting a password that
-    // was never wrong. Separate the two.
     if (err instanceof AuthOpTimeout) {
       console.error(`[/api/session] backend stalled: ${err.message}`);
-      // The operation name is echoed to the client on purpose: it is the one
-      // piece of information that identifies which backend is down, and
-      // reading it off the screen beats hunting for it in the host's log
-      // viewer. It is an internal function name, nothing sensitive. Drop the
-      // parenthetical once this is diagnosed.
       return res.status(503).json({
         error: `Sign-in is temporarily unavailable (${err.label} timed out). Please try again shortly.`,
       });
@@ -4405,7 +4128,6 @@ app.post("/api/privacy/update", requireAuth, async (req, res) => {
   }
 });
 
-// ── Watch hours — persisted per-account in Firestore ──
 app.get("/api/watch-hours", requireAuth, async (req, res) => {
   try {
     const seconds = await getWatchSeconds(req.uid);
@@ -4436,7 +4158,6 @@ app.post("/api/watch-hours/sync", requireAuth, async (req, res) => {
   }
 });
 
-// ── Follow system ──
 app.get("/api/follow/stats", requireAuth, async (req, res) => {
   try {
     const stats = await getFollowStats(req.uid);
@@ -4507,7 +4228,6 @@ app.get("/api/users/:username/public", requireAuth, async (req, res) => {
       isFollowing(user.uid, req.uid),
     ]);
     if (!isSelf) {
-      // Best-effort — never blocks or fails the response.
       getUserProfile(req.uid)
         .then((viewerProfile) => notifyProfileViewed(req.uid, viewerProfile, user.uid))
         .catch(() => {});
@@ -4634,8 +4354,6 @@ app.get("/api/users/search", requireAuth, usernameCheckLimiter, async (req, res)
   }
 });
 
-// Both cooldowns are 7 days — long enough to stop spammy churn, short enough
-// that a genuine correction doesn't feel punishing.
 const NAME_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const PHOTO_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 function cooldownDaysLeft(lastChangedAt, cooldownMs) {
@@ -4804,11 +4522,6 @@ app.post("/api/posts/:postId/reshare", requireAuth, async (req, res) => {
   }
 });
 
-// ── Following feed — powers the "POSTS" overlay on the profile page.
-// Fetching the feed itself marks it seen (lastSeenFeedAt), same as opening
-// a panel of unread things elsewhere on the site. The separate unseen-count
-// endpoint below is for polling — it never marks anything seen, so the
-// badge stays accurate until the user actually opens the panel. ──
 app.get("/api/feed/following", requireAuth, async (req, res) => {
   try {
     const posts = await getFollowingFeed(req.uid, { limit: 20, markSeen: true });
@@ -4824,7 +4537,7 @@ app.get("/api/feed/following/unseen-count", requireAuth, async (req, res) => {
     const count = await getFollowingFeedUnseenCount(req.uid, req.userProfile);
     res.json({ count });
   } catch (err) {
-    res.json({ count: 0 }); // best-effort — a badge count should never break page load
+    res.json({ count: 0 });
   }
 });
 
@@ -4843,7 +4556,6 @@ app.post("/api/posts/:postId/comments", requireAuth, async (req, res) => {
     const comment = await addComment(req.uid, postId, req.body.text, req.body.taggedUsernames);
     res.json({ ok: true, comment });
 
-    // Notifications are best-effort and never block the response above.
     (async () => {
       try {
         const owner = await getPostOwner(postId);
@@ -4855,9 +4567,6 @@ app.post("/api/posts/:postId/comments", requireAuth, async (req, res) => {
         const postUrl = owner.username ? `/u/${owner.username}#post-${postId}` : null;
         const notified = new Set([req.uid]);
 
-        // Reply target — the comment being replied to is tagged with a hidden
-        // "[[reply:commentId]]" marker the composer prepends; it's kept in the
-        // stored text so the reply-quote header still renders after reload.
         const replyMatch = (req.body.text || "").match(/^\[\[reply:([\w-]+)\]\]/);
         if (replyMatch) {
           const repliedUid = await getCommentAuthorUid(replyMatch[1]);
@@ -4871,7 +4580,6 @@ app.post("/api/posts/:postId/comments", requireAuth, async (req, res) => {
           await addNotification(owner.uid, "comment", `${commenterName} commented on your post.`, { postId, postUrl });
         }
       } catch {
-        // never let a notification failure affect the comment itself
       }
     })();
   } catch (err) {
@@ -4989,8 +4697,6 @@ app.post("/api/account/confirm-email", requireAuth, async (req, res) => {
       return res.status(400).json({ error: messages[result.reason] || "Invalid code." });
     }
     const email = result.email;
-    // Re-check right before committing — the address could have been claimed
-    // by someone else while this code was sitting unverified.
     const existing = await firebaseAuth.getUserByEmail(email).catch(() => null);
     if (existing && existing.uid !== req.uid) return res.status(400).json({ error: "That email was just claimed by another account." });
     await firebaseAuth.updateUser(req.uid, { email, emailVerified: true });
@@ -5002,20 +4708,12 @@ app.post("/api/account/confirm-email", requireAuth, async (req, res) => {
   }
 });
 
-// ── Passkeys (WebAuthn) — the actual FIDO2/WebAuthn logic and the account
-// settings UI both already existed; these are just the HTTP routes tying
-// them together. rpID must be the bare domain (no scheme/port); origin
-// must be the full URL the browser sees — both fixed to the canonical
-// domain rather than derived from the request, since a spoofed Host header
-// must never be able to shift what a passkey gets bound to.
 const PASSKEY_RP_ID = "esteamstv.devs.surf";
 const PASSKEY_ORIGIN = "https://esteamstv.devs.surf";
 
 app.get("/api/passkey/list", requireAuth, async (req, res) => {
   try {
     const passkeys = await getPasskeysForUser(req.uid);
-    // Only ever send the client what it needs to render/manage the list —
-    // never the public key or counter.
     res.json({
       passkeys: passkeys.map((p) => ({ id: p.id, name: p.name, createdAt: p.createdAt })),
     });
@@ -5062,10 +4760,6 @@ app.post("/api/passkey/delete", requireAuth, async (req, res) => {
   }
 });
 
-// Passkey sign-in — deliberately not behind requireAuth, since successfully
-// verifying the passkey response IS the login. Discoverable credentials
-// mean the browser shows the person's own saved passkey(s) for this site
-// without needing an email/username first.
 app.post("/api/passkey/authentication-options", passkeyOptionsLimiter, async (req, res) => {
   try {
     const { options, token } = await beginPasskeyAuthentication(PASSKEY_RP_ID);
@@ -5119,12 +4813,6 @@ app.post("/api/2fa/verify-setup", requireAuth, async (req, res) => {
 app.post("/api/2fa/toggle", requireAuth, twoFactorToggleLimiter, async (req, res) => {
   try {
     const { enabled, code } = req.body;
-    // Turning 2FA OFF is the security-relevant direction: a hijacked/stolen
-    // session (XSS, shared device) could otherwise disable 2FA with nothing
-    // but the session cookie, defeating the whole point of having it. Require
-    // a valid current TOTP code, same as turning it on for the first time
-    // does via /api/2fa/verify-setup. Re-enabling an already-set-up secret
-    // doesn't reduce security, so that direction is left as-is.
     if (!enabled) {
       const valid = await verifyTwoFactorCode(req.uid, code);
       if (!valid) return res.status(400).json({ error: "Incorrect code." });
@@ -5199,8 +4887,6 @@ app.post("/api/request-password-reset", resetLimiter, async (req, res) => {
   }
 });
 
-// Login accepts an email OR a username; resolve it to an email address before
-// handing off to Firebase client-side sign-in, which only understands email.
 app.post("/api/resolve-login-identifier", identifierLookupLimiter, async (req, res) => {
   try {
     const identifier = String(req.body.identifier || "").trim();
@@ -5282,29 +4968,18 @@ setInterval(() => {
   growAdminFollowerCount().catch((err) => console.error("Admin follower growth failed:", err));
 }, 60 * 60 * 1000);
 
-//============== SITE KEEP-ALIVE (same pattern as the Telegram bot) ==============//
-// Set SELF_URL in Render's env vars to this service's own public URL,
-// e.g. https://your-app.onrender.com — pings itself every 4 min so Render's
-// free tier never sees 15 min of inbound silence and spins the dyno down.
 const SELF_URL = process.env.SELF_URL || `http://localhost:${process.env.PORT || 3000}`;
 
 setInterval(async () => {
   try {
-    // Identifies itself rather than sending Node's default UA, which reads
-    // like an HTTP library to botBlocker. Its 403s were both noise in the logs
-    // and refusals counted against this host by RepeatedRefusalGuard.
     const resp = await fetch(`${SELF_URL}/health`, { headers: { "user-agent": "ESTeamsTV-KeepAlive/1.0" } });
     if (!resp.ok) console.warn(`⚠️ ES TEAMS TV PING returned ${resp.status}`);
     else console.log("✅ ES TEAMS TV IS PINGING...");
   } catch (err) {
     console.error("❌ ES TEAMS TV PING FAILED:", err.message);
   }
-}, 240000); // every 4 minutes
+}, 240000);
 
-// ── LAST IN THE CHAIN ──────────────────────────────────────────────────────
-// Both of these must stay below every route: Express matches middleware in
-// registration order, so a 404 handler registered any earlier would swallow
-// every route defined after it.
 app.use(notFoundHandler);
 app.use(errorHandler);
 
@@ -5313,26 +4988,10 @@ const server = app.listen(PORT, function () {
   console.log("ES TEAMS TV running on port " + PORT);
 });
 
-// Node closes an idle keep-alive connection after 5s by default, while the
-// proxy in front of this app holds its pooled connections open longer. When
-// the proxy sends a request down a connection Node is closing at that same
-// moment, nobody answers it and the visitor gets a 502 or an empty response —
-// intermittently, on a perfectly healthy server, which is exactly how this
-// class of bug is usually described. Outliving the proxy's idle window
-// (60s on Render/Railway, 100s on Cloudflare) removes the race. headersTimeout
-// must stay above keepAliveTimeout or it re-introduces it.
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
-// Slow-loris ceiling: a client can't hold a connection open indefinitely by
-// dribbling out a request body a byte at a time.
 server.requestTimeout = 120000;
 
-// ── GRACEFUL SHUTDOWN ──────────────────────────────────────────────────────
-// Every deploy and every platform restart sends SIGTERM. Without this the
-// process dies instantly, cutting off whatever requests were mid-flight —
-// which visitors see as a page that half-loaded or failed for no reason
-// during a routine deploy. Stop accepting new connections, let in-flight
-// requests finish, then exit; if something is wedged, exit anyway.
 let shuttingDown = false;
 function shutdown(signal, code = 0) {
   if (shuttingDown) return;
@@ -5343,9 +5002,6 @@ function shutdown(signal, code = 0) {
     process.exit(code || 1);
   }, 15000);
   force.unref();
-  // Sockets sitting idle in a proxy's keep-alive pool would otherwise hold
-  // close() open for the full keepAliveTimeout above. Nobody is waiting on
-  // them; only in-flight requests are worth draining.
   server.closeIdleConnections?.();
   server.close(() => {
     clearTimeout(force);
@@ -5357,17 +5013,10 @@ function shutdown(signal, code = 0) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-// A rejected promise nobody caught used to be a silent no-op (and, on newer
-// Node, could take the whole site down). Log it loudly and keep serving —
-// one bad request must not cost every other visitor their session.
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled promise rejection:", reason);
 });
 
-// An uncaught exception leaves the process in an unknown state, so the honest
-// response is to stop taking new traffic and let the platform start a fresh
-// instance — but drain first, instead of dropping every connected visitor
-// mid-request the way an unhandled throw does by default.
 process.on("uncaughtException", (err) => {
   console.error("Uncaught exception:", err);
   shutdown("uncaughtException", 1);

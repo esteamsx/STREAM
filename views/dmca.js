@@ -1,3 +1,5 @@
+import { siteHeadFor } from "../config/site.js";
+
 export function renderDmca(cfg) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -6,6 +8,7 @@ export function renderDmca(cfg) {
 ${cfg.devToolsBlock || ""}
 <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+${siteHeadFor("dmca")}
 <title>DMCA Policy — ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

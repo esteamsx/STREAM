@@ -1,3 +1,5 @@
+import { siteHeadFor } from "../config/site.js";
+
 export function renderDeployBot(cfg) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -6,6 +8,7 @@ export function renderDeployBot(cfg) {
 ${cfg.devToolsBlock || ""}
 <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+${siteHeadFor("deployBot")}
 <title>Deploy Bot — ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -224,8 +227,6 @@ input{font-family:inherit}
     crashed: 'Crashed', needs_repair: 'Needs re-pair', disconnected: 'Disconnected',
   };
   const RUNNING_STATUSES = ['downloading','extracting','installing','starting','pairing','connected','reconnecting'];
-  // Steps shown in the progress bar, in order. "connected" isn't included —
-  // once connected the bar's job is done and the status badge alone covers it.
   const PROGRESS_STAGES = [
     { key: 'downloading', label: 'Download' },
     { key: 'extracting', label: 'Extract' },
@@ -240,7 +241,6 @@ input{font-family:inherit}
 
   function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
 
-  /* ── confirmation overlay (replaces native confirm()) ── */
   function confirmAction(title, sub, onConfirm){
     const overlay = document.getElementById('confirmOverlay');
     document.getElementById('confirmTitle').textContent = title;
@@ -248,7 +248,6 @@ input{font-family:inherit}
     overlay.classList.add('show');
     const okBtn = document.getElementById('confirmOkBtn');
     const cancelBtn = document.getElementById('confirmCancelBtn');
-    // Replace with clones so previous actions' listeners never stack up.
     const newOk = okBtn.cloneNode(true);
     okBtn.replaceWith(newOk);
     const newCancel = cancelBtn.cloneNode(true);
@@ -259,7 +258,6 @@ input{font-family:inherit}
     newOk.addEventListener('click', () => { close(); onConfirm(); });
   }
 
-  /* ── copy-to-clipboard for the pairing code ── */
   async function copyCode(code, btn){
     try {
       await navigator.clipboard.writeText(code);
@@ -282,7 +280,6 @@ input{font-family:inherit}
       'Copy</button>';
   }
 
-  /* ── build a brand-new card (only called once per bot id) ── */
   function botCardEl(bot){
     const wrap = document.createElement('div');
     wrap.className = 'db-bot';
@@ -313,10 +310,6 @@ input{font-family:inherit}
     return wrap;
   }
 
-  /* ── patch an existing card's mutable bits in place — never touches the
-     logs box's open/closed state or scroll position, which is what was
-     making the logs panel look like it was opening/closing on its own
-     (the old code rebuilt every card's whole HTML every 5s poll) ── */
   function patchBotCard(el, bot){
     const statusEl = el.querySelector('.db-status');
     statusEl.className = 'db-status db-status-' + bot.status;
@@ -436,7 +429,6 @@ input{font-family:inherit}
       }
       patchBotCard(el, bot);
     }
-    // Remove cards for deployments that no longer exist (deleted elsewhere).
     for (const [id, el] of cardsById) {
       if (!seen.has(id)) { el.remove(); cardsById.delete(id); expandedLogsFor.delete(id); }
     }
@@ -452,8 +444,6 @@ input{font-family:inherit}
       } else {
         logsEl.innerHTML = '';
         lines.forEach((entry) => {
-          // Backward compatible: older entries were plain strings before
-          // stdout/stderr got tagged separately.
           const isErr = typeof entry === 'object' && entry && entry.t === 'err';
           const text = typeof entry === 'object' && entry ? entry.l : entry;
           const row = document.createElement('div');
@@ -463,11 +453,9 @@ input{font-family:inherit}
         });
       }
       if (wasAtBottom) logsEl.scrollTop = logsEl.scrollHeight;
-    } catch { /* keep whatever was there */ }
+    } catch {  }
   }
 
-  // Poll open logs panels independently of the main list refresh, so
-  // switching tabs/statuses doesn't interrupt someone reading a log.
   setInterval(() => {
     for (const id of expandedLogsFor) {
       const el = cardsById.get(id);

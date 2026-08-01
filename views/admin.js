@@ -1,3 +1,5 @@
+import { siteHeadFor } from "../config/site.js";
+
 export function renderAdmin(cfg) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -6,6 +8,7 @@ export function renderAdmin(cfg) {
 ${cfg.devToolsBlock || ""}
 <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+${siteHeadFor("admin")}
 <title>Admin — ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -396,7 +399,6 @@ document.getElementById('adBackBtn').addEventListener('click', () => {
   else window.location.href = '/';
 });
 
-/* ── collapsible cards ── */
 document.getElementById('usersHeader').addEventListener('click', () => {
   document.getElementById('usersCard').classList.toggle('open');
 });
@@ -413,7 +415,6 @@ document.getElementById('storageHeader').addEventListener('click', () => {
   document.getElementById('storageCard').classList.toggle('open');
 });
 
-/* ── icons ── */
 const RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>';
 const BAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2" stroke-linecap="round"/></svg>';
 const DELETE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>';
@@ -427,7 +428,6 @@ function initialsOf(u){
   return (((u.firstName || '')[0] || '') + ((u.lastName || '')[0] || '')) || (u.username ? u.username[0].toUpperCase() : '?');
 }
 
-/* ── generic confirm overlay, used for ban + delete ── */
 function askConfirm(title, sub){
   return new Promise((resolve) => {
     const overlay = document.getElementById('confirmOverlay');
@@ -449,7 +449,6 @@ function askConfirm(title, sub){
   });
 }
 
-/* ── row rendering ── */
 function renderUserRow(u){
   const row = document.createElement('div');
   row.className = 'ad-row';
@@ -654,7 +653,6 @@ function refreshEmptyStates(){
   document.getElementById('bannedCount').textContent = bannedList.querySelectorAll('.ad-row').length;
 }
 
-/* ── ban / unban / delete handlers ── */
 async function handleBan(u, row, btn){
   const ok = await askConfirm('Ban this account?', '@' + u.username + ' will be signed out and blocked from logging in until unbanned.');
   if (!ok) return;
@@ -725,7 +723,6 @@ async function handleDelete(u, row, btn){
   }
 }
 
-/* ── reset password overlay ── */
 let resetTarget = null;
 function openResetOverlay(u){
   resetTarget = u;
@@ -779,7 +776,6 @@ document.getElementById('resetApplyBtn').addEventListener('click', async () => {
   }
 });
 
-/* ── loading the user list ── */
 let nextCursor = null;
 let loadingMore = false;
 async function loadUsersPage(reset){
@@ -812,7 +808,6 @@ document.getElementById('usersLoadMore').addEventListener('click', () => {
   loadUsersPage(false);
 });
 
-/* ── quick-access search — filters the same box to just the match ── */
 let searchDebounce = null;
 const searchInput = document.getElementById('userSearchInput');
 searchInput.addEventListener('input', () => {
@@ -842,7 +837,6 @@ searchInput.addEventListener('input', () => {
   }, 300);
 });
 
-/* ── verification list — shows every account by default; search just narrows it down ── */
 let verifyNextCursor = null;
 let verifyLoadingMore = false;
 async function loadVerifyPage(reset){
@@ -873,7 +867,6 @@ document.getElementById('verifyLoadMore').addEventListener('click', () => {
   loadVerifyPage(false);
 });
 
-/* ── verification search — same debounced pattern as user search above ── */
 let verifySearchDebounce = null;
 const verifySearchInput = document.getElementById('verifySearchInput');
 verifySearchInput.addEventListener('input', () => {
@@ -903,7 +896,6 @@ verifySearchInput.addEventListener('input', () => {
   }, 300);
 });
 
-/* ── banned users list ── */
 async function loadBannedUsers(){
   const list = document.getElementById('bannedList');
   list.innerHTML = '<div class="ad-hint">Loading…</div>';
@@ -924,7 +916,6 @@ async function loadBannedUsers(){
   }
 }
 
-/* ── bot deployments (admin) ── */
 function renderBotUserRow(u){
   const row = document.createElement('div');
   row.className = 'ad-row';
@@ -1134,7 +1125,6 @@ document.getElementById('botsModalCloseBtn').addEventListener('click', () => {
   document.getElementById('botsOverlay').classList.remove('show');
 });
 
-/* ── admin identity in the hero ── */
 (async function initHero(){
   try {
     const me = await getJSON('/api/admin/me');
@@ -1156,9 +1146,6 @@ async function loadStorage(){
   const list = document.getElementById('storageList');
   try {
     const data = await getJSON('/api/admin/system/storage');
-    // No confirmed quota to compare against on Render's free tier, so the
-    // bar is scaled against a soft 1GB reference just to give it a visual
-    // sense of scale — the MB number itself is the real, honest figure.
     const REFERENCE_MB = 1024;
     const pct = Math.min((data.usedMB / REFERENCE_MB) * 100, 100);
     const warn = data.usedMB >= 500;

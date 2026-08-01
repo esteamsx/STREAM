@@ -1,3 +1,5 @@
+import { siteHeadFor } from "../config/site.js";
+
 export function renderDevelopers(cfg) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -6,6 +8,7 @@ export function renderDevelopers(cfg) {
 ${cfg.devToolsBlock || ""}
 <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+${siteHeadFor("developers")}
 <title>Developer API — ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -468,7 +471,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 (function(){
   'use strict';
 
-  /* ── view switching ── */
   var viewDash = document.getElementById('view-dash');
   var viewDocs = document.getElementById('view-docs');
   function showDocs(){ viewDash.style.display = 'none'; viewDocs.style.display = 'block'; window.scrollTo(0,0); }
@@ -478,7 +480,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   document.getElementById('docsToDashLink1').addEventListener('click', function(e){ e.preventDefault(); showDash(); });
   document.getElementById('docsToDashLink2').addEventListener('click', function(e){ e.preventDefault(); showDash(); });
 
-  /* ── helpers ── */
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
   function fmtDate(ms){ if(!ms) return 'never'; var d = new Date(ms); return d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }); }
   async function getJSON(url, headers){
@@ -487,14 +488,13 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     return { ok: res.ok, status: res.status, data: data };
   }
 
-  var lastRevealedKey = ''; // filled in only right after creating a key this session
+  var lastRevealedKey = ''; 
   function revealBoxHtml(key){
     if(!key) return '';
     return '<div class="reveal-box"><div class="reveal-label">Copy this now — you won\\'t be able to see it again.</div>' +
       '<div class="reveal-row"><code>' + esc(key) + '</code><button type="button" class="btn btn-sm" id="copyRevealBtn">Copy</button></div></div>';
   }
 
-  /* ── revoke-key confirmation overlay ── */
   var pendingRevokeBtn = null;
   var revokeKeyOverlay = document.getElementById('revokeKeyOverlay');
   document.getElementById('revokeKeyCancelBtn').addEventListener('click', function(){
@@ -522,7 +522,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
       });
   });
 
-  /* ── API KEY CARD ── */
   var keyCardBody = document.getElementById('keyCardBody');
 
   function usageLevelClass(pct){
@@ -540,8 +539,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   function renderKeys(keys, usage){
     var html = '';
 
-    // Account-level usage — one bar, shared by every key on this account.
-    // Revoking a key and making a new one does not reset this.
     if(usage){
       var pct = usage.monthlyLimit ? Math.min(100, Math.round((usage.requestsThisMonth / usage.monthlyLimit) * 100)) : 0;
       html += '<div class="usage-wrap" style="margin-top:0;margin-bottom:16px">' +
@@ -587,7 +584,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
       });
     }
 
-    // animate usage bars in on next frame
     requestAnimationFrame(function(){
       keyCardBody.querySelectorAll('.usage-fill').forEach(function(bar){
         bar.style.width = bar.getAttribute('data-pct') + '%';
@@ -623,7 +619,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
           .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error || 'Could not create key.'); return d; }); })
           .then(function(d){
             lastRevealedKey = d.key;
-            // auto-fill the Try it panel so a fresh key can be tested immediately
             var tryitInput = document.getElementById('tryitKeyInput');
             if(tryitInput) tryitInput.value = d.key;
             loadKeys();
@@ -643,7 +638,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     }).catch(function(){ renderLoggedOutKeyCard(); });
   }
 
-  /* ── GENERATED LINKS CARD ── */
   var linksList = document.getElementById('linksList');
   var linksSearchInput = document.getElementById('linksSearchInput');
   var linksCountSub = document.getElementById('linksCountSub');
@@ -739,7 +733,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     }
   });
 
-  /* ── PROFILE (determines logged-in state) ── */
   getJSON('/api/profile').then(function(r){
     if(r.ok){ loadKeys(); loadLinks(); } else {
       renderLoggedOutKeyCard();
@@ -748,7 +741,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     }
   }).catch(function(){ renderLoggedOutKeyCard(); });
 
-  /* ── CHANNELS CARD + Try it channel select ── */
   var chList = document.getElementById('chList');
   var chSearchInput = document.getElementById('chSearchInput');
   var chCountSub = document.getElementById('chCountSub');
@@ -794,7 +786,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 
   chSearchInput.addEventListener('input', function(){ renderChannelList(chSearchInput.value); });
 
-  /* ── TRY IT CARD ── */
   var tabs = document.querySelectorAll('.tryit-tab');
   var currentEndpoint = 'channels';
   var tryitKeyRow = document.getElementById('tryitKeyRow');

@@ -1,3 +1,5 @@
+import { siteHeadFor } from "../config/site.js";
+
 export function renderLogin(cfg) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -6,6 +8,7 @@ export function renderLogin(cfg) {
 ${cfg.devToolsBlock || ""}
 <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+${siteHeadFor("login")}
 <title>Sign In — ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -533,11 +536,6 @@ suUsername.addEventListener('input', () => {
   }, 450);
 });
 
-// Every sign-in path — password, Google, Telegram, GitHub, passkey — funnels
-// through postJSON and the Firebase SDK. When either stalled, the overlay spun
-// forever with nothing logged and no error shown, which is undiagnosable from
-// a phone. These put a hard ceiling on both, so a stall surfaces as an error
-// naming the exact step that hung.
 const NET_TIMEOUT_MS = 20000;
 
 function withTimeout(promise, label, ms = NET_TIMEOUT_MS){
@@ -568,11 +566,16 @@ async function postJSON(url, body){
     clearTimeout(timer);
   }
   const data = await res.json().catch(() => ({}));
-  // Blocks from the security middleware (rate-limit bans, IP blocklist, bot
-  // filter) reply with a plain-text body, so data.error is empty and the old
-  // message was a bare "Something went wrong". Surface the status instead.
   if (!res.ok) throw new Error(data.error || ('Request to ' + url + ' failed (HTTP ' + res.status + ').'));
   return data;
+}
+
+function postSignInTarget(){
+  try{
+    var next = new URLSearchParams(window.location.search).get('next');
+    if (next && next.charAt(0) === '/' && next.charAt(1) !== '/' && next.charAt(1) !== '\\\\') return next;
+  }catch(e){}
+  return '/?welcome=1';
 }
 
 async function establishSession(idToken, remember, altcha){
@@ -582,7 +585,7 @@ async function establishSession(idToken, remember, altcha){
     await promptTwoFactor(data.pendingToken);
     return;
   }
-  window.location.href = '/?welcome=1';
+  window.location.href = postSignInTarget();
 }
 
 const tfaDigits = Array.from(document.querySelectorAll('#tfaLoginOverlay .code-digit'));
@@ -634,7 +637,7 @@ function promptTwoFactor(pendingToken){
       try {
         await postJSON('/api/2fa/login-verify', { pendingToken, code });
         cleanup();
-        window.location.href = '/?welcome=1';
+        window.location.href = postSignInTarget();
       } catch (err) {
         errorBox.textContent = err.message;
         errorBox.classList.add('show');
@@ -664,9 +667,6 @@ signupVerifyDigits.forEach((d, i) => {
   });
 });
 
-// Shows the code overlay for a pending signup and resolves with the
-// customToken once the code is verified (or null if the user cancels).
-// Nothing is created in Firebase/Firestore until this succeeds.
 function promptSignupVerification(email){
   return new Promise((resolve) => {
     const overlay = document.getElementById('signupVerifyOverlay');
@@ -795,7 +795,7 @@ document.getElementById('signupForm').addEventListener('submit', async (e) => {
     const cred = await signInWithCustomToken(fbAuth, customToken);
     const idToken = await cred.user.getIdToken();
     await postJSON('/api/session', { idToken, remember: true });
-    window.location.href = '/?welcome=1';
+    window.location.href = postSignInTarget();
   } catch (err) {
     btn.disabled = false;
     btn.textContent = 'Create Account';
@@ -831,14 +831,6 @@ if (${JSON.stringify(!!cfg.googleClientId)}) {
       callback: window.handleGoogleCredential,
     });
     window.google.accounts.id.renderButton(document.getElementById('gsiWrap'), { type: 'icon', shape: 'square', theme: 'filled_black', size: 'large' });
-    // One Tap (.prompt()) is deliberately not called. Chrome now runs it only
-    // through FedCM, and this project isn't registered as a FedCM provider —
-    // Chrome fetches accounts.google.com/.well-known/web-identity, doesn't
-    // find the config listed, and aborts. The prompt therefore never appears;
-    // the only thing calling it achieved was two console errors on every page
-    // load ("Provider's FedCM config file not listed in its well-known file"
-    // and "FedCM get() rejects with AbortError"). The rendered button below
-    // uses its own flow and is unaffected.
   });
 }
 
@@ -850,8 +842,6 @@ function signInWithTelegram(){
     showError('Telegram sign-in is not available right now.');
     return;
   }
-  // Plain redirect — no popup, no window-messaging. Telegram's own hosted
-  // page handles the in-app approval, then sends the browser back to us.
   window.location.href = '/api/telegram-auth/start';
 }
 
@@ -865,17 +855,11 @@ function signInWithGithub(){
     showError('GitHub sign-in is not available right now.');
     return;
   }
-  // Same plain full-page redirect as Telegram — GitHub's own hosted
-  // authorization page handles the approval UX, then sends the browser
-  // back to us with a code.
   window.location.href = '/api/github-auth/start';
 }
 
 document.getElementById('ghSquareBtn').addEventListener('click', signInWithGithub);
 
-// If we just got bounced back from /api/telegram-auth/callback, finish the
-// sign-in (or show why it failed) and scrub the token out of the URL bar
-// immediately so it doesn't linger in history.
 (function(){
   const params = new URLSearchParams(window.location.search);
   const tgToken = params.get('tg_token');
@@ -910,7 +894,6 @@ document.getElementById('ghSquareBtn').addEventListener('click', signInWithGithu
   })();
 })();
 
-// Same handling as the Telegram block above, for /api/github-auth/callback.
 (function(){
   const params = new URLSearchParams(window.location.search);
   const ghToken = params.get('gh_token');
@@ -958,10 +941,6 @@ troubleSigningOverlay.addEventListener('click', (e) => {
 });
 document.getElementById('troubleGoogleBtn').addEventListener('click', () => {
   troubleSigningOverlay.classList.remove('show');
-  // Previously called google.accounts.id.prompt(), which is One Tap — and One
-  // Tap can't run here (see the FedCM note above), so this button silently did
-  // nothing every time. Forward the click to the real rendered Google button
-  // instead, which is the same control the user would tap on the form.
   const gsiButton = document.querySelector('#gsiWrap [role="button"], #gsiWrap div[tabindex]');
   if (gsiButton) {
     gsiButton.click();
@@ -1008,10 +987,6 @@ async function signInWithPasskey(){
     stage = 'establish-session';
     await establishSession(idToken, true);
   } catch (err) {
-    // Logs which of the 5 stages above threw, plus the full error object —
-    // open DevTools > Console right after this happens and screenshot/paste
-    // this line; that pinpoints it in one shot instead of another guessing
-    // round.
     console.error('[passkey-signin] failed at stage "' + stage + '":', err);
     overlay.classList.remove('show');
     showError(err.name === 'NotAllowedError' ? 'Passkey sign-in was cancelled.' : (err.message || 'Could not sign in with that passkey.'));
@@ -1020,11 +995,6 @@ async function signInWithPasskey(){
 
 document.getElementById('pkSquareBtn').addEventListener('click', signInWithPasskey);
 
-// Pre-flight capability check, run once on load. If this browser/webview
-// doesn't genuinely support WebAuthn (common in some in-app browsers, e.g.
-// opening this link from inside Telegram or another app's built-in
-// browser), disable the button up front with an honest label instead of
-// letting someone tap it and hit a confusing crash.
 (async function checkPasskeySupport(){
   const btn = document.getElementById('pkSquareBtn');
   try {

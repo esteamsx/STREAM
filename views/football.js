@@ -888,7 +888,6 @@
 </div>
 
 <script>
-    // ---- CONFIG ----
     const API_URL = 'https://sportstreamer.live/api/matches';
     const HIGHLIGHTS_URL = 'https://sportstreamer.live/api/highlights';
     let allMatches = [];
@@ -899,7 +898,6 @@
     let currentStreamIndex = 0;
     let currentCategory = 'all';
 
-    // ---- DOM refs ----
     const grid = document.getElementById('matchGrid');
     const featuredContainer = document.getElementById('featuredContainer');
     const playerSticky = document.getElementById('playerSticky');
@@ -924,7 +922,6 @@
     const highlightsList = document.getElementById('highlightsList');
     const gridLabel = document.getElementById('gridLabel');
 
-    // ---- Fetch matches ----
     async function fetchMatches() {
         try {
             const res = await fetch(API_URL);
@@ -937,7 +934,6 @@
         }
     }
 
-    // ---- Fetch highlights ----
     async function fetchHighlights() {
         try {
             const res = await fetch(HIGHLIGHTS_URL);
@@ -950,7 +946,6 @@
         }
     }
 
-    // ---- Render highlights ----
     function renderHighlights(highlights) {
         if (!highlights.length) {
             highlightsList.innerHTML = `<div style="color:var(--muted2); text-align:center; padding:20px;">No highlights available.</div>`;
@@ -976,7 +971,6 @@
         highlightsContainer.style.display = 'block';
     }
 
-    // ---- Play highlight ----
     function playHighlight(url) {
         document.getElementById('playerSticky').style.display = 'block';
         idleOverlay.classList.remove('active');
@@ -992,7 +986,6 @@
         document.getElementById('playerSticky').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    // ---- Category switching ----
     function switchCategory(category) {
         currentCategory = category;
         document.querySelectorAll('.cat-tab').forEach(tab => {
@@ -1024,7 +1017,6 @@
         renderFilteredMatches(filtered);
     }
 
-    // ---- Render filtered matches ----
     function renderFilteredMatches(matches) {
         if (!matches.length) {
             grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--muted2);">No matches in this category.</div>`;
@@ -1067,7 +1059,6 @@
         grid.innerHTML = html;
     }
 
-    // ---- Render all (featured + grid) ----
     function renderMatches(data) {
         if (!data || !data.matches || data.matches.length === 0) {
             grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted2);">No matches found.</div>`;
@@ -1076,7 +1067,6 @@
         }
         allMatches = data.matches;
 
-        // ---- Featured card ----
         const liveMatches = allMatches.filter(m => m.status === 'live');
         const upcomingMatches = allMatches.filter(m => m.status === 'upcoming');
         const featuredMatch = liveMatches.length > 0 ? liveMatches[0] : (upcomingMatches.length > 0 ? upcomingMatches[0] : null);
@@ -1121,7 +1111,6 @@
             featuredContainer.innerHTML = '';
         }
 
-        // Apply current category filter
         if (currentCategory === 'highlights') {
             switchCategory('highlights');
         } else {
@@ -1133,7 +1122,6 @@
         }
     }
 
-    // ---- Open match detail ----
     function openMatchDetail(matchId) {
         const match = allMatches.find(m => m.id === matchId);
         if (!match) return;
@@ -1154,7 +1142,6 @@
         detail.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    // ---- Play match from detail ----
     function playMatchFromDetail() {
         const detail = document.getElementById('matchDetail');
         const matchId = detail.dataset.matchId;
@@ -1163,12 +1150,10 @@
         }
     }
 
-    // ---- Close detail ----
     function closeDetail() {
         document.getElementById('matchDetail').style.display = 'none';
     }
 
-    // ---- Open match (play in player) ----
     function openMatch(matchId) {
         const match = allMatches.find(m => m.id === matchId);
         if (!match) return;
@@ -1232,7 +1217,6 @@
         document.getElementById('playerSticky').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    // ---- Play stream ----
     function playStream(url) {
         if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
         video.pause();
@@ -1283,7 +1267,6 @@
         }
     }
 
-    // ---- Select stream ----
     function selectStream(index) {
         if (index < 0 || index >= currentStreams.length) return;
         const chips = streamOptions.querySelectorAll('.chip');
@@ -1293,7 +1276,6 @@
         playStream(currentStreams[index].url);
     }
 
-    // ---- Countdown ----
     function startCountdown(startTime) {
         if (countdownInterval) clearInterval(countdownInterval);
         const target = new Date(startTime).getTime();
@@ -1317,7 +1299,6 @@
         }, 1000);
     }
 
-  // ---- Player controls ----
     function togglePlay() {
         if (video.paused) { video.play(); } else { video.pause(); }
         updatePlayIcons();
@@ -1365,24 +1346,21 @@
         errOverlay.classList.remove('active');
     }
 
-    // ---- Category tab listeners ----
     document.querySelectorAll('.cat-tab').forEach(tab => {
         tab.addEventListener('click', function() {
             switchCategory(this.dataset.category);
         });
     });
 
-    // ---- Auto-refresh ----
     async function refreshData() {
         const data = await fetchMatches();
         if (data) renderMatches(data);
     }
 
-    // ---- WhatsApp button: press-and-hold to drag ----
     (function(){
         var btn    = document.getElementById('waBtn');
         if (!btn) return;
-        var parent = btn.parentElement; /* .stage */
+        var parent = btn.parentElement; 
         var holdTimer = null;
         var dragging  = false;
         var startX, startY, btnStartX, btnStartY;
@@ -1436,7 +1414,6 @@
         document.addEventListener('touchend',  onUp);
     })();
 
-    // ---- Init ----
     refreshData();
     setInterval(refreshData, 30000);
 </script>
