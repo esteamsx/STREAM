@@ -3,8 +3,8 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
-import { liveTV } from "./channels.js";
-import { SimpleRateLimiter } from "./security-middleware.js";
+import { liveTV } from "../data/channels.js";
+import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import {
   requireAuth,
   createApiKey,
@@ -15,7 +15,7 @@ import {
   checkAndIncrementAccountApiUsage,
   recordIssuedStreamLink,
   getIssuedStreamLinks,
-} from "./auth.js";
+} from "../services/auth.js";
 
 const router = express.Router();
 

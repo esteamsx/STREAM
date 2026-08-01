@@ -7,7 +7,7 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
-import { db, auth } from "./firebase.js";
+import { db, auth } from "../config/firebase.js";
 import { sendVerificationCode, sendBanNotificationEmail } from "./mailer.js";
 
 const CODE_TTL_MS = 5 * 60 * 1000;
