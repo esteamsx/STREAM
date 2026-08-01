@@ -6,19 +6,19 @@ import path from "path";
 import cookieParser from "cookie-parser";
 import "dotenv/config";
 import { fileURLToPath } from "url";
-import { liveTV } from "./channels.js";
-import { renderLogin } from "./login.js";
-import { renderVerify } from "./verify.js";
-import { renderAccount } from "./account.js";
-import { renderProfile } from "./profile.js";
-import { renderReset } from "./reset.js";
-import { renderDmca } from "./dmca.js";
-import { renderPrivacy } from "./privacy.js";
-import { renderDevelopers } from "./developers.js";
-import { renderAdmin } from "./admin.js";
-import { domainLock } from "./lock.js";
-import { apiRouter } from "./api.js";
-import { renderDeployBot } from "./deploy-bot.js";
+import { liveTV } from "./data/channels.js";
+import { renderLogin } from "./views/login.js";
+import { renderVerify } from "./views/verify.js";
+import { renderAccount } from "./views/account.js";
+import { renderProfile } from "./views/profile.js";
+import { renderReset } from "./views/reset.js";
+import { renderDmca } from "./views/dmca.js";
+import { renderPrivacy } from "./views/privacy.js";
+import { renderDevelopers } from "./views/developers.js";
+import { renderAdmin } from "./views/admin.js";
+import { domainLock } from "./middleware/lock.js";
+import { apiRouter } from "./routes/api.js";
+import { renderDeployBot } from "./views/deploy-bot.js";
 
 // ── Bot deployment now lives in its own Render service (see /bot-service),
 // so a memory-hungry bot process can't crash the main site anymore. This
@@ -146,9 +146,9 @@ import {
   requireAuth,
   isAdminEmail,
   SESSION_TTL_MS,
-} from "./auth.js";
-import { auth as firebaseAuth } from "./firebase.js";
-import { sendDmcaReportEmail } from "./mailer.js";
+} from "./services/auth.js";
+import { auth as firebaseAuth } from "./config/firebase.js";
+import { sendDmcaReportEmail } from "./services/mailer.js";
 import { createChallenge, verifySolution } from "altcha-lib";
 import {
   securityHeaders,
@@ -162,7 +162,7 @@ import {
   hppGuard,
   probePathTrap,
   RepeatedRefusalGuard,
-} from "./security-middleware.js";
+} from "./middleware/security-middleware.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -3466,7 +3466,7 @@ function fsRunSearch(q){
 });
 
 app.get("/football", (req, res) => {
-  fs.readFile(path.join(__dirname, "football.js"), "utf8", (err, html) => {
+  fs.readFile(path.join(__dirname, "views", "football.js"), "utf8", (err, html) => {
     if (err) return res.status(404).end();
     res.set("Content-Type", "text/html");
     res.send(html);
