@@ -163,7 +163,9 @@ import {
   hppGuard,
   probePathTrap,
   RepeatedRefusalGuard,
+  crossOriginWriteGuard,
 } from "./middleware/security-middleware.js";
+import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -176,6 +178,20 @@ const app = express();
 // banning everybody. Trust exactly one hop: `true` would let a client forge
 // X-Forwarded-For and pick its own rate-limit key.
 app.set("trust proxy", 1);
+
+// Don't advertise the framework in every response header.
+app.disable("x-powered-by");
+
+// Tags every request with an id (X-Request-Id, reused if the edge already set
+// one) so a visitor reporting "it broke" can quote a reference that points at
+// the exact request in the logs. First in the chain, so even requests refused
+// by the guards below carry one.
+app.use(requestId);
+
+// Turns a request that would otherwise hang forever into a logged error page.
+// See responseWatchdog in error-pages.js for why Express 4 makes this
+// necessary. Live HLS is exempt — those responses stay open by design.
+app.use(responseWatchdog({ timeoutMs: 30000, exemptPrefixes: ["/api/v1/hls/"] }));
 
 // Domain lock runs first, before spending cycles on anything else — blocks
 // requests whose Host header doesn't match the canonical domain (unless a
@@ -274,6 +290,12 @@ async function verifyCaptcha(payload) {
   }
 }
 // ── END SECURITY SETUP ──
+
+// Refuses POST/PUT/DELETE that announce a foreign origin, ahead of body
+// parsing so a rejected request never gets its payload read. Second lock
+// behind the session cookie's SameSite=lax — see LAYER 11 in
+// security-middleware.js for exactly what it does and doesn't refuse.
+app.use(crossOriginWriteGuard);
 
 app.use(express.json({ limit: "3mb" }));
 app.use(cookieParser());
@@ -5268,13 +5290,85 @@ const SELF_URL = process.env.SELF_URL || `http://localhost:${process.env.PORT ||
 
 setInterval(async () => {
   try {
-    await fetch(`${SELF_URL}/health`);
-    console.log("✅ ES TEAMS TV IS PINGING...");
+    // Identifies itself rather than sending Node's default UA, which reads
+    // like an HTTP library to botBlocker. Its 403s were both noise in the logs
+    // and refusals counted against this host by RepeatedRefusalGuard.
+    const resp = await fetch(`${SELF_URL}/health`, { headers: { "user-agent": "ESTeamsTV-KeepAlive/1.0" } });
+    if (!resp.ok) console.warn(`⚠️ ES TEAMS TV PING returned ${resp.status}`);
+    else console.log("✅ ES TEAMS TV IS PINGING...");
   } catch (err) {
     console.error("❌ ES TEAMS TV PING FAILED:", err.message);
   }
 }, 240000); // every 4 minutes
 
-app.listen(process.env.PORT || 3000, function(){
-  console.log("ES TEAMS TV running on port " + (process.env.PORT || 3000));
+// ── LAST IN THE CHAIN ──────────────────────────────────────────────────────
+// Both of these must stay below every route: Express matches middleware in
+// registration order, so a 404 handler registered any earlier would swallow
+// every route defined after it.
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 3000;
+const server = app.listen(PORT, function () {
+  console.log("ES TEAMS TV running on port " + PORT);
+});
+
+// Node closes an idle keep-alive connection after 5s by default, while the
+// proxy in front of this app holds its pooled connections open longer. When
+// the proxy sends a request down a connection Node is closing at that same
+// moment, nobody answers it and the visitor gets a 502 or an empty response —
+// intermittently, on a perfectly healthy server, which is exactly how this
+// class of bug is usually described. Outliving the proxy's idle window
+// (60s on Render/Railway, 100s on Cloudflare) removes the race. headersTimeout
+// must stay above keepAliveTimeout or it re-introduces it.
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
+// Slow-loris ceiling: a client can't hold a connection open indefinitely by
+// dribbling out a request body a byte at a time.
+server.requestTimeout = 120000;
+
+// ── GRACEFUL SHUTDOWN ──────────────────────────────────────────────────────
+// Every deploy and every platform restart sends SIGTERM. Without this the
+// process dies instantly, cutting off whatever requests were mid-flight —
+// which visitors see as a page that half-loaded or failed for no reason
+// during a routine deploy. Stop accepting new connections, let in-flight
+// requests finish, then exit; if something is wedged, exit anyway.
+let shuttingDown = false;
+function shutdown(signal, code = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received — finishing in-flight requests before exit.`);
+  const force = setTimeout(() => {
+    console.error("Shutdown timed out — exiting now.");
+    process.exit(code || 1);
+  }, 15000);
+  force.unref();
+  // Sockets sitting idle in a proxy's keep-alive pool would otherwise hold
+  // close() open for the full keepAliveTimeout above. Nobody is waiting on
+  // them; only in-flight requests are worth draining.
+  server.closeIdleConnections?.();
+  server.close(() => {
+    clearTimeout(force);
+    console.log("ES TEAMS TV stopped cleanly.");
+    process.exit(code);
+  });
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+// A rejected promise nobody caught used to be a silent no-op (and, on newer
+// Node, could take the whole site down). Log it loudly and keep serving —
+// one bad request must not cost every other visitor their session.
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+
+// An uncaught exception leaves the process in an unknown state, so the honest
+// response is to stop taking new traffic and let the platform start a fresh
+// instance — but drain first, instead of dropping every connected visitor
+// mid-request the way an unhandled throw does by default.
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+  shutdown("uncaughtException", 1);
 });

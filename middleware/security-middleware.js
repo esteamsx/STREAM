@@ -76,7 +76,13 @@ const BLOCKED_UA_PATTERNS = [
 // python-requests, Telegram bots, etc.), so it would defeat its own purpose
 // to block exactly those user agents here. Key-based auth and per-key rate
 // limiting on those routes do the abuse-prevention job instead.
-const UA_ALLOWLIST_PATHS = ["/favicon.ico"];
+// /health has to answer everyone, including the platform's own checker, which
+// is an HTTP client and says so: Railway's sends Go-http-client, and this list
+// blocks that outright. A health check answered with 403 reads as a dead
+// instance, so the platform restarts the service or refuses to promote the
+// deploy — the site going down because it looked too much like a scraper to
+// itself. It returns the string "ok" and nothing else.
+const UA_ALLOWLIST_PATHS = ["/favicon.ico", "/health"];
 const UA_ALLOWLIST_PREFIXES = ["/api/v1/", "/embed/"];
 
 export const botBlocker = (req, res, next) => {
@@ -359,3 +365,50 @@ export class RepeatedRefusalGuard {
     };
   }
 }
+
+/* ───────────────────────────────────────────────
+   LAYER 11 (NEW): CROSS-ORIGIN WRITE GUARD (CSRF defense-in-depth)
+   The session cookie is already SameSite=lax, which is what actually stops a
+   cross-site POST from carrying a logged-in session. This is the second lock
+   on the same door: it refuses state-changing requests that announce a
+   different origin than the one serving them, so a same-site subdomain, a
+   stray CORS-enabled fetch, or a future cookie-attribute regression doesn't
+   silently become an account-takeover path.
+
+   Deliberately conservative about what it refuses, because a false positive
+   here breaks a real person's action:
+     - Only unsafe methods. GET/HEAD/OPTIONS never reach it.
+     - A missing Origin header is allowed. Non-browser clients (the public
+       developer API, curl, a Telegram bot) don't send one, and browsers omit
+       it on plain same-origin form GETs; SameSite=lax already covers the
+       browser case.
+     - /api/v1/* and /embed/* are exempt outright — that surface is documented
+       to be called cross-origin from other people's sites and scripts, and
+       authenticates with an API key rather than with the session cookie.
+   ─────────────────────────────────────────────── */
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const CSRF_EXEMPT_PREFIXES = ["/api/v1/", "/embed/"];
+
+export const crossOriginWriteGuard = (req, res, next) => {
+  if (SAFE_METHODS.has(req.method)) return next();
+  if (CSRF_EXEMPT_PREFIXES.some((p) => req.path.startsWith(p))) return next();
+
+  const origin = req.get("origin");
+  if (!origin || origin === "null") return next();
+
+  let originHost;
+  try {
+    originHost = new URL(origin).host.toLowerCase();
+  } catch {
+    return res.status(403).json({ error: "Access denied" });
+  }
+
+  // Compared against the Host this request was actually served under, not a
+  // configured list, so it stays correct for every deployment (canonical
+  // domain, a preview URL, localhost) without another env var to keep in sync.
+  if (originHost === String(req.headers.host || "").toLowerCase()) return next();
+
+  console.warn(`Blocked cross-origin write: ${req.ip} - ${origin} -> ${req.method} ${req.path}`);
+  return res.status(403).json({ error: "Access denied" });
+};

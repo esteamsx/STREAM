@@ -64,7 +64,16 @@ function readCookie(req, name) {
     const idx = part.indexOf("=");
     if (idx === -1) continue;
     const key = part.slice(0, idx).trim();
-    if (key === name) return decodeURIComponent(part.slice(idx + 1).trim());
+    if (key !== name) continue;
+    const raw = part.slice(idx + 1).trim();
+    // A malformed percent-escape makes decodeURIComponent throw, and this runs
+    // first in the stack — an unhandled URIError here took out every request
+    // carrying that cookie, not just this check.
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
   }
   return null;
 }
@@ -115,7 +124,17 @@ function blockedPageHtml() {
 </html>`;
 }
 
+// The platform's own health check does not come through the public hostname.
+// Render sends the container's internal address as Host, Railway sends
+// healthcheck.railway.app, and neither is (or should be) in ALLOWED_HOSTS — so
+// the lock answered the health check with a 403, the platform read that as a
+// dead instance, and restarted or refused to promote the deploy. Users saw
+// that as the site being intermittently unreachable. /health returns a literal
+// "ok" and nothing else, so exempting it gives away nothing.
+const HOST_EXEMPT_PATHS = new Set(["/health"]);
+
 export function domainLock(req, res, next) {
+  if (HOST_EXEMPT_PATHS.has(req.path)) return next();
   if (isAllowedHost(req.headers.host)) return next();
 
   if (hasValidBypass(req)) {
