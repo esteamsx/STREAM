@@ -85,6 +85,21 @@ export function musicPlayerScript() {
     if (autoplay) attemptPlay();
   }
 
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'ES TEAMS TV',
+      artist: 'esteamstv.devs.surf',
+      artwork: [
+        { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      ],
+    });
+    navigator.mediaSession.setActionHandler('play', function(){ attemptPlay(); });
+    navigator.mediaSession.setActionHandler('pause', function(){ audio.pause(); });
+    navigator.mediaSession.setActionHandler('previoustrack', function(){ load(idx - 1, true); writeState(true); });
+    navigator.mediaSession.setActionHandler('nexttrack', function(){ load(idx + 1, true); writeState(true); });
+  }
+
   var saved = null;
   try { saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null'); } catch(e){}
   if (saved && typeof saved.idx === 'number') load(saved.idx, saved.playing, saved.time);
