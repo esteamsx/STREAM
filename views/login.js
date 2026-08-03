@@ -968,7 +968,7 @@ async function signInWithPasskey(){
   overlay.classList.add('show');
   let stage = 'load-library';
   try {
-    const { startAuthentication } = await import('/vendor/simplewebauthn-browser.js');
+    const { startAuthentication } = await import('/vendor/simplewebauthn-browser.v13.js');
 
     stage = 'fetch-options';
     const { options, token } = await postJSON('/api/passkey/authentication-options', {});
