@@ -1690,7 +1690,7 @@ document.getElementById('addPasskeyBtn').addEventListener('click', async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner"></span>Waiting for fingerprint…';
   try {
-    const { startRegistration } = await import('https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@10.0.0/+esm');
+    const { startRegistration } = await import('/vendor/simplewebauthn-browser.js');
     const options = await postJSON('/api/passkey/registration-options', {});
     if (!options || !options.challenge || !options.user || !options.user.id) throw new Error('Could not start passkey setup. Try again.');
     const response = await startRegistration({ optionsJSON: options });
