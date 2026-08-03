@@ -1,4 +1,4 @@
-import { siteHeadFor } from "../config/site.js";
+import { siteHeadFor } from "../../config/site.js";
 
 export function renderToolPage(cfg, { pageKey, iconSvg, heading, subtitle, bodyHtml, extraStyle = "", script }) {
   return `<!DOCTYPE html>

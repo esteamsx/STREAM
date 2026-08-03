@@ -1,4 +1,4 @@
-import { renderToolPage } from "./tool-page.js";
+import { renderToolPage } from "./page-shell.js";
 
 export function renderQrCode(cfg) {
   return renderToolPage(cfg, {

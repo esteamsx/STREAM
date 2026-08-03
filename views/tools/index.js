@@ -1,4 +1,4 @@
-import { siteHeadFor } from "../config/site.js";
+import { siteHeadFor } from "../../config/site.js";
 
 const TOOLS = [
   {
