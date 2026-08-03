@@ -3565,6 +3565,9 @@ app.get("/api/bots", requireAuth, async (req, res) => {
 app.post("/api/bots/deploy", requireAuth, botDeployLimiter, async (req, res) => {
   try {
     const isAdmin = isAdminEmail(req.userProfile?.email);
+    if (!isAdmin && !req.userProfile?.verified) {
+      return res.status(403).json({ error: "Deploy Bot is limited to verified accounts." });
+    }
     const result = await botServiceFetch("/internal/bots/deploy", {
       method: "POST",
       body: JSON.stringify({ ...(req.body || {}), uid: req.uid, isAdmin }),

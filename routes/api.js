@@ -51,7 +51,7 @@ function getStreamTokenSecret() {
   } catch (err) {
     console.warn("⚠️ STREAM_TOKEN_SECRET is not set and couldn't be persisted to disk (" + err.message + ") — " +
       "using a secret generated at boot. This means existing embed/stream links break every time the server restarts. " +
-      "Set STREAM_TOKEN_SECRET on Render for stable links.");
+      "Set STREAM_TOKEN_SECRET as an environment variable on your host for stable links.");
   }
   return generated;
 }
