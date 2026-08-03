@@ -52,14 +52,43 @@ export function musicPlayerScript() {
   var playIcon = document.getElementById('mpPlayIcon');
   var pauseIcon = document.getElementById('mpPauseIcon');
   if (!audio || !btn) return;
+  var STORE_KEY = 'mp_state';
   var idx = 0;
 
-  function load(i, autoplay){
+  function writeState(playing){
+    try {
+      sessionStorage.setItem(STORE_KEY, JSON.stringify({ idx: idx, time: audio.currentTime || 0, playing: !!playing }));
+    } catch(e){}
+  }
+
+  function attemptPlay(){
+    var p = audio.play();
+    if (p && p.catch) p.catch(function(){
+      var resume = function(){
+        audio.play().catch(function(){});
+      };
+      document.addEventListener('click', resume, { once: true });
+      document.addEventListener('keydown', resume, { once: true });
+      document.addEventListener('touchstart', resume, { once: true });
+    });
+  }
+
+  function load(i, autoplay, seekTime){
     idx = (i + TRACKS.length) % TRACKS.length;
     audio.src = TRACKS[idx];
-    if (autoplay) audio.play().catch(function(){});
+    if (seekTime) {
+      audio.addEventListener('loadedmetadata', function onMeta(){
+        audio.currentTime = seekTime;
+        audio.removeEventListener('loadedmetadata', onMeta);
+      });
+    }
+    if (autoplay) attemptPlay();
   }
-  load(0, false);
+
+  var saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null'); } catch(e){}
+  if (saved && typeof saved.idx === 'number') load(saved.idx, saved.playing, saved.time);
+  else load(0, true);
 
   function setPlayingUI(playing){
     playIcon.style.display = playing ? 'none' : 'block';
@@ -69,14 +98,16 @@ export function musicPlayerScript() {
   }
 
   btn.addEventListener('click', function(){
-    if (audio.paused) audio.play().catch(function(){});
+    if (audio.paused) attemptPlay();
     else audio.pause();
   });
-  document.getElementById('mpRewind').addEventListener('click', function(){ load(idx - 1, true); });
-  document.getElementById('mpForward').addEventListener('click', function(){ load(idx + 1, true); });
-  audio.addEventListener('play', function(){ setPlayingUI(true); });
-  audio.addEventListener('pause', function(){ setPlayingUI(false); });
-  audio.addEventListener('ended', function(){ load(idx + 1, true); });
+  document.getElementById('mpRewind').addEventListener('click', function(){ load(idx - 1, true); writeState(true); });
+  document.getElementById('mpForward').addEventListener('click', function(){ load(idx + 1, true); writeState(true); });
+  audio.addEventListener('play', function(){ setPlayingUI(true); writeState(true); });
+  audio.addEventListener('pause', function(){ setPlayingUI(false); writeState(false); });
+  audio.addEventListener('timeupdate', function(){ writeState(!audio.paused); });
+  audio.addEventListener('ended', function(){ load(idx + 1, true); writeState(true); });
+  window.addEventListener('pagehide', function(){ writeState(!audio.paused); });
 })();
 `;
 }

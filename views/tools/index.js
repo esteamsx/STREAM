@@ -72,7 +72,7 @@ ${cfg.devToolsBlock || ""}
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${siteHeadFor("tools")}
 <script>(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
-<title>Free Tools — ES TEAMS TV</title>
+<title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -88,7 +88,7 @@ ${cfg.protectionCSS || ""}
   --ease:cubic-bezier(.22,1,.36,1);
 }
 :root[data-theme="light"]{
-  --dark:#F5F6FA;--card:#FFFFFF;--card2:#F0F1F5;
+  --dark:#F5F6FA;--dark3:#ECEEF3;--card:#FFFFFF;--card2:#F0F1F5;
   --border:rgba(0,0,0,.08);--border-strong:rgba(0,0,0,.14);
   --text:#14141C;--muted:rgba(20,20,28,.55);
 }

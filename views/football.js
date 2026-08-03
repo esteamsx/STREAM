@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>⚽ Football Live</title>
+    <title>ES TEAMS TV</title>
     <script>(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

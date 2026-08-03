@@ -1,4 +1,4 @@
-import { siteHeadFor } from "../../config/site.js";
+import { siteHeadFor, SITE } from "../../config/site.js";
 import { musicPlayerStyle, musicPlayerHtml, musicPlayerScript } from "../music-player.js";
 
 export function renderToolPage(cfg, { pageKey, iconSvg, heading, subtitle, bodyHtml, extraStyle = "", script }) {
@@ -9,6 +9,7 @@ export function renderToolPage(cfg, { pageKey, iconSvg, heading, subtitle, bodyH
 ${cfg.devToolsBlock || ""}
 <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${SITE.name}</title>
 ${siteHeadFor(pageKey)}
 <script>(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
