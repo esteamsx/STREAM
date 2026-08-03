@@ -1993,10 +1993,20 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     </span>
     Profile
   </a>
-  <button type="button" class="bnav-item" id="bnavSearch" aria-label="Search">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-    Search
-  </button>
+  <div class="bnav-item bnav-menu-wrap">
+    <button type="button" class="bnav-item" id="bnavTools" aria-label="Tools" style="padding:0;flex:none;width:100%">
+      <span class="bnav-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      </span>
+      Tools
+    </button>
+    <div class="bnav-menu" id="bnavToolsMenu">
+      <button type="button" class="user-menu-item" id="bnavToolsSearchItem">
+        <svg class="umi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        Search
+      </button>
+    </div>
+  </div>
   <div class="bnav-item bnav-menu-wrap">
     <button type="button" class="bnav-item" id="bnavSettings" aria-label="Settings" style="padding:0;flex:none;width:100%">
       <span class="bnav-icon-wrap">
@@ -3221,13 +3231,25 @@ function fsRunSearch(q){
     setTimeout(initAccountMenu, 1200);
   }
 
-  var bnavSearch = document.getElementById('bnavSearch');
   var bnavApiItem = document.getElementById('bnavApiItem');
   var bnavSettings = document.getElementById('bnavSettings');
   var bnavSettingsMenu = document.getElementById('bnavSettingsMenu');
-  if (bnavSearch) {
-    bnavSearch.addEventListener('click', function(e){
+  var bnavTools = document.getElementById('bnavTools');
+  var bnavToolsMenu = document.getElementById('bnavToolsMenu');
+  var bnavToolsSearchItem = document.getElementById('bnavToolsSearchItem');
+  if (bnavTools && bnavToolsMenu) {
+    bnavTools.addEventListener('click', function(e){
       e.stopPropagation();
+      bnavToolsMenu.classList.toggle('open');
+    });
+    document.addEventListener('click', function(){
+      bnavToolsMenu.classList.remove('open');
+    });
+  }
+  if (bnavToolsSearchItem) {
+    bnavToolsSearchItem.addEventListener('click', function(e){
+      e.stopPropagation();
+      if (bnavToolsMenu) bnavToolsMenu.classList.remove('open');
       openFriendSearch();
     });
   }
