@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server.js",
     "obfuscate:server": "javascript-obfuscator server.js --output dist/server.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
