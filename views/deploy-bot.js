@@ -165,9 +165,6 @@ input{font-family:inherit}
 .db-bot-actions{display:flex;gap:8px}
 .db-bot-actions button{flex:1;padding:8px;font-size:.78rem;border-radius:8px}
 
-/* ── confirmation overlay — same pattern as the rest of the site's
-   .page-overlay/.overlay-card modals (see logoutOverlay etc. on the main
-   pages), rebuilt here since this page doesn't share their markup ── */
 .db-overlay{
   position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;
   background:rgba(0,0,0,.6);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s var(--ease);

@@ -1946,7 +1946,6 @@ async function optionalAuth(req, res, next) {
       }
     }
   } catch {
-    // Anonymous access is allowed here — just proceed without a profile.
   }
   next();
 }

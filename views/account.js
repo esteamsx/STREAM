@@ -47,8 +47,6 @@ button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
-/* ── floating "Deploy Bot" shortcut — same treatment as profile.js's
-   floating feed button (.pf-feed-fab), just a different icon/destination ── */
 .acc-deploy-fab{
   position:fixed;right:20px;bottom:20px;z-index:90;width:52px;height:52px;border-radius:50%;
   background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;

@@ -207,23 +207,13 @@ input{font-family:inherit}
 .pf-follow-btn.following{background:transparent;border:1px solid var(--border-strong);color:var(--text)}
 .pf-follow-btn:disabled{opacity:.6}
 
-/* ── People overlay: Followers / Following list with search (ported from Account Settings) ── */
 .page-overlay{
   position:fixed;inset:0;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);
   display:none;align-items:center;justify-content:center;z-index:100;padding:24px;
 }
 .page-overlay.show{display:flex}
 body:has(.page-overlay.show){overflow:hidden}
-/* postOptionsOverlay (comment long-press menu / post 3-dot menu) can be opened while
-   commentsOverlay is already open — both share .page-overlay's z-index:100, and since
-   commentsOverlay comes later in the DOM it was painting on top, hiding this menu until
-   commentsOverlay closed. Force these above any other .page-overlay. */
 #postOptionsOverlay, #postVisibilityOverlay, #postDeleteOverlay, #postSettingsOverlay{ z-index:150; }
-/* followingFeedOverlay (the floating-button "POSTS" panel) is declared
-   later in the DOM than commentsOverlay, so opening comments on a post
-   from inside that feed was rendering the comments overlay BEHIND the
-   still-open feed overlay — same shape of bug as above, tapping "comment"
-   appeared to do nothing because it opened out of sight. */
 #commentsOverlay{ z-index:120; }
 .flist-card{
   width:100%;max-width:400px;max-height:78vh;background:var(--card);border:1px solid var(--border-strong);
@@ -297,11 +287,6 @@ body:has(.page-overlay.show){overflow:hidden}
   position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;overflow:hidden;
   box-sizing:border-box;word-wrap:break-word;
 }
-/* These highlight spans must never change a glyph's width — the backdrop is
-   overlaid pixel-for-pixel on the real input text, so any font-weight or
-   font-style change here shifts every following character out of alignment
-   with the caret and selection underneath. Colour-only styling keeps the
-   metrics identical while still making the markup visible as you type. */
 .tag-highlight-backdrop mark{background:transparent;color:var(--accent)}
 .tag-highlight-backdrop .md-bold{color:var(--text)}
 .tag-highlight-backdrop .md-italic{color:var(--text);opacity:.92}
@@ -430,7 +415,6 @@ body:has(.page-overlay.show){overflow:hidden}
 .pf-posts-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:26px 0}
 .pf-posts-loading .pf-loader-ring{width:26px;height:26px}
 
-/* ── Following feed: floating icon + "POSTS" overlay ── */
 .pf-feed-fab{
   position:fixed;right:20px;bottom:20px;z-index:90;width:52px;height:52px;border-radius:50%;
   background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
@@ -464,9 +448,6 @@ body:has(.page-overlay.show){overflow:hidden}
 .post-link{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 .tag-highlight-backdrop .link-span{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 .insert-link-btn{
-  /* Below the field, not above it: the browser's own Cut/Copy/Paste callout
-     renders directly above a selection on mobile, which was covering this
-     button completely. Sitting underneath keeps both usable at once. */
   position:absolute;bottom:-40px;right:0;z-index:5;padding:6px 12px;border-radius:8px;
   background:var(--accent);color:#04141a;font-size:.74rem;font-weight:700;border:none;
   box-shadow:0 6px 16px rgba(0,0,0,.35);display:none;align-items:center;gap:5px;
@@ -490,7 +471,6 @@ body:has(.page-overlay.show){overflow:hidden}
 .post-opt-btn svg{width:18px;height:18px;flex-shrink:0}
 .post-opt-sub{font-size:.7rem;color:var(--muted);margin-left:auto;font-weight:600}
 
-/* ── toggle switch, ported from Account Settings for the post Settings overlay ── */
 .tfa-toggle-row{display:flex;align-items:center;justify-content:space-between}
 .tfa-toggle-label{font-size:.85rem;color:var(--text);font-weight:600}
 .tfa-toggle-sub{font-size:.72rem;color:var(--muted);margin-top:2px}

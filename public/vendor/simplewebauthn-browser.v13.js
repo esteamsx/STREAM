@@ -1,4 +1,3 @@
-// ../swa-browser-latest/package/esm/helpers/bufferToBase64URLString.js
 function bufferToBase64URLString(buffer) {
   const bytes = new Uint8Array(buffer);
   let str = "";
@@ -9,7 +8,6 @@ function bufferToBase64URLString(buffer) {
   return base64String.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
-// ../swa-browser-latest/package/esm/helpers/base64URLStringToBuffer.js
 function base64URLStringToBuffer(base64URLString) {
   const base64 = base64URLString.replace(/-/g, "+").replace(/_/g, "/");
   const padLength = (4 - base64.length % 4) % 4;
@@ -23,7 +21,6 @@ function base64URLStringToBuffer(base64URLString) {
   return buffer;
 }
 
-// ../swa-browser-latest/package/esm/helpers/browserSupportsWebAuthn.js
 function browserSupportsWebAuthn() {
   return _browserSupportsWebAuthnInternals.stubThis(globalThis?.PublicKeyCredential !== void 0 && typeof globalThis.PublicKeyCredential === "function");
 }
@@ -31,31 +28,22 @@ var _browserSupportsWebAuthnInternals = {
   stubThis: (value) => value
 };
 
-// ../swa-browser-latest/package/esm/helpers/toPublicKeyCredentialDescriptor.js
 function toPublicKeyCredentialDescriptor(descriptor) {
   const { id } = descriptor;
   return {
     ...descriptor,
     id: base64URLStringToBuffer(id),
-    /**
-     * `descriptor.transports` is an array of our `AuthenticatorTransportFuture` that includes newer
-     * transports that TypeScript's DOM lib is ignorant of. Convince TS that our list of transports
-     * are fine to pass to WebAuthn since browsers will recognize the new value.
-     */
     transports: descriptor.transports
   };
 }
 
-// ../swa-browser-latest/package/esm/helpers/isValidDomain.js
 function isValidDomain(hostname) {
   return (
-    // Consider localhost valid as well since it's okay wrt Secure Contexts
-    hostname === "localhost" || // Support punycode (ACE) or ascii labels and domains
+    hostname === "localhost" ||
     /^((xn--[a-z0-9-]+|[a-z0-9]+(-[a-z0-9]+)*)\.)+([a-z]{2,}|xn--[a-z0-9-]+)$/i.test(hostname)
   );
 }
 
-// ../swa-browser-latest/package/esm/helpers/webAuthnError.js
 var WebAuthnError = class extends Error {
   constructor({ message, code, cause, name }) {
     super(message, { cause });
@@ -70,7 +58,6 @@ var WebAuthnError = class extends Error {
   }
 };
 
-// ../swa-browser-latest/package/esm/helpers/identifyRegistrationError.js
 function identifyRegistrationError({ error, options }) {
   const { publicKey } = options;
   if (!publicKey) {
@@ -92,7 +79,6 @@ function identifyRegistrationError({ error, options }) {
         cause: error
       });
     } else if (
-      // @ts-ignore: `mediation` doesn't yet exist on CredentialCreationOptions but it's possible as of Sept 2024
       options.mediation === "conditional" && publicKey.authenticatorSelection?.userVerification === "required"
     ) {
       return new WebAuthnError({
@@ -166,7 +152,6 @@ function identifyRegistrationError({ error, options }) {
   return error;
 }
 
-// ../swa-browser-latest/package/esm/helpers/webAuthnAbortService.js
 var BaseWebAuthnAbortService = class {
   constructor() {
     Object.defineProperty(this, "controller", {
@@ -197,7 +182,6 @@ var BaseWebAuthnAbortService = class {
 };
 var WebAuthnAbortService = new BaseWebAuthnAbortService();
 
-// ../swa-browser-latest/package/esm/helpers/toAuthenticatorAttachment.js
 var attachments = ["cross-platform", "platform"];
 function toAuthenticatorAttachment(attachment) {
   if (!attachment) {
@@ -209,7 +193,6 @@ function toAuthenticatorAttachment(attachment) {
   return attachment;
 }
 
-// ../swa-browser-latest/package/esm/methods/startRegistration.js
 async function startRegistration(options) {
   if (!options.optionsJSON && options.challenge) {
     console.warn("startRegistration() was not called correctly. It will try to continue with the provided options, but this call should be refactored to use the expected call structure instead. See https://simplewebauthn.dev/docs/packages/browser#typeerror-cannot-read-properties-of-undefined-reading-challenge for more information.");
@@ -296,7 +279,6 @@ function warnOnBrokenImplementation(methodName, cause) {
 `, cause);
 }
 
-// ../swa-browser-latest/package/esm/helpers/browserSupportsWebAuthnAutofill.js
 function browserSupportsWebAuthnAutofill() {
   if (!browserSupportsWebAuthn()) {
     return _browserSupportsWebAuthnAutofillInternals.stubThis(new Promise((resolve) => resolve(false)));
@@ -311,7 +293,6 @@ var _browserSupportsWebAuthnAutofillInternals = {
   stubThis: (value) => value
 };
 
-// ../swa-browser-latest/package/esm/helpers/identifyAuthenticationError.js
 function identifyAuthenticationError({ error, options }) {
   const { publicKey } = options;
   if (!publicKey) {
@@ -356,7 +337,6 @@ function identifyAuthenticationError({ error, options }) {
   return error;
 }
 
-// ../swa-browser-latest/package/esm/methods/startAuthentication.js
 async function startAuthentication(options) {
   if (!options.optionsJSON && options.challenge) {
     console.warn("startAuthentication() was not called correctly. It will try to continue with the provided options, but this call should be refactored to use the expected call structure instead. See https://simplewebauthn.dev/docs/packages/browser#typeerror-cannot-read-properties-of-undefined-reading-challenge for more information.");
@@ -418,7 +398,6 @@ async function startAuthentication(options) {
   };
 }
 
-// ../swa-browser-latest/package/esm/helpers/platformAuthenticatorIsAvailable.js
 function platformAuthenticatorIsAvailable() {
   if (!browserSupportsWebAuthn()) {
     return new Promise((resolve) => resolve(false));

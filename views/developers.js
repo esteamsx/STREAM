@@ -52,7 +52,6 @@ pre{
 }
 .wrap{max-width:920px;margin:0 auto;padding:22px 20px 80px}
 
-/* ── HEADER — same back-link + page-logo pattern used across the site (see privacy.js) ── */
 .back-row{margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .back-link{
   display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;
@@ -98,7 +97,6 @@ pre{
 }
 .btn-spinner-muted{border:2px solid var(--border-strong);border-top-color:var(--accent)}
 
-/* ── confirmation overlay (same pattern as the account page's delete/logout dialogs) ── */
 @keyframes overlayCardIn{from{opacity:0;transform:translateY(6px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
 .page-overlay{
   position:fixed;inset:0;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);
@@ -116,15 +114,12 @@ body:has(.page-overlay.show){overflow:hidden}
 .overlay-sub b{color:var(--text)}
 .overlay-cancel{background:transparent;border:none;color:var(--muted);font-size:.78rem;align-self:center;text-decoration:underline;cursor:pointer}
 
-/* ── HERO ── */
 .hero{margin-bottom:26px}
 .hero h1{font-family:var(--font-display);font-size:1.7rem;margin-bottom:6px}
 .hero p{color:var(--muted);line-height:1.6;font-size:.92rem;max-width:52ch}
 
-/* ── VIEW SWITCH ── */
 #view-docs{display:none}
 
-/* ── GRID / CARDS ── */
 .dash-grid{display:grid;grid-template-columns:1fr;gap:16px}
 @media(min-width:760px){ .dash-grid{grid-template-columns:1fr 1fr} .dash-grid .span2{grid-column:1/-1} }
 .dcard{
@@ -137,7 +132,6 @@ body:has(.page-overlay.show){overflow:hidden}
 .dcard-title{font-family:var(--font-display);font-size:.95rem;font-weight:700}
 .dcard-sub{font-size:.72rem;color:var(--muted);margin-top:1px}
 
-/* ── API KEY CARD ── */
 .key-row{
   display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:11px;
   background:var(--card2);border:1px solid var(--border);margin-bottom:10px;
@@ -180,7 +174,6 @@ body:has(.page-overlay.show){overflow:hidden}
 .dcard-msg.ok{color:var(--green)}
 .dcard-msg.err{color:var(--red)}
 
-/* ── CHANNELS CARD ── */
 .ch-search{margin-bottom:10px}
 .ch-list{max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:11px}
 .ch-cat-label{
@@ -196,7 +189,6 @@ body:has(.page-overlay.show){overflow:hidden}
 .ch-item code{font-size:.68rem;color:var(--muted)}
 .ch-loading{padding:20px;text-align:center;font-size:.8rem;color:var(--muted)}
 
-/* ── GENERATED LINKS CARD ── */
 .link-item{
   display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;
   font-size:.8rem;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s var(--ease);
@@ -209,7 +201,6 @@ body:has(.page-overlay.show){overflow:hidden}
 .link-item-status{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
 .link-timeleft{font-size:.68rem;color:var(--muted);font-family:var(--font-mono);white-space:nowrap}
 
-/* ── TRY IT CARD ── */
 .tryit-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
 .tryit-tab{
   padding:7px 12px;border-radius:8px;font-size:.74rem;font-weight:600;cursor:pointer;

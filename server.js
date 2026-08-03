@@ -515,7 +515,6 @@ body{
 button{font-family:inherit;cursor:pointer}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:rgba(0,224,255,.4)}
 
-/* ── BOOT-ON SEQUENCE (one-shot, page load only) ── */
 @keyframes bootFlicker{
   0%{opacity:0;filter:brightness(2.2) contrast(1.4);}
   4%{opacity:1;}
@@ -533,7 +532,6 @@ button{font-family:inherit;cursor:pointer}
 
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
-/* ── reusable noise texture (CSS-only, no images) ── */
 .crt-noise{
   position:absolute;inset:0;pointer-events:none;mix-blend-mode:overlay;opacity:.05;
   background-image:repeating-radial-gradient(circle at 20% 30%,#fff 0,transparent 1px),
@@ -548,7 +546,6 @@ button{font-family:inherit;cursor:pointer}
   background:repeating-linear-gradient(to bottom,rgba(255,255,255,.025) 0px,rgba(255,255,255,.025) 1px,transparent 1px,transparent 3px);
 }
 
-/* ── NAV ── */
 .nav{
   position:fixed;top:0;left:0;right:0;z-index:300;
   height:var(--nav-h);display:flex;align-items:center;gap:12px;padding:0 16px;
@@ -599,10 +596,8 @@ button{font-family:inherit;cursor:pointer}
 .menu-btn:active{transform:scale(.9)}
 @media(max-width:768px){.menu-btn{display:flex}}
 
-/* ── LAYOUT ── */
 .layout{display:flex;margin-top:var(--nav-h);height:calc(100vh - var(--nav-h) - var(--bnav-h))}
 
-/* ── SIDEBAR ── */
 .sidebar{
   width:var(--sw);flex-shrink:0;background:var(--dark2);
   border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;
@@ -646,7 +641,6 @@ button{font-family:inherit;cursor:pointer}
   color:var(--muted2);flex-shrink:0;margin-left:auto;padding-left:8px;
   transition:color .2s var(--ease);
 }
-/* ── LIQUID GLASS sheen on sidebar channel buttons (same family as .mc-btn, layered via background so it doesn't collide with the existing ::before/::after used for the active-state bar and channel number) ── */
 .ch-btn{
   background-image:
     linear-gradient(135deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0) 38%,rgba(0,224,255,0) 62%,rgba(124,92,255,0) 100%);
@@ -672,7 +666,6 @@ button{font-family:inherit;cursor:pointer}
 @keyframes signalRing{0%{transform:scale(1);opacity:.6}100%{transform:scale(3.2);opacity:0}}
 @keyframes dotPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
 
-/* ── channel status: green = stream up, red = stream down ── */
 .ch-dot.ch-dot-up{
   background:#22c55e;
   box-shadow:0 0 5px rgba(34,197,94,.65),0 0 10px rgba(34,197,94,.25);
@@ -682,14 +675,12 @@ button{font-family:inherit;cursor:pointer}
   box-shadow:0 0 5px rgba(255,59,92,.65),0 0 10px rgba(255,59,92,.2);
 }
 
-/* ── redirect-type button (e.g. Football Live) — links out instead of loading a stream, so it gets a neutral accent dot, not a live status color ── */
 .ch-dot.ch-dot-redirect{
   background:var(--accent);
   box-shadow:0 0 5px rgba(0,224,255,.65),0 0 10px rgba(0,224,255,.25);
 }
-.ch-btn-redirect::after{ content:'↗'; } /* small arrow glyph instead of the channel number counter */
+.ch-btn-redirect::after{ content:'↗'; }
 
-/* ── CHANNEL DOWN OVERLAY ── */
 .ch-down-overlay{
   position:absolute;inset:0;z-index:20;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -701,7 +692,6 @@ button{font-family:inherit;cursor:pointer}
 }
 .ch-down-overlay.show{opacity:1;pointer-events:all}
 
-/* liquid-glass card */
 .ch-down-card{
   position:relative;
   display:flex;flex-direction:column;align-items:center;gap:16px;
@@ -717,7 +707,6 @@ button{font-family:inherit;cursor:pointer}
 }
 @keyframes cardPop{from{opacity:0;transform:scale(.7) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
 
-/* corner bracket accents — same family as .ph-frame */
 .ch-down-card::before,.ch-down-card::after,.ch-down-c3,.ch-down-c4{
   content:'';position:absolute;width:13px;height:13px;border:2px solid rgba(255,59,92,.65);border-radius:2px;
 }
@@ -726,7 +715,6 @@ button{font-family:inherit;cursor:pointer}
 .ch-down-c3{bottom:-1px;left:-1px;border-right:none;border-top:none;position:absolute}
 .ch-down-c4{bottom:-1px;right:-1px;border-left:none;border-top:none;position:absolute}
 
-/* ── CSS TV shape ── */
 .ch-down-tv{
   position:relative;
   width:76px;height:56px;
@@ -737,7 +725,6 @@ button{font-family:inherit;cursor:pointer}
   box-shadow:0 0 20px rgba(255,59,92,.22),inset 0 0 16px rgba(255,59,92,.07);
   animation:tvFlicker 2.6s ease-in-out infinite;
 }
-/* TV stand legs */
 .ch-down-tv::after{
   content:'';position:absolute;bottom:-13px;left:50%;transform:translateX(-50%);
   width:34px;height:11px;
@@ -746,7 +733,6 @@ button{font-family:inherit;cursor:pointer}
   border-bottom:2.5px solid rgba(255,59,92,.5);
   border-radius:0 0 5px 5px;
 }
-/* TV left antenna */
 .ch-down-tv-ant-l,.ch-down-tv-ant-r{
   position:absolute;top:-17px;width:2.5px;height:17px;
   background:rgba(255,59,92,.55);border-radius:2px;
@@ -759,14 +745,12 @@ button{font-family:inherit;cursor:pointer}
   49%   {box-shadow:0 0 8px  rgba(255,59,92,.08),inset 0 0 4px  rgba(255,59,92,.03)}
   51%   {box-shadow:0 0 30px rgba(255,59,92,.42),inset 0 0 22px rgba(255,59,92,.14)}
 }
-/* CSS scanline noise inside TV screen */
 .ch-down-tv-scan{
   position:absolute;inset:0;border-radius:7px;pointer-events:none;
   background:repeating-linear-gradient(to bottom,rgba(255,255,255,.03) 0,rgba(255,255,255,.03) 1px,transparent 1px,transparent 3px);
   opacity:.55;
 }
 
-/* ── CSS warning triangle (no SVG, no emoji) ── */
 .ch-down-warn{
   position:relative;z-index:1;
   width:0;height:0;
@@ -777,7 +761,6 @@ button{font-family:inherit;cursor:pointer}
   animation:warnPulse 2.1s ease-in-out infinite;
   flex-shrink:0;
 }
-/* exclamation mark via pseudo */
 .ch-down-warn::before{
   content:'!';
   position:absolute;top:5px;left:50%;transform:translateX(-50%);
@@ -786,7 +769,6 @@ button{font-family:inherit;cursor:pointer}
 }
 @keyframes warnPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
 
-/* ── SIGNAL LOST blinking badge ── */
 .ch-down-badge{
   display:flex;align-items:center;gap:7px;
   padding:4px 12px;border-radius:20px;
@@ -795,7 +777,6 @@ button{font-family:inherit;cursor:pointer}
   font-family:var(--font-mono);font-size:.6rem;font-weight:700;letter-spacing:.1em;
   color:var(--red);text-transform:uppercase;
 }
-/* CSS blinking dot inside badge — no emoji */
 .ch-down-badge::before{
   content:'';display:block;
   width:5px;height:5px;border-radius:50%;
@@ -814,12 +795,10 @@ button{font-family:inherit;cursor:pointer}
   font-size:.85rem;margin-top:2px;
 }
 
-/* "Please try again later" with animated dots */
 .ch-down-sub{
   font-family:var(--font-body);font-size:.74rem;color:var(--muted);
   text-align:center;display:flex;align-items:baseline;gap:0;
 }
-/* three dots that appear one by one */
 .ch-down-dot1,.ch-down-dot2,.ch-down-dot3{
   display:inline-block;opacity:0;
   animation:dotFade 1.5s ease-in-out infinite;
@@ -828,7 +807,6 @@ button{font-family:inherit;cursor:pointer}
 .ch-down-dot3{animation-delay:.6s}
 @keyframes dotFade{0%,60%,100%{opacity:0}30%{opacity:1}}
 
-/* ── RETRY BUTTON ── */
 .ch-down-retry{
   display:flex;align-items:center;gap:8px;
   padding:9px 22px;border-radius:30px;border:none;cursor:pointer;
@@ -844,7 +822,6 @@ button{font-family:inherit;cursor:pointer}
   transform:translateY(-1px);
 }
 .ch-down-retry:active{transform:scale(.95)}
-/* liquid glass sheen sweep on hover */
 .ch-down-retry::after{
   content:'';position:absolute;top:0;left:-70%;width:40%;height:100%;
   background:linear-gradient(100deg,transparent,rgba(255,255,255,.14),transparent);
@@ -852,18 +829,15 @@ button{font-family:inherit;cursor:pointer}
 }
 .ch-down-retry:hover::after{left:130%}
 
-/* CSS rotate arrow icon — no emoji, no SVG */
 .ch-down-retry-icon{
   position:relative;width:14px;height:14px;flex-shrink:0;
 }
-/* circle arc via border with one side transparent */
 .ch-down-retry-icon::before{
   content:'';position:absolute;inset:0;
   border:2px solid var(--text);border-radius:50%;
   border-top-color:transparent;
   transition:transform .0s;
 }
-/* arrowhead tip */
 .ch-down-retry-icon::after{
   content:'';position:absolute;
   top:-2px;right:1px;
@@ -873,7 +847,6 @@ button{font-family:inherit;cursor:pointer}
   border-bottom:5px solid var(--text);
   transform:rotate(45deg);
 }
-/* spinning state */
 .ch-down-retry.spinning .ch-down-retry-icon::before{
   animation:retrySpin .65s cubic-bezier(.4,0,.2,1) forwards;
 }
@@ -881,10 +854,8 @@ button{font-family:inherit;cursor:pointer}
 .ch-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .no-results{padding:24px 16px;text-align:center;font-size:.76rem;color:var(--muted);display:none}
 
-/* ── PLAYER AREA ── */
 .player-area{flex:1;position:relative;background:var(--dark2);overflow:hidden;display:flex;flex-direction:column}
 
-/* placeholder — "no signal" state */
 .placeholder{
   position:absolute;inset:0;top:32px;z-index:5;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
@@ -916,7 +887,6 @@ button{font-family:inherit;cursor:pointer}
 .placeholder h3{font-family:var(--font-mono);font-size:.84rem;font-weight:600;color:var(--text);opacity:.85;letter-spacing:.08em;text-transform:uppercase;position:relative;z-index:2}
 .placeholder p{font-size:.74rem;max-width:230px;line-height:1.6;position:relative;z-index:2;font-family:var(--font-mono);opacity:.6}
 
-/* THE REAL VIDEO PLAYER */
 .video-wrap{
   flex:1;position:relative;background:#000;
   display:none;
@@ -928,15 +898,13 @@ button{font-family:inherit;cursor:pointer}
   display:block;object-fit:contain;background:#000;
 }
 
-/* video-frame: JS will size+position this to match the actual rendered video rect */
 .video-frame{
   position:absolute;
-  pointer-events:none; /* pass clicks through to video by default */
+  pointer-events:none;
   z-index:9;
   overflow:hidden;
 }
 
-/* ── LIVE BADGE — signature element: ON-AIR console readout ── */
 .live-badge{
   position:absolute;top:14px;left:14px;z-index:10;
   display:flex;align-items:center;gap:9px;
@@ -961,7 +929,6 @@ button{font-family:inherit;cursor:pointer}
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 6px rgba(255,59,92,.75);animation:blink 1.4s ease infinite;position:relative;z-index:1}
 @keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.5)}}
 
-/* status bar under video — telemetry readout */
 .status-bar{
   display:flex;align-items:center;gap:8px;
   padding:8px 14px;
@@ -974,7 +941,6 @@ button{font-family:inherit;cursor:pointer}
 .status-dot.error{background:#f87171;box-shadow:0 0 5px rgba(248,113,113,.5)}
 @keyframes statusPulse{0%,100%{opacity:1}50%{opacity:.4}}
 
-/* ── MORE CHANNELS — category grid under the player, own scroll area so the page never shifts ── */
 .more-ch-wrap{
   flex-shrink:0;max-height:38vh;max-height:38dvh;display:flex;flex-direction:column;
   border-top:1px solid var(--border);background:var(--dark3);
@@ -994,9 +960,6 @@ button{font-family:inherit;cursor:pointer}
 .more-ch-toggle:hover{background:var(--card2);color:var(--text)}
 .more-ch-toggle svg{width:15px;height:15px}
 
-/* Reopen bar — a completely separate, fixed-position element pinned just above the
-   bottom nav. It only exists while More Channels is collapsed, so it's never at the
-   mercy of the player area's flex sizing (that's what was causing it to vanish). */
 .more-ch-reopen{
   display:none;position:fixed;left:0;right:0;bottom:var(--bnav-h);z-index:290;
   align-items:center;justify-content:space-between;gap:10px;
@@ -1029,11 +992,8 @@ button{font-family:inherit;cursor:pointer}
 .more-ch-cat-count{font-size:.62rem;color:rgba(255,255,255,.88);font-family:var(--font-mono);position:relative;z-index:1}
 .more-ch-loading{grid-column:1/-1;padding:16px;text-align:center;font-size:.74rem;color:var(--muted);font-family:var(--font-mono)}
 
-/* channel-list overlay — same page-overlay/overlay-card pattern as Find Friends search;
-   shows roughly the first 5 channels, then scrolls for the rest */
 .mc-list{max-height:264px;overflow-y:auto;display:flex;flex-direction:column;margin-top:2px;min-height:40px;overscroll-behavior:contain}
 
-/* ── CONNECTING overlay — round CSS spinner + faint message, shown over the video while stream connects ── */
 .connecting-overlay{
   position:absolute;inset:0;z-index:8;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
@@ -1053,7 +1013,6 @@ button{font-family:inherit;cursor:pointer}
   color:var(--muted);opacity:.7;text-align:center;
 }
 
-/* ── WHATSAPP ── */
 .wa-btn{
   position:absolute;bottom:58px;right:14px;z-index:10;
   display:inline-flex;align-items:center;gap:8px;
@@ -1064,12 +1023,10 @@ button{font-family:inherit;cursor:pointer}
 .wa-btn:hover{transform:scale(1.06) translateY(-1px);box-shadow:0 8px 28px rgba(37,211,102,.5)}
 .wa-btn:active{transform:scale(.96)}
 
-/* ── SVG category icons ── */
 .ci{width:15px;height:15px;flex-shrink:0;stroke:currentColor;display:block;transition:stroke .2s var(--ease)}
 .cat-header.open .ci{stroke:var(--accent)}
 .nav-tv-icon{stroke:url(#navGrad);flex-shrink:0}
 
-/* ── ANNOUNCEMENT TICKER ── */
 .announce-bar{
   position:relative;overflow:hidden;
   background:linear-gradient(90deg,rgba(255,59,92,.18),rgba(124,92,255,.12),rgba(0,224,255,.10));
@@ -1117,7 +1074,6 @@ button{font-family:inherit;cursor:pointer}
   width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.6;
 }
 
-/* ── OWNER PROFILE HEAD ── */
 .owner-card{
   flex-shrink:0;
   padding:16px 14px 18px;
@@ -1179,11 +1135,9 @@ button{font-family:inherit;cursor:pointer}
 }
 .owner-tagline{font-size:.65rem;color:var(--muted);font-family:var(--font-mono);margin-top:3px;letter-spacing:.02em}
 
-/* Sidebar must be flex column so inner scrolls and owner stays at bottom */
 .sidebar{display:flex;flex-direction:column}
 .sidebar-inner{flex:1;overflow-y:auto;min-height:0;counter-reset:chnum}
 
-/* WhatsApp drag handle hint */
 .wa-drag-hint{font-size:.82rem;opacity:.55;margin-left:2px;line-height:1;transition:opacity .2s}
 .wa-btn:hover .wa-drag-hint{opacity:.9}
 .wa-btn.dragging{opacity:.85;cursor:grabbing!important;transform:scale(1.04)!important;transition:none!important;box-shadow:0 12px 36px rgba(37,211,102,.55)!important}
@@ -1192,7 +1146,6 @@ button{font-family:inherit;cursor:pointer}
 .overlay.open{display:block;animation:fadeIn .25s var(--ease)}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
-/* ── SEARCH DROPDOWN ── */
 .search-wrap{position:relative}
 .search-dropdown{
   position:absolute;top:calc(100% + 7px);left:0;right:0;z-index:500;
@@ -1217,7 +1170,6 @@ button{font-family:inherit;cursor:pointer}
 .sd-dot{width:6px;height:6px;border-radius:50%;background:var(--red);box-shadow:0 0 5px rgba(255,59,92,.6);flex-shrink:0}
 .sd-no-result{padding:14px 16px;font-size:.78rem;color:var(--muted);text-align:center;font-family:var(--font-mono)}
 
-/* ── WATCH HOURS WIDGET ── */
 .watch-hours-wrap{
   padding:12px 14px;border-bottom:1px solid var(--border);
   background:linear-gradient(135deg,rgba(0,224,255,.06),rgba(124,92,255,.05));
@@ -1247,7 +1199,6 @@ button{font-family:inherit;cursor:pointer}
 .wh-label{font-family:var(--font-display);font-size:.76rem;font-weight:700;color:var(--text)}
 .wh-sub{font-size:.64rem;color:var(--muted);font-family:var(--font-mono);margin-top:1px}
 
-/* ── SIDEBAR CHANNEL BUTTONS — liquid glass upgrade ── */
 .ch-btn{
   backdrop-filter:blur(8px);
   background:linear-gradient(135deg,rgba(255,255,255,.025),rgba(255,255,255,.005));
@@ -1263,18 +1214,16 @@ button{font-family:inherit;cursor:pointer}
   box-shadow:0 2px 16px rgba(0,224,255,.12),inset 0 1px 0 rgba(255,255,255,.10);
 }
 
-/* ── WATERMARK — inside .video-frame ── */
 .wm-badge{
   position:absolute;top:50%;right:10px;transform:translateY(-50%);z-index:2;
   display:flex;align-items:center;gap:5px;
   padding:0;pointer-events:none;
   opacity:.6;
-  filter:drop-shadow(0 1px 3px rgba(0,0,0,.6)); /* matches the network bar's readability treatment so it doesn't wash out over bright footage */
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));
 }
 .wm-shield{width:12px;height:12px;stroke:rgba(255,255,255,.95);flex-shrink:0}
 .wm-name{font-family:var(--font-mono);font-size:.55rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.95);text-shadow:0 1px 3px rgba(0,0,0,.6)}
 
-/* ── NETWORK STRENGTH BAR — top-left of .video-frame, CSS-built signal icon, no background box ── */
 .net-badge{
   position:absolute;top:10px;left:10px;z-index:2;
   display:flex;align-items:center;gap:5px;
@@ -1282,7 +1231,7 @@ button{font-family:inherit;cursor:pointer}
   opacity:.55;
   font-family:var(--font-mono);font-size:.55rem;font-weight:600;letter-spacing:.04em;
   color:rgba(255,255,255,.85);
-  text-shadow:0 1px 3px rgba(0,0,0,.55); /* readability over bright footage instead of a background box */
+  text-shadow:0 1px 3px rgba(0,0,0,.55);
 }
 .net-bars{display:flex;align-items:flex-end;gap:1.5px;height:10px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))}
 .net-bars i{
@@ -1302,16 +1251,13 @@ button{font-family:inherit;cursor:pointer}
 .net-badge.lvl-4 .net-bars i{background:#4ade80}
 .net-label{text-transform:uppercase}
 
-/* ── BRIGHTNESS SLIDER — vertical drag zone on the right edge of the video frame ── */
 .brightness-zone{
   position:absolute;top:0;right:0;bottom:52px;width:34%;z-index:4;
-  touch-action:none; /* so the vertical drag doesn't scroll the page */
-  pointer-events:all; /* re-enable inside frame — .video-frame sets pointer-events:none by default so taps pass through to the video; this zone needs to actually receive the drag */
-  /* stops short of the bottom control bar (~44px) so it never sits on top of the
-     lock/layout/maximize buttons, which live on the right side of that bar */
+  touch-action:none;
+  pointer-events:all;
 }
 .video-frame.controls-locked .brightness-zone{
-  pointer-events:none; /* disabled while controls are locked, per spec */
+  pointer-events:none;
 }
 .brightness-readout{
   position:absolute;top:38%;left:18px;
@@ -1324,11 +1270,9 @@ button{font-family:inherit;cursor:pointer}
   opacity:0;transform:translate(-50%,-50%) scale(.4);
   transition:opacity .22s cubic-bezier(.32,.72,0,1),transform .32s cubic-bezier(.32,.72,0,1);
 }
-/* iOS-HUD style expand-in: pops open from a small point, like the brightness/volume pill */
 .brightness-readout.show{
   opacity:1;transform:translate(-50%,-50%) scale(1);
 }
-/* exit: slides off toward the left edge of the screen while fading, like it's leaving through the side */
 .brightness-readout.leaving{
   opacity:0;transform:translate(calc(-50% - 70px),-50%) scale(.85);
   transition:opacity .38s cubic-bezier(.4,0,1,1),transform .38s cubic-bezier(.4,0,1,1);
@@ -1349,7 +1293,6 @@ button{font-family:inherit;cursor:pointer}
   color:rgba(255,255,255,.85);
 }
 
-/* ── VOLUME SLIDER — vertical drag zone on the LEFT edge of the video frame ── */
 .volume-zone{
   position:absolute;top:0;left:0;bottom:52px;width:34%;z-index:4;
   touch-action:none;
@@ -1391,7 +1334,6 @@ button{font-family:inherit;cursor:pointer}
   color:rgba(255,255,255,.85);
 }
 
-/* ── CUSTOM MEDIA CONTROLS — inside .video-frame ── */
 video::-webkit-media-controls{display:none!important}
 video::-webkit-media-controls-enclosure{display:none!important}
 video::cue{display:none!important;visibility:hidden!important;opacity:0!important}
@@ -1399,7 +1341,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   position:absolute;bottom:0;left:0;right:0;z-index:3;
   display:flex;align-items:center;gap:6px;
   padding:10px 12px 12px;
-  pointer-events:all; /* re-enable inside frame */
+  pointer-events:all;
   background:linear-gradient(0deg,rgba(0,0,0,.78) 0%,rgba(0,0,0,.38) 55%,transparent 100%);
   opacity:0;transition:opacity .22s var(--ease);
 }
@@ -1436,13 +1378,12 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .mc-spacer{flex:1}
 .mc-layout svg,.mc-full svg,.mc-lock svg{width:16px;height:16px}
 
-/* ── LIQUID GLASS sheen on media-control buttons (CSS only, GPU layer, never touches <video>) ── */
 .mc-btn{position:relative;isolation:isolate;overflow:hidden}
 .mc-btn::before{
   content:'';position:absolute;inset:0;z-index:-1;border-radius:50%;
   background:linear-gradient(135deg,rgba(255,255,255,.32) 0%,rgba(255,255,255,.06) 38%,rgba(0,224,255,.10) 62%,rgba(124,92,255,.16) 100%);
   opacity:0;transition:opacity .25s var(--ease);
-  will-change:opacity; /* compositor-only, no layout/paint cost on the video element */
+  will-change:opacity;
 }
 .mc-btn::after{
   content:'';position:absolute;top:-60%;left:-20%;width:50%;height:220%;z-index:-1;
@@ -1453,27 +1394,22 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .mc-btn:hover::before,.mc-btn:active::before{opacity:1}
 .mc-btn:active::after{opacity:.8;transform:translateX(220%) rotate(8deg);transition:transform .5s var(--ease),opacity .2s var(--ease)}
 
-/* ── LOCK BUTTON ── */
 .mc-lock.locked{background:rgba(0,224,255,.22);box-shadow:0 2px 10px rgba(0,224,255,.35),inset 0 1px 0 rgba(255,255,255,.2)}
 
-/* when controls are locked: dim + disable every control except the lock button itself */
 .media-controls.mc-locked .mc-btn:not(.mc-lock),
 .media-controls.mc-locked .mc-vol-slider{
   opacity:.32;pointer-events:none;filter:saturate(.5);
 }
-.media-controls.mc-locked{opacity:1!important} /* keep the bar visible so the lock button stays reachable */
+.media-controls.mc-locked{opacity:1!important}
 
-/* layout-horizontal mode */
 .layout.horiz .sidebar{
   width:var(--sw);height:200px;position:static;
   display:flex;flex-direction:column;overflow:hidden;
 }
-/* vertical layout on phone — toggles layout to stacked */
 .layout.vert-phone{flex-direction:column}
 .layout.vert-phone .sidebar{width:100%;height:auto;max-height:38vh;border-right:none;border-top:1px solid var(--border)}
 .layout.vert-phone .player-area{flex:1}
 
-/* ── MAXIMIZE (force-landscape) mode — triggered by mc-full ── */
 .layout.force-landscape{
   position:fixed;inset:0;z-index:400;margin-top:0;height:100vh;width:100vw;
   background:var(--dark);
@@ -1481,22 +1417,18 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .layout.force-landscape .sidebar{display:none}
 .layout.force-landscape .player-area{flex:1;height:100%}
 @media (max-width:900px){
-  /* rotate the whole layout to fill the screen horizontally on narrow/phone viewports */
   .layout.force-landscape{
     width:100vh;height:100vw;
     top:50%;left:50%;
     transform:translate(-50%,-50%) rotate(90deg);
     transform-origin:center center;
   }
-  /* children must fill the ROTATED box (100% of its own w/h), not raw viewport units,
-     otherwise the video + controls overflow/underflow the visible area after rotation */
   .layout.force-landscape .player-area,
   .layout.force-landscape .video-wrap{
     height:100%;width:100%;
   }
 }
 
-/* ── TELEGRAM CHAT BUTTON on owner card ── */
 .owner-card{position:relative}
 .tg-chat-btn{
   position:absolute;top:10px;right:10px;
@@ -1570,7 +1502,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .user-menu-logout{color:var(--red)}
 .user-menu-logout:hover{background:rgba(255,59,92,.1)}
 
-/* ── bottom-nav settings dropdown (same visual language, no logout) ── */
 .bnav-menu-wrap{position:relative}
 .bnav-menu{
   position:absolute;bottom:calc(var(--bnav-h) + 8px);right:8px;min-width:190px;background:var(--card);
@@ -1592,7 +1523,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   .wa-btn{bottom:48px;right:10px;font-size:.7rem;padding:8px 12px}
 }
 
-/* ── BOTTOM NAV: Search / Api / Settings ── */
 .bottom-nav{
   position:fixed;left:0;right:0;bottom:0;z-index:300;height:var(--bnav-h);
   display:flex;align-items:stretch;
@@ -1643,7 +1573,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .overlay-btn-danger:hover{background:rgba(255,59,92,.1)}
 .overlay-cancel{background:transparent;border:none;color:var(--muted);font-size:.78rem;align-self:center;text-decoration:underline;cursor:pointer}
 
-/* ── Friend search overlay ── */
 .friend-search-card{max-width:380px;text-align:left}
 .fs-input-wrap{position:relative}
 .fs-input-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;opacity:.4;pointer-events:none}

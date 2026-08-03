@@ -409,8 +409,6 @@ router.get("/embed/:channel", (req, res) => {
   html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden}
   .wrap{position:relative;width:100vw;height:100vh;background:#000}
   video{width:100%;height:100%;object-fit:contain;background:#000}
-  /* ── WATERMARK — identical markup/positioning to .wm-badge on the main
-     site's .video-frame (server.js), so embeds carry the exact same mark. ── */
   .wm-badge{
     position:absolute;top:50%;right:10px;transform:translateY(-50%);z-index:5;
     display:flex;align-items:center;gap:5px;

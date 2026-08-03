@@ -57,7 +57,6 @@ function cleanDomain(raw) {
     .replace(/\/.*$/, "");
 }
 
-// ── DNS Lookup ──────────────────────────────────────────────
 const DNS_RESOLVERS = {
   A: (d) => dns.resolve4(d),
   AAAA: (d) => dns.resolve6(d),
@@ -83,8 +82,7 @@ router.post("/api/tools/dns-lookup", optionalAuth, toolGate("dns-lookup"), async
   }
 });
 
-// ── JavaScript Obfuscator ───────────────────────────────────
-const MAX_OBFUSCATE_LENGTH = 20 * 1024 * 1024; // 20MB
+const MAX_OBFUSCATE_LENGTH = 20 * 1024 * 1024;
 const OBFUSCATE_WORKER_TIMEOUT_MS = 120000;
 
 function obfuscateInWorker(code) {
@@ -132,7 +130,6 @@ router.post("/api/tools/obfuscate", optionalAuth, toolGate("obfuscate"), async (
   }
 });
 
-// ── QR Code Generator ───────────────────────────────────────
 router.post("/api/tools/qr-code", optionalAuth, toolGate("qr-code"), async (req, res) => {
   const text = String(req.body?.text || "").trim();
   if (!text) return res.status(400).json({ error: "Enter some text or a URL first." });
@@ -145,7 +142,6 @@ router.post("/api/tools/qr-code", optionalAuth, toolGate("qr-code"), async (req,
   }
 });
 
-// ── SSL Certificate Checker ─────────────────────────────────
 function checkSslCertificate(hostname) {
   return new Promise((resolve, reject) => {
     const socket = tls.connect({ host: hostname, port: 443, servername: hostname, timeout: 8000 }, () => {
@@ -181,7 +177,6 @@ router.post("/api/tools/ssl-check", optionalAuth, toolGate("ssl-check"), async (
   }
 });
 
-// ── WHOIS Lookup ─────────────────────────────────────────────
 function whoisQuery(server, query) {
   return new Promise((resolve, reject) => {
     const socket = net.createConnection({ host: server, port: 43 }, () => {
@@ -215,7 +210,6 @@ router.post("/api/tools/whois", optionalAuth, toolGate("whois"), async (req, res
   }
 });
 
-// ── Base64 Encode / Decode ──────────────────────────────────
 router.post("/api/tools/base64", optionalAuth, toolGate("base64"), async (req, res) => {
   const input = String(req.body?.input ?? "");
   const mode = req.body?.mode === "decode" ? "decode" : "encode";
@@ -231,7 +225,6 @@ router.post("/api/tools/base64", optionalAuth, toolGate("base64"), async (req, r
   }
 });
 
-// ── JWT Decoder ──────────────────────────────────────────────
 router.post("/api/tools/jwt-decode", optionalAuth, toolGate("jwt-decode"), async (req, res) => {
   const token = String(req.body?.token || "").trim();
   const parts = token.split(".");
@@ -246,7 +239,6 @@ router.post("/api/tools/jwt-decode", optionalAuth, toolGate("jwt-decode"), async
   }
 });
 
-// ── JSON Formatter ───────────────────────────────────────────
 router.post("/api/tools/json-format", optionalAuth, toolGate("json-format"), async (req, res) => {
   const input = String(req.body?.input || "");
   if (input.length > 200000) return res.status(400).json({ error: "Input is too long (max 200,000 characters)." });
@@ -258,7 +250,6 @@ router.post("/api/tools/json-format", optionalAuth, toolGate("json-format"), asy
   }
 });
 
-// ── Fancy Text Generator ─────────────────────────────────────
 const FT_UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const FT_LOWER = "abcdefghijklmnopqrstuvwxyz";
 const FT_DIGITS = "0123456789";
@@ -414,7 +405,6 @@ router.post("/api/tools/fancy-text", optionalAuth, toolGate("fancy-text"), async
   res.json({ styles });
 });
 
-// ── Password Generator ───────────────────────────────────────
 const PW_CHARSETS = {
   uppercase: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
   lowercase: "abcdefghijklmnopqrstuvwxyz",
@@ -442,7 +432,6 @@ router.post("/api/tools/password-generate", optionalAuth, toolGate("password-gen
   res.json({ password, entropyBits });
 });
 
-// ── Hash Generator ────────────────────────────────────────────
 const HASH_ALGORITHMS = ["md5", "sha1", "sha256", "sha512"];
 const MAX_HASH_INPUT_BYTES = 20 * 1024 * 1024;
 
@@ -467,7 +456,6 @@ router.post("/api/tools/hash", optionalAuth, toolGate("hash"), async (req, res) 
   res.json({ algorithm, hash, bytes: buffer.length });
 });
 
-// ── Regex Tester ──────────────────────────────────────────────
 const REGEX_WORKER_TIMEOUT_MS = 3000;
 const VALID_REGEX_FLAGS = /^[gimsuy]*$/;
 
@@ -510,7 +498,6 @@ router.post("/api/tools/regex-test", optionalAuth, toolGate("regex-test"), async
   }
 });
 
-// ── Timestamp Converter ──────────────────────────────────────
 router.post("/api/tools/timestamp", optionalAuth, toolGate("timestamp"), async (req, res) => {
   const mode = req.body?.mode === "toTimestamp" ? "toTimestamp" : "toDate";
   try {
@@ -534,7 +521,6 @@ router.post("/api/tools/timestamp", optionalAuth, toolGate("timestamp"), async (
   }
 });
 
-// ── Word & Character Counter ─────────────────────────────────
 router.post("/api/tools/word-count", optionalAuth, toolGate("word-count"), async (req, res) => {
   const text = String(req.body?.text || "");
   if (text.length > 500000) return res.status(400).json({ error: "Text is too long (max 500,000 characters)." });
@@ -547,7 +533,6 @@ router.post("/api/tools/word-count", optionalAuth, toolGate("word-count"), async
   res.json({ words, characters, charactersNoSpaces, lines, sentences, paragraphs });
 });
 
-// ── Case Converter ────────────────────────────────────────────
 function ccWords(text) {
   return text
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -576,7 +561,6 @@ router.post("/api/tools/case-convert", optionalAuth, toolGate("case-convert"), a
   res.json({ output });
 });
 
-// ── Lorem Ipsum Generator ─────────────────────────────────────
 const LOREM_WORDS = "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure in reprehenderit voluptate velit esse cillum eu fugiat nulla pariatur excepteur sint occaecat cupidatat non proident sunt culpa qui officia deserunt mollit anim id est laborum".split(" ");
 
 function loremSentence(minWords, maxWords) {
@@ -599,7 +583,6 @@ router.post("/api/tools/lorem-ipsum", optionalAuth, toolGate("lorem-ipsum"), asy
   res.json({ output });
 });
 
-// ── Slug Generator ────────────────────────────────────────────
 router.post("/api/tools/slug", optionalAuth, toolGate("slug"), async (req, res) => {
   const text = String(req.body?.text || "");
   if (!text.trim()) return res.status(400).json({ error: "Enter some text first." });
@@ -614,7 +597,6 @@ router.post("/api/tools/slug", optionalAuth, toolGate("slug"), async (req, res) 
   res.json({ output: output || "-" });
 });
 
-// ── URL Encoder / Decoder ─────────────────────────────────────
 router.post("/api/tools/url-encode", optionalAuth, toolGate("url-encode"), async (req, res) => {
   const text = String(req.body?.text || "");
   const mode = req.body?.mode === "decode" ? "decode" : "encode";
@@ -627,7 +609,6 @@ router.post("/api/tools/url-encode", optionalAuth, toolGate("url-encode"), async
   }
 });
 
-// ── HTML Entity Encoder / Decoder ────────────────────────────
 const HTML_ENTITY_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 const HTML_ENTITY_REVERSE = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'", nbsp: " " };
 
@@ -648,7 +629,6 @@ router.post("/api/tools/html-entity", optionalAuth, toolGate("html-entity"), asy
   res.json({ output });
 });
 
-// ── Hex ↔ Text ────────────────────────────────────────────────
 router.post("/api/tools/hex-text", optionalAuth, toolGate("hex-text"), async (req, res) => {
   const text = String(req.body?.text || "");
   const mode = req.body?.mode === "fromHex" ? "fromHex" : "toHex";
@@ -669,7 +649,6 @@ router.post("/api/tools/hex-text", optionalAuth, toolGate("hex-text"), async (re
   }
 });
 
-// ── Binary ↔ Text ─────────────────────────────────────────────
 router.post("/api/tools/binary-text", optionalAuth, toolGate("binary-text"), async (req, res) => {
   const text = String(req.body?.text || "");
   const mode = req.body?.mode === "fromBinary" ? "fromBinary" : "toBinary";
@@ -692,7 +671,6 @@ router.post("/api/tools/binary-text", optionalAuth, toolGate("binary-text"), asy
   }
 });
 
-// ── ROT13 / Caesar Cipher ─────────────────────────────────────
 router.post("/api/tools/caesar-cipher", optionalAuth, toolGate("caesar-cipher"), async (req, res) => {
   const text = String(req.body?.text || "");
   const shift = ((Math.round(Number(req.body?.shift ?? 13)) % 26) + 26) % 26;
@@ -705,7 +683,6 @@ router.post("/api/tools/caesar-cipher", optionalAuth, toolGate("caesar-cipher"),
   res.json({ output });
 });
 
-// ── UUID Generator ────────────────────────────────────────────
 router.post("/api/tools/uuid", optionalAuth, toolGate("uuid"), async (req, res) => {
   const count = Math.round(Number(req.body?.count ?? 1));
   if (!Number.isFinite(count) || count < 1 || count > 50) {
@@ -714,7 +691,6 @@ router.post("/api/tools/uuid", optionalAuth, toolGate("uuid"), async (req, res) 
   res.json({ uuids: Array.from({ length: count }, () => crypto.randomUUID()) });
 });
 
-// ── Color Converter ───────────────────────────────────────────
 function hexToRgb(hex) {
   const clean = hex.replace(/^#/, "");
   const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
@@ -784,7 +760,6 @@ router.post("/api/tools/color-convert", optionalAuth, toolGate("color-convert"),
   });
 });
 
-// ── Number Base Converter ─────────────────────────────────────
 router.post("/api/tools/base-convert", optionalAuth, toolGate("base-convert"), async (req, res) => {
   const input = String(req.body?.input || "").trim();
   const fromBase = Math.round(Number(req.body?.fromBase));
@@ -800,7 +775,6 @@ router.post("/api/tools/base-convert", optionalAuth, toolGate("base-convert"), a
   res.json({ output: parsed.toString(toBase).toUpperCase() });
 });
 
-// ── Roman Numeral Converter ───────────────────────────────────
 const ROMAN_TABLE = [
   [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"],
   [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
@@ -845,7 +819,6 @@ router.post("/api/tools/roman-numeral", optionalAuth, toolGate("roman-numeral"),
   }
 });
 
-// ── User Agent Parser ─────────────────────────────────────────
 function parseUserAgent(ua) {
   let browser = "Unknown", browserVersion = "";
   const browserPatterns = [
@@ -883,7 +856,6 @@ router.post("/api/tools/user-agent-parse", optionalAuth, toolGate("user-agent-pa
   res.json({ userAgent: ua, ...parseUserAgent(ua) });
 });
 
-// ── Subnet / CIDR Calculator ──────────────────────────────────
 function ipToInt(ip) {
   const parts = ip.split(".").map(Number);
   if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) return null;
@@ -918,7 +890,6 @@ router.post("/api/tools/subnet-calc", optionalAuth, toolGate("subnet-calc"), asy
   });
 });
 
-// ── Random Number Generator ───────────────────────────────────
 router.post("/api/tools/random-number", optionalAuth, toolGate("random-number"), async (req, res) => {
   const min = Math.round(Number(req.body?.min));
   const max = Math.round(Number(req.body?.max));
@@ -933,7 +904,6 @@ router.post("/api/tools/random-number", optionalAuth, toolGate("random-number"),
   res.json({ numbers });
 });
 
-// ── Coin Flip / Dice Roller ───────────────────────────────────
 router.post("/api/tools/dice-roll", optionalAuth, toolGate("dice-roll"), async (req, res) => {
   const sides = Math.round(Number(req.body?.sides ?? 6));
   const count = Math.round(Number(req.body?.count ?? 1));
@@ -947,7 +917,6 @@ router.post("/api/tools/dice-roll", optionalAuth, toolGate("dice-roll"), async (
   res.json({ rolls, total: rolls.reduce((a, b) => a + b, 0) });
 });
 
-// ── Duplicate Line Remover ────────────────────────────────────
 router.post("/api/tools/dedupe-lines", optionalAuth, toolGate("dedupe-lines"), async (req, res) => {
   const text = String(req.body?.text || "");
   const caseSensitive = !!req.body?.caseSensitive;
@@ -965,7 +934,6 @@ router.post("/api/tools/dedupe-lines", optionalAuth, toolGate("dedupe-lines"), a
   res.json({ output: output.join("\n"), removedCount: lines.length - output.length });
 });
 
-// ── Text Sorter ───────────────────────────────────────────────
 router.post("/api/tools/sort-lines", optionalAuth, toolGate("sort-lines"), async (req, res) => {
   const text = String(req.body?.text || "");
   const order = req.body?.order === "desc" ? "desc" : "asc";
@@ -980,7 +948,6 @@ router.post("/api/tools/sort-lines", optionalAuth, toolGate("sort-lines"), async
   res.json({ output: lines.join("\n") });
 });
 
-// ── Age Calculator ────────────────────────────────────────────
 router.post("/api/tools/age-calc", optionalAuth, toolGate("age-calc"), async (req, res) => {
   const raw = String(req.body?.birthDate || "").trim();
   if (!raw) return res.status(400).json({ error: "Enter a birth date first." });

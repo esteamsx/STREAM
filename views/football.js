@@ -33,7 +33,6 @@
         }
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:rgba(0,224,255,.4)}
         :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
-        /* ---- RESET & BASE ---- */
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
             font-family: var(--font-body);
@@ -52,7 +51,6 @@
             padding: calc(var(--nav-h) + 12px) 14px 24px;
         }
 
-        /* ---- TOP NAV ---- */
         .cx-nav {
             position: fixed;
             top:0; left:0; right:0;
@@ -76,7 +74,6 @@
         .fb-back svg{width:18px;height:18px}
         .fb-title{font-family:var(--font-display);font-weight:700;font-size:.95rem}
 
-        /* ---- CATEGORY TABS ---- */
         .category-tabs {
             display:flex;
             gap:8px;
@@ -105,7 +102,6 @@
         }
         .cat-tab:hover { border-color:var(--accent); }
 
-        /* ---- STICKY PLAYER ---- */
         .player-sticky {
             position:sticky;
             top:var(--nav-h);
@@ -166,7 +162,6 @@
         }
         @keyframes pulse-dot { 50%{opacity:.3} }
 
-        /* ---- STAGE ---- */
         .stage {
             position:relative;
             width:100%;
@@ -182,7 +177,6 @@
             background:#000;
         }
 
-        /* ---- WHATSAPP ---- */
         .wa-btn{
             position:absolute;bottom:58px;right:14px;z-index:10;
             display:inline-flex;align-items:center;gap:8px;
@@ -196,7 +190,6 @@
         .wa-btn:hover .wa-drag-hint{opacity:.9}
         .wa-btn.dragging{opacity:.85;cursor:grabbing!important;transform:scale(1.04)!important;transition:none!important;box-shadow:0 12px 36px rgba(37,211,102,.55)!important}
 
-        /* ---- COUNTDOWN OVERLAY ---- */
         .countdown-overlay {
             position:absolute;
             inset:0;
@@ -235,7 +228,6 @@
             color:var(--muted2);
         }
 
-        /* ---- IDLE OVERLAY ---- */
         .idle-overlay {
             position:absolute;
             inset:0;
@@ -264,7 +256,6 @@
             font-size:0.9rem;
         }
 
-        /* ---- LOADING / ERROR ---- */
         .load-overlay, .err-overlay {
             position:absolute;
             inset:0;
@@ -298,7 +289,6 @@
             cursor:pointer;
         }
 
-        /* ---- CONTROLS ---- */
         .controls {
             position:absolute;
             bottom:0; left:0; right:0;
@@ -329,7 +319,6 @@
         }
         .controls .spacer { flex:1; }
 
-        /* ---- STREAM SELECTOR ---- */
         .stream-options {
             display:flex;
             gap:8px;
@@ -355,7 +344,6 @@
             cursor:not-allowed;
         }
 
-        /* ---- MATCH DETAILS BELOW PLAYER ---- */
         .match-details {
             display:flex;
             justify-content:space-between;
@@ -386,7 +374,6 @@
             color:var(--muted);
         }
 
-        /* ---- MATCH DETAIL VIEW ---- */
         .match-detail {
             background:var(--card);
             border-radius:16px;
@@ -506,7 +493,6 @@
         }
         .match-detail .watch-btn:hover { background:var(--accent2); }
 
-        /* ---- FEATURED CARD ---- */
         .featured-card {
             background:var(--card);
             border-radius:16px;
@@ -574,7 +560,6 @@
         .featured-card .footer .round { color:var(--muted); }
         .featured-card .footer .has-stream { color:var(--accent); }
 
-        /* ---- MATCH GRID ---- */
         .match-grid {
             display:grid;
             grid-template-columns:repeat(auto-fill, minmax(180px,1fr));
@@ -650,7 +635,6 @@
         .match-card .footer .round { color:var(--muted); }
         .match-card .footer .has-stream { color:var(--accent); }
 
-        /* ---- HIGHLIGHTS ---- */
         .highlights-container {
             display:none;
             margin-top:16px;
@@ -715,7 +699,6 @@
             .match-detail .scoreboard .team img { width:36px; height:36px; }
         }
 
-        /* ---- SECTION LABEL ---- */
         .section-label {
             font-size:0.7rem;
             font-weight:800;

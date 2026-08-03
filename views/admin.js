@@ -128,24 +128,13 @@ input{font-family:inherit}
 }
 .ad-loadmore:disabled{opacity:.5}
 
-/* ── overlays (reset password + confirm) ── */
 .ad-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);z-index:60;
   display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;
   transition:opacity .25s var(--ease);
 }
-/* Without this the .show class only animated .ad-modal's transform while the
-   overlay itself stayed opacity:0 and pointer-events:none — so every confirm
-   prompt (ban, delete, change password, and the bots modal) opened correctly
-   and was simply invisible and click-through. The buttons looked dead. */
 .ad-overlay.show{opacity:1;pointer-events:auto}
 body:has(.ad-overlay.show){overflow:hidden}
-/* confirmOverlay can be opened from *within* another overlay (e.g. the
-   bots modal's stop/restart/delete buttons) — .ad-overlay's shared z-index
-   means DOM order decides stacking, and confirmOverlay is earlier in the
-   markup than botsOverlay, so it renders behind it. Reverted the z-index
-   override per request — back to original behavior (close the bots
-   overlay first, then the confirm prompt is visible underneath). */
 
 .ad-storage-row{margin-bottom:16px}
 .ad-storage-row:last-child{margin-bottom:0}
