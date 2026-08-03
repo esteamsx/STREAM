@@ -1693,7 +1693,7 @@ document.getElementById('addPasskeyBtn').addEventListener('click', async () => {
     const { startRegistration } = await import('/vendor/simplewebauthn-browser.js');
     const options = await postJSON('/api/passkey/registration-options', {});
     if (!options || !options.challenge || !options.user || !options.user.id) throw new Error('Could not start passkey setup. Try again.');
-    const response = await startRegistration(options);
+    const response = await startRegistration({ optionsJSON: options });
     await postJSON('/api/passkey/registration-verify', { ...response, name });
     nameInput.value = '';
     await loadPasskeys();

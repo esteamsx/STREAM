@@ -975,7 +975,7 @@ async function signInWithPasskey(){
     if (!options || !options.challenge) throw new Error('Could not start passkey sign-in. Try again.');
 
     stage = 'browser-prompt';
-    const response = await startAuthentication(options);
+    const response = await startAuthentication({ optionsJSON: options });
 
     stage = 'verify-with-server';
     const { customToken } = await postJSON('/api/passkey/authentication-verify', { token, ...response });
