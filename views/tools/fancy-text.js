@@ -19,7 +19,7 @@ export function renderFancyText(cfg) {
       .ft-row:last-child{border-bottom:none}
       .ft-row-name{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;flex-shrink:0;width:88px}
       .ft-row-text{flex:1;font-size:1.02rem;word-break:break-word;line-height:1.5}
-      .ft-list{background:var(--dark3);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+      .ft-list{background:var(--dark3);border:1px solid var(--border);border-radius:10px;max-height:420px;overflow-y:auto}
     `,
     script: `
       var ftInput = document.getElementById('ftInput');

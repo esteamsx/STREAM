@@ -34,6 +34,26 @@ import { renderPasswordGenerator } from "./views/tools/password-generator.js";
 import { renderHashGenerator } from "./views/tools/hash-generator.js";
 import { renderRegexTester } from "./views/tools/regex-tester.js";
 import { renderTimestampConverter } from "./views/tools/timestamp-converter.js";
+import { renderWordCounter } from "./views/tools/word-counter.js";
+import { renderCaseConverter } from "./views/tools/case-converter.js";
+import { renderLoremIpsum } from "./views/tools/lorem-ipsum.js";
+import { renderSlugGenerator } from "./views/tools/slug-generator.js";
+import { renderUrlEncoder } from "./views/tools/url-encoder.js";
+import { renderHtmlEntity } from "./views/tools/html-entity.js";
+import { renderHexText } from "./views/tools/hex-text.js";
+import { renderBinaryText } from "./views/tools/binary-text.js";
+import { renderCaesarCipher } from "./views/tools/caesar-cipher.js";
+import { renderUuidGenerator } from "./views/tools/uuid-generator.js";
+import { renderColorConverter } from "./views/tools/color-converter.js";
+import { renderBaseConverter } from "./views/tools/base-converter.js";
+import { renderRomanNumeral } from "./views/tools/roman-numeral.js";
+import { renderUserAgentParser } from "./views/tools/user-agent-parser.js";
+import { renderSubnetCalculator } from "./views/tools/subnet-calculator.js";
+import { renderRandomNumber } from "./views/tools/random-number.js";
+import { renderDiceRoller } from "./views/tools/dice-roller.js";
+import { renderDedupeLines } from "./views/tools/dedupe-lines.js";
+import { renderSortLines } from "./views/tools/sort-lines.js";
+import { renderAgeCalculator } from "./views/tools/age-calculator.js";
 import { toolsRouter } from "./routes/tools.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
@@ -340,6 +360,26 @@ const cachedToolsPasswordGeneratorHtml = renderPasswordGenerator(authPageConfig)
 const cachedToolsHashGeneratorHtml = renderHashGenerator(authPageConfig);
 const cachedToolsRegexTesterHtml = renderRegexTester(authPageConfig);
 const cachedToolsTimestampConverterHtml = renderTimestampConverter(authPageConfig);
+const cachedToolsWordCounterHtml = renderWordCounter(authPageConfig);
+const cachedToolsCaseConverterHtml = renderCaseConverter(authPageConfig);
+const cachedToolsLoremIpsumHtml = renderLoremIpsum(authPageConfig);
+const cachedToolsSlugGeneratorHtml = renderSlugGenerator(authPageConfig);
+const cachedToolsUrlEncoderHtml = renderUrlEncoder(authPageConfig);
+const cachedToolsHtmlEntityHtml = renderHtmlEntity(authPageConfig);
+const cachedToolsHexTextHtml = renderHexText(authPageConfig);
+const cachedToolsBinaryTextHtml = renderBinaryText(authPageConfig);
+const cachedToolsCaesarCipherHtml = renderCaesarCipher(authPageConfig);
+const cachedToolsUuidGeneratorHtml = renderUuidGenerator(authPageConfig);
+const cachedToolsColorConverterHtml = renderColorConverter(authPageConfig);
+const cachedToolsBaseConverterHtml = renderBaseConverter(authPageConfig);
+const cachedToolsRomanNumeralHtml = renderRomanNumeral(authPageConfig);
+const cachedToolsUserAgentParserHtml = renderUserAgentParser(authPageConfig);
+const cachedToolsSubnetCalculatorHtml = renderSubnetCalculator(authPageConfig);
+const cachedToolsRandomNumberHtml = renderRandomNumber(authPageConfig);
+const cachedToolsDiceRollerHtml = renderDiceRoller(authPageConfig);
+const cachedToolsDedupeLinesHtml = renderDedupeLines(authPageConfig);
+const cachedToolsSortLinesHtml = renderSortLines(authPageConfig);
+const cachedToolsAgeCalculatorHtml = renderAgeCalculator(authPageConfig);
 
 const cachedFootballHtml = (() => {
   try {
@@ -3656,6 +3696,86 @@ app.get("/tools/regex-tester", scrapeGate, (req, res) => {
 
 app.get("/tools/timestamp-converter", scrapeGate, (req, res) => {
   res.send(cachedToolsTimestampConverterHtml);
+});
+
+app.get("/tools/word-counter", scrapeGate, (req, res) => {
+  res.send(cachedToolsWordCounterHtml);
+});
+
+app.get("/tools/case-converter", scrapeGate, (req, res) => {
+  res.send(cachedToolsCaseConverterHtml);
+});
+
+app.get("/tools/lorem-ipsum", scrapeGate, (req, res) => {
+  res.send(cachedToolsLoremIpsumHtml);
+});
+
+app.get("/tools/slug-generator", scrapeGate, (req, res) => {
+  res.send(cachedToolsSlugGeneratorHtml);
+});
+
+app.get("/tools/url-encoder", scrapeGate, (req, res) => {
+  res.send(cachedToolsUrlEncoderHtml);
+});
+
+app.get("/tools/html-entity", scrapeGate, (req, res) => {
+  res.send(cachedToolsHtmlEntityHtml);
+});
+
+app.get("/tools/hex-text", scrapeGate, (req, res) => {
+  res.send(cachedToolsHexTextHtml);
+});
+
+app.get("/tools/binary-text", scrapeGate, (req, res) => {
+  res.send(cachedToolsBinaryTextHtml);
+});
+
+app.get("/tools/caesar-cipher", scrapeGate, (req, res) => {
+  res.send(cachedToolsCaesarCipherHtml);
+});
+
+app.get("/tools/uuid-generator", scrapeGate, (req, res) => {
+  res.send(cachedToolsUuidGeneratorHtml);
+});
+
+app.get("/tools/color-converter", scrapeGate, (req, res) => {
+  res.send(cachedToolsColorConverterHtml);
+});
+
+app.get("/tools/base-converter", scrapeGate, (req, res) => {
+  res.send(cachedToolsBaseConverterHtml);
+});
+
+app.get("/tools/roman-numeral", scrapeGate, (req, res) => {
+  res.send(cachedToolsRomanNumeralHtml);
+});
+
+app.get("/tools/user-agent-parser", scrapeGate, (req, res) => {
+  res.send(cachedToolsUserAgentParserHtml);
+});
+
+app.get("/tools/subnet-calculator", scrapeGate, (req, res) => {
+  res.send(cachedToolsSubnetCalculatorHtml);
+});
+
+app.get("/tools/random-number", scrapeGate, (req, res) => {
+  res.send(cachedToolsRandomNumberHtml);
+});
+
+app.get("/tools/dice-roller", scrapeGate, (req, res) => {
+  res.send(cachedToolsDiceRollerHtml);
+});
+
+app.get("/tools/dedupe-lines", scrapeGate, (req, res) => {
+  res.send(cachedToolsDedupeLinesHtml);
+});
+
+app.get("/tools/sort-lines", scrapeGate, (req, res) => {
+  res.send(cachedToolsSortLinesHtml);
+});
+
+app.get("/tools/age-calculator", scrapeGate, (req, res) => {
+  res.send(cachedToolsAgeCalculatorHtml);
 });
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {
