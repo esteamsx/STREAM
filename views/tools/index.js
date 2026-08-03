@@ -55,6 +55,30 @@ const TOOLS = [
     desc: "Bold, italic, script, circled and other stylish Unicode fonts.",
     icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 7V5h16v2M9 5v14m0 0h6M9 19H9"/>`,
   },
+  {
+    href: "/tools/password-generator",
+    name: "Password Generator",
+    desc: "Strong, cryptographically random passwords.",
+    icon: `<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>`,
+  },
+  {
+    href: "/tools/hash-generator",
+    name: "Hash Generator",
+    desc: "MD5, SHA-1, SHA-256 and SHA-512 for text or files.",
+    icon: `<path stroke-linecap="round" d="M5 9h14M5 15h14M9 3L7 21M17 3l-2 18"/>`,
+  },
+  {
+    href: "/tools/regex-tester",
+    name: "Regex Tester",
+    desc: "Test a regular expression and see every match.",
+    icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 4v16M15 4v16M4 9h16M4 15h16"/>`,
+  },
+  {
+    href: "/tools/timestamp-converter",
+    name: "Timestamp Converter",
+    desc: "Unix timestamps to and from human-readable dates.",
+    icon: `<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/>`,
+  },
 ];
 
 export function renderToolsIndex(cfg) {

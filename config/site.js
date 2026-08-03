@@ -148,6 +148,30 @@ export const PAGES = {
     description: "Turn text into bold, italic, script, circled and other stylish Unicode fonts.",
     auth: "public",
   },
+  toolsPasswordGenerator: {
+    path: "/tools/password-generator",
+    title: `Password Generator — ${SITE.name}`,
+    description: "Generate strong, cryptographically random passwords.",
+    auth: "public",
+  },
+  toolsHashGenerator: {
+    path: "/tools/hash-generator",
+    title: `Hash Generator — ${SITE.name}`,
+    description: "MD5, SHA-1, SHA-256 and SHA-512 hashes for text or files.",
+    auth: "public",
+  },
+  toolsRegexTester: {
+    path: "/tools/regex-tester",
+    title: `Regex Tester — ${SITE.name}`,
+    description: "Test a regular expression against text and see every match.",
+    auth: "public",
+  },
+  toolsTimestampConverter: {
+    path: "/tools/timestamp-converter",
+    title: `Timestamp Converter — ${SITE.name}`,
+    description: "Convert between Unix timestamps and human-readable dates.",
+    auth: "public",
+  },
 };
 
 export const PATH_ALIASES = {

@@ -30,6 +30,10 @@ import { renderBase64 } from "./views/tools/base64.js";
 import { renderJwtDecode } from "./views/tools/jwt-decode.js";
 import { renderJsonFormatter } from "./views/tools/json-formatter.js";
 import { renderFancyText } from "./views/tools/fancy-text.js";
+import { renderPasswordGenerator } from "./views/tools/password-generator.js";
+import { renderHashGenerator } from "./views/tools/hash-generator.js";
+import { renderRegexTester } from "./views/tools/regex-tester.js";
+import { renderTimestampConverter } from "./views/tools/timestamp-converter.js";
 import { toolsRouter } from "./routes/tools.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
@@ -332,6 +336,10 @@ const cachedToolsBase64Html = renderBase64(authPageConfig);
 const cachedToolsJwtDecodeHtml = renderJwtDecode(authPageConfig);
 const cachedToolsJsonFormatterHtml = renderJsonFormatter(authPageConfig);
 const cachedToolsFancyTextHtml = renderFancyText(authPageConfig);
+const cachedToolsPasswordGeneratorHtml = renderPasswordGenerator(authPageConfig);
+const cachedToolsHashGeneratorHtml = renderHashGenerator(authPageConfig);
+const cachedToolsRegexTesterHtml = renderRegexTester(authPageConfig);
+const cachedToolsTimestampConverterHtml = renderTimestampConverter(authPageConfig);
 
 const cachedFootballHtml = (() => {
   try {
@@ -3632,6 +3640,22 @@ app.get("/tools/json-formatter", scrapeGate, (req, res) => {
 
 app.get("/tools/fancy-text", scrapeGate, (req, res) => {
   res.send(cachedToolsFancyTextHtml);
+});
+
+app.get("/tools/password-generator", scrapeGate, (req, res) => {
+  res.send(cachedToolsPasswordGeneratorHtml);
+});
+
+app.get("/tools/hash-generator", scrapeGate, (req, res) => {
+  res.send(cachedToolsHashGeneratorHtml);
+});
+
+app.get("/tools/regex-tester", scrapeGate, (req, res) => {
+  res.send(cachedToolsRegexTesterHtml);
+});
+
+app.get("/tools/timestamp-converter", scrapeGate, (req, res) => {
+  res.send(cachedToolsTimestampConverterHtml);
 });
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {

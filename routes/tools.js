@@ -2,6 +2,7 @@ import express from "express";
 import dns from "node:dns/promises";
 import tls from "node:tls";
 import net from "node:net";
+import crypto from "node:crypto";
 import { Worker } from "node:worker_threads";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -346,6 +347,126 @@ router.post("/api/tools/fancy-text", optionalAuth, toolGate("fancy-text"), async
   const styles = FT_STYLES.map((s) => ({ name: s.name, text: ftApply(text, s.map) }));
   styles.push({ name: "Upside Down", text: ftUpsideDown(text) });
   res.json({ styles });
+});
+
+// ── Password Generator ───────────────────────────────────────
+const PW_CHARSETS = {
+  uppercase: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+  lowercase: "abcdefghijklmnopqrstuvwxyz",
+  numbers: "0123456789",
+  symbols: "!@#$%^&*()-_=+[]{};:,.<>?",
+};
+
+router.post("/api/tools/password-generate", optionalAuth, toolGate("password-generate"), async (req, res) => {
+  const length = Math.round(Number(req.body?.length));
+  const sets = req.body?.sets && typeof req.body.sets === "object" ? req.body.sets : {};
+  if (!Number.isFinite(length) || length < 4 || length > 128) {
+    return res.status(400).json({ error: "Length must be between 4 and 128." });
+  }
+  const pool = Object.keys(PW_CHARSETS)
+    .filter((key) => sets[key])
+    .map((key) => PW_CHARSETS[key])
+    .join("");
+  if (!pool) return res.status(400).json({ error: "Pick at least one character type." });
+
+  let password = "";
+  for (let i = 0; i < length; i++) {
+    password += pool[crypto.randomInt(pool.length)];
+  }
+  const entropyBits = Math.round(length * Math.log2(pool.length));
+  res.json({ password, entropyBits });
+});
+
+// ── Hash Generator ────────────────────────────────────────────
+const HASH_ALGORITHMS = ["md5", "sha1", "sha256", "sha512"];
+const MAX_HASH_INPUT_BYTES = 20 * 1024 * 1024;
+
+router.post("/api/tools/hash", optionalAuth, toolGate("hash"), async (req, res) => {
+  const algorithm = String(req.body?.algorithm || "sha256").toLowerCase();
+  if (!HASH_ALGORITHMS.includes(algorithm)) return res.status(400).json({ error: "Unsupported algorithm." });
+
+  let buffer;
+  try {
+    if (req.body?.fileBase64) {
+      buffer = Buffer.from(String(req.body.fileBase64), "base64");
+    } else {
+      buffer = Buffer.from(String(req.body?.text ?? ""), "utf8");
+    }
+  } catch {
+    return res.status(400).json({ error: "Could not read that input." });
+  }
+  if (!buffer.length) return res.status(400).json({ error: "Enter some text or choose a file first." });
+  if (buffer.length > MAX_HASH_INPUT_BYTES) return res.status(400).json({ error: "Input is too large (max 20MB)." });
+
+  const hash = crypto.createHash(algorithm).update(buffer).digest("hex");
+  res.json({ algorithm, hash, bytes: buffer.length });
+});
+
+// ── Regex Tester ──────────────────────────────────────────────
+const REGEX_WORKER_TIMEOUT_MS = 3000;
+const VALID_REGEX_FLAGS = /^[gimsuy]*$/;
+
+function runRegexInWorker(pattern, flags, testString) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, "tools-regex-worker.js"), {
+      workerData: { pattern, flags, testString },
+    });
+    const timer = setTimeout(() => {
+      worker.terminate();
+      reject(new Error("That pattern took too long to run against this text — it may be catastrophically slow (ReDoS). Try a simpler pattern."));
+    }, REGEX_WORKER_TIMEOUT_MS);
+    worker.once("message", (msg) => {
+      clearTimeout(timer);
+      worker.terminate();
+      if (msg.ok) resolve(msg);
+      else reject(new Error(msg.error || "Invalid regular expression."));
+    });
+    worker.once("error", (err) => {
+      clearTimeout(timer);
+      reject(new Error(err.message || "Could not run that pattern."));
+    });
+  });
+}
+
+router.post("/api/tools/regex-test", optionalAuth, toolGate("regex-test"), async (req, res) => {
+  const pattern = String(req.body?.pattern || "");
+  const flags = String(req.body?.flags || "");
+  const testString = String(req.body?.testString || "");
+  if (!pattern) return res.status(400).json({ error: "Enter a regular expression first." });
+  if (pattern.length > 2000) return res.status(400).json({ error: "Pattern is too long." });
+  if (testString.length > 200000) return res.status(400).json({ error: "Test string is too long (max 200,000 characters)." });
+  if (!VALID_REGEX_FLAGS.test(flags)) return res.status(400).json({ error: "Invalid flags — only g, i, m, s, u, y are supported." });
+
+  try {
+    const result = await runRegexInWorker(pattern, flags, testString);
+    res.json({ matches: result.matches, truncated: result.truncated });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not run that pattern." });
+  }
+});
+
+// ── Timestamp Converter ──────────────────────────────────────
+router.post("/api/tools/timestamp", optionalAuth, toolGate("timestamp"), async (req, res) => {
+  const mode = req.body?.mode === "toTimestamp" ? "toTimestamp" : "toDate";
+  try {
+    if (mode === "toDate") {
+      const raw = req.body?.timestamp;
+      const num = Number(raw);
+      if (!Number.isFinite(num)) return res.status(400).json({ error: "Enter a valid Unix timestamp." });
+      const ms = Math.abs(num) > 1e12 ? num : num * 1000;
+      const date = new Date(ms);
+      if (Number.isNaN(date.getTime())) return res.status(400).json({ error: "That timestamp is out of range." });
+      res.json({ iso: date.toISOString(), utc: date.toUTCString(), unixSeconds: Math.floor(date.getTime() / 1000), unixMillis: date.getTime() });
+    } else {
+      const raw = String(req.body?.dateString || "").trim();
+      if (!raw) return res.status(400).json({ error: "Enter a date first." });
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return res.status(400).json({ error: "Could not parse that date." });
+      res.json({ iso: date.toISOString(), utc: date.toUTCString(), unixSeconds: Math.floor(date.getTime() / 1000), unixMillis: date.getTime() });
+    }
+  } catch {
+    res.status(400).json({ error: "Could not process that input." });
+  }
 });
 
 export { router as toolsRouter };
