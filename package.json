@@ -17,9 +17,6 @@
     "obfuscate:security": "javascript-obfuscator middleware/security-middleware.js --output dist/middleware/security-middleware.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
     "obfuscate:all": "npm run obfuscate:server && npm run obfuscate:admin && npm run obfuscate:account && npm run obfuscate:profile && npm run obfuscate:login && npm run obfuscate:lock && npm run obfuscate:security"
   },
-  "devDependencies": {
-    "javascript-obfuscator": "^4.1.1"
-  },
   "dependencies": {
     "altcha-lib": "^1.2.0",
     "express": "^4.18.2",
@@ -32,6 +29,7 @@
     "qrcode": "^1.5.3",
     "@simplewebauthn/server": "^13.0.0",
     "helmet": "^8.3.0",
-    "ipaddr.js": "^2.4.0"
+    "ipaddr.js": "^2.4.0",
+    "javascript-obfuscator": "^4.1.1"
   }
 }

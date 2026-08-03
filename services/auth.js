@@ -1934,6 +1934,23 @@ function requireAuth(req, res, next) {
     .catch(() => res.status(401).json({ error: "not_authenticated" }));
 }
 
+async function optionalAuth(req, res, next) {
+  try {
+    const sessionId = req.cookies?.session;
+    const uid = sessionId ? await verifySession(sessionId) : null;
+    if (uid) {
+      const profile = await getUserProfile(uid);
+      if (profile && !profile.pendingDeletion && !profile.banned && !isSessionRevoked(sessionId, profile)) {
+        req.uid = uid;
+        req.userProfile = profile;
+      }
+    }
+  } catch {
+    // Anonymous access is allowed here — just proceed without a profile.
+  }
+  next();
+}
+
 const ADMIN_PAGE_SIZE = 20;
 
 function adminUserView(uid, data) {
@@ -2196,6 +2213,7 @@ export {
   notifyProfileViewed,
   searchUsersByUsername,
   requireAuth,
+  optionalAuth,
   isAdminEmail,
   SESSION_TTL_MS,
 };

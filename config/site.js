@@ -88,6 +88,60 @@ export const PAGES = {
     description: `Copyright and takedown policy for ${SITE.name}.`,
     auth: "public",
   },
+  tools: {
+    path: "/tools",
+    title: `Free Tools — ${SITE.name}`,
+    description: "Free developer and network tools — DNS lookup, JS obfuscator, QR codes, SSL checker, WHOIS, and more.",
+    auth: "public",
+  },
+  toolsDnsLookup: {
+    path: "/tools/dns-lookup",
+    title: `DNS Lookup — ${SITE.name}`,
+    description: "Look up A, AAAA, MX, TXT, NS, CNAME and SOA records for any domain.",
+    auth: "public",
+  },
+  toolsObfuscate: {
+    path: "/tools/obfuscate",
+    title: `JavaScript Obfuscator — ${SITE.name}`,
+    description: "Obfuscate JavaScript source code right in your browser.",
+    auth: "public",
+  },
+  toolsQrCode: {
+    path: "/tools/qr-code",
+    title: `QR Code Generator — ${SITE.name}`,
+    description: "Turn any text or URL into a scannable QR code.",
+    auth: "public",
+  },
+  toolsSslChecker: {
+    path: "/tools/ssl-checker",
+    title: `SSL Certificate Checker — ${SITE.name}`,
+    description: "Check a domain's TLS certificate — issuer, expiry and validity.",
+    auth: "public",
+  },
+  toolsWhois: {
+    path: "/tools/whois",
+    title: `WHOIS Lookup — ${SITE.name}`,
+    description: "Look up domain registration info for any domain.",
+    auth: "public",
+  },
+  toolsBase64: {
+    path: "/tools/base64",
+    title: `Base64 Encode / Decode — ${SITE.name}`,
+    description: "Encode or decode Base64 text instantly.",
+    auth: "public",
+  },
+  toolsJwtDecode: {
+    path: "/tools/jwt-decode",
+    title: `JWT Decoder — ${SITE.name}`,
+    description: "Decode a JSON Web Token's header and payload.",
+    auth: "public",
+  },
+  toolsJsonFormatter: {
+    path: "/tools/json-formatter",
+    title: `JSON Formatter — ${SITE.name}`,
+    description: "Format and validate JSON instantly.",
+    auth: "public",
+  },
 };
 
 export const PATH_ALIASES = {
@@ -150,7 +204,7 @@ export function siteHead({ title, description, path = "/", image = "/og.png", ty
   const absoluteImage = image.startsWith("http") ? image : origin + image;
 
   return `${ICON_TAGS}
-<meta name="theme-color" content="${SITE.themeColor}">
+<meta name="theme-color" id="themeColorMeta" content="${SITE.themeColor}">
 <meta name="application-name" content="${escapeAttr(SITE.name)}">
 <meta name="apple-mobile-web-app-title" content="${escapeAttr(SITE.short)}">
 <meta name="apple-mobile-web-app-capable" content="yes">

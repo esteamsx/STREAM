@@ -44,10 +44,11 @@ export const botBlocker = (req, res, next) => {
 };
 
 export class SimpleRateLimiter {
-  constructor(maxRequests = 100, windowMs = 60000, keyFn = (req) => req.ip) {
+  constructor(maxRequests = 100, windowMs = 60000, keyFn = (req) => req.ip, message = "Too many requests. Please slow down.") {
     this.maxRequests = maxRequests;
     this.windowMs = windowMs;
     this.keyFn = keyFn;
+    this.message = message;
     this.hits = new Map();
     setInterval(() => {
       const now = Date.now();
@@ -67,7 +68,7 @@ export class SimpleRateLimiter {
 
       if (timestamps.length >= this.maxRequests) {
         console.warn(`⚠️ Rate limit exceeded: ${key} on ${req.path}`);
-        return res.status(429).json({ error: "Too many requests. Please slow down." });
+        return res.status(429).json({ error: this.message });
       }
 
       timestamps.push(now);

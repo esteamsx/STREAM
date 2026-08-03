@@ -20,6 +20,16 @@ import { domainLock } from "./middleware/lock.js";
 import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
 import { renderDeployBot } from "./views/deploy-bot.js";
+import { renderToolsIndex } from "./views/tools-index.js";
+import { renderDnsLookup } from "./views/tools-dns-lookup.js";
+import { renderObfuscate } from "./views/tools-obfuscate.js";
+import { renderQrCode } from "./views/tools-qr-code.js";
+import { renderSslChecker } from "./views/tools-ssl-checker.js";
+import { renderWhois } from "./views/tools-whois.js";
+import { renderBase64 } from "./views/tools-base64.js";
+import { renderJwtDecode } from "./views/tools-jwt-decode.js";
+import { renderJsonFormatter } from "./views/tools-json-formatter.js";
+import { toolsRouter } from "./routes/tools.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -247,6 +257,7 @@ app.use(crossOriginWriteGuard);
 app.use(express.json({ limit: "3mb" }));
 app.use(cookieParser());
 app.use(apiRouter);
+app.use(toolsRouter);
 
 const authPageConfig = {
   firebaseConfig: {
@@ -310,6 +321,15 @@ const cachedDmcaHtml = renderDmca(authPageConfig);
 const cachedPrivacyHtml = renderPrivacy(authPageConfig);
 const cachedDevelopersHtml = renderDevelopers(authPageConfig);
 const cachedDeployBotHtml = renderDeployBot(authPageConfig);
+const cachedToolsIndexHtml = renderToolsIndex(authPageConfig);
+const cachedToolsDnsLookupHtml = renderDnsLookup(authPageConfig);
+const cachedToolsObfuscateHtml = renderObfuscate(authPageConfig);
+const cachedToolsQrCodeHtml = renderQrCode(authPageConfig);
+const cachedToolsSslCheckerHtml = renderSslChecker(authPageConfig);
+const cachedToolsWhoisHtml = renderWhois(authPageConfig);
+const cachedToolsBase64Html = renderBase64(authPageConfig);
+const cachedToolsJwtDecodeHtml = renderJwtDecode(authPageConfig);
+const cachedToolsJsonFormatterHtml = renderJsonFormatter(authPageConfig);
 
 const cachedFootballHtml = (() => {
   try {
@@ -397,6 +417,7 @@ document.addEventListener('contextmenu', function(e){
 </script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${siteHeadFor("home")}
+<script>(function(){var m=document.getElementById('themeColorMeta');if(m)m.setAttribute('content',document.documentElement.getAttribute('data-theme')==='light'?'#F5F6FA':'#0A0A0F');})();</script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2005,6 +2026,10 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         <svg class="umi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         Search
       </button>
+      <a href="/tools" class="user-menu-item">
+        <svg class="umi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        All Tools
+      </a>
     </div>
   </div>
   <div class="bnav-item bnav-menu-wrap">
@@ -3565,6 +3590,42 @@ app.get("/developers", scrapeGate, (req, res) => {
 
 app.get("/deploy-bot", scrapeGate, requireUser, (req, res) => {
   res.send(cachedDeployBotHtml);
+});
+
+app.get("/tools", scrapeGate, (req, res) => {
+  res.send(cachedToolsIndexHtml);
+});
+
+app.get("/tools/dns-lookup", scrapeGate, (req, res) => {
+  res.send(cachedToolsDnsLookupHtml);
+});
+
+app.get("/tools/obfuscate", scrapeGate, (req, res) => {
+  res.send(cachedToolsObfuscateHtml);
+});
+
+app.get("/tools/qr-code", scrapeGate, (req, res) => {
+  res.send(cachedToolsQrCodeHtml);
+});
+
+app.get("/tools/ssl-checker", scrapeGate, (req, res) => {
+  res.send(cachedToolsSslCheckerHtml);
+});
+
+app.get("/tools/whois", scrapeGate, (req, res) => {
+  res.send(cachedToolsWhoisHtml);
+});
+
+app.get("/tools/base64", scrapeGate, (req, res) => {
+  res.send(cachedToolsBase64Html);
+});
+
+app.get("/tools/jwt-decode", scrapeGate, (req, res) => {
+  res.send(cachedToolsJwtDecodeHtml);
+});
+
+app.get("/tools/json-formatter", scrapeGate, (req, res) => {
+  res.send(cachedToolsJsonFormatterHtml);
 });
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {
