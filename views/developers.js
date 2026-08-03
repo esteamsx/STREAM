@@ -673,11 +673,17 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   function formatCreated(iso){
     return new Date(iso).toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
   }
+  function formatShortDate(iso){
+    return new Date(iso).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  }
   function linkItemHtml(l, i){
     var isActive = l.status === 'active';
+    var expiredMs = Date.now() - new Date(l.expires_at).getTime();
     var timeText = isActive
       ? (formatDuration(l.ms_left) + ' left')
-      : ('Expired ' + formatDuration(Date.now() - new Date(l.expires_at).getTime()) + ' ago');
+      : (expiredMs >= 24 * 60 * 60 * 1000
+          ? ('Expired ' + formatShortDate(l.expires_at))
+          : ('Expired ' + formatDuration(expiredMs) + ' ago'));
     return '<div class="link-item" data-idx="' + i + '">' +
       '<div class="link-item-main">' +
         '<span class="link-channel">' + esc(l.channel_name) + '</span>' +
