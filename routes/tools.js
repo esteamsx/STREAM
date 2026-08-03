@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { verifySolution } from "altcha-lib";
 import QRCode from "qrcode";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
-import { optionalAuth, isAdminEmail } from "../services/auth.js";
+import { optionalAuth, isAdminEmail, isVerificationActive } from "../services/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = express.Router();
@@ -41,7 +41,7 @@ function toolGate(toolName) {
       return res.status(400).json({ error: "Captcha not completed." });
     }
     const profile = req.userProfile;
-    const privileged = !!(profile && (isAdminEmail(profile.email) || profile.verified));
+    const privileged = !!(profile && (isAdminEmail(profile.email) || isVerificationActive(profile)));
     if (privileged) return next();
     return limiterMw(req, res, next);
   };

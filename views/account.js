@@ -13,12 +13,13 @@ ${siteHeadFor("account")}
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
 <script async defer src="https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js" type="module"></script>
+<script src="https://js.paystack.co/v1/inline.js"></script>
 <style>
 ${cfg.protectionCSS || ""}
 :root{
-  --red:#FF3B5C;--accent:#00E0FF;--accent2:#7c5cff;
+  --red:#FF3B5C;--green:#12C48B;--accent:#00E0FF;--accent2:#7c5cff;
   --dark:#0A0A0F;--dark3:#13131C;--card:#15151F;--card2:#1B1B27;
   --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.13);
   --text:#F3F3FA;--muted:rgba(255,255,255,.42);--muted2:rgba(255,255,255,.22);
@@ -26,6 +27,7 @@ ${cfg.protectionCSS || ""}
   --font-display:'Space Grotesk',Inter,-apple-system,sans-serif;
   --font-body:'Inter',-apple-system,sans-serif;
   --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  --font-script:'Dancing Script',cursive;
   --ease:cubic-bezier(.22,1,.36,1);
 }
 :root[data-theme="light"]{
@@ -93,7 +95,7 @@ input{font-family:inherit}
 .acc-hero-email{font-size:.8rem;color:var(--muted);margin-top:2px}
 
 .acc-verify-link{
-  display:flex;align-items:center;gap:5px;flex-shrink:0;
+  display:flex;align-items:center;gap:5px;flex-shrink:0;border:none;cursor:pointer;
   background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;
   font-size:.72rem;font-weight:700;padding:7px 12px;border-radius:20px;text-decoration:none;
   transition:transform .15s var(--ease),box-shadow .15s var(--ease);
@@ -398,6 +400,73 @@ body:has(.page-overlay.show){overflow:hidden}
 .notif-swipe-bg.mode-read{background:linear-gradient(90deg,rgba(0,224,255,.2),rgba(0,224,255,.04));color:var(--accent);justify-content:flex-start}
 .notif-swipe-bg.mode-delete{background:linear-gradient(270deg,rgba(255,59,92,.2),rgba(255,59,92,.04));color:var(--red);justify-content:flex-end}
 .notif-swipe-icon svg{width:16px;height:16px;display:block}
+
+.verify-icon-wrap{
+  width:56px;height:56px;border-radius:16px;margin:0 auto;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;
+}
+.verify-icon-wrap svg{width:28px;height:28px}
+.verify-benefits{display:flex;flex-direction:column;gap:9px;margin:2px 0}
+.verify-benefit{display:flex;align-items:center;gap:9px;font-size:.82rem;color:var(--text)}
+.verify-benefit svg{width:16px;height:16px;color:var(--green);flex-shrink:0}
+.verify-price-row{
+  display:flex;align-items:baseline;justify-content:center;gap:6px;padding:14px 0;
+  border-top:1px dashed var(--border-strong);border-bottom:1px dashed var(--border-strong);
+}
+.verify-price{font-family:var(--font-display);font-size:1.9rem;font-weight:700;color:var(--text)}
+.verify-price-period{font-size:.78rem;color:var(--muted)}
+.acc-msg{font-size:.78rem;line-height:1.4;display:none}
+.acc-msg.show{display:block}
+.acc-msg.err{color:var(--red)}
+.acc-msg.ok{color:var(--green)}
+.verify-success-icon{
+  width:64px;height:64px;border-radius:50%;margin:4px auto 0;display:flex;align-items:center;justify-content:center;
+  background:rgba(18,196,139,.12);color:var(--green);
+}
+.verify-success-icon svg{width:32px;height:32px}
+
+.cert-overlay-inner{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:420px}
+.cert-close{position:absolute;top:16px;right:16px;background:rgba(0,0,0,.3);color:#fff;z-index:2}
+.cert-close:hover{background:rgba(0,0,0,.5);color:#fff}
+.cert-card{
+  position:relative;width:100%;background:linear-gradient(160deg,var(--card),var(--card2));
+  border:1px solid var(--border-strong);border-radius:18px;padding:26px 24px 20px;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);transition:filter .2s var(--ease);
+}
+.cert-card::before{
+  content:"";position:absolute;inset:8px;border:1px solid rgba(0,224,255,.18);border-radius:12px;pointer-events:none;
+}
+.cert-card.expired{filter:grayscale(.85) opacity(.8) contrast(.92)}
+.cert-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.cert-brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:.95rem;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.cert-brand svg{width:20px;height:20px;color:var(--accent);flex-shrink:0}
+.cert-status-chip{
+  font-size:.66rem;font-weight:700;letter-spacing:.06em;padding:4px 10px;border-radius:20px;
+  background:rgba(18,196,139,.12);color:var(--green);border:1px solid rgba(18,196,139,.3);
+}
+.cert-status-chip.expired{background:rgba(255,59,92,.12);color:var(--red);border-color:rgba(255,59,92,.3)}
+.cert-label{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px}
+.cert-name{font-family:var(--font-display);font-weight:700;font-size:1.3rem;color:var(--text);text-align:center;margin-bottom:2px}
+.cert-username{font-size:.82rem;color:var(--muted);text-align:center;margin-bottom:18px}
+.cert-divider{height:1px;background:var(--border-strong);margin-bottom:16px}
+.cert-meta-row{display:flex;justify-content:space-between;margin-bottom:20px}
+.cert-meta-label{display:block;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px}
+.cert-meta-val{display:block;font-family:var(--font-mono);font-size:.82rem;color:var(--text)}
+.cert-meta-row div:last-child{text-align:right}
+.cert-signature{font-family:var(--font-script);font-size:1.7rem;color:var(--accent2);text-align:center;line-height:1}
+.cert-signature-label{font-size:.64rem;color:var(--muted);text-align:center;margin-top:6px;text-transform:uppercase;letter-spacing:.06em}
+.cert-tear-edge{display:none;height:14px;margin:16px -24px -20px;
+  background:
+    linear-gradient(135deg, var(--dark) 25%, transparent 25%) -7px 0,
+    linear-gradient(225deg, var(--dark) 25%, transparent 25%) -7px 0,
+    linear-gradient(315deg, var(--dark) 25%, transparent 25%) 0 0,
+    linear-gradient(45deg,  var(--dark) 25%, transparent 25%) 0 0;
+  background-size:14px 14px;background-repeat:repeat-x;
+}
+.cert-card.expired .cert-tear-edge{display:block}
+.cert-download-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px}
+.cert-download-btn svg{width:16px;height:16px}
 </style>
 </head>
 <body>
@@ -426,10 +495,10 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="acc-hero-name" id="heroName">Hi, –</div>
       <div class="acc-hero-email" id="heroEmail">–</div>
     </div>
-    <a class="acc-verify-link" id="getVerifiedLink" href="https://telegram.me/examsolutionteam" target="_blank" rel="noopener noreferrer" style="display:none">
+    <button type="button" class="acc-verify-link" id="getVerifiedLink" style="display:none">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
-      Get Verified
-    </a>
+      <span id="getVerifiedLinkLabel">Get Verified</span>
+    </button>
     <button class="acc-settings-icon" id="themeToggle" aria-label="Toggle theme">
       <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -899,6 +968,81 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 </div>
 
+<div class="page-overlay" id="verifyOverlay">
+  <div class="overlay-card" style="max-width:380px">
+    <div class="overlay-step active" id="verifyStepIntro">
+      <div class="verify-icon-wrap">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
+      </div>
+      <div class="overlay-title" style="text-align:center">Get Verified</div>
+      <div class="overlay-sub" style="text-align:center">Stand out with a verified badge and a personal ES TEAMS TV certificate.</div>
+      <div class="verify-benefits">
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified badge on your profile</div>
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Unlimited use of every free tool</div>
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>A downloadable verification certificate</div>
+      </div>
+      <div class="verify-price-row">
+        <span class="verify-price" id="verifyPriceLabel">₦1,500</span>
+        <span class="verify-price-period">/ 30 days</span>
+      </div>
+      <div class="acc-msg err" id="verifyIntroMsg"></div>
+      <button class="acc-btn" id="verifyPayBtn" style="width:100%">Pay & Verify</button>
+      <button class="overlay-cancel" id="verifyCancel1">Cancel</button>
+    </div>
+    <div class="overlay-step" id="verifyStepProcessing">
+      <div class="acc-loader-ring" style="margin:6px auto"></div>
+      <div class="overlay-sub" style="text-align:center">Confirming your payment…</div>
+    </div>
+    <div class="overlay-step" id="verifyStepSuccess">
+      <div class="verify-success-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div class="overlay-title" style="text-align:center">You are now Verified</div>
+      <div class="overlay-sub" style="text-align:center">Your certificate is ready — valid for 30 days.</div>
+      <button class="acc-btn" id="verifyViewCertBtn" style="width:100%">View Certificate</button>
+      <button class="overlay-cancel" id="verifyCancel2">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-overlay" id="certOverlay">
+  <div class="cert-overlay-inner">
+    <button type="button" class="flist-close cert-close" id="certCloseBtn" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="cert-card" id="certCard">
+      <div class="cert-card-top">
+        <div class="cert-brand">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          ES TEAMS TV
+        </div>
+        <div class="cert-status-chip" id="certStatusChip">VALID</div>
+      </div>
+      <div class="cert-label">Certificate of Verification</div>
+      <div class="cert-name" id="certName">–</div>
+      <div class="cert-username" id="certUsername">–</div>
+      <div class="cert-divider"></div>
+      <div class="cert-meta-row">
+        <div>
+          <span class="cert-meta-label">Issued</span>
+          <span class="cert-meta-val" id="certIssued">–</span>
+        </div>
+        <div>
+          <span class="cert-meta-label">Expires</span>
+          <span class="cert-meta-val" id="certExpires">–</span>
+        </div>
+      </div>
+      <div class="cert-signature" id="certSignature">–</div>
+      <div class="cert-signature-label">Authorized Signature — ES TEAMS TV</div>
+      <div class="cert-tear-edge"></div>
+    </div>
+    <button type="button" class="acc-btn cert-download-btn" id="certDownloadBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+      Download Certificate
+    </button>
+  </div>
+</div>
+
 <a class="acc-deploy-fab" href="/deploy-bot" aria-label="Deploy Bot" title="Deploy Bot">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
     <rect x="3" y="11" width="18" height="10" rx="2"/>
@@ -912,6 +1056,7 @@ body:has(.page-overlay.show){overflow:hidden}
 const params = new URLSearchParams(window.location.search);
 const resetToken = params.get('resetToken');
 const VERIFIED_BADGE = '<svg class="verified-badge" viewBox="0 0 24 24" width="15" height="15" aria-label="Verified"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
+const PAYSTACK_PUBLIC_KEY = ${JSON.stringify(cfg.paystackPublicKey || "")};
 
 document.getElementById('accBackBtn').addEventListener('click', () => {
   if (window.history.length > 1) window.history.back();
@@ -1255,7 +1400,7 @@ async function loadProfile(){
   }
   
   document.getElementById('heroName').innerHTML = 'Hi, ' + profile.firstName + ((profile.isAdmin || profile.verified) ? VERIFIED_BADGE : '');
-  document.getElementById('getVerifiedLink').style.display = (profile.isAdmin || profile.verified) ? 'none' : 'flex';
+  updateVerifyButton();
   updateHeroIdentity();
   document.getElementById('firstName').value = profile.firstName || '';
   document.getElementById('lastName').value = profile.lastName || '';
@@ -1460,6 +1605,17 @@ function notifRender(list){
       viewBtn.className = 'notif-view-post-btn';
       viewBtn.textContent = 'View Post';
       viewBtn.addEventListener('click', () => { window.location.href = n.meta.postUrl; });
+      top.appendChild(viewBtn);
+    }
+    if (n.type === 'verified') {
+      const viewBtn = document.createElement('button');
+      viewBtn.type = 'button';
+      viewBtn.className = 'notif-view-post-btn';
+      viewBtn.textContent = 'View';
+      viewBtn.addEventListener('click', () => {
+        document.getElementById('notifOverlay').classList.remove('show');
+        openCertOverlay();
+      });
       top.appendChild(viewBtn);
     }
     const time = document.createElement('div');
@@ -2328,6 +2484,286 @@ document.getElementById('tfaDisableBtn').addEventListener('click', async () => {
   }
   btn.disabled = false;
   btn.textContent = 'Confirm & Disable';
+});
+
+function updateVerifyButton(){
+  const btn = document.getElementById('getVerifiedLink');
+  const label = document.getElementById('getVerifiedLinkLabel');
+  if (profile.isAdmin) { btn.style.display = 'none'; return; }
+  btn.style.display = 'flex';
+  if (profile.verified) {
+    label.textContent = 'Certificate';
+    btn.onclick = () => openCertOverlay();
+  } else {
+    label.textContent = 'Get Verified';
+    btn.onclick = () => openVerifyOverlay();
+  }
+}
+
+function showVerifyStep(id){
+  document.querySelectorAll('#verifyOverlay .overlay-step').forEach(el => el.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function openVerifyOverlay(){
+  showVerifyStep('verifyStepIntro');
+  const btn = document.getElementById('verifyPayBtn');
+  btn.disabled = false;
+  btn.textContent = 'Pay & Verify';
+  document.getElementById('verifyOverlay').classList.add('show');
+}
+function closeVerifyOverlay(){
+  document.getElementById('verifyOverlay').classList.remove('show');
+}
+document.getElementById('verifyCancel1').addEventListener('click', closeVerifyOverlay);
+document.getElementById('verifyCancel2').addEventListener('click', closeVerifyOverlay);
+document.getElementById('verifyOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'verifyOverlay') closeVerifyOverlay();
+});
+
+document.getElementById('verifyPayBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('verifyPayBtn');
+  const msg = document.getElementById('verifyIntroMsg');
+  if (!PAYSTACK_PUBLIC_KEY || typeof PaystackPop === 'undefined') {
+    flashMsg(msg, 'Payments are temporarily unavailable. Please try again later.', false);
+    return;
+  }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span>Starting…';
+  let data;
+  try {
+    data = await postJSON('/api/verification/initialize', {});
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Pay & Verify';
+    flashMsg(msg, err.message || 'Could not start payment.', false);
+    return;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Pay & Verify';
+  const handler = PaystackPop.setup({
+    key: data.publicKey,
+    email: data.email,
+    amount: data.amountKobo,
+    ref: data.reference,
+    currency: 'NGN',
+    onClose: function(){},
+    callback: function(response){
+      showVerifyStep('verifyStepProcessing');
+      confirmVerificationPayment(response.reference);
+    },
+  });
+  handler.openIframe();
+});
+
+async function confirmVerificationPayment(reference){
+  try {
+    const result = await postJSON('/api/verification/confirm', { reference });
+    profile.verified = true;
+    profile.verifiedAt = profile.verifiedAt || Date.now();
+    profile.verifiedExpiresAt = result.expiresAt;
+    document.getElementById('heroName').innerHTML = 'Hi, ' + profile.firstName + VERIFIED_BADGE;
+    updateVerifyButton();
+    showVerifyStep('verifyStepSuccess');
+  } catch (err) {
+    showVerifyStep('verifyStepIntro');
+    flashMsg(document.getElementById('verifyIntroMsg'), err.message || 'Could not confirm your payment. If you were charged, please contact support.', false);
+  }
+}
+document.getElementById('verifyViewCertBtn').addEventListener('click', () => {
+  closeVerifyOverlay();
+  openCertOverlay();
+});
+
+function formatCertDate(ts){
+  if (!ts) return '–';
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function openCertOverlay(){
+  const card = document.getElementById('certCard');
+  const fullName = ((profile.firstName || '') + ' ' + (profile.lastName || '')).trim() || ('@' + profile.username);
+  const expired = !!(profile.verifiedExpiresAt && Date.now() > profile.verifiedExpiresAt);
+  document.getElementById('certName').textContent = fullName;
+  document.getElementById('certUsername').textContent = '@' + (profile.username || '');
+  document.getElementById('certIssued').textContent = formatCertDate(profile.verifiedAt);
+  document.getElementById('certExpires').textContent = formatCertDate(profile.verifiedExpiresAt);
+  document.getElementById('certSignature').textContent = fullName;
+  const chip = document.getElementById('certStatusChip');
+  chip.textContent = expired ? 'EXPIRED' : 'VALID';
+  chip.className = 'cert-status-chip' + (expired ? ' expired' : '');
+  card.classList.toggle('expired', expired);
+  document.getElementById('certOverlay').classList.add('show');
+}
+document.getElementById('certCloseBtn').addEventListener('click', () => {
+  document.getElementById('certOverlay').classList.remove('show');
+});
+document.getElementById('certOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'certOverlay') document.getElementById('certOverlay').classList.remove('show');
+});
+
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+async function drawCertificateCanvas(data){
+  if (document.fonts && document.fonts.load) {
+    await Promise.all([
+      document.fonts.load('700 42px "Space Grotesk"'),
+      document.fonts.load('700 46px "Dancing Script"'),
+      document.fonts.load('600 18px "Inter"'),
+      document.fonts.load('600 17px "JetBrains Mono"'),
+    ]).catch(() => {});
+  }
+  const W = 1000, H = 640;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const isLight = data.theme === 'light';
+  const bg = isLight ? '#F5F6FA' : '#0A0A0F';
+  const card = isLight ? '#FFFFFF' : '#15151F';
+  const text = isLight ? '#14141C' : '#F3F3FA';
+  const muted = isLight ? 'rgba(20,20,28,.55)' : 'rgba(255,255,255,.5)';
+  const accent = '#00E0FF';
+  const accent2 = '#7c5cff';
+  const green = '#12C48B';
+  const red = '#FF3B5C';
+  const pad = 30;
+
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = card;
+  roundRect(ctx, pad, pad, W - pad * 2, H - pad * 2, 22);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(0,224,255,.25)';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, pad + 16, pad + 16, W - (pad + 16) * 2, H - (pad + 16) * 2, 16);
+  ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.font = '700 26px "Space Grotesk", sans-serif';
+  const grad = ctx.createLinearGradient(pad + 50, 0, pad + 300, 0);
+  grad.addColorStop(0, accent);
+  grad.addColorStop(1, accent2);
+  ctx.fillStyle = grad;
+  ctx.fillText('ES TEAMS TV', pad + 50, pad + 70);
+
+  const chipText = data.expired ? 'EXPIRED' : 'VALID';
+  const chipColor = data.expired ? red : green;
+  ctx.font = '700 14px "Inter", sans-serif';
+  const chipW = ctx.measureText(chipText).width + 36;
+  const chipX = W - pad - 50 - chipW;
+  const chipY = pad + 46;
+  ctx.fillStyle = data.expired ? 'rgba(255,59,92,.12)' : 'rgba(18,196,139,.12)';
+  roundRect(ctx, chipX, chipY - 24, chipW, 34, 17);
+  ctx.fill();
+  ctx.strokeStyle = chipColor;
+  ctx.lineWidth = 1;
+  roundRect(ctx, chipX, chipY - 24, chipW, 34, 17);
+  ctx.stroke();
+  ctx.fillStyle = chipColor;
+  ctx.textAlign = 'center';
+  ctx.fillText(chipText, chipX + chipW / 2, chipY);
+
+  ctx.font = '700 13px "Inter", sans-serif';
+  ctx.fillStyle = muted;
+  ctx.textAlign = 'center';
+  ctx.fillText('C E R T I F I C A T E   O F   V E R I F I C A T I O N', W / 2, pad + 130);
+
+  ctx.font = '700 42px "Space Grotesk", sans-serif';
+  ctx.fillStyle = text;
+  ctx.fillText(data.fullName, W / 2, pad + 195);
+
+  ctx.font = '500 18px "Inter", sans-serif';
+  ctx.fillStyle = muted;
+  ctx.fillText(data.username, W / 2, pad + 228);
+
+  ctx.strokeStyle = isLight ? 'rgba(0,0,0,.14)' : 'rgba(255,255,255,.13)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad + 60, pad + 270);
+  ctx.lineTo(W - pad - 60, pad + 270);
+  ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.font = '700 12px "Inter", sans-serif';
+  ctx.fillStyle = muted;
+  ctx.fillText('ISSUED', pad + 60, pad + 310);
+  ctx.font = '600 17px "JetBrains Mono", monospace';
+  ctx.fillStyle = text;
+  ctx.fillText(data.issued, pad + 60, pad + 335);
+
+  ctx.textAlign = 'right';
+  ctx.font = '700 12px "Inter", sans-serif';
+  ctx.fillStyle = muted;
+  ctx.fillText('EXPIRES', W - pad - 60, pad + 310);
+  ctx.font = '600 17px "JetBrains Mono", monospace';
+  ctx.fillStyle = text;
+  ctx.fillText(data.expires, W - pad - 60, pad + 335);
+
+  ctx.textAlign = 'center';
+  ctx.font = '700 46px "Dancing Script", cursive';
+  ctx.fillStyle = accent2;
+  ctx.fillText(data.fullName, W / 2, pad + 420);
+
+  ctx.font = '700 12px "Inter", sans-serif';
+  ctx.fillStyle = muted;
+  ctx.fillText('AUTHORIZED SIGNATURE — ES TEAMS TV', W / 2, pad + 450);
+
+  if (data.expired) {
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(-0.25);
+    ctx.strokeStyle = red;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(-190, -46, 380, 92);
+    ctx.font = '800 44px "Space Grotesk", sans-serif';
+    ctx.fillStyle = red;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('EXPIRED', 0, 4);
+    ctx.restore();
+  }
+
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'VERIFIED.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+document.getElementById('certDownloadBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('certDownloadBtn');
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner btn-spinner-light"></span>Preparing…';
+  try {
+    const fullName = ((profile.firstName || '') + ' ' + (profile.lastName || '')).trim() || ('@' + profile.username);
+    const expired = !!(profile.verifiedExpiresAt && Date.now() > profile.verifiedExpiresAt);
+    await drawCertificateCanvas({
+      fullName,
+      username: '@' + (profile.username || ''),
+      issued: formatCertDate(profile.verifiedAt),
+      expires: formatCertDate(profile.verifiedExpiresAt),
+      expired,
+      theme: document.documentElement.getAttribute('data-theme') || 'dark',
+    });
+  } catch (err) {
+    showToast('Could not generate certificate image.');
+  }
+  btn.disabled = false;
+  btn.innerHTML = originalHTML;
 });
 </script>
 </body>

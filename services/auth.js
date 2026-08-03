@@ -19,6 +19,12 @@ function isAdminEmail(email) {
   return String(email || "").trim().toLowerCase() === ADMIN_EMAIL;
 }
 
+function isVerificationActive(data) {
+  if (!data || !data.verified) return false;
+  if (!data.verifiedExpiresAt) return true;
+  return Date.now() < data.verifiedExpiresAt;
+}
+
 async function autoFollowAdmin(newUid, newUserEmail) {
   try {
     if (isAdminEmail(newUserEmail)) return;
@@ -1602,7 +1608,7 @@ async function addComment(uid, postId, text, taggedUsernames) {
     likedByViewer: false,
     author: author ? {
       username: author.username, firstName: author.firstName || "", lastName: author.lastName || "",
-      photoURL: author.showProfilePhoto === false ? null : (author.photoURL || null), isAdmin: isAdminEmail(author.email), verified: !!author.verified,
+      photoURL: author.showProfilePhoto === false ? null : (author.photoURL || null), isAdmin: isAdminEmail(author.email), verified: isVerificationActive(author),
     } : null,
   };
 }
@@ -1636,7 +1642,7 @@ async function getComments(postId, viewerUid) {
       likedByViewer: (c.likedBy || []).includes(viewerUid),
       author: author ? {
         username: author.username, firstName: author.firstName || "", lastName: author.lastName || "",
-        photoURL: author.showProfilePhoto === false ? null : (author.photoURL || null), isAdmin: isAdminEmail(author.email), verified: !!author.verified,
+        photoURL: author.showProfilePhoto === false ? null : (author.photoURL || null), isAdmin: isAdminEmail(author.email), verified: isVerificationActive(author),
       } : null,
     };
   }).map((c) => ({ ...c, canModerate: postOwnerUid === viewerUid }));
@@ -1769,7 +1775,7 @@ async function getFollowList(uid, type) {
         firstName: data.firstName || "",
         lastName: data.lastName || "",
         photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
-        isAdmin: isAdminEmail(data.email), verified: !!data.verified,
+        isAdmin: isAdminEmail(data.email), verified: isVerificationActive(data),
       });
     });
   }
@@ -1824,7 +1830,7 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
         firstName: data.firstName || "",
         lastName: data.lastName || "",
         photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
-        isAdmin: isAdminEmail(data.email), verified: !!data.verified,
+        isAdmin: isAdminEmail(data.email), verified: isVerificationActive(data),
       });
     });
   }
@@ -1907,7 +1913,7 @@ async function searchUsersByUsername(query, excludeUid, limit = 15) {
         firstName: data.firstName || "",
         lastName: data.lastName || "",
         photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
-        isAdmin: isAdminEmail(data.email), verified: !!data.verified,
+        isAdmin: isAdminEmail(data.email), verified: isVerificationActive(data),
       };
     });
 }
@@ -1965,7 +1971,9 @@ function adminUserView(uid, data) {
     photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
     isAdmin: isAdminEmail(data.email),
     banned: !!data.banned,
-    verified: !!data.verified,
+    verified: isVerificationActive(data),
+    verifiedExpiresAt: data.verifiedExpiresAt || null,
+    verifiedVia: data.verifiedVia || null,
   };
 }
 
@@ -2074,18 +2082,61 @@ async function adminUnbanUser(uid) {
   return adminUserView(uid, { ...profile, banned: false });
 }
 
-async function adminVerifyUser(uid) {
+async function adminVerifyUser(uid, opts = {}) {
   const profile = await getUserProfile(uid);
   if (!profile) throw new Error("Account not found.");
-  await db.collection("users").doc(uid).update({ verified: true, verifiedAt: Date.now() });
-  return adminUserView(uid, { ...profile, verified: true });
+  const verifiedExpiresAt = opts.expiresAt || null;
+  const verifiedVia = opts.via || "admin";
+  await db.collection("users").doc(uid).update({ verified: true, verifiedAt: Date.now(), verifiedExpiresAt, verifiedVia });
+  return adminUserView(uid, { ...profile, verified: true, verifiedExpiresAt, verifiedVia });
 }
 
 async function adminUnverifyUser(uid) {
   const profile = await getUserProfile(uid);
   if (!profile) throw new Error("Account not found.");
-  await db.collection("users").doc(uid).update({ verified: false, verifiedAt: null });
-  return adminUserView(uid, { ...profile, verified: false });
+  await db.collection("users").doc(uid).update({ verified: false, verifiedAt: null, verifiedExpiresAt: null, verifiedVia: null });
+  return adminUserView(uid, { ...profile, verified: false, verifiedExpiresAt: null, verifiedVia: null });
+}
+
+const PAID_VERIFICATION_DAYS = 30;
+
+async function createVerificationPayment(uid, reference, amountKobo) {
+  await db.collection("verificationPayments").doc(reference).set({
+    uid,
+    amountKobo,
+    status: "pending",
+    createdAt: Date.now(),
+  });
+}
+
+async function getVerificationPayment(reference) {
+  const snap = await db.collection("verificationPayments").doc(reference).get();
+  return snap.exists ? snap.data() : null;
+}
+
+async function finalizeVerificationPayment(reference, paystackData) {
+  const ref = db.collection("verificationPayments").doc(reference);
+  const snap = await ref.get();
+  if (!snap.exists) return { notOurs: true };
+  const record = snap.data();
+  if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
+
+  if (paystackData.status !== "success" || paystackData.amount !== record.amountKobo) {
+    await ref.update({ status: "failed", failedAt: Date.now() });
+    throw new Error("Payment was not successful.");
+  }
+
+  const expiresAt = Date.now() + PAID_VERIFICATION_DAYS * 24 * 60 * 60 * 1000;
+  await db.collection("users").doc(record.uid).update({
+    verified: true,
+    verifiedAt: Date.now(),
+    verifiedExpiresAt: expiresAt,
+    verifiedVia: "payment",
+  });
+  await ref.update({ status: "success", confirmedAt: Date.now() });
+  await addNotification(record.uid, "verified", "You are now Verified", { expiresAt });
+
+  return { alreadyProcessed: false, uid: record.uid, expiresAt };
 }
 
 async function adminDeleteUser(uid) {
@@ -2114,6 +2165,9 @@ export {
   adminUnverifyUser,
   adminDeleteUser,
   adminResetPassword,
+  createVerificationPayment,
+  getVerificationPayment,
+  finalizeVerificationPayment,
 };
 
 export {
@@ -2214,5 +2268,6 @@ export {
   requireAuth,
   optionalAuth,
   isAdminEmail,
+  isVerificationActive,
   SESSION_TTL_MS,
 };

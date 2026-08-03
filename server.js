@@ -176,8 +176,10 @@ import {
   adminResetPassword,
   requireAuth,
   isAdminEmail,
+  isVerificationActive,
   SESSION_TTL_MS,
 } from "./services/auth.js";
+import { paymentsRouter } from "./routes/payments.js";
 import { auth as firebaseAuth } from "./config/firebase.js";
 import { sendDmcaReportEmail } from "./services/mailer.js";
 import { createChallenge, verifySolution } from "altcha-lib";
@@ -279,10 +281,11 @@ async function verifyCaptcha(payload) {
 
 app.use(crossOriginWriteGuard);
 
-app.use(express.json({ limit: "25mb" }));
+app.use(express.json({ limit: "25mb", verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(cookieParser());
 app.use(apiRouter);
 app.use(toolsRouter);
+app.use(paymentsRouter);
 
 const authPageConfig = {
   firebaseConfig: {
@@ -296,6 +299,7 @@ const authPageConfig = {
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   telegramConfigured: !!(process.env.TELEGRAM_CLIENT_ID && process.env.TELEGRAM_CLIENT_SECRET),
   githubConfigured: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
+  paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY || "",
   devToolsBlock: `<script>
 document.addEventListener('contextmenu', function(e){
   if (e.target.closest('a, button, img, [role="button"]')) e.preventDefault();
@@ -3485,7 +3489,7 @@ app.get("/api/admin/bots/users", requireAuth, requireAdmin, async (req, res) => 
         lastName: profile?.lastName || "",
         email: profile?.email || "",
         photoURL: profile?.showProfilePhoto === false ? null : (profile?.photoURL || null),
-        verified: !!profile?.verified,
+        verified: profile ? isVerificationActive(profile) : false,
         isAdmin: isAdminEmail(profile?.email),
       };
     }));
@@ -4276,6 +4280,9 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       followersVisibility: ["friends", "only_me"].includes(profile.followersVisibility) ? profile.followersVisibility : "everyone",
       followingVisibility: ["friends", "only_me"].includes(profile.followingVisibility) ? profile.followingVisibility : "everyone",
       bio: profile.bio || "",
+      verified: isVerificationActive(profile),
+      verifiedAt: profile.verifiedAt || null,
+      verifiedExpiresAt: profile.verifiedExpiresAt || null,
     });
   } catch (err) {
     console.error(err);
@@ -4419,7 +4426,7 @@ app.get("/api/users/:username/public", requireAuth, async (req, res) => {
       bio: user.bio || "",
       isAdmin: isAdminEmail(user.email),
       altUsernames: isAdminEmail(user.email) && Array.isArray(user.altUsernames) ? user.altUsernames : [],
-      verified: !!user.verified,
+      verified: isVerificationActive(user),
       isSelf,
       isFollowing: following,
       lastActiveAt: showActiveStatus ? (user.lastActiveAt || null) : null,
