@@ -2,12 +2,15 @@ import express from "express";
 import dns from "node:dns/promises";
 import tls from "node:tls";
 import net from "node:net";
+import { Worker } from "node:worker_threads";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { verifySolution } from "altcha-lib";
 import QRCode from "qrcode";
-import JavaScriptObfuscator from "javascript-obfuscator";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { optionalAuth, isAdminEmail } from "../services/auth.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = express.Router();
 
 const ALTCHA_HMAC_KEY = process.env.ALTCHA_SECRET;
@@ -80,25 +83,51 @@ router.post("/api/tools/dns-lookup", optionalAuth, toolGate("dns-lookup"), async
 });
 
 // ── JavaScript Obfuscator ───────────────────────────────────
-const MAX_OBFUSCATE_LENGTH = 50000;
+const MAX_OBFUSCATE_LENGTH = 20 * 1024 * 1024; // 20MB
+const OBFUSCATE_WORKER_TIMEOUT_MS = 120000;
+
+function obfuscateInWorker(code) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, "tools-obfuscate-worker.js"), {
+      workerData: {
+        code,
+        options: {
+          compact: true,
+          controlFlowFlattening: true,
+          stringArray: true,
+          stringArrayEncoding: ["base64"],
+          selfDefending: true,
+        },
+      },
+    });
+    const timer = setTimeout(() => {
+      worker.terminate();
+      reject(new Error("That file took too long to obfuscate — try a smaller file."));
+    }, OBFUSCATE_WORKER_TIMEOUT_MS);
+    worker.once("message", (msg) => {
+      clearTimeout(timer);
+      worker.terminate();
+      if (msg.ok) resolve(msg.code);
+      else reject(new Error(msg.error || "Could not obfuscate that code — check it's valid JavaScript."));
+    });
+    worker.once("error", (err) => {
+      clearTimeout(timer);
+      reject(new Error(err.message || "Could not obfuscate that code."));
+    });
+  });
+}
 
 router.post("/api/tools/obfuscate", optionalAuth, toolGate("obfuscate"), async (req, res) => {
   const code = String(req.body?.code || "");
-  if (!code.trim()) return res.status(400).json({ error: "Paste some JavaScript code first." });
+  if (!code.trim()) return res.status(400).json({ error: "Paste or upload some JavaScript code first." });
   if (code.length > MAX_OBFUSCATE_LENGTH) {
-    return res.status(400).json({ error: `Code is too long (max ${MAX_OBFUSCATE_LENGTH.toLocaleString()} characters).` });
+    return res.status(400).json({ error: "File is too large (max 20MB)." });
   }
   try {
-    const result = JavaScriptObfuscator.obfuscate(code, {
-      compact: true,
-      controlFlowFlattening: true,
-      stringArray: true,
-      stringArrayEncoding: ["base64"],
-      selfDefending: true,
-    });
-    res.json({ code: result.getObfuscatedCode() });
-  } catch {
-    res.status(400).json({ error: "Could not obfuscate that code — check it's valid JavaScript." });
+    const obfuscatedCode = await obfuscateInWorker(code);
+    res.json({ code: obfuscatedCode });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not obfuscate that code — check it's valid JavaScript." });
   }
 });
 
@@ -226,6 +255,97 @@ router.post("/api/tools/json-format", optionalAuth, toolGate("json-format"), asy
   } catch (err) {
     res.status(400).json({ error: "Invalid JSON: " + err.message });
   }
+});
+
+// ── Fancy Text Generator ─────────────────────────────────────
+const FT_UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const FT_LOWER = "abcdefghijklmnopqrstuvwxyz";
+const FT_DIGITS = "0123456789";
+
+function ftBuildBlock(upperBase, lowerBase, digitBase, exceptions = {}) {
+  const map = {};
+  for (let i = 0; i < 26; i++) {
+    const u = FT_UPPER[i], l = FT_LOWER[i];
+    map[u] = exceptions[u] || String.fromCodePoint(upperBase + i);
+    map[l] = exceptions[l] || String.fromCodePoint(lowerBase + i);
+  }
+  if (digitBase != null) {
+    for (let i = 0; i < 10; i++) map[FT_DIGITS[i]] = String.fromCodePoint(digitBase + i);
+  }
+  return map;
+}
+
+function ftApply(str, map) {
+  return Array.from(str).map((ch) => map[ch] || ch).join("");
+}
+
+const FT_STYLES = [
+  { name: "Bold", map: ftBuildBlock(0x1d400, 0x1d41a, 0x1d7ce) },
+  { name: "Italic", map: ftBuildBlock(0x1d434, 0x1d44e, null, { h: "ℎ" }) },
+  { name: "Bold Italic", map: ftBuildBlock(0x1d468, 0x1d482, null) },
+  {
+    name: "Script",
+    map: ftBuildBlock(0x1d49c, 0x1d4b6, null, {
+      B: "ℬ", E: "ℰ", F: "ℱ", H: "ℋ", I: "ℐ", L: "ℒ", M: "ℳ", R: "ℛ",
+      e: "ℯ", g: "ℊ", o: "ℴ",
+    }),
+  },
+  {
+    name: "Fraktur",
+    map: ftBuildBlock(0x1d504, 0x1d51e, null, { C: "ℭ", H: "ℌ", I: "ℑ", R: "ℜ", Z: "ℨ" }),
+  },
+  {
+    name: "Double-Struck",
+    map: ftBuildBlock(0x1d538, 0x1d552, 0x1d7d8, { C: "ℂ", H: "ℍ", N: "ℕ", P: "ℙ", Q: "ℚ", R: "ℝ", Z: "ℤ" }),
+  },
+  { name: "Monospace", map: ftBuildBlock(0x1d670, 0x1d68a, 0x1d7f6) },
+  {
+    name: "Circled",
+    map: (() => {
+      const map = ftBuildBlock(0x24b6, 0x24d0, null);
+      for (let i = 1; i <= 9; i++) map[FT_DIGITS[i]] = String.fromCodePoint(0x2460 + (i - 1));
+      map["0"] = "⓪";
+      return map;
+    })(),
+  },
+  {
+    name: "Small Caps",
+    map: (() => {
+      const table = {
+        a: "ᴀ", b: "ʙ", c: "ᴄ", d: "ᴅ", e: "ᴇ", f: "ꜰ", g: "ɢ", h: "ʜ", i: "ɪ", j: "ᴊ",
+        k: "ᴋ", l: "ʟ", m: "ᴍ", n: "ɴ", o: "ᴏ", p: "ᴘ", q: "ǫ", r: "ʀ", s: "ꜱ", t: "ᴛ",
+        u: "ᴜ", v: "ᴠ", w: "ᴡ", x: "x", y: "ʏ", z: "ᴢ",
+      };
+      const map = {};
+      for (const [k, v] of Object.entries(table)) { map[k] = v; map[k.toUpperCase()] = v; }
+      return map;
+    })(),
+  },
+];
+
+const FT_UPSIDE_DOWN_TABLE = {
+  a: "ɐ", b: "q", c: "ɔ", d: "p", e: "ǝ", f: "ɟ", g: "ƃ", h: "ɥ", i: "ı", j: "ɾ",
+  k: "ʞ", l: "l", m: "ɯ", n: "u", o: "o", p: "d", q: "b", r: "ɹ", s: "s", t: "ʇ",
+  u: "n", v: "ʌ", w: "ʍ", x: "x", y: "ʎ", z: "z",
+  "0": "0", "1": "Ɩ", "2": "ᄅ", "3": "Ɛ", "4": "ㄣ", "5": "Ʀ", "6": "9", "7": "ㄥ", "8": "8", "9": "6",
+  ".": "˙", ",": "'", "'": ",", '"': ",,", "!": "¡", "?": "¿",
+  "(": ")", ")": "(", "[": "]", "]": "[", "{": "}", "}": "{", "<": ">", ">": "<", "_": "‾", ";": "؛",
+};
+
+function ftUpsideDown(str) {
+  return Array.from(str)
+    .reverse()
+    .map((ch) => FT_UPSIDE_DOWN_TABLE[ch] || FT_UPSIDE_DOWN_TABLE[ch.toLowerCase()] || ch)
+    .join("");
+}
+
+router.post("/api/tools/fancy-text", optionalAuth, toolGate("fancy-text"), async (req, res) => {
+  const text = String(req.body?.text || "");
+  if (!text.trim()) return res.status(400).json({ error: "Type some text first." });
+  if (text.length > 500) return res.status(400).json({ error: "Text is too long (max 500 characters)." });
+  const styles = FT_STYLES.map((s) => ({ name: s.name, text: ftApply(text, s.map) }));
+  styles.push({ name: "Upside Down", text: ftUpsideDown(text) });
+  res.json({ styles });
 });
 
 export { router as toolsRouter };

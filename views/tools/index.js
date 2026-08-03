@@ -49,6 +49,12 @@ const TOOLS = [
     desc: "Format and validate JSON, pretty-printed.",
     icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M7 4a2 2 0 00-2 2v3a2 2 0 01-2 2 2 2 0 012 2v3a2 2 0 002 2M17 4a2 2 0 012 2v3a2 2 0 002 2 2 2 0 00-2 2v3a2 2 0 01-2 2"/>`,
   },
+  {
+    href: "/tools/fancy-text",
+    name: "Fancy Text Generator",
+    desc: "Bold, italic, script, circled and other stylish Unicode fonts.",
+    icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 7V5h16v2M9 5v14m0 0h6M9 19H9"/>`,
+  },
 ];
 
 export function renderToolsIndex(cfg) {
@@ -82,16 +88,18 @@ ${cfg.protectionCSS || ""}
   --text:#14141C;--muted:rgba(20,20,28,.55);
 }
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{min-height:100%}
+html,body{height:100%;overflow:hidden}
 body{
-  background:var(--dark);color:var(--text);font-family:var(--font-body);padding:24px;padding-bottom:60px;
+  background:var(--dark);color:var(--text);font-family:var(--font-body);
+  display:flex;flex-direction:column;
   background-image:
     radial-gradient(900px 500px at 15% -10%,rgba(0,224,255,.06),transparent 60%),
     radial-gradient(700px 400px at 100% 0%,rgba(124,92,255,.04),transparent 55%);
 }
 a{color:inherit;text-decoration:none}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
-.wrap{width:100%;max-width:760px;margin:0 auto}
+.wrap{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1}
+.tools-header{flex-shrink:0;padding:24px 24px 0}
 .back-row{margin-bottom:14px}
 .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:.82rem;font-weight:600}
 .back-link:hover{color:var(--accent)}
@@ -103,7 +111,8 @@ a{color:inherit;text-decoration:none}
   -webkit-background-clip:text;background-clip:text;color:transparent;
 }
 h1{font-family:var(--font-display);font-size:1.6rem;margin-bottom:6px}
-.subtitle{color:var(--muted);font-size:.88rem;margin-bottom:24px;line-height:1.6;max-width:52ch}
+.subtitle{color:var(--muted);font-size:.88rem;margin-bottom:20px;line-height:1.6;max-width:52ch}
+.tools-scroll{flex:1;min-height:0;overflow-y:auto;padding:0 24px 32px}
 .tools-grid{display:grid;grid-template-columns:1fr;gap:12px}
 @media(min-width:640px){ .tools-grid{grid-template-columns:1fr 1fr} }
 .tool-link-card{
@@ -122,27 +131,31 @@ h1{font-family:var(--font-display);font-size:1.6rem;margin-bottom:6px}
 </head>
 <body>
 <div class="wrap">
-  <div class="back-row">
-    <a href="/" class="back-link">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
-      Back
-    </a>
+  <div class="tools-header">
+    <div class="back-row">
+      <a href="/" class="back-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+        Back
+      </a>
+    </div>
+    <div class="page-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" style="width:24px;height:24px;flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      ES TEAMS TV
+    </div>
+    <h1>Free Tools</h1>
+    <p class="subtitle">Free, fast, no ads — 3 uses a day per tool, unlimited once your account is verified.</p>
   </div>
-  <div class="page-logo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" style="width:24px;height:24px;flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-    ES TEAMS TV
-  </div>
-  <h1>Free Tools</h1>
-  <p class="subtitle">Free, fast, no ads — 3 uses a day per tool, unlimited once your account is verified.</p>
-  <div class="tools-grid">
-    ${TOOLS.map((t) => `
-    <a class="tool-link-card" href="${t.href}">
-      <span class="tool-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${t.icon}</svg></span>
-      <span>
-        <span class="tool-link-name" style="display:block">${t.name}</span>
-        <span class="tool-link-desc">${t.desc}</span>
-      </span>
-    </a>`).join("")}
+  <div class="tools-scroll">
+    <div class="tools-grid">
+      ${TOOLS.map((t) => `
+      <a class="tool-link-card" href="${t.href}">
+        <span class="tool-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${t.icon}</svg></span>
+        <span>
+          <span class="tool-link-name" style="display:block">${t.name}</span>
+          <span class="tool-link-desc">${t.desc}</span>
+        </span>
+      </a>`).join("")}
+    </div>
   </div>
 </div>
 </body>

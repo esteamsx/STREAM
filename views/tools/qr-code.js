@@ -22,9 +22,12 @@ export function renderQrCode(cfg) {
         submitBtn.innerHTML = '<span class="btn-spinner"></span>Generating…';
         try {
           var data = await postTool('/api/tools/qr-code', { text: textInput.value.trim() });
-          resultEl.innerHTML = '<div class="result-head"><span>QR Code</span><a class="copy-btn" download="qr-code.png" href="' + data.dataUrl + '">Download</a></div>' +
+          resultEl.innerHTML = '<div class="result-head"><span>QR Code</span><button class="copy-btn" id="downloadResultBtn" type="button">Download</button></div>' +
             '<img class="result-img" src="' + data.dataUrl + '" alt="Generated QR code">';
           showResult();
+          bindAnimatedDownload(document.getElementById('downloadResultBtn'), function(){
+            triggerDataUrlDownload(data.dataUrl, 'qr-code.png');
+          });
         } catch (err) {
           showMsg(err.message, false);
         }

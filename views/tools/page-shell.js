@@ -96,8 +96,25 @@ input[type=text]:focus,textarea:focus,select:focus{outline:2px solid var(--accen
 .copy-btn{
   background:var(--card2);border:1px solid var(--border-strong);color:var(--text);
   font-size:.72rem;font-weight:600;padding:5px 10px;border-radius:7px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:4px;text-decoration:none;
 }
 .copy-btn:hover{background:var(--dark3)}
+.copy-btn:disabled{opacity:.7;cursor:default}
+@keyframes spinSm{to{transform:rotate(360deg)}}
+.btn-spinner-sm{width:10px;height:10px;border:2px solid rgba(255,255,255,.25);border-top-color:currentColor;border-radius:50%;display:inline-block;animation:spinSm .6s linear infinite}
+@keyframes dlPop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+.dl-check{width:12px;height:12px;animation:dlPop .3s var(--ease);color:var(--green)}
+
+.file-drop{
+  border:1.5px dashed var(--border-strong);border-radius:10px;padding:14px;text-align:center;
+  cursor:pointer;transition:border-color .18s var(--ease),background .18s var(--ease);margin-bottom:10px;
+}
+.file-drop:hover,.file-drop.drag{border-color:var(--accent);background:var(--card2)}
+.file-drop input{display:none}
+.file-drop-label{font-size:.78rem;color:var(--muted);pointer-events:none}
+.file-drop-label b{color:var(--accent)}
+.file-drop-name{font-size:.76rem;color:var(--text);margin-top:6px;font-family:var(--font-mono);pointer-events:none}
+.or-divider{text-align:center;font-size:.7rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin:10px 0}
 pre.result-pre{
   background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:14px 16px;
   overflow-x:auto;font-family:var(--font-mono);font-size:.78rem;line-height:1.6;white-space:pre-wrap;word-break:break-all;
@@ -120,7 +137,7 @@ ${extraStyle}
   <div class="back-row">
     <a href="/tools" class="back-link">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
-      Back to Tools
+      Back
     </a>
   </div>
   <div class="page-logo">
@@ -181,6 +198,38 @@ ${extraStyle}
     if (toolAltcha.reset) toolAltcha.reset();
     altchaPassed = false; altchaValue = '';
     updateSubmitState();
+  }
+
+  function triggerBlobDownload(content, filename, mime){
+    var blob = new Blob([content], { type: mime || 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function triggerDataUrlDownload(dataUrl, filename){
+    var a = document.createElement('a');
+    a.href = dataUrl; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+
+  function bindAnimatedDownload(btnEl, performDownload){
+    btnEl.addEventListener('click', function(){
+      if (btnEl.disabled) return;
+      var original = btnEl.innerHTML;
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<span class="btn-spinner-sm"></span>Preparing…';
+      setTimeout(function(){
+        var ok = true;
+        try { performDownload(); } catch (e) { ok = false; }
+        btnEl.innerHTML = ok
+          ? '<svg class="dl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Downloaded'
+          : original;
+        setTimeout(function(){ btnEl.disabled = false; btnEl.innerHTML = original; }, 1600);
+      }, 450);
+    });
   }
 
   ${script}

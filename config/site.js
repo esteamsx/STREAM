@@ -142,6 +142,12 @@ export const PAGES = {
     description: "Format and validate JSON instantly.",
     auth: "public",
   },
+  toolsFancyText: {
+    path: "/tools/fancy-text",
+    title: `Fancy Text Generator — ${SITE.name}`,
+    description: "Turn text into bold, italic, script, circled and other stylish Unicode fonts.",
+    auth: "public",
+  },
 };
 
 export const PATH_ALIASES = {

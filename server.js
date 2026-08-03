@@ -29,6 +29,7 @@ import { renderWhois } from "./views/tools/whois.js";
 import { renderBase64 } from "./views/tools/base64.js";
 import { renderJwtDecode } from "./views/tools/jwt-decode.js";
 import { renderJsonFormatter } from "./views/tools/json-formatter.js";
+import { renderFancyText } from "./views/tools/fancy-text.js";
 import { toolsRouter } from "./routes/tools.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
@@ -254,7 +255,7 @@ async function verifyCaptcha(payload) {
 
 app.use(crossOriginWriteGuard);
 
-app.use(express.json({ limit: "3mb" }));
+app.use(express.json({ limit: "25mb" }));
 app.use(cookieParser());
 app.use(apiRouter);
 app.use(toolsRouter);
@@ -330,6 +331,7 @@ const cachedToolsWhoisHtml = renderWhois(authPageConfig);
 const cachedToolsBase64Html = renderBase64(authPageConfig);
 const cachedToolsJwtDecodeHtml = renderJwtDecode(authPageConfig);
 const cachedToolsJsonFormatterHtml = renderJsonFormatter(authPageConfig);
+const cachedToolsFancyTextHtml = renderFancyText(authPageConfig);
 
 const cachedFootballHtml = (() => {
   try {
@@ -3626,6 +3628,10 @@ app.get("/tools/jwt-decode", scrapeGate, (req, res) => {
 
 app.get("/tools/json-formatter", scrapeGate, (req, res) => {
   res.send(cachedToolsJsonFormatterHtml);
+});
+
+app.get("/tools/fancy-text", scrapeGate, (req, res) => {
+  res.send(cachedToolsFancyTextHtml);
 });
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {
