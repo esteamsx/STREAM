@@ -1,4 +1,5 @@
 import { siteHeadFor } from "../../config/site.js";
+import { musicPlayerStyle, musicPlayerHtml, musicPlayerScript } from "../music-player.js";
 
 const CATEGORIES = [
   {
@@ -143,7 +144,7 @@ h1{font-family:var(--font-display);font-size:1.6rem;margin-bottom:6px}
 .tool-link-desc{font-size:.78rem;color:var(--muted);line-height:1.5}
 .no-results{color:var(--muted);font-size:.85rem;padding:20px 0;text-align:center;display:none}
 .scroll-top-btn{
-  position:absolute;right:20px;bottom:20px;width:42px;height:42px;border-radius:50%;
+  position:absolute;right:20px;bottom:76px;width:42px;height:42px;border-radius:50%;
   background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04121a;border:none;
   display:none;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.35);
   transition:opacity .2s var(--ease),transform .15s var(--ease);z-index:20;
@@ -152,6 +153,7 @@ h1{font-family:var(--font-display);font-size:1.6rem;margin-bottom:6px}
 .scroll-top-btn:hover{transform:translateY(-2px)}
 .scroll-top-btn:active{transform:scale(.94)}
 .scroll-top-btn svg{width:20px;height:20px}
+${musicPlayerStyle()}
 </style>
 </head>
 <body>
@@ -197,6 +199,7 @@ h1{font-family:var(--font-display);font-size:1.6rem;margin-bottom:6px}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/></svg>
   </button>
 </div>
+${musicPlayerHtml()}
 <script>
 (function(){
   var searchInput = document.getElementById('toolSearch');
@@ -228,6 +231,7 @@ h1{font-family:var(--font-display);font-size:1.6rem;margin-bottom:6px}
     scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
   });
 })();
+${musicPlayerScript()}
 </script>
 </body>
 </html>`;

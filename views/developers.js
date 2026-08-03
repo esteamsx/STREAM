@@ -1,4 +1,5 @@
 import { siteHeadFor } from "../config/site.js";
+import { musicPlayerStyle, musicPlayerHtml, musicPlayerScript } from "./music-player.js";
 
 export function renderDevelopers(cfg) {
   return `<!DOCTYPE html>
@@ -231,6 +232,7 @@ th{color:var(--muted);font-weight:600}
 }
 h2.doc-h2{font-family:var(--font-display);font-size:1.15rem;margin:34px 0 10px;padding-top:14px;border-top:1px solid var(--border)}
 p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
+${musicPlayerStyle()}
 </style>
 </head>
 <body>
@@ -458,6 +460,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     <button class="overlay-cancel" id="linkUrlCloseBtn" type="button">Close</button>
   </div>
 </div>
+${musicPlayerHtml()}
 
 <script>
 (function(){
@@ -860,6 +863,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   });
 
 })();
+${musicPlayerScript()}
 </script>
 </body>
 </html>`;

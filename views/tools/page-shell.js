@@ -1,4 +1,5 @@
 import { siteHeadFor } from "../../config/site.js";
+import { musicPlayerStyle, musicPlayerHtml, musicPlayerScript } from "../music-player.js";
 
 export function renderToolPage(cfg, { pageKey, iconSvg, heading, subtitle, bodyHtml, extraStyle = "", script }) {
   return `<!DOCTYPE html>
@@ -128,6 +129,7 @@ pre.result-pre{
 .altcha-row{margin:14px 0}
 altcha-widget{--altcha-max-width:100%}
 .usage-note{font-size:.72rem;color:var(--muted2);text-align:center;margin-top:12px;line-height:1.5}
+${musicPlayerStyle()}
 ${extraStyle}
 </style>
 </head>
@@ -159,6 +161,7 @@ ${extraStyle}
   </div>
   <p class="usage-note">Free accounts: ${3} uses per day per tool. <a href="/account#pwCard">Get verified</a> for unlimited use.</p>
 </div>
+${musicPlayerHtml()}
 
 <script>
 (function(){
@@ -234,6 +237,7 @@ ${extraStyle}
 
   ${script}
 })();
+${musicPlayerScript()}
 </script>
 </body>
 </html>`;
