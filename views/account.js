@@ -2776,7 +2776,7 @@ document.getElementById('certDownloadBtn').addEventListener('click', async () =>
   const btn = document.getElementById('certDownloadBtn');
   const originalHTML = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="btn-spinner btn-spinner-light"></span>Preparing…';
+  btn.innerHTML = '<span class="btn-spinner"></span>Preparing…';
   try {
     const fullName = ((profile.firstName || '') + ' ' + (profile.lastName || '')).trim() || ('@' + profile.username);
     const expired = !!(profile.verifiedExpiresAt && Date.now() > profile.verifiedExpiresAt);
