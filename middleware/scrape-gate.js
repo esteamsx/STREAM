@@ -108,7 +108,7 @@ ${PREVIEW_TAGS}
     if (r) r.onclick = function(e){ e.preventDefault(); try{ sessionStorage.removeItem('sg_try'); }catch(_){} location.reload(); };
   }
 
-  function has(name){ return new RegExp('(?:^|;\\\\s*)' + name + '=').test(document.cookie); }
+  function has(name){ return new RegExp('(?:^|;\\s*)' + name + '=').test(document.cookie); }
 
   var c = ${JSON.stringify(scramble(ticket))}.split(',');
   var t = '';
