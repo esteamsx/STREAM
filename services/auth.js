@@ -2121,7 +2121,7 @@ async function finalizeVerificationPayment(reference, paystackData) {
   const record = snap.data();
   if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
 
-  if (paystackData.status !== "success" || paystackData.amount !== record.amountKobo) {
+  if (paystackData.status !== "success" || paystackData.amount < record.amountKobo) {
     await ref.update({ status: "failed", failedAt: Date.now() });
     throw new Error("Payment was not successful.");
   }
