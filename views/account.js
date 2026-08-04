@@ -115,6 +115,7 @@ input{font-family:inherit}
 .sc-brand-info .flist-title{color:#04141a;display:flex;align-items:center;gap:4px}
 .sc-brand-header .flist-close{background:rgba(4,20,26,.14);color:#04141a}
 .sc-brand-header .flist-close:hover{background:rgba(4,20,26,.24);color:#04141a}
+.flist-close:active{transform:scale(.88)}
 .sc-chat-subtitle{font-size:.72rem;color:rgba(4,20,26,.72);margin-top:2px}
 .sc-chat-body{
   flex:1;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px;
@@ -137,29 +138,34 @@ input{font-family:inherit}
 .sc-chat-send{
   flex-shrink:0;width:38px;height:38px;border-radius:50%;border:none;
   background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;
-  display:flex;align-items:center;justify-content:center;transition:opacity .2s var(--ease);
+  display:flex;align-items:center;justify-content:center;transition:opacity .2s var(--ease),transform .15s var(--ease);
 }
 .sc-chat-send:disabled{opacity:.4;cursor:default}
+.sc-chat-send:active:not(:disabled){transform:scale(.9)}
 .sc-chat-send svg{width:16px;height:16px;transform:translateX(-1px)}
 .sc-chat-icon-btn{
   flex-shrink:0;width:38px;height:38px;border-radius:50%;background:var(--dark3);border:1px solid var(--border-strong);
   color:var(--muted);display:flex;align-items:center;justify-content:center;transition:all .2s var(--ease);touch-action:none;
 }
 .sc-chat-icon-btn:hover{color:var(--accent);border-color:var(--accent)}
+.sc-chat-icon-btn:active{transform:scale(.9)}
 .sc-chat-icon-btn svg{width:17px;height:17px}
-.sc-chat-mic.recording{background:var(--red);border-color:var(--red);color:#fff}
+.sc-chat-mic.recording{background:var(--red);border-color:var(--red);color:#fff;animation:scMicPulse 1s ease-in-out infinite}
+@keyframes scMicPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,59,92,.5)}50%{box-shadow:0 0 0 8px rgba(255,59,92,0)}}
 .sc-attach-preview{display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid var(--border);flex-shrink:0}
 .sc-attach-preview-inner{flex:1;display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text);min-width:0}
 .sc-attach-preview-inner img{width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0}
 .sc-attach-preview-inner svg{width:20px;height:20px;flex-shrink:0;color:var(--muted)}
 .sc-attach-preview-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sc-attach-remove{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--card2);border:none;color:var(--muted);display:flex;align-items:center;justify-content:center}
+.sc-attach-remove{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--card2);border:none;color:var(--muted);display:flex;align-items:center;justify-content:center;transition:transform .15s var(--ease)}
+.sc-attach-remove:active{transform:scale(.85)}
 .sc-attach-remove svg{width:13px;height:13px}
 .sc-record-banner{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;font-size:.82rem;color:var(--text)}
 .sc-record-dot{width:9px;height:9px;border-radius:50%;background:var(--red);animation:scPulse 1s ease-in-out infinite;flex-shrink:0}
 @keyframes scPulse{0%,100%{opacity:1}50%{opacity:.3}}
 .sc-record-hint{color:var(--muted);flex:1}
-.sc-record-cancel{background:transparent;border:none;color:var(--red);font-size:.78rem;font-weight:700}
+.sc-record-cancel{background:transparent;border:none;color:var(--red);font-size:.78rem;font-weight:700;transition:transform .15s var(--ease)}
+.sc-record-cancel:active{transform:scale(.92)}
 .sc-bubble-image{max-width:220px;max-height:220px;border-radius:10px;display:block;margin-top:4px;object-fit:cover}
 .sc-bubble-file{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.15);margin-top:4px;text-decoration:inherit;color:inherit}
 .sc-bubble-file svg{width:20px;height:20px;flex-shrink:0}
@@ -188,14 +194,29 @@ input{font-family:inherit}
 .lightbox-close{
   position:absolute;top:18px;right:18px;width:38px;height:38px;border-radius:50%;
   background:rgba(255,255,255,.12);border:none;color:#fff;display:flex;align-items:center;justify-content:center;
+  transition:transform .15s var(--ease);
 }
+.lightbox-close:active{transform:scale(.9)}
 .lightbox-close svg{width:18px;height:18px}
 .lightbox-download{
   display:flex;align-items:center;gap:7px;padding:10px 20px;border-radius:24px;
   background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;font-size:.85rem;font-weight:700;
-  text-decoration:none;
+  text-decoration:none;transition:transform .15s var(--ease),opacity .2s var(--ease);
 }
-.lightbox-download svg{width:16px;height:16px}
+.lightbox-download:active{transform:scale(.95)}
+.lightbox-download.downloading{opacity:.85}
+.lb-dl-icon{position:relative;width:16px;height:16px;flex-shrink:0}
+.lb-dl-icon svg{position:absolute;inset:0;width:16px;height:16px}
+.lb-dl-spinner{
+  display:none;position:absolute;inset:0;width:16px;height:16px;box-sizing:border-box;border-radius:50%;
+  border:2px solid rgba(4,20,26,.3);border-top-color:#04141a;animation:lbDlSpin .7s linear infinite;
+}
+@keyframes lbDlSpin{to{transform:rotate(360deg)}}
+.lb-dl-check{display:none}
+.lightbox-download.downloading .lb-dl-arrow{display:none}
+.lightbox-download.downloading .lb-dl-spinner{display:block}
+.lightbox-download.done .lb-dl-arrow{display:none}
+.lightbox-download.done .lb-dl-check{display:block}
 
 .acc-nav{
   position:sticky;top:0;z-index:10;height:58px;display:flex;align-items:center;gap:14px;padding:0 18px;
@@ -1181,8 +1202,12 @@ body:has(.page-overlay.show){overflow:hidden}
   </button>
   <img id="lightboxImg" alt="">
   <a class="lightbox-download" id="lightboxDownloadBtn" download="photo.jpg">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
-    Download
+    <span class="lb-dl-icon">
+      <svg class="lb-dl-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+      <span class="lb-dl-spinner"></span>
+      <svg class="lb-dl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    </span>
+    <span class="lb-dl-label">Download</span>
   </a>
 </div>
 
@@ -2930,8 +2955,17 @@ function openImageLightbox(src, name){
   const dl = document.getElementById('lightboxDownloadBtn');
   dl.href = src;
   dl.download = name || 'photo.jpg';
-  closeAllOtherOverlays('imgLightboxOverlay');
   document.getElementById('imgLightboxOverlay').classList.add('show');
+}
+
+function playDownloadAnimation(btn){
+  btn.classList.remove('done');
+  btn.classList.add('downloading');
+  setTimeout(() => {
+    btn.classList.remove('downloading');
+    btn.classList.add('done');
+    setTimeout(() => btn.classList.remove('done'), 1200);
+  }, 600);
 }
 
 function handleDocChipClick(chip){
@@ -3166,6 +3200,7 @@ function initSupportFab(){
   document.getElementById('imgLightboxOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'imgLightboxOverlay') document.getElementById('imgLightboxOverlay').classList.remove('show');
   });
+  document.getElementById('lightboxDownloadBtn').addEventListener('click', function(){ playDownloadAnimation(this); });
   const chatInput = document.getElementById('supportChatInput');
   const chatSendBtn = document.getElementById('supportChatSendBtn');
   chatInput.addEventListener('input', updateSendBtnEnabled);
