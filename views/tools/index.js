@@ -31,6 +31,9 @@ const CATEGORIES = [
       { href: "/tools/find-replace", name: "Find & Replace", desc: "Find and replace text, with optional regex support.", icon: `<circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/>` },
       { href: "/tools/csv-json", name: "CSV ⇄ JSON Converter", desc: "Convert CSV data to JSON, or JSON back to CSV.", icon: `<rect x="3" y="4" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M8 9h8M8 13h8M8 17h5"/>` },
       { href: "/tools/contrast-checker", name: "Contrast Checker", desc: "Check colors against WCAG accessibility guidelines.", icon: `<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/>` },
+      { href: "/tools/markdown-preview", name: "Markdown Previewer", desc: "Write Markdown and see the rendered HTML instantly.", icon: `<rect x="3" y="5" width="18" height="14" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 15V9l3 3 3-3v6M17 9v6M14.5 12.5L17 15l2.5-2.5"/>` },
+      { href: "/tools/text-encrypt", name: "Text Encryption", desc: "Encrypt or decrypt text with a passphrase, entirely in your browser.", icon: `<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/>` },
+      { href: "/tools/typing-test", name: "Typing Speed Test", desc: "Test your typing speed and accuracy.", icon: `<rect x="3" y="5" width="18" height="14" rx="2"/><path stroke-linecap="round" d="M7 9h.01M11 9h.01M15 9h.01M7 13h6"/>` },
     ],
   },
   {
@@ -43,6 +46,7 @@ const CATEGORIES = [
       { href: "/tools/dice-roller", name: "Coin Flip / Dice Roller", desc: "Flip a coin or roll dice with any number of sides.", icon: `<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8" cy="8" r="1"/><circle cx="16" cy="8" r="1"/><circle cx="8" cy="16" r="1"/><circle cx="16" cy="16" r="1"/><circle cx="12" cy="12" r="1"/>` },
       { href: "/tools/lorem-ipsum", name: "Lorem Ipsum Generator", desc: "Placeholder paragraphs for mockups and layouts.", icon: `<path d="M4 6h16M4 12h16M4 18h10"/>` },
       { href: "/tools/color-converter", name: "Color Converter", desc: "Convert between Hex, RGB and HSL.", icon: `<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18 4.5 4.5 0 000-9h1a3 3 0 000-6"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="10" cy="7" r="1"/>` },
+      { href: "/tools/fake-data", name: "Fake Data Generator", desc: "Realistic fake names, emails and addresses for testing.", icon: `<circle cx="9" cy="8" r="3.2"/><path stroke-linecap="round" d="M3.5 20a5.5 5.5 0 0111 0M16 8.5a3 3 0 010 6M20.5 20a5 5 0 00-6-4.9"/>` },
     ],
   },
   {

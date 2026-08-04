@@ -63,6 +63,10 @@ import { renderMorseCode } from "./views/tools/morse-code.js";
 import { renderPercentageCalculator } from "./views/tools/percentage-calculator.js";
 import { renderBmiCalculator } from "./views/tools/bmi-calculator.js";
 import { renderContrastChecker } from "./views/tools/contrast-checker.js";
+import { renderMarkdownPreview } from "./views/tools/markdown-preview.js";
+import { renderFakeData } from "./views/tools/fake-data.js";
+import { renderTextEncrypt } from "./views/tools/text-encrypt.js";
+import { renderTypingTest } from "./views/tools/typing-test.js";
 import { toolsRouter } from "./routes/tools.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
@@ -413,6 +417,10 @@ const cachedToolsMorseCodeHtml = renderMorseCode(authPageConfig);
 const cachedToolsPercentageCalculatorHtml = renderPercentageCalculator(authPageConfig);
 const cachedToolsBmiCalculatorHtml = renderBmiCalculator(authPageConfig);
 const cachedToolsContrastCheckerHtml = renderContrastChecker(authPageConfig);
+const cachedToolsMarkdownPreviewHtml = renderMarkdownPreview(authPageConfig);
+const cachedToolsFakeDataHtml = renderFakeData(authPageConfig);
+const cachedToolsTextEncryptHtml = renderTextEncrypt(authPageConfig);
+const cachedToolsTypingTestHtml = renderTypingTest(authPageConfig);
 
 const cachedFootballHtml = (() => {
   try {
@@ -3837,6 +3845,22 @@ app.get("/tools/bmi-calculator", scrapeGate, (req, res) => {
 
 app.get("/tools/contrast-checker", scrapeGate, (req, res) => {
   res.send(cachedToolsContrastCheckerHtml);
+});
+
+app.get("/tools/markdown-preview", scrapeGate, (req, res) => {
+  res.send(cachedToolsMarkdownPreviewHtml);
+});
+
+app.get("/tools/fake-data", scrapeGate, (req, res) => {
+  res.send(cachedToolsFakeDataHtml);
+});
+
+app.get("/tools/text-encrypt", scrapeGate, (req, res) => {
+  res.send(cachedToolsTextEncryptHtml);
+});
+
+app.get("/tools/typing-test", scrapeGate, (req, res) => {
+  res.send(cachedToolsTypingTestHtml);
 });
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {
