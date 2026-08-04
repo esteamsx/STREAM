@@ -1703,15 +1703,15 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 }
 .lg-toast.show{transform:translate(-50%,0) scale(1);opacity:1}
 .lg-toast .lg-icon{
-  width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  background:rgba(255,255,255,.12);transform:scale(.4);opacity:0;
-  transition:transform .4s cubic-bezier(.34,1.56,.64,1) .1s,opacity .25s ease .1s;
+  width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.14);transform:scale(.4);opacity:0;
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1) .04s,opacity .2s ease .04s;
 }
 .lg-toast.show .lg-icon{transform:scale(1);opacity:1}
-.lg-toast .lg-icon svg{width:15px;height:15px;overflow:visible}
+.lg-toast .lg-icon svg{width:16px;height:16px;overflow:visible}
 .lg-toast .lg-icon.success svg{color:var(--accent)}
 .lg-toast .lg-icon.error svg{color:var(--red)}
-.lg-toast .lg-icon-path{transition:stroke-dashoffset .35s ease .32s}
+.lg-toast .lg-icon-path{transition:stroke-dashoffset .3s ease .16s}
 .lg-toast .lg-icon-path.check{stroke-dasharray:24;stroke-dashoffset:24}
 .lg-toast .lg-icon-path.cross{stroke-dasharray:36;stroke-dashoffset:36}
 .lg-toast.show .lg-icon-path{stroke-dashoffset:0}
