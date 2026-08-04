@@ -2240,9 +2240,10 @@ async function setCustomVisitPageUrl(uid, url) {
   if (!profile) throw new Error("Account not found.");
   if (getEffectiveApiPlan(profile) !== "max") throw new Error("The custom visit page link is a Max plan feature.");
   const trimmed = String(url || "").trim();
-  if (trimmed && !/^https:\/\/[^\s"'<>]{3,300}$/i.test(trimmed)) throw new Error("Enter a valid https:// URL, without spaces or quote characters.");
-  await db.collection("users").doc(uid).update({ customVisitPageUrl: trimmed || null });
-  return { customVisitPageUrl: trimmed || null };
+  if (!trimmed) throw new Error("Enter a link first.");
+  if (!/^https:\/\/[^\s"'<>]{3,300}$/i.test(trimmed)) throw new Error("Enter a valid https:// URL, without spaces or quote characters.");
+  await db.collection("users").doc(uid).update({ customVisitPageUrl: trimmed });
+  return { customVisitPageUrl: trimmed };
 }
 
 async function adminDeleteUser(uid) {
