@@ -368,24 +368,30 @@ export class RepeatedRefusalGuard {
 }
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-const CSRF_EXEMPT_PREFIXES = ["/api/v1/", "/embed/"];
+const CSRF_EXEMPT_PREFIXES = ["/api/v1/", "/embed/", "/api/paystack/webhook"];
 
 export const crossOriginWriteGuard = (req, res, next) => {
   if (SAFE_METHODS.has(req.method)) return next();
   if (CSRF_EXEMPT_PREFIXES.some((p) => req.path.startsWith(p))) return next();
 
   const origin = req.get("origin");
-  if (!origin || origin === "null") return next();
+  const referer = req.get("referer");
+  const claim = origin && origin !== "null" ? origin : referer;
 
-  let originHost;
+  if (!claim) {
+    console.warn(`Blocked write with no Origin/Referer: ${req.ip} - ${req.method} ${req.path}`);
+    return res.status(403).json({ error: "Access denied" });
+  }
+
+  let claimHost;
   try {
-    originHost = new URL(origin).host.toLowerCase();
+    claimHost = new URL(claim).host.toLowerCase();
   } catch {
     return res.status(403).json({ error: "Access denied" });
   }
 
-  if (originHost === String(req.headers.host || "").toLowerCase()) return next();
+  if (claimHost === String(req.headers.host || "").toLowerCase()) return next();
 
-  console.warn(`Blocked cross-origin write: ${req.ip} - ${origin} -> ${req.method} ${req.path}`);
+  console.warn(`Blocked cross-origin write: ${req.ip} - ${claim} -> ${req.method} ${req.path}`);
   return res.status(403).json({ error: "Access denied" });
 };
