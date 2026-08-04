@@ -10,6 +10,7 @@ ${cfg.devToolsBlock || ""}
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${siteHeadFor("reset")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
+<script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <title>Reset Password: ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
