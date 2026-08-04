@@ -2526,13 +2526,8 @@ document.getElementById('tfaDisableBtn').addEventListener('click', async () => {
 function updateVerificationUI(){
   const heroBtn = document.getElementById('getVerifiedLink');
   const fab = document.getElementById('certFab');
-  if (profile.verified || profile.isAdmin) {
-    heroBtn.style.display = 'none';
-    fab.classList.remove('dead');
-  } else {
-    heroBtn.style.display = 'flex';
-    fab.classList.add('dead');
-  }
+  heroBtn.style.display = (profile.verified || profile.isAdmin) ? 'none' : 'flex';
+  fab.classList.toggle('dead', !profile.verified);
 }
 document.getElementById('getVerifiedLink').addEventListener('click', openVerifyOverlay);
 document.getElementById('certFab').addEventListener('click', () => {
