@@ -985,13 +985,13 @@ async function loadTemplateStatus(){
     const data = await getJSON('/api/admin/bots/template-status');
     if (!data.exists) {
       row.className = 'ad-tpl-status';
-      text.textContent = 'No template built yet — nothing deployed so far.';
+      text.textContent = 'No template built yet, nothing deployed so far.';
     } else if (data.latestShaError) {
       row.className = 'ad-tpl-status stale';
-      text.textContent = 'Running ' + (data.currentSha || '?').slice(0, 7) + ' — could not reach GitHub to compare (' + data.latestShaError + ').';
+      text.textContent = 'Running ' + (data.currentSha || '?').slice(0, 7) + ', could not reach GitHub to compare (' + data.latestShaError + ').';
     } else if (data.upToDate) {
       row.className = 'ad-tpl-status current';
-      text.textContent = 'Up to date (' + data.currentSha.slice(0, 7) + ') — built ' + formatTplTime(data.builtAt) + '.';
+      text.textContent = 'Up to date (' + data.currentSha.slice(0, 7) + '), built ' + formatTplTime(data.builtAt) + '.';
     } else {
       row.className = 'ad-tpl-status stale';
       text.textContent = 'Update available: running ' + (data.currentSha || '?').slice(0, 7) + ', latest is ' + data.latestSha.slice(0, 7) + '.';
@@ -1012,7 +1012,7 @@ document.getElementById('tplCheckBtn').addEventListener('click', async () => {
     if (!result.checked) {
       showToast(result.reason || 'Could not check right now.');
     } else if (result.updated) {
-      showToast('Updated to ' + result.currentSha.slice(0, 7) + ' — restarted ' + result.restarted + ' bot(s).');
+      showToast('Updated to ' + result.currentSha.slice(0, 7) + ', restarted ' + result.restarted + ' bot(s).');
       loadBotsUsers();
     } else {
       showToast('Already up to date.');
@@ -1067,7 +1067,7 @@ function renderBotCard(bot, targetUid){
 
   const meta = document.createElement('div');
   meta.className = 'ad-bot-card-meta';
-  meta.textContent = 'Number: ' + (bot.phoneNumber || '—') + (bot.lastError ? ' · ' + bot.lastError : '');
+  meta.textContent = 'Number: ' + (bot.phoneNumber || '-') + (bot.lastError ? ' · ' + bot.lastError : '');
 
   const actions = document.createElement('div');
   actions.className = 'ad-bot-card-actions';
@@ -1118,8 +1118,8 @@ async function refreshBotsModal(targetUid){
 
 async function runBotAction(botId, targetUid, act, btn){
   const confirmText = {
-    stop: ['Stop this bot?', 'It stays deployed — the owner can restart it later without re-pairing.'],
-    restart: ['Restart this bot?', 'This pulls the latest code and reconnects using its saved session — no new pairing code needed unless that session is no longer valid.'],
+    stop: ['Stop this bot?', 'It stays deployed, the owner can restart it later without re-pairing.'],
+    restart: ['Restart this bot?', 'This pulls the latest code and reconnects using its saved session. No new pairing code needed unless that session is no longer valid.'],
     delete: ['Delete this deployment?', 'This stops the bot and permanently removes it. This cannot be undone.'],
   }[act];
   const ok = await askConfirm(confirmText[0], confirmText[1]);
@@ -1138,7 +1138,7 @@ async function runBotAction(botId, targetUid, act, btn){
 }
 
 function openBotsOverlay(uid, displayName){
-  document.getElementById('botsModalSub').textContent = displayName + "'s deployments — tap an action to manage.";
+  document.getElementById('botsModalSub').textContent = displayName + "'s deployments. Tap an action to manage.";
   document.getElementById('botsModalList').innerHTML = '<div class="ad-empty">Loading…</div>';
   document.getElementById('botsOverlay').classList.add('show');
   refreshBotsModal(uid);
@@ -1190,7 +1190,7 @@ async function loadMaintenanceStatus(){
   try {
     const data = await getJSON('/api/admin/maintenance');
     sw.classList.toggle('on', !!data.maintenanceMode);
-    label.textContent = data.maintenanceMode ? 'Maintenance is ON — site locked' : 'Site is live';
+    label.textContent = data.maintenanceMode ? 'Maintenance is ON, site locked' : 'Site is live';
   } catch (err) {
     label.textContent = 'Could not load status.';
   }
@@ -1204,7 +1204,7 @@ document.getElementById('maintenanceSwitch').addEventListener('click', async () 
   try {
     const data = await postJSON('/api/admin/maintenance', { enabled: next });
     sw.classList.toggle('on', !!data.maintenanceMode);
-    label.textContent = data.maintenanceMode ? 'Maintenance is ON — site locked' : 'Site is live';
+    label.textContent = data.maintenanceMode ? 'Maintenance is ON, site locked' : 'Site is live';
     showToast(data.maintenanceMode ? 'Maintenance mode enabled.' : 'Maintenance mode disabled.');
   } catch (err) {
     showToast(err.message || 'Could not change maintenance mode.');

@@ -5,7 +5,7 @@ export function renderJsonSchemaValidate(cfg) {
     pageKey: "toolsJsonSchemaValidate",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>`,
     heading: "JSON Schema Validator",
-    subtitle: "Check whether a JSON document matches a JSON Schema — reports every mismatch, not just the first one.",
+    subtitle: "Check whether a JSON document matches a JSON Schema. Reports every mismatch, not just the first one.",
     bodyHtml: `
       <div class="field">
         <label for="jsonInput">JSON Data</label>
@@ -30,7 +30,7 @@ export function renderJsonSchemaValidate(cfg) {
         try {
           var data = await postTool('/api/tools/json-schema-validate', { json: jsonInput.value, schema: schemaInput.value });
           if (data.valid) {
-            resultEl.innerHTML = '<div class="result-head"><span>Result</span></div><p style="font-size:.95rem;font-weight:700;color:var(--green)">Valid — the JSON matches the schema.</p>';
+            resultEl.innerHTML = '<div class="result-head"><span>Result</span></div><p style="font-size:.95rem;font-weight:700;color:var(--green)">Valid. The JSON matches the schema.</p>';
           } else {
             resultEl.innerHTML = '<div class="result-head"><span>' + data.errors.length + ' Issue' + (data.errors.length === 1 ? '' : 's') + '</span></div>' +
               '<ul style="padding-left:18px;font-size:.82rem;color:var(--red);line-height:1.8">' + data.errors.map(function(e){ return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>';

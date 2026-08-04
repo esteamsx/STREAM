@@ -9,7 +9,7 @@ export function renderTimestampConverter(cfg) {
     bodyHtml: `
       <div class="field" style="text-align:center">
         <label>Current Unix Timestamp</label>
-        <div id="nowTimestamp" style="font-family:var(--font-mono);font-size:1.3rem;color:var(--accent)">—</div>
+        <div id="nowTimestamp" style="font-family:var(--font-mono);font-size:1.3rem;color:var(--accent)">-</div>
       </div>
       <div class="field">
         <label for="modeSelect">Direction</label>

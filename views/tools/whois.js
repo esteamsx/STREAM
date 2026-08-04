@@ -5,7 +5,7 @@ export function renderWhois(cfg) {
     pageKey: "toolsWhois",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>`,
     heading: "WHOIS Lookup",
-    subtitle: "Look up domain registration info — owner org, registrar, creation and expiry dates.",
+    subtitle: "Look up domain registration info: owner org, registrar, creation and expiry dates.",
     bodyHtml: `
       <div class="field">
         <label for="domainInput">Domain</label>

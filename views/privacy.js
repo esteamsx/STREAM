@@ -95,27 +95,27 @@ h1{font-family:var(--font-display);font-size:1.4rem;margin-bottom:6px}
   </div>
 
   <h1>Privacy Policy</h1>
-  <p class="subtitle">What we collect, why we collect it, and how it's kept — last updated ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long" })}.</p>
+  <p class="subtitle">What we collect, why we collect it, and how it's kept. Last updated ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long" })}.</p>
 
   <div class="policy-card">
     <h2>Information We Collect</h2>
     <p>When you create an account, we collect:</p>
     <ul>
       <li>Your name, email address, and chosen username</li>
-      <li>Your password, handled by Firebase Authentication — we never see or store it in plain text</li>
+      <li>Your password, handled by Firebase Authentication (we never see or store it in plain text)</li>
       <li>Profile info you choose to add, such as an avatar</li>
       <li>Sign-in method, if you use Google Sign-In, a passkey, or two-factor authentication</li>
     </ul>
     <p>We also automatically collect:</p>
     <ul>
-      <li>A session cookie, used to keep you signed in — it's not used for tracking or advertising</li>
+      <li>A session cookie, used to keep you signed in (it's not used for tracking or advertising)</li>
       <li>Basic technical info like IP address and browser type, used for security purposes (rate limiting, abuse prevention, and fraud/bot detection)</li>
     </ul>
 
     <h2>How We Use It</h2>
     <ul>
       <li>To create and secure your account, and keep you signed in</li>
-      <li>To send account-related emails — verification codes, password resets, and security notices</li>
+      <li>To send account-related emails: verification codes, password resets, and security notices</li>
       <li>To detect and prevent abuse, spam, and unauthorized access</li>
       <li>To respond to support requests and DMCA notices</li>
     </ul>
@@ -124,10 +124,10 @@ h1{font-family:var(--font-display);font-size:1.4rem;margin-bottom:6px}
     <h2>Third-Party Services</h2>
     <p>We rely on a small number of third-party services to run the site:</p>
     <ul>
-      <li><strong>Firebase (Google)</strong> — authentication and account data storage</li>
-      <li><strong>Google Sign-In</strong> — optional sign-in method, if you choose to use it</li>
-      <li><strong>Gmail / Google Workspace</strong> — sending verification and account emails</li>
-      <li><strong>Gravatar</strong> — profile avatars, if you've set one up there</li>
+      <li><strong>Firebase (Google)</strong>: authentication and account data storage</li>
+      <li><strong>Google Sign-In</strong>: optional sign-in method, if you choose to use it</li>
+      <li><strong>Gmail / Google Workspace</strong>: sending verification and account emails</li>
+      <li><strong>Gravatar</strong>: profile avatars, if you've set one up there</li>
     </ul>
     <p>Each of these providers has its own privacy policy governing how they handle data on their end.</p>
 
@@ -152,7 +152,7 @@ h1{font-family:var(--font-display);font-size:1.4rem;margin-bottom:6px}
 
     <h2>Contact</h2>
     <p>Questions about this policy, or requests regarding your data, can be sent to:</p>
-    <div class="contact-box" id="contactEmail">—</div>
+    <div class="contact-box" id="contactEmail">-</div>
   </div>
 </div>
 
