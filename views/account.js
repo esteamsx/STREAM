@@ -58,6 +58,20 @@ input{font-family:inherit}
 .acc-deploy-fab:active{transform:scale(.94)}
 .acc-deploy-fab svg{width:24px;height:24px}
 
+.acc-cert-fab{
+  position:fixed;right:20px;bottom:84px;z-index:90;width:48px;height:48px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
+  cursor:pointer;transition:transform .15s var(--ease),opacity .2s var(--ease);
+}
+.acc-cert-fab:active{transform:scale(.94)}
+.acc-cert-fab svg{width:21px;height:21px}
+.acc-cert-fab.dead{background:var(--card2);color:var(--muted2);box-shadow:none;border:1px solid var(--border-strong);opacity:.65}
+.acc-cert-fab.dead:active{transform:none}
+
+.verify-card-expiry{font-size:.82rem;color:var(--muted);line-height:1.5}
+.verify-card-expiry b{color:var(--text)}
+
 .acc-nav{
   position:sticky;top:0;z-index:10;height:58px;display:flex;align-items:center;gap:14px;padding:0 18px;
   background:var(--nav-bg);border-bottom:1px solid var(--border);backdrop-filter:blur(20px);
@@ -93,14 +107,6 @@ input{font-family:inherit}
 .acc-hero-name{font-family:var(--font-display);font-weight:700;font-size:1.1rem}
 .verified-badge{display:inline-flex;vertical-align:middle;margin-left:4px;position:relative;top:-1px}
 .acc-hero-email{font-size:.8rem;color:var(--muted);margin-top:2px}
-
-.acc-verify-link{
-  display:flex;align-items:center;gap:5px;flex-shrink:0;border:none;cursor:pointer;
-  background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;
-  font-size:.72rem;font-weight:700;padding:7px 12px;border-radius:20px;text-decoration:none;
-  transition:transform .15s var(--ease),box-shadow .15s var(--ease);
-}
-.acc-verify-link:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,224,255,.25)}
 
 .acc-settings-icon{
   background:transparent;border:none;color:var(--muted);display:flex;align-items:center;justify-content:center;
@@ -495,10 +501,6 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="acc-hero-name" id="heroName">Hi, –</div>
       <div class="acc-hero-email" id="heroEmail">–</div>
     </div>
-    <button type="button" class="acc-verify-link" id="getVerifiedLink" style="display:none">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
-      <span id="getVerifiedLinkLabel">Get Verified</span>
-    </button>
     <button class="acc-settings-icon" id="themeToggle" aria-label="Toggle theme">
       <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -589,6 +591,20 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
     <button class="acc-btn" id="saveProfileBtn" style="margin-top:6px" disabled>Save Changes</button>
     <div class="acc-msg" id="profileMsg"></div>
+  </div>
+
+  <div class="acc-card" id="verifyCard">
+    <div class="acc-card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
+      Verification
+    </div>
+    <div id="verifyCardUnverified">
+      <div class="overlay-sub" style="margin-bottom:14px">Get a verified badge, unlimited use of every tool, and a personal ES TEAMS TV certificate.</div>
+      <button class="acc-btn" id="verifyCardBtn" style="width:100%">Get Verified — ₦1,500 / 30 days</button>
+    </div>
+    <div id="verifyCardVerified" style="display:none">
+      <div class="verify-card-expiry">You're verified until <b id="verifyCardExpiry">–</b>.</div>
+    </div>
   </div>
 
   <div class="acc-card" id="pwCard">
@@ -1043,6 +1059,10 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 </div>
 
+<button type="button" class="acc-cert-fab dead" id="certFab" aria-label="Certificate" title="Certificate">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/></svg>
+</button>
+
 <a class="acc-deploy-fab" href="/deploy-bot" aria-label="Deploy Bot" title="Deploy Bot">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
     <rect x="3" y="11" width="18" height="10" rx="2"/>
@@ -1400,7 +1420,7 @@ async function loadProfile(){
   }
   
   document.getElementById('heroName').innerHTML = 'Hi, ' + profile.firstName + ((profile.isAdmin || profile.verified) ? VERIFIED_BADGE : '');
-  updateVerifyButton();
+  updateVerificationUI();
   updateHeroIdentity();
   document.getElementById('firstName').value = profile.firstName || '';
   document.getElementById('lastName').value = profile.lastName || '';
@@ -2486,19 +2506,28 @@ document.getElementById('tfaDisableBtn').addEventListener('click', async () => {
   btn.textContent = 'Confirm & Disable';
 });
 
-function updateVerifyButton(){
-  const btn = document.getElementById('getVerifiedLink');
-  const label = document.getElementById('getVerifiedLinkLabel');
-  if (profile.isAdmin) { btn.style.display = 'none'; return; }
-  btn.style.display = 'flex';
+function updateVerificationUI(){
+  const card = document.getElementById('verifyCard');
+  const unverifiedBlock = document.getElementById('verifyCardUnverified');
+  const verifiedBlock = document.getElementById('verifyCardVerified');
+  const fab = document.getElementById('certFab');
+  card.style.display = profile.isAdmin ? 'none' : 'block';
   if (profile.verified) {
-    label.textContent = 'Certificate';
-    btn.onclick = () => openCertOverlay();
+    unverifiedBlock.style.display = 'none';
+    verifiedBlock.style.display = 'block';
+    document.getElementById('verifyCardExpiry').textContent = formatCertDate(profile.verifiedExpiresAt);
+    fab.classList.remove('dead');
   } else {
-    label.textContent = 'Get Verified';
-    btn.onclick = () => openVerifyOverlay();
+    unverifiedBlock.style.display = 'block';
+    verifiedBlock.style.display = 'none';
+    fab.classList.add('dead');
   }
 }
+document.getElementById('verifyCardBtn').addEventListener('click', openVerifyOverlay);
+document.getElementById('certFab').addEventListener('click', () => {
+  if (profile.verified) openCertOverlay();
+  else showToast('No verified certificate found');
+});
 
 function showVerifyStep(id){
   document.querySelectorAll('#verifyOverlay .overlay-step').forEach(el => el.classList.remove('active'));
@@ -2562,7 +2591,7 @@ async function confirmVerificationPayment(reference){
     profile.verifiedAt = profile.verifiedAt || Date.now();
     profile.verifiedExpiresAt = result.expiresAt;
     document.getElementById('heroName').innerHTML = 'Hi, ' + profile.firstName + VERIFIED_BADGE;
-    updateVerifyButton();
+    updateVerificationUI();
     showVerifyStep('verifyStepSuccess');
   } catch (err) {
     showVerifyStep('verifyStepIntro');
