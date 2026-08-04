@@ -906,16 +906,16 @@ function escapeHtml(s){
 }
 function renderPostText(text){
   let html = escapeHtml(text);
-  html = html.replace(/\\[([^\\[\\]]+)\\]\\((https?:\\/\\/[^\\s()]+)\\)/g, function(m, label, url){
-    return '<a href="' + url.replace(/\"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer" class="post-link">' + label + '</a>';
+  html = html.replace(/\[([^\[\]]+)\]\((https?:\/\/[^\s()]+)\)/g, function(m, label, url){
+    return '<a href="' + url.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer" class="post-link">' + label + '</a>';
   });
-  html = html.replace(/\\*([^\\s*][^*]*?)\\*/g, '<b>$1</b>');
-  html = html.replace(/_([^\\s_][^_]*?)_/g, '<i>$1</i>');
-  html = html.replace(/@(\\w+)/g, '<a href="/u/$1">@$1</a>');
+  html = html.replace(/\*([^\s*][^*]*?)\*/g, '<b>$1</b>');
+  html = html.replace(/_([^\s_][^_]*?)_/g, '<i>$1</i>');
+  html = html.replace(/@(\w+)/g, '<a href="/u/$1">@$1</a>');
   return html;
 }
 function extractTags(text){
-  const matches = (text || '').match(/@(\\w+)/g) || [];
+  const matches = (text || '').match(/@(\w+)/g) || [];
   return [...new Set(matches.map(m => m.slice(1).toLowerCase()))];
 }
 
@@ -973,11 +973,11 @@ function attachTagHighlight(inputEl, opts){
     const text = inputEl.value || '';
     let html = escapeHtml(text);
     if (opts.richFormatting) {
-      html = html.replace(/\\[([^\\[\\]]+)\\]\\((https?:\\/\\/[^\\s()]+)\\)/g, '<span class="link-span">[$1]($2)</span>');
-      html = html.replace(/\\*([^\\s*][^*]*?)\\*/g, '<span class="md-bold">*$1*</span>');
-      html = html.replace(/_([^\\s_][^_]*?)_/g, '<span class="md-italic">_$1_</span>');
+      html = html.replace(/\[([^\[\]]+)\]\((https?:\/\/[^\s()]+)\)/g, '<span class="link-span">[$1]($2)</span>');
+      html = html.replace(/\*([^\s*][^*]*?)\*/g, '<span class="md-bold">*$1*</span>');
+      html = html.replace(/_([^\s_][^_]*?)_/g, '<span class="md-italic">_$1_</span>');
     }
-    html = html.replace(/@(\\w+)/g, '<mark>@$1</mark>');
+    html = html.replace(/@(\w+)/g, '<mark>@$1</mark>');
     backdrop.innerHTML = html + '&#8203;';
     backdrop.scrollLeft = inputEl.scrollLeft;
     backdrop.scrollTop = inputEl.scrollTop;
@@ -1070,7 +1070,7 @@ document.getElementById('linkInsertSaveBtn').addEventListener('click', () => {
   if (!pendingLinkInput || !pendingLinkRange) { closeLinkInsertOverlay(); return; }
   let url = document.getElementById('linkInsertUrlInput').value.trim();
   if (!url) { showToast('Enter a link first.'); return; }
-  if (!/^https?:\\/\\//i.test(url)) url = 'https://' + url;
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
   const inputEl = pendingLinkInput;
   const { start, end, text } = pendingLinkRange;
   const before = inputEl.value.slice(0, start);
@@ -1104,7 +1104,7 @@ function openTagSearch(inputEl){
 
 function selectTag(username){
   if (activeTagInput) {
-    activeTagInput.value = activeTagInput.value.replace(/\\s+$/, '') + (activeTagInput.value.trim() ? ' ' : '') + '@' + username + ' ';
+    activeTagInput.value = activeTagInput.value.replace(/\s+$/, '') + (activeTagInput.value.trim() ? ' ' : '') + '@' + username + ' ';
     activeTagInput.dispatchEvent(new Event('input'));
     activeTagInput.focus();
   }
@@ -1708,7 +1708,7 @@ function renderCommentRow(c, postId){
   row.className = 'comment-row' + (c.hidden ? ' is-hidden' : '') + (c.isOwnComment ? ' own' : '');
   row.dataset.id = c.id;
 
-  const replyMatch = (c.text || '').match(/^\\[\\[reply:([\\w-]+)\\]\\]([\\s\\S]*)$/);
+  const replyMatch = (c.text || '').match(/^\[\[reply:([\w-]+)\]\]([\s\S]*)$/);
   const replyToId = replyMatch ? replyMatch[1] : null;
   const displayText = replyMatch ? replyMatch[2] : c.text;
   const repliedComment = replyToId ? loadedCommentsById[replyToId] : null;
@@ -1746,7 +1746,7 @@ function renderCommentRow(c, postId){
     quoteName.textContent = '@' + ((repliedComment.author && repliedComment.author.username) || '');
     const quoteText = document.createElement('div');
     quoteText.className = 'comment-quote-text';
-    quoteText.textContent = (repliedComment.text || '').replace(/^\\[\\[reply:[\\w-]+\\]\\]/, '');
+    quoteText.textContent = (repliedComment.text || '').replace(/^\[\[reply:[\w-]+\]\]/, '');
     quote.appendChild(quoteName);
     quote.appendChild(quoteText);
     body.appendChild(quote);
@@ -1822,7 +1822,7 @@ function startReplyToComment(c){
   if (!c.author || !c.author.username) return;
   const input = document.getElementById('commentInput');
   if (!input) return;
-  const cleanText = (c.text || '').replace(/^\\[\\[reply:[\\w-]+\\]\\]/, '');
+  const cleanText = (c.text || '').replace(/^\[\[reply:[\w-]+\]\]/, '');
   replyContext = { id: c.id, username: c.author.username, text: cleanText };
   const nameEl = document.getElementById('commentReplyPreviewName');
   const textEl = document.getElementById('commentReplyPreviewText');

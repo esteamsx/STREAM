@@ -178,6 +178,11 @@ import {
   adminResetPassword,
   getMaintenanceMode,
   setMaintenanceMode,
+  sendSupportMessage,
+  getSupportMessages,
+  getSupportUnreadCountForUser,
+  getSupportUnreadCountForAdmin,
+  getSupportThreadsForAdmin,
   requireAuth,
   isAdminEmail,
   isVerificationActive,
@@ -1464,6 +1469,12 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .notif-nav-dot.show{display:block}
 .bnav-icon-wrap{position:relative;display:inline-flex}
 .bnav-icon-wrap .notif-nav-dot{top:-3px;right:-5px;border-color:var(--nav-bg,var(--card2))}
+.bnav-badge{
+  position:absolute;top:-6px;right:-8px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;
+  background:var(--red);color:#fff;font-size:.58rem;font-weight:800;display:none;align-items:center;justify-content:center;
+  border:2px solid var(--nav-bg,var(--card2));line-height:1;pointer-events:none;
+}
+.bnav-badge.show{display:flex}
 .notif-menu-dot{
   display:none;width:6px;height:6px;border-radius:50%;background:var(--red);margin-left:auto;flex-shrink:0;
 }
@@ -2001,6 +2012,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     <span class="bnav-icon-wrap">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span class="notif-nav-dot js-notif-dot" id="bnavProfileDot"></span>
+      <span class="bnav-badge" id="bnavSupportBadge"></span>
     </span>
     Profile
   </a>
@@ -3146,6 +3158,15 @@ function fsRunSearch(q){
 }
 
 (function(){
+  var allDropdownMenus = [];
+  function closeOtherDropdownMenus(exceptMenu){
+    allDropdownMenus.forEach(function(m){
+      if (m.menu !== exceptMenu) {
+        m.menu.classList.remove('open');
+        if (m.btn) m.btn.classList.remove('open');
+      }
+    });
+  }
   function initAccountMenu(){
   fetch('/api/profile').then(function(r){ return r.ok ? r.json() : Promise.reject(); }).then(function(profile){
     var initials = ((profile.firstName || '')[0] || '') + ((profile.lastName || '')[0] || '');
@@ -3192,9 +3213,11 @@ function fsRunSearch(q){
       Promise.all([
         fetch('/api/notifications/unread').then(function(r){ return r.ok ? r.json() : { hasUnread: false }; }).catch(function(){ return { hasUnread: false }; }),
         fetch('/api/feed/following/unseen-count').then(function(r){ return r.ok ? r.json() : { count: 0 }; }).catch(function(){ return { count: 0 }; }),
+        fetch('/api/support/unread').then(function(r){ return r.ok ? r.json() : { count: 0 }; }).catch(function(){ return { count: 0 }; }),
       ]).then(function(results){
         var hasUnread = !!results[0].hasUnread;
         var hasNewPosts = results[1].count > 0;
+        var supportCount = results[2].count || 0;
         document.querySelectorAll('.js-account-dot').forEach(function(el){
           el.classList.toggle('show', hasUnread);
         });
@@ -3202,8 +3225,13 @@ function fsRunSearch(q){
           el.classList.toggle('show', hasNewPosts);
         });
         document.querySelectorAll('.js-notif-dot').forEach(function(el){
-          el.classList.toggle('show', hasUnread || hasNewPosts);
+          el.classList.toggle('show', hasUnread || hasNewPosts || supportCount > 0);
         });
+        var supportBadge = document.getElementById('bnavSupportBadge');
+        if (supportBadge) {
+          supportBadge.textContent = supportCount > 99 ? '99+' : (supportCount || '');
+          supportBadge.classList.toggle('show', supportCount > 0);
+        }
       });
     }
     refreshNotifDots();
@@ -3216,10 +3244,13 @@ function fsRunSearch(q){
   var menuBtn = document.getElementById('userMenuBtn');
   var menuDropdown = document.getElementById('userMenuDropdown');
   if (menuBtn && menuDropdown) {
+    allDropdownMenus.push({ btn: menuBtn, menu: menuDropdown });
     menuBtn.addEventListener('click', function(e){
       e.stopPropagation();
-      menuBtn.classList.toggle('open');
-      menuDropdown.classList.toggle('open');
+      var willOpen = !menuDropdown.classList.contains('open');
+      closeOtherDropdownMenus(menuDropdown);
+      menuBtn.classList.toggle('open', willOpen);
+      menuDropdown.classList.toggle('open', willOpen);
     });
     document.addEventListener('click', function(){
       menuBtn.classList.remove('open');
@@ -3254,9 +3285,12 @@ function fsRunSearch(q){
   var bnavToolsMenu = document.getElementById('bnavToolsMenu');
   var bnavToolsSearchItem = document.getElementById('bnavToolsSearchItem');
   if (bnavTools && bnavToolsMenu) {
+    allDropdownMenus.push({ btn: bnavTools, menu: bnavToolsMenu });
     bnavTools.addEventListener('click', function(e){
       e.stopPropagation();
-      bnavToolsMenu.classList.toggle('open');
+      var willOpen = !bnavToolsMenu.classList.contains('open');
+      closeOtherDropdownMenus(bnavToolsMenu);
+      bnavToolsMenu.classList.toggle('open', willOpen);
     });
     document.addEventListener('click', function(){
       bnavToolsMenu.classList.remove('open');
@@ -3283,9 +3317,12 @@ function fsRunSearch(q){
     });
   }
   if (bnavSettings && bnavSettingsMenu) {
+    allDropdownMenus.push({ btn: bnavSettings, menu: bnavSettingsMenu });
     bnavSettings.addEventListener('click', function(e){
       e.stopPropagation();
-      bnavSettingsMenu.classList.toggle('open');
+      var willOpen = !bnavSettingsMenu.classList.contains('open');
+      closeOtherDropdownMenus(bnavSettingsMenu);
+      bnavSettingsMenu.classList.toggle('open', willOpen);
     });
     document.addEventListener('click', function(){
       bnavSettingsMenu.classList.remove('open');
@@ -3501,6 +3538,33 @@ app.post("/api/admin/maintenance", requireAuth, requireAdmin, async (req, res) =
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: err.message || "Could not update maintenance status." });
+  }
+});
+
+app.get("/api/admin/support/threads", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ threads: await getSupportThreadsForAdmin() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load customer care chats." });
+  }
+});
+
+app.get("/api/admin/support/threads/:uid/messages", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ messages: await getSupportMessages(req.params.uid, true) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load that chat." });
+  }
+});
+
+app.post("/api/admin/support/threads/:uid/messages", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const message = await sendSupportMessage(req.params.uid, req.body?.text, true);
+    res.json({ message });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not send that message." });
   }
 });
 
@@ -4507,6 +4571,35 @@ app.get("/api/notifications/unread", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not check notifications." });
+  }
+});
+
+app.get("/api/support/messages", requireAuth, async (req, res) => {
+  try {
+    res.json({ messages: await getSupportMessages(req.uid, false) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load your chat." });
+  }
+});
+
+app.post("/api/support/messages", requireAuth, async (req, res) => {
+  try {
+    const message = await sendSupportMessage(req.uid, req.body?.text, false);
+    res.json({ message });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not send that message." });
+  }
+});
+
+app.get("/api/support/unread", requireAuth, async (req, res) => {
+  try {
+    const isAdmin = isAdminEmail(req.userProfile?.email);
+    const count = isAdmin ? await getSupportUnreadCountForAdmin() : await getSupportUnreadCountForUser(req.uid);
+    res.json({ count });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not check customer care unread count." });
   }
 });
 

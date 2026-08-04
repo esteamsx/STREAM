@@ -2284,6 +2284,76 @@ async function setMaintenanceMode(enabled) {
   return { maintenanceMode: !!enabled };
 }
 
+const SUPPORT_MESSAGE_MAX_LEN = 2000;
+
+async function sendSupportMessage(uid, text, fromAdmin) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) throw new Error("Type a message first.");
+  if (trimmed.length > SUPPORT_MESSAGE_MAX_LEN) throw new Error("Message is too long.");
+  const now = Date.now();
+  const threadRef = db.collection("supportThreads").doc(uid);
+  const msgRef = threadRef.collection("messages").doc();
+  await msgRef.set({ text: trimmed, fromAdmin: !!fromAdmin, createdAt: now });
+  await threadRef.set(
+    {
+      uid,
+      lastMessageText: trimmed,
+      lastMessageAt: now,
+      updatedAt: now,
+      unreadForAdmin: admin.firestore.FieldValue.increment(fromAdmin ? 0 : 1),
+      unreadForUser: admin.firestore.FieldValue.increment(fromAdmin ? 1 : 0),
+    },
+    { merge: true }
+  );
+  return { id: msgRef.id, text: trimmed, fromAdmin: !!fromAdmin, createdAt: now };
+}
+
+async function getSupportMessages(uid, asAdmin) {
+  const threadRef = db.collection("supportThreads").doc(uid);
+  const [msgSnap, threadSnap] = await Promise.all([
+    threadRef.collection("messages").orderBy("createdAt", "asc").limit(500).get(),
+    threadRef.get(),
+  ]);
+  const messages = msgSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  if (threadSnap.exists) {
+    await threadRef.update({ [asAdmin ? "unreadForAdmin" : "unreadForUser"]: 0 }).catch(() => {});
+  }
+  return messages;
+}
+
+async function getSupportUnreadCountForUser(uid) {
+  const snap = await db.collection("supportThreads").doc(uid).get();
+  return snap.exists ? snap.data().unreadForUser || 0 : 0;
+}
+
+async function getSupportUnreadCountForAdmin() {
+  const snap = await db.collection("supportThreads").where("unreadForAdmin", ">", 0).get();
+  let total = 0;
+  snap.forEach((d) => { total += d.data().unreadForAdmin || 0; });
+  return total;
+}
+
+async function getSupportThreadsForAdmin() {
+  const snap = await db.collection("supportThreads").orderBy("updatedAt", "desc").limit(200).get();
+  const threads = snap.docs.map((d) => d.data());
+  const profiles = await Promise.all(threads.map((t) => getUserProfile(t.uid)));
+  return threads.map((t, i) => {
+    const p = profiles[i] || {};
+    return {
+      uid: t.uid,
+      username: p.username || null,
+      firstName: p.firstName || "",
+      lastName: p.lastName || "",
+      photoURL: p.photoURL || null,
+      verified: isVerificationActive(p),
+      lastActiveAt: p.lastActiveAt || null,
+      lastMessageText: t.lastMessageText || "",
+      lastMessageAt: t.lastMessageAt || null,
+      unread: t.unreadForAdmin || 0,
+    };
+  });
+}
+
 export {
   adminListUsers,
   adminSearchUsers,
@@ -2304,6 +2374,11 @@ export {
   getApiPlanPayment,
   finalizeApiPlanPayment,
   setCustomVisitPageUrl,
+  sendSupportMessage,
+  getSupportMessages,
+  getSupportUnreadCountForUser,
+  getSupportUnreadCountForAdmin,
+  getSupportThreadsForAdmin,
 };
 
 export {

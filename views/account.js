@@ -69,6 +69,57 @@ input{font-family:inherit}
 .acc-cert-fab.dead{background:var(--card2);color:var(--muted2);box-shadow:none;border:1px solid var(--border-strong);opacity:.65}
 .acc-cert-fab.dead:active{transform:none}
 
+.acc-support-fab{
+  position:fixed;right:20px;bottom:140px;z-index:90;width:48px;height:48px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
+  cursor:pointer;transition:transform .15s var(--ease);
+}
+.acc-support-fab:active{transform:scale(.94)}
+.acc-support-fab svg{width:21px;height:21px}
+.fab-badge{
+  position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;
+  background:var(--red);color:#fff;font-size:.64rem;font-weight:800;display:none;align-items:center;justify-content:center;
+  border:2px solid var(--dark);line-height:1;
+}
+.fab-badge.show{display:flex}
+
+.sc-thread-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;transition:background .15s var(--ease)}
+.sc-thread-row:hover{background:var(--card2)}
+.sc-thread-avatar{
+  width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;
+  font-size:.95rem;color:#04141a;flex-shrink:0;background-size:cover;background-position:center;
+}
+.sc-thread-info{flex:1;min-width:0}
+.sc-thread-name{font-size:.86rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:4px}
+.sc-thread-preview{font-size:.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.sc-thread-meta{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
+.sc-thread-time{font-size:.68rem;color:var(--muted)}
+.sc-thread-unread{
+  min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:#04141a;
+  font-size:.66rem;font-weight:800;display:flex;align-items:center;justify-content:center;
+}
+.sc-chat-card{width:100%;max-width:420px;max-height:82vh;height:560px}
+.sc-chat-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.sc-bubble{max-width:78%;padding:8px 12px;border-radius:14px;font-size:.84rem;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+.sc-bubble-me{align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-bottom-right-radius:4px}
+.sc-bubble-them{align-self:flex-start;background:var(--card2);color:var(--text);border:1px solid var(--border-strong);border-bottom-left-radius:4px}
+.sc-bubble-time{font-size:.63rem;opacity:.7;margin-top:3px;display:block}
+.sc-chat-empty{margin:auto;color:var(--muted);font-size:.83rem;text-align:center}
+.sc-chat-footer{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
+.sc-chat-input{
+  flex:1;background:var(--dark3);border:1px solid var(--border-strong);border-radius:20px;
+  padding:10px 15px;color:var(--text);font-size:.85rem;font-family:inherit;
+}
+.sc-chat-send{
+  flex-shrink:0;width:38px;height:38px;border-radius:50%;border:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;
+  display:flex;align-items:center;justify-content:center;transition:opacity .2s var(--ease);
+}
+.sc-chat-send:disabled{opacity:.4;cursor:default}
+.sc-chat-send svg{width:16px;height:16px;transform:translateX(-1px)}
+
 .acc-nav{
   position:sticky;top:0;z-index:10;height:58px;display:flex;align-items:center;gap:14px;padding:0 18px;
   background:var(--nav-bg);border-bottom:1px solid var(--border);backdrop-filter:blur(20px);
@@ -986,6 +1037,36 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 </div>
 
+<div class="page-overlay" id="supportInboxOverlay">
+  <div class="flist-card">
+    <div class="flist-header">
+      <div class="flist-title">Customer Care</div>
+      <button type="button" class="flist-close" id="supportInboxCloseBtn" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="flist-list" id="supportThreadList"></div>
+  </div>
+</div>
+
+<div class="page-overlay" id="supportChatOverlay">
+  <div class="flist-card sc-chat-card">
+    <div class="flist-header">
+      <div class="flist-title" id="supportChatTitle">Customer Care</div>
+      <button type="button" class="flist-close" id="supportChatCloseBtn" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="sc-chat-body" id="supportChatBody"></div>
+    <div class="sc-chat-footer">
+      <input type="text" id="supportChatInput" class="sc-chat-input" maxlength="2000" placeholder="Type a message…" autocomplete="off">
+      <button type="button" class="sc-chat-send" id="supportChatSendBtn" aria-label="Send" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="page-overlay" id="verifyOverlay">
   <div class="overlay-card" style="max-width:380px">
     <div class="overlay-step active" id="verifyStepIntro">
@@ -1065,6 +1146,11 @@ body:has(.page-overlay.show){overflow:hidden}
     </button>
   </div>
 </div>
+
+<button type="button" class="acc-support-fab" id="supportFab" aria-label="Customer Care" title="Customer Care">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0116 0v1"/><rect x="2" y="13" width="5" height="7" rx="2"/><rect x="17" y="13" width="5" height="7" rx="2"/><path d="M20 20a4 4 0 01-4 4h-2"/></svg>
+  <span class="fab-badge" id="supportFabBadge"></span>
+</button>
 
 <button type="button" class="acc-cert-fab dead" id="certFab" aria-label="Certificate" title="Certificate">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/></svg>
@@ -1429,6 +1515,7 @@ async function loadProfile(){
   
   document.getElementById('heroName').innerHTML = 'Hi, ' + esc(profile.firstName) + ((profile.isAdmin || profile.verified) ? VERIFIED_BADGE : '');
   updateVerificationUI();
+  initSupportFab();
   updateHeroIdentity();
   document.getElementById('firstName').value = profile.firstName || '';
   document.getElementById('lastName').value = profile.lastName || '';
@@ -2535,6 +2622,156 @@ document.getElementById('certFab').addEventListener('click', () => {
   if (profile.verified) openCertOverlay();
   else showToast('No verified certificate found');
 });
+
+let supportChatTargetUid = null;
+let supportChatIsAdminView = false;
+let supportChatPollTimer = null;
+
+async function refreshSupportUnread(){
+  try {
+    const { count } = await getJSON('/api/support/unread');
+    const badge = document.getElementById('supportFabBadge');
+    badge.textContent = count > 99 ? '99+' : (count || '');
+    badge.classList.toggle('show', count > 0);
+  } catch (err) {}
+}
+
+function renderSupportThreadRow(t){
+  const row = document.createElement('div');
+  row.className = 'sc-thread-row';
+  const name = (t.firstName || t.lastName) ? ((t.firstName || '') + ' ' + (t.lastName || '')).trim() : ('@' + (t.username || 'user'));
+  const initials = ((t.firstName || '')[0] || (t.username || '?')[0] || '?').toUpperCase();
+  const avatar = document.createElement('div');
+  avatar.className = 'sc-thread-avatar';
+  if (t.photoURL) { avatar.style.backgroundImage = 'url(' + t.photoURL + ')'; }
+  else { avatar.textContent = initials; }
+  const info = document.createElement('div');
+  info.className = 'sc-thread-info';
+  info.innerHTML =
+    '<div class="sc-thread-name">' + esc(name) + (t.verified ? VERIFIED_BADGE : '') + '</div>' +
+    '<div class="sc-thread-preview">' + esc(t.lastMessageText || '') + '</div>';
+  const meta = document.createElement('div');
+  meta.className = 'sc-thread-meta';
+  const activeLabel = t.lastActiveAt ? ('Active ' + timeAgo(t.lastActiveAt)) : 'Offline';
+  meta.innerHTML =
+    '<div class="sc-thread-time">' + (t.lastMessageAt ? timeAgo(t.lastMessageAt) : '') + '</div>' +
+    (t.unread > 0 ? '<div class="sc-thread-unread">' + (t.unread > 99 ? '99+' : t.unread) + '</div>' : '<div class="sc-thread-time">' + esc(activeLabel) + '</div>');
+  row.appendChild(avatar);
+  row.appendChild(info);
+  row.appendChild(meta);
+  row.addEventListener('click', () => {
+    document.getElementById('supportInboxOverlay').classList.remove('show');
+    openSupportChat(t.uid, name, true);
+  });
+  return row;
+}
+
+function closeAllOtherOverlays(exceptId){
+  document.querySelectorAll('.page-overlay.show').forEach(el => {
+    if (el.id !== exceptId) el.classList.remove('show');
+  });
+}
+
+async function openSupportInbox(){
+  closeAllOtherOverlays('supportInboxOverlay');
+  document.getElementById('supportInboxOverlay').classList.add('show');
+  const list = document.getElementById('supportThreadList');
+  list.innerHTML = '<div class="flist-empty">Loading…</div>';
+  try {
+    const { threads } = await getJSON('/api/admin/support/threads');
+    if (!threads.length) { list.innerHTML = '<div class="flist-empty">No messages yet.</div>'; return; }
+    list.innerHTML = '';
+    threads.forEach(t => list.appendChild(renderSupportThreadRow(t)));
+  } catch (err) {
+    list.innerHTML = '<div class="flist-empty">Could not load chats.</div>';
+  }
+}
+
+function renderSupportBubble(m){
+  const mine = supportChatIsAdminView ? m.fromAdmin : !m.fromAdmin;
+  return '<div class="sc-bubble ' + (mine ? 'sc-bubble-me' : 'sc-bubble-them') + '">' +
+    esc(m.text) + '<span class="sc-bubble-time">' + timeAgo(m.createdAt) + '</span>' +
+  '</div>';
+}
+
+async function loadSupportChatMessages(isInitial){
+  const body = document.getElementById('supportChatBody');
+  const wasAtBottom = isInitial || (body.scrollHeight - body.scrollTop - body.clientHeight) < 40;
+  try {
+    const url = supportChatIsAdminView
+      ? '/api/admin/support/threads/' + encodeURIComponent(supportChatTargetUid) + '/messages'
+      : '/api/support/messages';
+    const { messages } = await getJSON(url);
+    body.innerHTML = messages.length
+      ? messages.map(renderSupportBubble).join('')
+      : '<div class="sc-chat-empty">No messages yet. Say hello!</div>';
+    if (wasAtBottom) body.scrollTop = body.scrollHeight;
+    refreshSupportUnread();
+  } catch (err) {
+    body.innerHTML = '<div class="sc-chat-empty">Could not load this chat.</div>';
+  }
+}
+
+async function openSupportChat(uid, title, isAdminView){
+  supportChatTargetUid = uid;
+  supportChatIsAdminView = !!isAdminView;
+  closeAllOtherOverlays('supportChatOverlay');
+  document.getElementById('supportChatTitle').textContent = isAdminView ? title : 'Customer Care';
+  document.getElementById('supportChatInput').value = '';
+  document.getElementById('supportChatSendBtn').disabled = true;
+  document.getElementById('supportChatOverlay').classList.add('show');
+  await loadSupportChatMessages(true);
+  if (supportChatPollTimer) clearInterval(supportChatPollTimer);
+  supportChatPollTimer = setInterval(() => loadSupportChatMessages(false), 4000);
+}
+
+function closeSupportChat(){
+  document.getElementById('supportChatOverlay').classList.remove('show');
+  if (supportChatPollTimer) { clearInterval(supportChatPollTimer); supportChatPollTimer = null; }
+  if (supportChatIsAdminView) document.getElementById('supportInboxOverlay').classList.add('show');
+  supportChatTargetUid = null;
+  refreshSupportUnread();
+}
+
+async function sendSupportChatMessage(){
+  const input = document.getElementById('supportChatInput');
+  const sendBtn = document.getElementById('supportChatSendBtn');
+  const text = input.value.trim();
+  if (!text || !supportChatTargetUid) return;
+  sendBtn.disabled = true;
+  input.value = '';
+  try {
+    const url = supportChatIsAdminView
+      ? '/api/admin/support/threads/' + encodeURIComponent(supportChatTargetUid) + '/messages'
+      : '/api/support/messages';
+    await postJSON(url, { text });
+    await loadSupportChatMessages(false);
+  } catch (err) {
+    showToast(err.message || 'Could not send that message.');
+    input.value = text;
+  }
+  sendBtn.disabled = !input.value.trim();
+}
+
+function initSupportFab(){
+  refreshSupportUnread();
+  setInterval(refreshSupportUnread, 20000);
+  document.getElementById('supportFab').addEventListener('click', () => {
+    if (profile.isAdmin) openSupportInbox();
+    else openSupportChat(profile.uid, 'Customer Care', false);
+  });
+  document.getElementById('supportInboxCloseBtn').addEventListener('click', () => {
+    document.getElementById('supportInboxOverlay').classList.remove('show');
+  });
+  document.getElementById('supportChatCloseBtn').addEventListener('click', closeSupportChat);
+  const chatInput = document.getElementById('supportChatInput');
+  const chatSendBtn = document.getElementById('supportChatSendBtn');
+  chatInput.addEventListener('input', () => { chatSendBtn.disabled = !chatInput.value.trim(); });
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !chatSendBtn.disabled) sendSupportChatMessage();
+  });
+  chatSendBtn.addEventListener('click', sendSupportChatMessage);
+}
 
 function showVerifyStep(id){
   document.querySelectorAll('#verifyOverlay .overlay-step').forEach(el => el.classList.remove('active'));
