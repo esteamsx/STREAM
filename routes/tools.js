@@ -965,4 +965,286 @@ router.post("/api/tools/age-calc", optionalAuth, toolGate("age-calc"), async (re
   res.json({ years, months, days, totalDays });
 });
 
+function lineDiff(a, b) {
+  const aLines = a.split(/\r\n|\r|\n/);
+  const bLines = b.split(/\r\n|\r|\n/);
+  const n = aLines.length, m = bLines.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = aLines[i] === bLines[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const ops = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (aLines[i] === bLines[j]) { ops.push({ type: "same", text: aLines[i] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ type: "removed", text: aLines[i] }); i++; }
+    else { ops.push({ type: "added", text: bLines[j] }); j++; }
+  }
+  while (i < n) { ops.push({ type: "removed", text: aLines[i] }); i++; }
+  while (j < m) { ops.push({ type: "added", text: bLines[j] }); j++; }
+  return ops;
+}
+
+router.post("/api/tools/text-diff", optionalAuth, toolGate("text-diff"), async (req, res) => {
+  const a = String(req.body?.textA || "");
+  const b = String(req.body?.textB || "");
+  if (!a.trim() && !b.trim()) return res.status(400).json({ error: "Enter some text in both boxes first." });
+  if (a.length > 200000 || b.length > 200000) return res.status(400).json({ error: "Text is too long (max 200,000 characters each)." });
+  const aLineCount = a.split(/\r\n|\r|\n/).length;
+  const bLineCount = b.split(/\r\n|\r|\n/).length;
+  if (aLineCount > 4000 || bLineCount > 4000) return res.status(400).json({ error: "Too many lines (max 4,000 each)." });
+  const ops = lineDiff(a, b);
+  const added = ops.filter((o) => o.type === "added").length;
+  const removed = ops.filter((o) => o.type === "removed").length;
+  res.json({ ops, added, removed });
+});
+
+router.post("/api/tools/find-replace", optionalAuth, toolGate("find-replace"), async (req, res) => {
+  const text = String(req.body?.text || "");
+  const find = String(req.body?.find || "");
+  const replace = String(req.body?.replace || "");
+  const useRegex = !!req.body?.useRegex;
+  const caseSensitive = !!req.body?.caseSensitive;
+  if (!text) return res.status(400).json({ error: "Enter some text first." });
+  if (!find) return res.status(400).json({ error: "Enter something to find first." });
+  if (text.length > 500000) return res.status(400).json({ error: "Text is too long (max 500,000 characters)." });
+  let output, count = 0;
+  try {
+    const flags = "g" + (caseSensitive ? "" : "i");
+    const pattern = useRegex ? find : find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(pattern, flags);
+    output = text.replace(re, (...args) => {
+      count++;
+      return replace;
+    });
+  } catch (err) {
+    return res.status(400).json({ error: "That regular expression is invalid." });
+  }
+  res.json({ output, count });
+});
+
+function parseCsvLine(line) {
+  const out = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } else { inQuotes = false; }
+      } else cur += ch;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === ",") { out.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+function csvField(value) {
+  const s = String(value ?? "");
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+router.post("/api/tools/csv-json", optionalAuth, toolGate("csv-json"), async (req, res) => {
+  const input = String(req.body?.input || "");
+  const direction = req.body?.direction === "jsonToCsv" ? "jsonToCsv" : "csvToJson";
+  if (!input.trim()) return res.status(400).json({ error: "Paste some data first." });
+  if (input.length > 500000) return res.status(400).json({ error: "Input is too long (max 500,000 characters)." });
+  try {
+    if (direction === "csvToJson") {
+      const lines = input.split(/\r\n|\r|\n/).filter((l) => l.length);
+      if (!lines.length) return res.status(400).json({ error: "No rows found." });
+      const headers = parseCsvLine(lines[0]);
+      const rows = lines.slice(1).map((line) => {
+        const cells = parseCsvLine(line);
+        const obj = {};
+        headers.forEach((h, idx) => { obj[h] = cells[idx] ?? ""; });
+        return obj;
+      });
+      res.json({ output: JSON.stringify(rows, null, 2) });
+    } else {
+      const data = JSON.parse(input);
+      const rows = Array.isArray(data) ? data : [data];
+      if (!rows.length) return res.status(400).json({ error: "That JSON array is empty." });
+      const headerSet = new Set();
+      rows.forEach((r) => Object.keys(r || {}).forEach((k) => headerSet.add(k)));
+      const headers = [...headerSet];
+      const lines = [headers.map(csvField).join(",")];
+      rows.forEach((r) => lines.push(headers.map((h) => csvField(r?.[h])).join(",")));
+      res.json({ output: lines.join("\n") });
+    }
+  } catch (err) {
+    res.status(400).json({ error: direction === "csvToJson" ? "Could not parse that as CSV." : "Could not parse that as JSON." });
+  }
+});
+
+const NUM_ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const NUM_TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+const NUM_SCALES = ["", "thousand", "million", "billion", "trillion"];
+
+function threeDigitsToWords(n) {
+  const parts = [];
+  if (n >= 100) { parts.push(NUM_ONES[Math.floor(n / 100)], "hundred"); n %= 100; }
+  if (n >= 20) { parts.push(NUM_TENS[Math.floor(n / 10)]); n %= 10; if (n) parts.push(NUM_ONES[n]); }
+  else if (n > 0) parts.push(NUM_ONES[n]);
+  return parts.join(" ");
+}
+
+function numberToWords(num) {
+  if (num === 0) return "zero";
+  const negative = num < 0;
+  num = Math.abs(Math.trunc(num));
+  const groups = [];
+  while (num > 0) { groups.push(num % 1000); num = Math.floor(num / 1000); }
+  const parts = [];
+  for (let i = groups.length - 1; i >= 0; i--) {
+    if (groups[i] === 0) continue;
+    parts.push(threeDigitsToWords(groups[i]) + (NUM_SCALES[i] ? " " + NUM_SCALES[i] : ""));
+  }
+  return (negative ? "negative " : "") + parts.join(" ");
+}
+
+const WORD_TO_NUM = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+  ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
+const SCALE_TO_NUM = { hundred: 100, thousand: 1000, million: 1000000, billion: 1000000000, trillion: 1000000000000 };
+
+function wordsToNumber(str) {
+  const words = str.toLowerCase().replace(/-/g, " ").replace(/\band\b/g, " ").split(/\s+/).filter(Boolean);
+  if (!words.length) throw new Error("empty");
+  let negative = false;
+  if (words[0] === "negative" || words[0] === "minus") { negative = true; words.shift(); }
+  let total = 0, current = 0;
+  for (const w of words) {
+    if (w in WORD_TO_NUM) current += WORD_TO_NUM[w];
+    else if (w === "hundred") current *= 100;
+    else if (w in SCALE_TO_NUM) { total += current * SCALE_TO_NUM[w]; current = 0; }
+    else throw new Error("unrecognized word: " + w);
+  }
+  return (negative ? -1 : 1) * (total + current);
+}
+
+router.post("/api/tools/number-to-words", optionalAuth, toolGate("number-to-words"), async (req, res) => {
+  const mode = req.body?.mode === "toNumber" ? "toNumber" : "toWords";
+  try {
+    if (mode === "toWords") {
+      const num = Number(req.body?.input);
+      if (!Number.isFinite(num)) return res.status(400).json({ error: "Enter a valid number first." });
+      if (Math.abs(num) >= 1e15) return res.status(400).json({ error: "That number is too large." });
+      res.json({ output: numberToWords(num) });
+    } else {
+      const raw = String(req.body?.input || "").trim();
+      if (!raw) return res.status(400).json({ error: "Enter some words first." });
+      res.json({ output: String(wordsToNumber(raw)) });
+    }
+  } catch (err) {
+    res.status(400).json({ error: "Could not parse that input." });
+  }
+});
+
+const MORSE_MAP = {
+  A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.", G: "--.", H: "....", I: "..", J: ".---",
+  K: "-.-", L: ".-..", M: "--", N: "-.", O: "---", P: ".--.", Q: "--.-", R: ".-.", S: "...", T: "-",
+  U: "..-", V: "...-", W: ".--", X: "-..-", Y: "-.--", Z: "--..",
+  "0": "-----", "1": ".----", "2": "..---", "3": "...--", "4": "....-", "5": ".....", "6": "-....", "7": "--...", "8": "---..", "9": "----.",
+  ".": ".-.-.-", ",": "--..--", "?": "..--..", "'": ".----.", "!": "-.-.--", "/": "-..-.", "(": "-.--.", ")": "-.--.-",
+  "&": ".-...", ":": "---...", ";": "-.-.-.", "=": "-...-", "+": ".-.-.", "-": "-....-", "_": "..--.-", '"': ".-..-.", "$": "...-..-", "@": ".--.-.",
+};
+const MORSE_REVERSE = Object.fromEntries(Object.entries(MORSE_MAP).map(([k, v]) => [v, k]));
+
+router.post("/api/tools/morse-code", optionalAuth, toolGate("morse-code"), async (req, res) => {
+  const mode = req.body?.mode === "toText" ? "toText" : "toMorse";
+  const input = String(req.body?.input || "");
+  if (!input.trim()) return res.status(400).json({ error: "Enter something first." });
+  if (input.length > 20000) return res.status(400).json({ error: "That's too long (max 20,000 characters)." });
+  if (mode === "toMorse") {
+    const output = input.toUpperCase().split(" ").map((word) =>
+      word.split("").map((ch) => MORSE_MAP[ch] || "").filter(Boolean).join(" ")
+    ).join(" / ");
+    res.json({ output });
+  } else {
+    const words = input.trim().split(" / ");
+    const output = words.map((word) =>
+      word.trim().split(/\s+/).map((code) => MORSE_REVERSE[code] || "").join("")
+    ).join(" ");
+    res.json({ output });
+  }
+});
+
+router.post("/api/tools/percentage", optionalAuth, toolGate("percentage"), async (req, res) => {
+  const mode = req.body?.mode;
+  const x = Number(req.body?.x);
+  const y = Number(req.body?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return res.status(400).json({ error: "Enter valid numbers first." });
+  if (mode === "percentOf") {
+    res.json({ output: ((x / 100) * y).toLocaleString(undefined, { maximumFractionDigits: 6 }), label: `${x}% of ${y}` });
+  } else if (mode === "whatPercent") {
+    if (y === 0) return res.status(400).json({ error: "The second number can't be zero." });
+    res.json({ output: ((x / y) * 100).toLocaleString(undefined, { maximumFractionDigits: 6 }) + "%", label: `${x} is what % of ${y}` });
+  } else if (mode === "percentChange") {
+    if (x === 0) return res.status(400).json({ error: "The starting number can't be zero." });
+    const change = ((y - x) / Math.abs(x)) * 100;
+    res.json({ output: (change >= 0 ? "+" : "") + change.toLocaleString(undefined, { maximumFractionDigits: 6 }) + "%", label: `Change from ${x} to ${y}` });
+  } else {
+    res.status(400).json({ error: "Unknown calculation type." });
+  }
+});
+
+router.post("/api/tools/bmi", optionalAuth, toolGate("bmi"), async (req, res) => {
+  const unit = req.body?.unit === "imperial" ? "imperial" : "metric";
+  const weight = Number(req.body?.weight);
+  const height = Number(req.body?.height);
+  if (!Number.isFinite(weight) || weight <= 0 || !Number.isFinite(height) || height <= 0) {
+    return res.status(400).json({ error: "Enter a valid weight and height first." });
+  }
+  let bmi;
+  if (unit === "metric") {
+    bmi = weight / ((height / 100) ** 2);
+  } else {
+    bmi = (weight / (height ** 2)) * 703;
+  }
+  if (!Number.isFinite(bmi) || bmi <= 0 || bmi > 300) return res.status(400).json({ error: "Those numbers don't look right." });
+  let category;
+  if (bmi < 18.5) category = "Underweight";
+  else if (bmi < 25) category = "Normal weight";
+  else if (bmi < 30) category = "Overweight";
+  else category = "Obese";
+  res.json({ bmi: bmi.toFixed(1), category });
+});
+
+function srgbToLinear(c) {
+  c /= 255;
+  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+function relativeLuminance({ r, g, b }) {
+  return 0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b);
+}
+function parseHexColor(hex) {
+  const clean = String(hex || "").trim().replace(/^#/, "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  if (!/^[0-9a-f]{6}$/i.test(full)) return null;
+  return { r: parseInt(full.slice(0, 2), 16), g: parseInt(full.slice(2, 4), 16), b: parseInt(full.slice(4, 6), 16) };
+}
+
+router.post("/api/tools/contrast-check", optionalAuth, toolGate("contrast-check"), async (req, res) => {
+  const fg = parseHexColor(req.body?.foreground);
+  const bg = parseHexColor(req.body?.background);
+  if (!fg || !bg) return res.status(400).json({ error: "Enter two valid hex colors first." });
+  const l1 = relativeLuminance(fg);
+  const l2 = relativeLuminance(bg);
+  const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  res.json({
+    ratio: ratio.toFixed(2),
+    aaNormal: ratio >= 4.5,
+    aaLarge: ratio >= 3,
+    aaaNormal: ratio >= 7,
+    aaaLarge: ratio >= 4.5,
+  });
+});
+
 export { router as toolsRouter };
