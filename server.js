@@ -1703,15 +1703,26 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 }
 .lg-toast.show{transform:translate(-50%,0) scale(1);opacity:1}
 .lg-toast .lg-icon{
-  width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:30%;flex-shrink:0;position:relative;
   background:rgba(255,255,255,.14);transform:scale(.4);opacity:0;
   transition:transform .35s cubic-bezier(.34,1.56,.64,1) .04s,opacity .2s ease .04s;
 }
 .lg-toast.show .lg-icon{transform:scale(1);opacity:1}
-.lg-toast .lg-icon svg{width:16px;height:16px;overflow:visible}
+.lg-toast .lg-icon svg{
+  width:16px;height:16px;overflow:visible;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+}
 .lg-toast .lg-icon.success svg{color:var(--accent)}
 .lg-toast .lg-icon.error svg{color:var(--red)}
-.lg-toast .lg-icon-path{transition:stroke-dashoffset .3s ease .16s}
+.lg-toast .lg-face{transition:opacity .2s ease .42s,transform .2s ease .42s}
+.lg-toast.show .lg-face{opacity:0;transform:translate(-50%,-50%) scale(.6)}
+.lg-toast .lg-check-wrap{
+  opacity:0;transform:translate(-50%,-50%) scale(.5);
+  transition:opacity .22s ease .48s,transform .22s cubic-bezier(.34,1.56,.64,1) .48s;
+}
+.lg-toast.show .lg-check-wrap{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.lg-toast .lg-icon.error .lg-check-wrap{transition-delay:.04s}
+.lg-toast .lg-icon-path{transition:stroke-dashoffset .28s ease .56s}
+.lg-toast .lg-icon.error .lg-icon-path{transition-delay:.1s}
 .lg-toast .lg-icon-path.check{stroke-dasharray:24;stroke-dashoffset:24}
 .lg-toast .lg-icon-path.cross{stroke-dasharray:36;stroke-dashoffset:36}
 .lg-toast.show .lg-icon-path{stroke-dashoffset:0}
@@ -3130,8 +3141,8 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 </script>
 <script nonce="__CSP_NONCE__">
 var LG_ICONS = {
-  success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path check" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>',
-  error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path cross" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>'
+  success: '<svg class="lg-face" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/><circle cx="9" cy="10" r=".65" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".65" fill="currentColor" stroke="none"/><path d="M9 15c1 1 5 1 6 0"/></svg><svg class="lg-check-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path check" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>',
+  error: '<svg class="lg-check-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path cross" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>'
 };
 function showLiquidToast(message, type){
   var kind = type === 'error' ? 'error' : 'success';
