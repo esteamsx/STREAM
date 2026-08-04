@@ -80,6 +80,21 @@ import { renderPasswordHash } from "./views/tools/password-hash.js";
 import { renderTotpTool } from "./views/tools/totp-tool.js";
 import { renderNameGenerator } from "./views/tools/name-generator.js";
 import { renderCountdownTimer } from "./views/tools/countdown-timer.js";
+import { renderMinifyBeautify } from "./views/tools/minify-beautify.js";
+import { renderRobotsTxt } from "./views/tools/robots-txt.js";
+import { renderSitemapXml } from "./views/tools/sitemap-xml.js";
+import { renderSqlFormat } from "./views/tools/sql-format.js";
+import { renderJsonSchemaValidate } from "./views/tools/json-schema-validate.js";
+import { renderFaviconGenerator } from "./views/tools/favicon-generator.js";
+import { renderMemeText } from "./views/tools/meme-text.js";
+import { renderSignatureGenerator } from "./views/tools/signature-generator.js";
+import { renderColorblindSimulator } from "./views/tools/colorblind-simulator.js";
+import { renderApiTester } from "./views/tools/api-tester.js";
+import { renderWsTester } from "./views/tools/ws-tester.js";
+import { renderFileTypeDetector } from "./views/tools/file-type-detector.js";
+import { renderSpeechTools } from "./views/tools/speech-tools.js";
+import { renderQrScanner } from "./views/tools/qr-scanner.js";
+import { renderOcrTool } from "./views/tools/ocr-tool.js";
 import { toolsRouter } from "./routes/tools.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
@@ -447,6 +462,21 @@ const cachedToolsPasswordHashHtml = renderPasswordHash(authPageConfig);
 const cachedToolsTotpToolHtml = renderTotpTool(authPageConfig);
 const cachedToolsNameGeneratorHtml = renderNameGenerator(authPageConfig);
 const cachedToolsCountdownTimerHtml = renderCountdownTimer(authPageConfig);
+const cachedToolsMinifyBeautifyHtml = renderMinifyBeautify(authPageConfig);
+const cachedToolsRobotsTxtHtml = renderRobotsTxt(authPageConfig);
+const cachedToolsSitemapXmlHtml = renderSitemapXml(authPageConfig);
+const cachedToolsSqlFormatHtml = renderSqlFormat(authPageConfig);
+const cachedToolsJsonSchemaValidateHtml = renderJsonSchemaValidate(authPageConfig);
+const cachedToolsFaviconGeneratorHtml = renderFaviconGenerator(authPageConfig);
+const cachedToolsMemeTextHtml = renderMemeText(authPageConfig);
+const cachedToolsSignatureGeneratorHtml = renderSignatureGenerator(authPageConfig);
+const cachedToolsColorblindSimulatorHtml = renderColorblindSimulator(authPageConfig);
+const cachedToolsApiTesterHtml = renderApiTester(authPageConfig);
+const cachedToolsWsTesterHtml = renderWsTester(authPageConfig);
+const cachedToolsFileTypeDetectorHtml = renderFileTypeDetector(authPageConfig);
+const cachedToolsSpeechToolsHtml = renderSpeechTools(authPageConfig);
+const cachedToolsQrScannerHtml = renderQrScanner(authPageConfig);
+const cachedToolsOcrToolHtml = renderOcrTool(authPageConfig);
 
 const cachedFootballHtml = (() => {
   try {
@@ -3939,6 +3969,66 @@ app.get("/tools/name-generator", scrapeGate, (req, res) => {
 
 app.get("/tools/countdown-timer", scrapeGate, (req, res) => {
   res.send(cachedToolsCountdownTimerHtml);
+});
+
+app.get("/tools/minify-beautify", scrapeGate, (req, res) => {
+  res.send(cachedToolsMinifyBeautifyHtml);
+});
+
+app.get("/tools/robots-txt", scrapeGate, (req, res) => {
+  res.send(cachedToolsRobotsTxtHtml);
+});
+
+app.get("/tools/sitemap-xml", scrapeGate, (req, res) => {
+  res.send(cachedToolsSitemapXmlHtml);
+});
+
+app.get("/tools/sql-format", scrapeGate, (req, res) => {
+  res.send(cachedToolsSqlFormatHtml);
+});
+
+app.get("/tools/json-schema-validate", scrapeGate, (req, res) => {
+  res.send(cachedToolsJsonSchemaValidateHtml);
+});
+
+app.get("/tools/favicon-generator", scrapeGate, (req, res) => {
+  res.send(cachedToolsFaviconGeneratorHtml);
+});
+
+app.get("/tools/meme-text", scrapeGate, (req, res) => {
+  res.send(cachedToolsMemeTextHtml);
+});
+
+app.get("/tools/signature-generator", scrapeGate, (req, res) => {
+  res.send(cachedToolsSignatureGeneratorHtml);
+});
+
+app.get("/tools/colorblind-simulator", scrapeGate, (req, res) => {
+  res.send(cachedToolsColorblindSimulatorHtml);
+});
+
+app.get("/tools/api-tester", scrapeGate, (req, res) => {
+  res.send(cachedToolsApiTesterHtml);
+});
+
+app.get("/tools/ws-tester", scrapeGate, (req, res) => {
+  res.send(cachedToolsWsTesterHtml);
+});
+
+app.get("/tools/file-type-detector", scrapeGate, (req, res) => {
+  res.send(cachedToolsFileTypeDetectorHtml);
+});
+
+app.get("/tools/speech-tools", scrapeGate, (req, res) => {
+  res.send(cachedToolsSpeechToolsHtml);
+});
+
+app.get("/tools/qr-scanner", scrapeGate, (req, res) => {
+  res.send(cachedToolsQrScannerHtml);
+});
+
+app.get("/tools/ocr-tool", scrapeGate, (req, res) => {
+  res.send(cachedToolsOcrToolHtml);
 });
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {

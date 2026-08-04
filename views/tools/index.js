@@ -14,6 +14,8 @@ const CATEGORIES = [
       { href: "/tools/http-headers", name: "HTTP Headers Inspector", desc: "See the response headers any site sends back.", icon: `<rect x="3" y="4" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M7 9h10M7 13h10M7 17h6"/>` },
       { href: "/tools/password-hash", name: "Secure Password Hash", desc: "Generate or verify a salted scrypt password hash.", icon: `<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>` },
       { href: "/tools/totp-tool", name: "TOTP Generator / Tester", desc: "Generate a 2FA secret and code, or verify one.", icon: `<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/>` },
+      { href: "/tools/api-tester", name: "API Request Tester", desc: "Send HTTP requests and inspect the response, right from your browser.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 6l-6 6 6 6M15 6l6 6-6 6"/>` },
+      { href: "/tools/ws-tester", name: "WebSocket Tester", desc: "Connect to a WebSocket endpoint, send messages, watch the log.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>` },
     ],
   },
   {
@@ -41,6 +43,12 @@ const CATEGORIES = [
       { href: "/tools/text-encrypt", name: "Text Encryption", desc: "Encrypt or decrypt text with a passphrase, entirely in your browser.", icon: `<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/>` },
       { href: "/tools/typing-test", name: "Typing Speed Test", desc: "Test your typing speed and accuracy.", icon: `<rect x="3" y="5" width="18" height="14" rx="2"/><path stroke-linecap="round" d="M7 9h.01M11 9h.01M15 9h.01M7 13h6"/>` },
       { href: "/tools/cron-explainer", name: "Cron Expression Explainer", desc: "What a cron schedule means, and when it next runs.", icon: `<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/>` },
+      { href: "/tools/minify-beautify", name: "Code Minifier / Beautifier", desc: "Minify or beautify JS, CSS and HTML.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M8 4l-6 8 6 8M16 4l6 8-6 8"/>` },
+      { href: "/tools/robots-txt", name: "robots.txt Generator", desc: "Build a robots.txt to control search engine crawling.", icon: `<rect x="4" y="8" width="16" height="12" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 8V6a3 3 0 016 0v2M9 13h.01M15 13h.01"/>` },
+      { href: "/tools/sitemap-xml", name: "Sitemap.xml Generator", desc: "Turn a list of page URLs into a valid sitemap.xml.", icon: `<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 12h18M12 3a15 15 0 010 18a15 15 0 010-18"/>` },
+      { href: "/tools/sql-format", name: "SQL Formatter", desc: "Turn messy SQL into a clean, indented query.", icon: `<ellipse cx="12" cy="5" rx="8" ry="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/>` },
+      { href: "/tools/json-schema-validate", name: "JSON Schema Validator", desc: "Check a JSON document against a JSON Schema.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/>` },
+      { href: "/tools/file-type-detector", name: "File Type Detector", desc: "Detect a file's real format from its magic bytes.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M14 3v5h5M6 3h8l5 5v13H6z"/><path stroke-linecap="round" d="M9 13h6M9 16h6"/>` },
     ],
   },
   {
@@ -56,6 +64,9 @@ const CATEGORIES = [
       { href: "/tools/fake-data", name: "Fake Data Generator", desc: "Realistic fake names, emails and addresses for testing.", icon: `<circle cx="9" cy="8" r="3.2"/><path stroke-linecap="round" d="M3.5 20a5.5 5.5 0 0111 0M16 8.5a3 3 0 010 6M20.5 20a5 5 0 00-6-4.9"/>` },
       { href: "/tools/css-gradient", name: "CSS Gradient Generator", desc: "Pick colors, get ready-to-use CSS gradient code.", icon: `<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 3l18 18" stroke-linecap="round"/>` },
       { href: "/tools/name-generator", name: "Business Name Generator", desc: "10 brandable name ideas from your keyword.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/>` },
+      { href: "/tools/favicon-generator", name: "Favicon Generator", desc: "Every favicon size you need, from one uploaded image.", icon: `<rect x="3" y="3" width="18" height="18" rx="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 13l2.5 2.5L16 10"/>` },
+      { href: "/tools/meme-text", name: "Meme Text Generator", desc: "Add classic top/bottom captions to any image.", icon: `<rect x="3" y="4" width="18" height="16" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 15l5-5 4 4 5-6 4 5"/>` },
+      { href: "/tools/signature-generator", name: "Signature Generator", desc: "Draw a signature and export it as a transparent PNG.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M3 17c3-6 5 4 8-2s5 4 8-3"/><path stroke-linecap="round" d="M3 21h18"/>` },
     ],
   },
   {
@@ -83,6 +94,10 @@ const CATEGORIES = [
       { href: "/tools/tip-calculator", name: "Tip Calculator", desc: "Tip amount, total, and per-person split.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>` },
       { href: "/tools/random-quote", name: "Random Quote Generator", desc: "An inspiring quote whenever you need one.", icon: `<path d="M7 8a3 3 0 00-3 3v2a3 3 0 003 3h1v3l-3-1M17 8a3 3 0 00-3 3v2a3 3 0 003 3h1v3l-3-1"/>` },
       { href: "/tools/countdown-timer", name: "Countdown Timer / Stopwatch", desc: "Set a countdown, or run a stopwatch.", icon: `<circle cx="12" cy="13" r="8"/><path stroke-linecap="round" d="M12 9v4l3 2M9 2h6"/>` },
+      { href: "/tools/colorblind-simulator", name: "Color Blindness Simulator", desc: "Preview an image as someone with color vision deficiency would see it.", icon: `<circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1.4" fill="currentColor" stroke="none"/><path stroke-linecap="round" d="M8 15.5c1.2 1 2.6 1.5 4 1.5s2.8-.5 4-1.5"/>` },
+      { href: "/tools/speech-tools", name: "Speech-to-Text / Text-to-Speech", desc: "Dictate with your mic, or have text read aloud.", icon: `<rect x="9" y="2" width="6" height="12" rx="3"/><path stroke-linecap="round" d="M5 10a7 7 0 0014 0M12 17v5M8 22h8"/>` },
+      { href: "/tools/qr-scanner", name: "QR Code Scanner", desc: "Upload a QR code image and decode its contents.", icon: `<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path stroke-linecap="round" d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/>` },
+      { href: "/tools/ocr-tool", name: "Image Text Extractor (OCR)", desc: "Pull editable text out of any image.", icon: `<rect x="3" y="4" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M7 9h10M7 13h7M7 17h4"/>` },
     ],
   },
 ];

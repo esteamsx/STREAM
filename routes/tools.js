@@ -1842,4 +1842,347 @@ router.post("/api/tools/countdown-gate", optionalAuth, toolGate("countdown"), as
   res.json({ ok: true });
 });
 
+function minifyJs(src) {
+  let out = "";
+  let i = 0;
+  const n = src.length;
+  let lastMeaningfulChar = "";
+  while (i < n) {
+    const ch = src[i];
+    const next = src[i + 1];
+    if (ch === "/" && next === "/") {
+      while (i < n && src[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      i += 2;
+      while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      const quote = ch;
+      let str = ch;
+      i++;
+      while (i < n) {
+        if (src[i] === "\\") { str += src[i] + (src[i + 1] || ""); i += 2; continue; }
+        if (src[i] === quote) { str += src[i]; i++; break; }
+        str += src[i]; i++;
+      }
+      out += str;
+      lastMeaningfulChar = quote;
+      continue;
+    }
+    if (ch === "/" && (/[=(:,;!&|?{}[\n]/.test(lastMeaningfulChar) || lastMeaningfulChar === "")) {
+      let str = "/";
+      i++;
+      let inClass = false;
+      let looksLikeRegex = true;
+      const scanStart = i;
+      while (i < n) {
+        if (src[i] === "\\") { str += src[i] + (src[i + 1] || ""); i += 2; continue; }
+        if (src[i] === "[") inClass = true;
+        if (src[i] === "]") inClass = false;
+        if (src[i] === "/" && !inClass) { str += src[i]; i++; break; }
+        if (src[i] === "\n") { looksLikeRegex = false; break; }
+        str += src[i]; i++;
+      }
+      if (looksLikeRegex) {
+        out += str;
+        lastMeaningfulChar = "/";
+        continue;
+      }
+      i = scanStart;
+      out += "/";
+      lastMeaningfulChar = "/";
+      i++;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      while (i < n && /\s/.test(src[i])) i++;
+      if (out.length && i < n) out += " ";
+      continue;
+    }
+    out += ch;
+    lastMeaningfulChar = ch;
+    i++;
+  }
+  return out.replace(/ ?([{}();,:]) ?/g, "$1").trim();
+}
+
+function minifyCss(src) {
+  let out = "";
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    if (src[i] === "/" && src[i + 1] === "*") {
+      i += 2;
+      while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    if (src[i] === '"' || src[i] === "'") {
+      const quote = src[i];
+      out += src[i]; i++;
+      while (i < n && src[i] !== quote) { out += src[i]; i++; }
+      out += src[i]; i++;
+      continue;
+    }
+    if (/\s/.test(src[i])) {
+      while (i < n && /\s/.test(src[i])) i++;
+      if (out.length && !/[\s{;:,]$/.test(out)) out += " ";
+      continue;
+    }
+    out += src[i]; i++;
+  }
+  return out.replace(/\s*([{}:;,])\s*/g, "$1").replace(/;}/g, "}").trim();
+}
+
+function beautifyCss(src) {
+  const compact = minifyCss(src);
+  let out = "";
+  let indent = 0;
+  for (let i = 0; i < compact.length; i++) {
+    const ch = compact[i];
+    if (ch === "{") { out += " {\n" + "  ".repeat(indent + 1); indent++; }
+    else if (ch === "}") {
+      indent = Math.max(0, indent - 1);
+      out = out.replace(/[ \t]*$/, "");
+      if (!out.endsWith("\n")) out += "\n";
+      out += "  ".repeat(indent) + "}\n" + "  ".repeat(indent);
+    } else if (ch === ";") { out += ";\n" + "  ".repeat(indent); }
+    else out += ch;
+  }
+  return out.replace(/\n[ \t]*\n/g, "\n").replace(/[ \t]+\n/g, "\n").trim() + "\n";
+}
+
+function beautifyJs(src) {
+  const compact = minifyJs(src);
+  let out = "";
+  let indent = 0;
+  let inString = null;
+  for (let i = 0; i < compact.length; i++) {
+    const ch = compact[i];
+    if (inString) {
+      out += ch;
+      if (ch === "\\") { out += compact[++i] || ""; continue; }
+      if (ch === inString) inString = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") { inString = ch; out += ch; continue; }
+    if (ch === "{") { out += "{\n" + "  ".repeat(indent + 1); indent++; continue; }
+    if (ch === "}") {
+      indent = Math.max(0, indent - 1);
+      out = out.replace(/[ \t]*$/, "");
+      if (!out.endsWith("\n")) out += "\n";
+      out += "  ".repeat(indent) + "}";
+      if (compact[i + 1] && !/[;,)\n]/.test(compact[i + 1])) out += "\n" + "  ".repeat(indent);
+      continue;
+    }
+    if (ch === ";") { out += ";\n" + "  ".repeat(indent); continue; }
+    out += ch;
+  }
+  return out.replace(/\n[ \t]*\n/g, "\n").trim() + "\n";
+}
+
+const HTML_PRESERVE_TAGS = ["script", "style", "pre", "textarea"];
+
+function tokenizeHtmlPreserving(html) {
+  const tokens = [];
+  let i = 0;
+  const n = html.length;
+  while (i < n) {
+    let matched = false;
+    for (const tag of HTML_PRESERVE_TAGS) {
+      const openRe = new RegExp("^<" + tag + "(\\s[^>]*)?>", "i");
+      if (openRe.test(html.slice(i))) {
+        const closeRe = new RegExp("</" + tag + "\\s*>", "i");
+        const closeMatch = html.slice(i).match(closeRe);
+        if (closeMatch) {
+          const fullEnd = i + closeMatch.index + closeMatch[0].length;
+          tokens.push({ type: "preserved", text: html.slice(i, fullEnd) });
+          i = fullEnd;
+          matched = true;
+          break;
+        }
+      }
+    }
+    if (matched) continue;
+    let next = n;
+    for (const tag of HTML_PRESERVE_TAGS) {
+      const idx = html.slice(i).search(new RegExp("<" + tag + "(\\s|>)", "i"));
+      if (idx !== -1 && i + idx < next) next = i + idx;
+    }
+    tokens.push({ type: "html", text: html.slice(i, next) });
+    i = next;
+  }
+  return tokens;
+}
+
+function minifyHtml(src) {
+  const tokens = tokenizeHtmlPreserving(src);
+  return tokens.map((t) => {
+    if (t.type === "preserved") return t.text;
+    return t.text.replace(/<!--[\s\S]*?-->/g, "").replace(/>\s+</g, "><").replace(/\s+/g, " ").trim();
+  }).join("");
+}
+
+function beautifyHtml(src) {
+  const minified = minifyHtml(src);
+  const parts = minified.split(/(<[^>]+>)/g).filter((p) => p.length);
+  let out = "";
+  let indent = 0;
+  const selfClosingTag = /^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)[\s/>]/i;
+  const declarationTag = /^<[!?]/;
+  parts.forEach((part) => {
+    if (/^<\//.test(part)) {
+      indent = Math.max(0, indent - 1);
+      out += "  ".repeat(indent) + part + "\n";
+    } else if (/^<[a-zA-Z!?]/.test(part)) {
+      out += "  ".repeat(indent) + part + "\n";
+      if (!selfClosingTag.test(part) && !/\/>$/.test(part) && !declarationTag.test(part)) indent++;
+    } else if (part.trim()) {
+      out += "  ".repeat(indent) + part.trim() + "\n";
+    }
+  });
+  return out.trim() + "\n";
+}
+
+router.post("/api/tools/minify", optionalAuth, toolGate("minify"), async (req, res) => {
+  const lang = req.body?.lang;
+  const mode = req.body?.mode === "beautify" ? "beautify" : "minify";
+  const code = String(req.body?.code || "");
+  if (!code.trim()) return res.status(400).json({ error: "Paste some code first." });
+  if (code.length > 300000) return res.status(400).json({ error: "That's too long (max 300,000 characters)." });
+  try {
+    let output;
+    if (lang === "css") output = mode === "minify" ? minifyCss(code) : beautifyCss(code);
+    else if (lang === "html") output = mode === "minify" ? minifyHtml(code) : beautifyHtml(code);
+    else if (lang === "js") output = mode === "minify" ? minifyJs(code) : beautifyJs(code);
+    else return res.status(400).json({ error: "Unknown language." });
+    res.json({ output });
+  } catch (err) {
+    res.status(400).json({ error: "Could not process that code." });
+  }
+});
+
+router.post("/api/tools/robots-txt", optionalAuth, toolGate("robots-txt"), async (req, res) => {
+  const rules = Array.isArray(req.body?.rules) ? req.body.rules.slice(0, 30) : [];
+  const sitemapUrl = String(req.body?.sitemapUrl || "").trim();
+  if (!rules.length) return res.status(400).json({ error: "Add at least one rule first." });
+  const lines = [];
+  rules.forEach((r) => {
+    const agent = String(r?.agent || "*").trim() || "*";
+    const disallow = Array.isArray(r?.disallow) ? r.disallow : [];
+    const allow = Array.isArray(r?.allow) ? r.allow : [];
+    lines.push(`User-agent: ${agent}`);
+    allow.forEach((p) => { if (String(p).trim()) lines.push(`Allow: ${String(p).trim()}`); });
+    disallow.forEach((p) => { if (String(p).trim()) lines.push(`Disallow: ${String(p).trim()}`); });
+    lines.push("");
+  });
+  if (sitemapUrl) lines.push(`Sitemap: ${sitemapUrl}`);
+  res.json({ output: lines.join("\n").trim() + "\n" });
+});
+
+router.post("/api/tools/sitemap-xml", optionalAuth, toolGate("sitemap-xml"), async (req, res) => {
+  const urls = Array.isArray(req.body?.urls) ? req.body.urls.slice(0, 200) : [];
+  const clean = urls.map((u) => String(u || "").trim()).filter((u) => /^https?:\/\//i.test(u));
+  if (!clean.length) return res.status(400).json({ error: "Enter at least one valid URL first." });
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const entries = clean.map((u) => `  <url>\n    <loc>${esc(u)}</loc>\n  </url>`).join("\n");
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`;
+  res.json({ output: xml });
+});
+
+const SQL_KEYWORDS = ["SELECT", "FROM", "WHERE", "GROUP BY", "ORDER BY", "HAVING", "LEFT JOIN", "RIGHT JOIN", "INNER JOIN", "JOIN", "LIMIT", "OFFSET", "INSERT INTO", "VALUES", "UPDATE", "SET", "DELETE FROM", "UNION ALL", "UNION"];
+
+function formatSql(sql) {
+  let s = sql.replace(/\s+/g, " ").trim();
+  const kws = [...SQL_KEYWORDS].sort((a, b) => b.length - a.length);
+  kws.forEach((kw) => {
+    const re = new RegExp("\\s*\\b" + kw.replace(" ", "\\s+") + "\\b\\s*", "gi");
+    s = s.replace(re, "\n" + kw + " ");
+  });
+  s = s.replace(/\bAND\b/gi, "\nAND").replace(/\bOR\b/gi, "\nOR");
+  s = s.replace(/,\s*/g, ",\n");
+  const kwStarts = kws.map((k) => k.toUpperCase());
+  return s.split("\n").map((l) => l.trim()).filter(Boolean).map((line) => {
+    const upper = line.toUpperCase();
+    const isKeywordLine = kwStarts.some((k) => upper.startsWith(k)) || /^(AND|OR)\b/i.test(line) && false;
+    return isKeywordLine ? line : "  " + line;
+  }).join("\n");
+}
+
+router.post("/api/tools/sql-format", optionalAuth, toolGate("sql-format"), async (req, res) => {
+  const sql = String(req.body?.sql || "");
+  if (!sql.trim()) return res.status(400).json({ error: "Paste a SQL query first." });
+  if (sql.length > 100000) return res.status(400).json({ error: "That's too long (max 100,000 characters)." });
+  res.json({ output: formatSql(sql) });
+});
+
+function validateJsonSchema(value, schema, path) {
+  path = path || "$";
+  const errors = [];
+  if (schema.type) {
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    const actual = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+    const normalized = actual === "number" && Number.isInteger(value) && types.includes("integer") ? "integer" : actual;
+    if (!types.includes(actual) && !types.includes(normalized)) {
+      errors.push(`${path}: expected type ${types.join(" or ")}, got ${actual}`);
+      return errors;
+    }
+  }
+  if (schema.enum && !schema.enum.some((e) => JSON.stringify(e) === JSON.stringify(value))) {
+    errors.push(`${path}: value not in enum [${schema.enum.join(", ")}]`);
+  }
+  if (typeof value === "string") {
+    if (schema.minLength != null && value.length < schema.minLength) errors.push(`${path}: shorter than minLength ${schema.minLength}`);
+    if (schema.maxLength != null && value.length > schema.maxLength) errors.push(`${path}: longer than maxLength ${schema.maxLength}`);
+    if (schema.pattern) {
+      try { if (!new RegExp(schema.pattern).test(value)) errors.push(`${path}: does not match pattern ${schema.pattern}`); }
+      catch { errors.push(`${path}: schema has an invalid pattern`); }
+    }
+  }
+  if (typeof value === "number") {
+    if (schema.minimum != null && value < schema.minimum) errors.push(`${path}: below minimum ${schema.minimum}`);
+    if (schema.maximum != null && value > schema.maximum) errors.push(`${path}: above maximum ${schema.maximum}`);
+  }
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    const required = schema.required || [];
+    required.forEach((key) => { if (!(key in value)) errors.push(`${path}: missing required property "${key}"`); });
+    if (schema.properties) {
+      Object.keys(schema.properties).forEach((key) => {
+        if (key in value) errors.push(...validateJsonSchema(value[key], schema.properties[key], path + "." + key));
+      });
+    }
+  }
+  if (Array.isArray(value) && schema.items) {
+    value.forEach((item, idx) => errors.push(...validateJsonSchema(item, schema.items, `${path}[${idx}]`)));
+  }
+  return errors;
+}
+
+router.post("/api/tools/json-schema-validate", optionalAuth, toolGate("json-schema-validate"), async (req, res) => {
+  const jsonText = String(req.body?.json || "");
+  const schemaText = String(req.body?.schema || "");
+  if (!jsonText.trim() || !schemaText.trim()) return res.status(400).json({ error: "Enter both JSON and a schema first." });
+  if (jsonText.length > 200000 || schemaText.length > 200000) return res.status(400).json({ error: "That's too long (max 200,000 characters each)." });
+  let data, schema;
+  try { data = JSON.parse(jsonText); } catch { return res.status(400).json({ error: "The JSON box isn't valid JSON." }); }
+  try { schema = JSON.parse(schemaText); } catch { return res.status(400).json({ error: "The schema box isn't valid JSON." }); }
+  const errors = validateJsonSchema(data, schema);
+  res.json({ valid: errors.length === 0, errors });
+});
+
+router.post("/api/tools/favicon-gate", optionalAuth, toolGate("favicon"), async (req, res) => { res.json({ ok: true }); });
+router.post("/api/tools/meme-text-gate", optionalAuth, toolGate("meme-text"), async (req, res) => { res.json({ ok: true }); });
+router.post("/api/tools/signature-gate", optionalAuth, toolGate("signature"), async (req, res) => { res.json({ ok: true }); });
+router.post("/api/tools/colorblind-gate", optionalAuth, toolGate("colorblind"), async (req, res) => { res.json({ ok: true }); });
+router.post("/api/tools/api-tester-gate", optionalAuth, toolGate("api-tester"), async (req, res) => { res.json({ ok: true }); });
+router.post("/api/tools/ws-tester-gate", optionalAuth, toolGate("ws-tester"), async (req, res) => { res.json({ ok: true }); });
+router.post("/api/tools/file-detect-gate", optionalAuth, toolGate("file-detect"), async (req, res) => { res.json({ ok: true }); });
+router.post("/api/tools/speech-gate", optionalAuth, toolGate("speech"), async (req, res) => { res.json({ ok: true }); });
+router.post("/api/tools/qr-scan-gate", optionalAuth, toolGate("qr-scan"), async (req, res) => { res.json({ ok: true }); });
+router.post("/api/tools/ocr-gate", optionalAuth, toolGate("ocr"), async (req, res) => { res.json({ ok: true }); });
+
 export { router as toolsRouter };
