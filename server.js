@@ -239,6 +239,7 @@ import {
   securityHeaders,
   helmetMiddleware,
   cspNonce,
+  googlebotVerifier,
   botBlocker,
   SimpleRateLimiter,
   suspiciousRequestDetector,
@@ -277,6 +278,7 @@ app.use(hppGuard);
 app.use(probePathTrap);
 app.use(new RepeatedRefusalGuard(15, 5 * 60 * 1000, 30 * 60 * 1000).middleware());
 app.use(ipBlocklist);
+app.use(googlebotVerifier);
 app.use(botBlocker);
 app.use(suspiciousRequestDetector);
 const globalLimiter = new SimpleRateLimiter(400, 60000).middleware();

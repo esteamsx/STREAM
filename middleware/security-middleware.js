@@ -1,5 +1,6 @@
 
 import crypto from "crypto";
+import dns from "node:dns/promises";
 import ipaddr from "ipaddr.js";
 import helmet from "helmet";
 
@@ -71,6 +72,59 @@ export const securityHeaders = (req, res, next) => {
   next();
 };
 
+// Matches the UA family real Google crawlers use (Googlebot, the Search Console
+// "URL Inspection" tool, AdsBot, Storebot, GoogleOther, etc). A UA claiming to be one
+// of these is not proof by itself, anyone can set this header, which is exactly why
+// every match gets verified below via reverse+forward DNS before being trusted.
+const GOOGLE_CRAWLER_UA = /googlebot|google-inspectiontool|adsbot-google|storebot-google|googleother|feedfetcher-google/i;
+const GOOGLE_PTR_SUFFIX = /\.(googlebot\.com|google\.com)$/i;
+const GOOGLEBOT_VERIFY_CACHE_MS = 60 * 60 * 1000;
+const googlebotVerifyCache = new Map();
+
+async function verifyGooglebotIp(ip) {
+  const cached = googlebotVerifyCache.get(ip);
+  if (cached && Date.now() - cached.at < GOOGLEBOT_VERIFY_CACHE_MS) return cached.verified;
+
+  let verified = false;
+  try {
+    const hostnames = await dns.reverse(ip);
+    const googleHostname = hostnames.find((h) => GOOGLE_PTR_SUFFIX.test(h));
+    if (googleHostname) {
+      const forward = await Promise.all([
+        dns.resolve4(googleHostname).catch(() => []),
+        dns.resolve6(googleHostname).catch(() => []),
+      ]);
+      verified = forward.flat().includes(ip);
+    }
+  } catch {
+    verified = false;
+  }
+
+  googlebotVerifyCache.set(ip, { verified, at: Date.now() });
+  return verified;
+}
+
+// Anyone can set User-Agent: Googlebot. This middleware checks whether a request
+// actually is Google's crawler using Google's own recommended verification method
+// (reverse DNS lookup of the IP, confirmed by a forward lookup of the resulting
+// hostname), so downstream middleware can safely let verified crawlers through
+// scrape-gate's JS challenge while still rejecting everyone just spoofing the UA.
+export const googlebotVerifier = async (req, res, next) => {
+  const ua = req.get("user-agent") || "";
+  if (!GOOGLE_CRAWLER_UA.test(ua)) {
+    req.isVerifiedGooglebot = false;
+    return next();
+  }
+
+  const verified = await verifyGooglebotIp(req.ip);
+  req.isVerifiedGooglebot = verified;
+  if (!verified) {
+    console.warn(`⚠️ Blocked Googlebot impersonator: ${req.ip} - "${ua}" - ${req.path}`);
+    return res.status(403).send("Forbidden");
+  }
+  next();
+};
+
 const BLOCKED_UA_PATTERNS = [
   /curl/i, /wget/i, /python-requests/i, /python-urllib/i, /scrapy/i,
   /httpclient/i, /go-http-client/i, /node-fetch/i, /axios\//i,
@@ -85,6 +139,7 @@ const UA_ALLOWLIST_PATHS = ["/favicon.ico", "/health"];
 const UA_ALLOWLIST_PREFIXES = ["/api/v1/", "/embed/"];
 
 export const botBlocker = (req, res, next) => {
+  if (req.isVerifiedGooglebot) return next();
   if (UA_ALLOWLIST_PATHS.includes(req.path)) return next();
   if (UA_ALLOWLIST_PREFIXES.some((p) => req.path.startsWith(p))) return next();
 
@@ -155,6 +210,15 @@ Allow: /apple-touch-icon.png
 Allow: /icon-192.png
 Allow: /icon-512.png
 Allow: /site.webmanifest
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Google-InspectionTool
+Allow: /
 
 User-agent: Twitterbot
 Allow: /
