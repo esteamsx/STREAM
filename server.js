@@ -354,6 +354,21 @@ const DOMAIN_LOCK_HOSTS = String(process.env.ALLOWED_HOSTS || "esteamstv.devs.su
   .map((h) => h.trim().toLowerCase())
   .filter(Boolean);
 const DOMAIN_LOCK_PRIMARY_HOST = DOMAIN_LOCK_HOSTS[0] || "esteamstv.devs.surf";
+
+const SECURITY_CONTACT_EMAIL =
+  process.env.SECURITY_CONTACT_EMAIL || process.env.DMCA_AGENT_EMAIL || process.env.GMAIL_USER || "etimpaschal95@gmail.com";
+const SECURITY_TXT_EXPIRES = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+const SECURITY_TXT = [
+  `Contact: mailto:${SECURITY_CONTACT_EMAIL}`,
+  `Expires: ${SECURITY_TXT_EXPIRES}`,
+  `Canonical: https://${DOMAIN_LOCK_PRIMARY_HOST}/.well-known/security.txt`,
+  `Policy: https://${DOMAIN_LOCK_PRIMARY_HOST}/privacy`,
+  `Preferred-Languages: en`,
+].join("\n") + "\n";
+app.get(["/.well-known/security.txt", "/security.txt"], (req, res) => {
+  res.type("text/plain").send(SECURITY_TXT);
+});
+
 const DOMAIN_LOCK_ALLOWED_HASHES = JSON.stringify(
   Array.from(new Set([...DOMAIN_LOCK_HOSTS, "localhost", "127.0.0.1"])).map(domainLockHash)
 );
@@ -2216,7 +2231,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 </div>
 
 <!-- hls.js -->
-<script nonce="__CSP_NONCE__" src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
+<script nonce="__CSP_NONCE__" src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js" integrity="sha384-1B+J55elPxu+trIhW7QThjZg3evX8C5P6zjB82Xnn46RKPAXpL+vkanRSjCidsJv" crossorigin="anonymous"></script>
 
 <script nonce="__CSP_NONCE__">
 (function(){

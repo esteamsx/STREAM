@@ -25,7 +25,6 @@ export const helmetMiddleware = helmet({
         "'self'",
         (req, res) => `'nonce-${res.locals.nonce}'`,
         "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com",
         "https://js.paystack.co",
         "https://accounts.google.com",
         "https://www.gstatic.com",
