@@ -8,7 +8,7 @@ export function renderFakeData(cfg) {
     subtitle: "Generate realistic-looking fake names, emails and addresses for testing forms.",
     bodyHtml: `
       <div class="field">
-        <label for="countInput">How many records? (1–50)</label>
+        <label for="countInput">How many records? (1-50)</label>
         <input type="text" id="countInput" value="5" inputmode="numeric">
       </div>`,
     script: `

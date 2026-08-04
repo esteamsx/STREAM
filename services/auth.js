@@ -892,7 +892,7 @@ function toBase64url(value) {
 function toSafeCredentialDescriptor(c, label) {
   const id = toBase64url(c && c.id);
   if (!id || typeof id !== "string") {
-    throw new Error(`Server produced an invalid ${label} entry — passkey data may be corrupted.`);
+    throw new Error(`Server produced an invalid ${label} entry, passkey data may be corrupted.`);
   }
   return { ...c, id };
 }

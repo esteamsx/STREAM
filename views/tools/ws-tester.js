@@ -5,7 +5,7 @@ export function renderWsTester(cfg) {
     pageKey: "toolsWsTester",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`,
     heading: "WebSocket Tester",
-    subtitle: "Connect to a WebSocket endpoint, send messages, and watch the live log — all from your browser.",
+    subtitle: "Connect to a WebSocket endpoint, send messages, and watch the live log, all from your browser.",
     bodyHtml: `
       <div class="field">
         <label for="wsUrlInput">WebSocket URL</label>

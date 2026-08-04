@@ -5,7 +5,7 @@ export function renderPasswordGenerator(cfg) {
     pageKey: "toolsPasswordGenerator",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>`,
     heading: "Password Generator",
-    subtitle: "Cryptographically random passwords, generated fresh each time — nothing is stored.",
+    subtitle: "Cryptographically random passwords, generated fresh each time. Nothing is stored.",
     bodyHtml: `
       <div class="field">
         <label for="lengthInput">Length: <span id="lengthValue">16</span></label>
@@ -53,7 +53,7 @@ export function renderPasswordGenerator(cfg) {
           });
           resultEl.innerHTML = '<div class="result-head"><span>Password</span><button class="copy-btn" id="copyResultBtn" type="button">Copy</button></div>' +
             '<div class="pw-result">' + esc(data.password) + '</div>' +
-            '<div class="pw-strength">' + data.entropyBits + ' bits of entropy — ' + strengthLabel(data.entropyBits) + '</div>';
+            '<div class="pw-strength">' + data.entropyBits + ' bits of entropy: ' + strengthLabel(data.entropyBits) + '</div>';
           showResult();
           document.getElementById('copyResultBtn').addEventListener('click', function(){
             navigator.clipboard.writeText(data.password).catch(function(){});

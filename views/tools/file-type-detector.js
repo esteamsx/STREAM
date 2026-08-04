@@ -5,7 +5,7 @@ export function renderFileTypeDetector(cfg) {
     pageKey: "toolsFileTypeDetector",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v5h5M6 3h8l5 5v13H6z"/><path stroke-linecap="round" d="M9 13h6M9 16h6"/></svg>`,
     heading: "File Type Detector",
-    subtitle: "Detects a file's real format by inspecting its magic bytes, not just its extension — useful for catching mislabeled or disguised files. Everything runs locally; nothing is uploaded.",
+    subtitle: "Detects a file's real format by inspecting its magic bytes, not just its extension. Useful for catching mislabeled or disguised files. Everything runs locally; nothing is uploaded.",
     bodyHtml: `
       <div class="file-drop" id="fileDrop">
         <input type="file" id="fileInput">
@@ -92,8 +92,8 @@ export function renderFileTypeDetector(cfg) {
           resultEl.innerHTML = '<div class="result-head"><span>Detection Result</span></div>' +
             '<table class="result-table">' +
             '<tr><td>Detected Type</td><td>' + (result ? esc(result.type) : 'Unknown / no matching signature') + '</td></tr>' +
-            '<tr><td>MIME (guess)</td><td>' + (result ? esc(result.mime) : '—') + '</td></tr>' +
-            '<tr><td>Filename Claims</td><td>.' + esc(claimedExt || '(none)') + ' — ' + esc(pendingFile.type || 'unknown browser MIME') + '</td></tr>' +
+            '<tr><td>MIME (guess)</td><td>' + (result ? esc(result.mime) : '-') + '</td></tr>' +
+            '<tr><td>Filename Claims</td><td>.' + esc(claimedExt || '(none)') + ', ' + esc(pendingFile.type || 'unknown browser MIME') + '</td></tr>' +
             '<tr><td>First Bytes (hex)</td><td style="font-family:var(--font-mono);word-break:break-all">' + esc(toHex(bytes)) + '</td></tr>' +
             '</table>';
           showResult();

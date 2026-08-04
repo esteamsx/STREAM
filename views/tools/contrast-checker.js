@@ -51,10 +51,10 @@ export function renderContrastChecker(cfg) {
           var data = await postTool('/api/tools/contrast-check', { foreground: fgInput.value, background: bgInput.value });
           resultEl.innerHTML = '<div class="result-head"><span>Contrast Ratio: ' + esc(data.ratio) + ':1</span></div>' +
             '<table class="result-table">' +
-            '<tr><td>AA — Normal text</td><td>' + pass(data.aaNormal) + '</td></tr>' +
-            '<tr><td>AA — Large text</td><td>' + pass(data.aaLarge) + '</td></tr>' +
-            '<tr><td>AAA — Normal text</td><td>' + pass(data.aaaNormal) + '</td></tr>' +
-            '<tr><td>AAA — Large text</td><td>' + pass(data.aaaLarge) + '</td></tr>' +
+            '<tr><td>AA: Normal text</td><td>' + pass(data.aaNormal) + '</td></tr>' +
+            '<tr><td>AA: Large text</td><td>' + pass(data.aaLarge) + '</td></tr>' +
+            '<tr><td>AAA: Normal text</td><td>' + pass(data.aaaNormal) + '</td></tr>' +
+            '<tr><td>AAA: Large text</td><td>' + pass(data.aaaLarge) + '</td></tr>' +
             '</table>';
           showResult();
         } catch (err) {

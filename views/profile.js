@@ -548,14 +548,14 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="pf-wrap" id="pfWrap" style="display:none">
   <div class="pf-hero">
     <div class="pf-avatar-wrap" id="pfAvatarWrap">
-      <div class="pf-avatar" id="pfAvatar">–</div>
+      <div class="pf-avatar" id="pfAvatar">-</div>
       <div class="pf-avatar-check">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
       </div>
     </div>
-    <div class="pf-name" id="pfName">–</div>
+    <div class="pf-name" id="pfName">-</div>
     <div class="pf-username-row">
-      <div class="pf-username" id="pfUsername">–</div>
+      <div class="pf-username" id="pfUsername">-</div>
       <button type="button" class="pf-alt-toggle" id="pfAltToggle" aria-label="Show other usernames">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
       </button>
@@ -749,9 +749,9 @@ body:has(.page-overlay.show){overflow:hidden}
 
 <div class="page-overlay" id="mpvOverlay">
   <div class="mpv-card">
-    <div class="mpv-avatar" id="mpvAvatar">–</div>
-    <div class="mpv-name" id="mpvName">–</div>
-    <div class="mpv-username" id="mpvUsername">–</div>
+    <div class="mpv-avatar" id="mpvAvatar">-</div>
+    <div class="mpv-name" id="mpvName">-</div>
+    <div class="mpv-username" id="mpvUsername">-</div>
     <div class="mpv-stats">
       <div class="mpv-stat"><div class="mpv-stat-num" id="mpvFollowers">0</div><div class="mpv-stat-label">Followers</div></div>
       <div class="mpv-stat"><div class="mpv-stat-num" id="mpvFollowing">0</div><div class="mpv-stat-label">Following</div></div>
@@ -765,9 +765,9 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="viewAsOverlay">
   <div class="mpv-card" style="position:relative">
     <div class="viewas-badge">VIEW AS</div>
-    <div class="mpv-avatar" id="vaAvatar">–</div>
-    <div class="mpv-name" id="vaName">–</div>
-    <div class="mpv-username" id="vaUsername">–</div>
+    <div class="mpv-avatar" id="vaAvatar">-</div>
+    <div class="mpv-name" id="vaName">-</div>
+    <div class="mpv-username" id="vaUsername">-</div>
     <div class="pf-bio" id="vaBio" style="display:none;max-width:none;margin-bottom:10px"></div>
     <div class="pf-status" id="vaStatus" style="display:none;justify-content:center;margin-bottom:14px"></div>
     <div class="mpv-stats">
@@ -2340,7 +2340,7 @@ async function openMiniPreview(username){
   document.getElementById('mpvName').innerHTML = 'Loading…';
   document.getElementById('mpvUsername').textContent = '';
   document.getElementById('mpvAvatar').style.backgroundImage = '';
-  document.getElementById('mpvAvatar').textContent = '–';
+  document.getElementById('mpvAvatar').textContent = '-';
   document.getElementById('mpvFollowers').textContent = '0';
   document.getElementById('mpvFollowing').textContent = '0';
   document.getElementById('mpvLikes').textContent = '0';
