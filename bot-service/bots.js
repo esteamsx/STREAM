@@ -16,7 +16,7 @@ const MAX_ACTIVE_BOTS = 3;
 const MAX_INSTANCES_PER_USER = 1;
 const ACTIVE_STATUSES = ["downloading", "extracting", "installing", "starting", "pairing", "connected", "reconnecting"];
 const LOG_LINES_KEPT = 300;
-const SESSION_BACKUP_INTERVAL_MS = 30 * 1000;
+const SESSION_BACKUP_INTERVAL_MS = 3 * 60 * 1000;
 
 const running = new Map();
 
@@ -286,10 +286,24 @@ async function restoreSessionFiles(workDir, botId) {
   }
 }
 
-async function backupSessionFiles(workDir, botId) {
+async function backupSessionFiles(workDir, botId, entry) {
   const sessionDir = path.join(workDir, SESSION_DIR_NAME);
   let names;
   try { names = fs.readdirSync(sessionDir); } catch { return; }
+
+  const stats = [];
+  for (const name of names) {
+    try {
+      const full = path.join(sessionDir, name);
+      const st = fs.statSync(full);
+      if (st.isFile()) stats.push(`${name}:${st.size}:${st.mtimeMs}`);
+    } catch {  }
+  }
+  if (!stats.length) return;
+
+  const signature = stats.sort().join("|");
+  if (entry && entry.lastBackupSignature === signature) return;
+
   const files = {};
   for (const name of names) {
     try {
@@ -299,6 +313,7 @@ async function backupSessionFiles(workDir, botId) {
   }
   if (!Object.keys(files).length) return;
   await db.collection("botDeployments").doc(botId).update({ sessionFiles: files, updatedAt: Date.now() }).catch(() => {});
+  if (entry) entry.lastBackupSignature = signature;
 }
 
 async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}) {
@@ -358,8 +373,8 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         setStatus("connected", { connectedAt: Date.now(), lastError: null });
         crashRestartCounts.delete(botId);
         if (!entry.backupTimer) {
-          backupSessionFiles(workDir, botId);
-          entry.backupTimer = setInterval(() => backupSessionFiles(workDir, botId), SESSION_BACKUP_INTERVAL_MS);
+          backupSessionFiles(workDir, botId, entry);
+          entry.backupTimer = setInterval(() => backupSessionFiles(workDir, botId, entry), SESSION_BACKUP_INTERVAL_MS);
         }
         return;
       }

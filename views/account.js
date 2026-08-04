@@ -101,11 +101,32 @@ input{font-family:inherit}
   font-size:.66rem;font-weight:800;display:flex;align-items:center;justify-content:center;
 }
 .sc-chat-card{width:100%;max-width:420px;max-height:82vh;height:560px}
-.sc-chat-subtitle{font-size:.72rem;color:var(--muted);margin-top:2px}
-.sc-chat-body{flex:1;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
-.sc-bubble{max-width:78%;padding:8px 12px;border-radius:14px;font-size:.84rem;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+.sc-brand-header{
+  display:flex;align-items:center;gap:12px;padding:16px 16px;flex-shrink:0;
+  background:linear-gradient(120deg,var(--accent),var(--accent2));color:#04141a;
+}
+.sc-brand-avatar{
+  width:40px;height:40px;border-radius:50%;background:rgba(4,20,26,.14);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;color:#04141a;background-size:cover;background-position:center;
+}
+.sc-brand-avatar svg{width:19px;height:19px}
+.sc-brand-avatar.has-photo svg{display:none}
+.sc-brand-info{flex:1;min-width:0}
+.sc-brand-info .flist-title{color:#04141a;display:flex;align-items:center;gap:4px}
+.sc-brand-header .flist-close{background:rgba(4,20,26,.14);color:#04141a}
+.sc-brand-header .flist-close:hover{background:rgba(4,20,26,.24);color:#04141a}
+.sc-chat-subtitle{font-size:.72rem;color:rgba(4,20,26,.72);margin-top:2px}
+.sc-chat-body{
+  flex:1;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px;
+  background-color:var(--dark2,var(--dark));
+  background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);
+  background-size:18px 18px;
+}
+.sc-bubble{position:relative;max-width:78%;padding:8px 12px;border-radius:14px;font-size:.84rem;line-height:1.4;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 2px rgba(0,0,0,.2)}
 .sc-bubble-me{align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-bottom-right-radius:4px}
+.sc-bubble-me::after{content:"";position:absolute;right:-6px;bottom:0;width:12px;height:12px;background:var(--accent2);clip-path:polygon(0 0,0% 100%,100% 100%)}
 .sc-bubble-them{align-self:flex-start;background:var(--card2);color:var(--text);border:1px solid var(--border-strong);border-bottom-left-radius:4px}
+.sc-bubble-them::after{content:"";position:absolute;left:-6px;bottom:-1px;width:12px;height:12px;background:var(--card2);border-left:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);clip-path:polygon(100% 0,0% 100%,100% 100%)}
 .sc-bubble-time{font-size:.63rem;opacity:.7;margin-top:3px;display:block}
 .sc-chat-empty{margin:auto;color:var(--muted);font-size:.83rem;text-align:center}
 .sc-chat-footer{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
@@ -1095,8 +1116,14 @@ body:has(.page-overlay.show){overflow:hidden}
 
 <div class="page-overlay" id="supportInboxOverlay">
   <div class="flist-card">
-    <div class="flist-header">
-      <div class="flist-title">Customer Care</div>
+    <div class="sc-brand-header">
+      <div class="sc-brand-avatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0116 0v1"/><rect x="2" y="13" width="5" height="7" rx="2"/><rect x="17" y="13" width="5" height="7" rx="2"/><path d="M20 20a4 4 0 01-4 4h-2"/></svg>
+      </div>
+      <div class="sc-brand-info">
+        <div class="flist-title">Customer Support</div>
+        <div class="sc-chat-subtitle" id="supportInboxSubtitle">Your conversations</div>
+      </div>
       <button type="button" class="flist-close" id="supportInboxCloseBtn" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
@@ -1107,10 +1134,13 @@ body:has(.page-overlay.show){overflow:hidden}
 
 <div class="page-overlay" id="supportChatOverlay">
   <div class="flist-card sc-chat-card">
-    <div class="flist-header">
-      <div>
-        <div class="flist-title" id="supportChatTitle">Customer Care</div>
-        <div class="sc-chat-subtitle" id="supportChatSubtitle" style="display:none"></div>
+    <div class="sc-brand-header">
+      <div class="sc-brand-avatar" id="supportChatAvatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0116 0v1"/><rect x="2" y="13" width="5" height="7" rx="2"/><rect x="17" y="13" width="5" height="7" rx="2"/><path d="M20 20a4 4 0 01-4 4h-2"/></svg>
+      </div>
+      <div class="sc-brand-info">
+        <div class="flist-title" id="supportChatTitle">Customer Support</div>
+        <div class="sc-chat-subtitle" id="supportChatSubtitle">We're here to help</div>
       </div>
       <button type="button" class="flist-close" id="supportChatCloseBtn" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
@@ -2825,7 +2855,7 @@ function renderSupportThreadRow(t){
   row.appendChild(meta);
   row.addEventListener('click', () => {
     document.getElementById('supportInboxOverlay').classList.remove('show');
-    openSupportChat(t.uid, name, true, t.verified, t.lastActiveAt);
+    openSupportChat(t.uid, name, true, t.verified, t.lastActiveAt, t.photoURL);
   });
   return row;
 }
@@ -2840,10 +2870,19 @@ async function openSupportInbox(){
   closeAllOtherOverlays('supportInboxOverlay');
   document.getElementById('supportInboxOverlay').classList.add('show');
   const list = document.getElementById('supportThreadList');
+  const subtitle = document.getElementById('supportInboxSubtitle');
   list.innerHTML = '<div class="flist-empty">Loading…</div>';
   try {
     const { threads } = await getJSON('/api/admin/support/threads');
-    if (!threads.length) { list.innerHTML = '<div class="flist-empty">No messages yet.</div>'; return; }
+    if (!threads.length) {
+      list.innerHTML = '<div class="flist-empty">No messages yet.</div>';
+      subtitle.textContent = 'Your conversations';
+      return;
+    }
+    const unreadThreads = threads.filter(t => t.unread > 0).length;
+    subtitle.textContent = unreadThreads > 0
+      ? unreadThreads + ' unread conversation' + (unreadThreads === 1 ? '' : 's')
+      : threads.length + ' conversation' + (threads.length === 1 ? '' : 's');
     list.innerHTML = '';
     threads.forEach(t => list.appendChild(renderSupportThreadRow(t)));
   } catch (err) {
@@ -2940,19 +2979,28 @@ function formatActiveLabel(lastActiveAt){
   return isActiveNow ? 'Active now' : ('Last active ' + timeAgo(lastActiveAt));
 }
 
-async function openSupportChat(uid, title, isAdminView, verified, lastActiveAt){
+async function openSupportChat(uid, title, isAdminView, verified, lastActiveAt, photoURL){
   supportChatTargetUid = uid;
   supportChatIsAdminView = !!isAdminView;
   closeAllOtherOverlays('supportChatOverlay');
   const titleEl = document.getElementById('supportChatTitle');
   const subtitleEl = document.getElementById('supportChatSubtitle');
+  const avatarEl = document.getElementById('supportChatAvatar');
   if (isAdminView) {
     titleEl.innerHTML = esc(title) + (verified ? VERIFIED_BADGE : '');
     subtitleEl.textContent = formatActiveLabel(lastActiveAt);
-    subtitleEl.style.display = 'block';
+    if (photoURL) {
+      avatarEl.style.backgroundImage = 'url(' + photoURL + ')';
+      avatarEl.classList.add('has-photo');
+    } else {
+      avatarEl.style.backgroundImage = '';
+      avatarEl.classList.remove('has-photo');
+    }
   } else {
-    titleEl.textContent = 'Customer Care';
-    subtitleEl.style.display = 'none';
+    titleEl.textContent = 'Customer Support';
+    subtitleEl.textContent = "We're here to help";
+    avatarEl.style.backgroundImage = '';
+    avatarEl.classList.remove('has-photo');
   }
   document.getElementById('supportChatInput').value = '';
   document.getElementById('supportChatSendBtn').disabled = true;
