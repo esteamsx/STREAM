@@ -322,7 +322,20 @@ body:has(.page-overlay.show){overflow:hidden}
 .pf-post:first-child{border-top:none;padding-top:0}
 .pf-post-text{font-size:.88rem;color:var(--text);line-height:1.5;white-space:pre-wrap}
 .pf-post-text a{color:var(--accent);text-decoration:none;font-weight:600}
-.pf-post-image{width:100%;max-height:340px;object-fit:cover;border-radius:12px;margin-top:8px;display:block}
+.pf-post-image{width:100%;max-height:340px;object-fit:cover;border-radius:12px;margin-top:8px;display:block;cursor:zoom-in}
+.img-lightbox-overlay{background:rgba(0,0,0,.92);flex-direction:column;gap:16px;z-index:400}
+.img-lightbox-overlay img{max-width:92vw;max-height:74vh;border-radius:10px;object-fit:contain}
+.lightbox-close{
+  position:absolute;top:18px;right:18px;width:38px;height:38px;border-radius:50%;
+  background:rgba(255,255,255,.12);border:none;color:#fff;display:flex;align-items:center;justify-content:center;
+}
+.lightbox-close svg{width:18px;height:18px}
+.lightbox-download{
+  display:flex;align-items:center;gap:7px;padding:10px 20px;border-radius:24px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;font-size:.85rem;font-weight:700;
+  text-decoration:none;
+}
+.lightbox-download svg{width:16px;height:16px}
 .pf-post-footer{display:flex;align-items:center;gap:6px;margin-top:10px}
 .pf-post-heart{background:transparent;border:none;color:var(--muted);display:flex;align-items:center;padding:2px}
 .pf-post-heart svg{width:21px;height:21px;transition:transform .15s var(--ease)}
@@ -612,6 +625,17 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
     <div style="padding:4px 10px 16px" id="postOptionsBody"></div>
   </div>
+</div>
+
+<div class="page-overlay img-lightbox-overlay" id="imgLightboxOverlay">
+  <button type="button" class="lightbox-close" id="lightboxCloseBtn" aria-label="Close">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <img id="lightboxImg" alt="">
+  <a class="lightbox-download" id="lightboxDownloadBtn" download="photo.jpg">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+    Download
+  </a>
 </div>
 
 <div class="page-overlay" id="postSettingsOverlay">
@@ -1348,6 +1372,7 @@ function createPostCard(post, isOwner){
     img.loading = 'lazy';
     img.decoding = 'async';
     img.src = post.imageDataUrl;
+    img.addEventListener('click', () => openImageLightbox(post.imageDataUrl));
     card.appendChild(img);
   }
 
@@ -1582,6 +1607,20 @@ document.getElementById('postOptionsCloseBtn').addEventListener('click', () => {
 });
 document.getElementById('postOptionsOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'postOptionsOverlay') document.getElementById('postOptionsOverlay').classList.remove('show');
+});
+
+function openImageLightbox(src, name){
+  document.getElementById('lightboxImg').src = src;
+  const dl = document.getElementById('lightboxDownloadBtn');
+  dl.href = src;
+  dl.download = name || 'photo.jpg';
+  document.getElementById('imgLightboxOverlay').classList.add('show');
+}
+document.getElementById('lightboxCloseBtn').addEventListener('click', () => {
+  document.getElementById('imgLightboxOverlay').classList.remove('show');
+});
+document.getElementById('imgLightboxOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'imgLightboxOverlay') document.getElementById('imgLightboxOverlay').classList.remove('show');
 });
 document.getElementById('postVisCloseBtn').addEventListener('click', () => {
   document.getElementById('postVisibilityOverlay').classList.remove('show');

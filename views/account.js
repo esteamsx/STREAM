@@ -101,6 +101,7 @@ input{font-family:inherit}
   font-size:.66rem;font-weight:800;display:flex;align-items:center;justify-content:center;
 }
 .sc-chat-card{width:100%;max-width:420px;max-height:82vh;height:560px}
+.sc-chat-subtitle{font-size:.72rem;color:var(--muted);margin-top:2px}
 .sc-chat-body{flex:1;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 .sc-bubble{max-width:78%;padding:8px 12px;border-radius:14px;font-size:.84rem;line-height:1.4;white-space:pre-wrap;word-break:break-word}
 .sc-bubble-me{align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-bottom-right-radius:4px}
@@ -143,6 +144,37 @@ input{font-family:inherit}
 .sc-bubble-file svg{width:20px;height:20px;flex-shrink:0}
 .sc-bubble-file-name{font-size:.78rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sc-bubble audio{margin-top:4px;max-width:220px;height:36px}
+.sc-bubble-image{cursor:zoom-in}
+.sc-doc-chip{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.15);
+  margin-top:4px;border:none;color:inherit;font:inherit;text-align:left;width:100%;cursor:pointer;
+}
+.sc-doc-icon-wrap{
+  width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.2);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;position:relative;
+}
+.sc-doc-icon-wrap svg{width:15px;height:15px}
+.sc-doc-icon-wrap.downloading svg{display:none}
+.sc-doc-spinner{display:none;width:15px;height:15px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:currentColor;animation:scDocSpin .7s linear infinite}
+.sc-doc-icon-wrap.downloading .sc-doc-spinner{display:block}
+@keyframes scDocSpin{to{transform:rotate(360deg)}}
+.sc-doc-name{font-size:.78rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+
+.img-lightbox-overlay{
+  background:rgba(0,0,0,.92);flex-direction:column;gap:16px;z-index:400;
+}
+.img-lightbox-overlay img{max-width:92vw;max-height:74vh;border-radius:10px;object-fit:contain}
+.lightbox-close{
+  position:absolute;top:18px;right:18px;width:38px;height:38px;border-radius:50%;
+  background:rgba(255,255,255,.12);border:none;color:#fff;display:flex;align-items:center;justify-content:center;
+}
+.lightbox-close svg{width:18px;height:18px}
+.lightbox-download{
+  display:flex;align-items:center;gap:7px;padding:10px 20px;border-radius:24px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;font-size:.85rem;font-weight:700;
+  text-decoration:none;
+}
+.lightbox-download svg{width:16px;height:16px}
 
 .acc-nav{
   position:sticky;top:0;z-index:10;height:58px;display:flex;align-items:center;gap:14px;padding:0 18px;
@@ -1076,7 +1108,10 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="supportChatOverlay">
   <div class="flist-card sc-chat-card">
     <div class="flist-header">
-      <div class="flist-title" id="supportChatTitle">Customer Care</div>
+      <div>
+        <div class="flist-title" id="supportChatTitle">Customer Care</div>
+        <div class="sc-chat-subtitle" id="supportChatSubtitle" style="display:none"></div>
+      </div>
       <button type="button" class="flist-close" id="supportChatCloseBtn" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
@@ -1108,6 +1143,17 @@ body:has(.page-overlay.show){overflow:hidden}
       </button>
     </div>
   </div>
+</div>
+
+<div class="page-overlay img-lightbox-overlay" id="imgLightboxOverlay">
+  <button type="button" class="lightbox-close" id="lightboxCloseBtn" aria-label="Close">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <img id="lightboxImg" alt="">
+  <a class="lightbox-download" id="lightboxDownloadBtn" download="photo.jpg">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+    Download
+  </a>
 </div>
 
 <div class="page-overlay" id="verifyOverlay">
@@ -2771,16 +2817,15 @@ function renderSupportThreadRow(t){
     '<div class="sc-thread-preview">' + esc(t.lastMessageText || '') + '</div>';
   const meta = document.createElement('div');
   meta.className = 'sc-thread-meta';
-  const activeLabel = t.lastActiveAt ? ('Active ' + timeAgo(t.lastActiveAt)) : 'Offline';
   meta.innerHTML =
     '<div class="sc-thread-time">' + (t.lastMessageAt ? timeAgo(t.lastMessageAt) : '') + '</div>' +
-    (t.unread > 0 ? '<div class="sc-thread-unread">' + (t.unread > 99 ? '99+' : t.unread) + '</div>' : '<div class="sc-thread-time">' + esc(activeLabel) + '</div>');
+    (t.unread > 0 ? '<div class="sc-thread-unread">' + (t.unread > 99 ? '99+' : t.unread) + '</div>' : '');
   row.appendChild(avatar);
   row.appendChild(info);
   row.appendChild(meta);
   row.addEventListener('click', () => {
     document.getElementById('supportInboxOverlay').classList.remove('show');
-    openSupportChat(t.uid, name, true);
+    openSupportChat(t.uid, name, true, t.verified, t.lastActiveAt);
   });
   return row;
 }
@@ -2806,16 +2851,22 @@ async function openSupportInbox(){
   }
 }
 
+const SC_DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>';
+const SC_CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+let currentChatMessagesById = {};
+
 function renderAttachmentHtml(m){
   if (!m.attachmentType || !m.attachmentDataUrl) return '';
   if (m.attachmentType === 'image') {
-    return '<img class="sc-bubble-image" src="' + m.attachmentDataUrl + '">';
+    return '<img class="sc-bubble-image" src="' + m.attachmentDataUrl + '" data-msg-id="' + m.id + '">';
   }
   if (m.attachmentType === 'voice') {
     return '<audio controls src="' + m.attachmentDataUrl + '"></audio>';
   }
-  return '<a class="sc-bubble-file" href="' + m.attachmentDataUrl + '" download="' + esc(m.attachmentName || 'file') + '">' +
-    SC_FILE_ICON + '<span class="sc-bubble-file-name">' + esc(m.attachmentName || 'file') + '</span></a>';
+  return '<button type="button" class="sc-doc-chip" data-msg-id="' + m.id + '" data-state="idle">' +
+    '<span class="sc-doc-icon-wrap">' + SC_DOWNLOAD_ICON + '<span class="sc-doc-spinner"></span></span>' +
+    '<span class="sc-doc-name">' + esc(m.attachmentName || 'Document') + '</span>' +
+  '</button>';
 }
 
 function renderSupportBubble(m){
@@ -2826,6 +2877,43 @@ function renderSupportBubble(m){
   '</div>';
 }
 
+function triggerFileDownload(dataUrl, name){
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = name || 'file';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function openImageLightbox(src, name){
+  document.getElementById('lightboxImg').src = src;
+  const dl = document.getElementById('lightboxDownloadBtn');
+  dl.href = src;
+  dl.download = name || 'photo.jpg';
+  closeAllOtherOverlays('imgLightboxOverlay');
+  document.getElementById('imgLightboxOverlay').classList.add('show');
+}
+
+function handleDocChipClick(chip){
+  if (chip.dataset.state === 'downloading') return;
+  const msg = currentChatMessagesById[chip.dataset.msgId];
+  if (!msg) return;
+  if (chip.dataset.state === 'done') {
+    triggerFileDownload(msg.attachmentDataUrl, msg.attachmentName);
+    return;
+  }
+  chip.dataset.state = 'downloading';
+  const iconWrap = chip.querySelector('.sc-doc-icon-wrap');
+  iconWrap.classList.add('downloading');
+  setTimeout(() => {
+    chip.dataset.state = 'done';
+    iconWrap.classList.remove('downloading');
+    iconWrap.innerHTML = SC_CHECK_ICON;
+    triggerFileDownload(msg.attachmentDataUrl, msg.attachmentName);
+  }, 700);
+}
+
 async function loadSupportChatMessages(isInitial){
   const body = document.getElementById('supportChatBody');
   const wasAtBottom = isInitial || (body.scrollHeight - body.scrollTop - body.clientHeight) < 40;
@@ -2834,6 +2922,8 @@ async function loadSupportChatMessages(isInitial){
       ? '/api/admin/support/threads/' + encodeURIComponent(supportChatTargetUid) + '/messages'
       : '/api/support/messages';
     const { messages } = await getJSON(url);
+    currentChatMessagesById = {};
+    messages.forEach((m) => { currentChatMessagesById[m.id] = m; });
     body.innerHTML = messages.length
       ? messages.map(renderSupportBubble).join('')
       : '<div class="sc-chat-empty">No messages yet. Say hello!</div>';
@@ -2844,11 +2934,26 @@ async function loadSupportChatMessages(isInitial){
   }
 }
 
-async function openSupportChat(uid, title, isAdminView){
+function formatActiveLabel(lastActiveAt){
+  if (!lastActiveAt) return 'Offline';
+  const isActiveNow = Date.now() - lastActiveAt < 5 * 60 * 1000;
+  return isActiveNow ? 'Active now' : ('Last active ' + timeAgo(lastActiveAt));
+}
+
+async function openSupportChat(uid, title, isAdminView, verified, lastActiveAt){
   supportChatTargetUid = uid;
   supportChatIsAdminView = !!isAdminView;
   closeAllOtherOverlays('supportChatOverlay');
-  document.getElementById('supportChatTitle').textContent = isAdminView ? title : 'Customer Care';
+  const titleEl = document.getElementById('supportChatTitle');
+  const subtitleEl = document.getElementById('supportChatSubtitle');
+  if (isAdminView) {
+    titleEl.innerHTML = esc(title) + (verified ? VERIFIED_BADGE : '');
+    subtitleEl.textContent = formatActiveLabel(lastActiveAt);
+    subtitleEl.style.display = 'block';
+  } else {
+    titleEl.textContent = 'Customer Care';
+    subtitleEl.style.display = 'none';
+  }
   document.getElementById('supportChatInput').value = '';
   document.getElementById('supportChatSendBtn').disabled = true;
   clearPendingAttachment();
@@ -2998,6 +3103,21 @@ function initSupportFab(){
     document.getElementById('supportInboxOverlay').classList.remove('show');
   });
   document.getElementById('supportChatCloseBtn').addEventListener('click', closeSupportChat);
+  document.getElementById('supportChatBody').addEventListener('click', (e) => {
+    const chip = e.target.closest('.sc-doc-chip');
+    if (chip) { handleDocChipClick(chip); return; }
+    const img = e.target.closest('.sc-bubble-image');
+    if (img) {
+      const msg = currentChatMessagesById[img.dataset.msgId];
+      openImageLightbox(img.src, msg && msg.attachmentName);
+    }
+  });
+  document.getElementById('lightboxCloseBtn').addEventListener('click', () => {
+    document.getElementById('imgLightboxOverlay').classList.remove('show');
+  });
+  document.getElementById('imgLightboxOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'imgLightboxOverlay') document.getElementById('imgLightboxOverlay').classList.remove('show');
+  });
   const chatInput = document.getElementById('supportChatInput');
   const chatSendBtn = document.getElementById('supportChatSendBtn');
   chatInput.addEventListener('input', updateSendBtnEnabled);
