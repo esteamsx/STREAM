@@ -98,7 +98,7 @@ ${PREVIEW_TAGS}
 <body>
 <noscript><div class="m" style="display:block">This site requires JavaScript. Please enable it and reload.</div></noscript>
 <div class="m" id="m">Couldn't verify your browser. Please make sure cookies are enabled, then <a href="/" id="r">try again</a>.</div>
-<script>
+<script nonce="__CSP_NONCE__">
 (function(){
   var NAME = ${JSON.stringify(COOKIE_NAME)};
   function stop(){

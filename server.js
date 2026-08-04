@@ -238,6 +238,7 @@ import { createChallenge, verifySolution } from "altcha-lib";
 import {
   securityHeaders,
   helmetMiddleware,
+  cspNonce,
   botBlocker,
   SimpleRateLimiter,
   suspiciousRequestDetector,
@@ -268,6 +269,7 @@ app.use(domainLock);
 
 app.use(compression());
 
+app.use(cspNonce);
 app.use(helmetMiddleware);
 app.use(securityHeaders);
 app.use(permissionsPolicy);
@@ -358,7 +360,7 @@ const DOMAIN_LOCK_ALLOWED_HASHES = JSON.stringify(
 // Runs before any other script on the page. If the page isn't being served from an
 // allowed domain, it blanks the page and bounces to the real site — so a scraped copy
 // of the HTML/CSS/JS renders nothing useful when re-hosted elsewhere.
-const DOMAIN_LOCK_SCRIPT = `<script>
+const DOMAIN_LOCK_SCRIPT = `<script nonce="__CSP_NONCE__">
 (function(){
   function _dlh(s){var a=5381;for(var i=0;i<s.length;i++){a=((a<<5)+a+s.charCodeAt(i))|0;}return (a>>>0).toString(36);}
   var _dla=${DOMAIN_LOCK_ALLOWED_HASHES};
@@ -385,7 +387,7 @@ const authPageConfig = {
   telegramConfigured: !!(process.env.TELEGRAM_CLIENT_ID && process.env.TELEGRAM_CLIENT_SECRET),
   githubConfigured: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
   paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY || "",
-  devToolsBlock: DOMAIN_LOCK_SCRIPT + `<script>
+  devToolsBlock: DOMAIN_LOCK_SCRIPT + `<script nonce="__CSP_NONCE__">
 document.addEventListener('contextmenu', function(e){
   if (e.target.closest('a, button, img, [role="button"]')) e.preventDefault();
 });
@@ -591,15 +593,15 @@ app.get("/", scrapeGate, requireUser, async (req, res) => {
 <head>
 <meta charset="UTF-8">
 ${DOMAIN_LOCK_SCRIPT}
-<script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
-<script>
+<script nonce="__CSP_NONCE__">document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
+<script nonce="__CSP_NONCE__">
 document.addEventListener('contextmenu', function(e){
   if (e.target.closest('a, button, img, [role="button"]')) e.preventDefault();
 });
 </script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${siteHeadFor("home")}
-<script>(function(){var m=document.getElementById('themeColorMeta');if(m)m.setAttribute('content',document.documentElement.getAttribute('data-theme')==='light'?'#F5F6FA':'#0A0A0F');})();</script>
+<script nonce="__CSP_NONCE__">(function(){var m=document.getElementById('themeColorMeta');if(m)m.setAttribute('content',document.documentElement.getAttribute('data-theme')==='light'?'#F5F6FA':'#0A0A0F');})();</script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2214,9 +2216,9 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 </div>
 
 <!-- hls.js -->
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
+<script nonce="__CSP_NONCE__" src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
 
-<script>
+<script nonce="__CSP_NONCE__">
 (function(){
   var sidebar    = document.getElementById('sidebar');
   var overlay    = document.getElementById('overlay');
@@ -3098,7 +3100,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
 })();
 </script>
-<script>
+<script nonce="__CSP_NONCE__">
 function showLiquidToast(message){
   var toast = document.createElement('div');
   toast.className = 'lg-toast';

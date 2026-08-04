@@ -6,10 +6,10 @@ export function renderDeployBot(cfg) {
 <head>
 <meta charset="UTF-8">
 ${cfg.devToolsBlock || ""}
-<script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
+<script nonce="__CSP_NONCE__">document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${siteHeadFor("deployBot")}
-<script>(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
+<script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -183,7 +183,7 @@ input{font-family:inherit}
 <body>
 
 <div class="db-nav">
-  <button class="db-back" onclick="location.href='/'">
+  <button class="db-back" id="dbBackBtn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
     Back
   </button>
@@ -229,7 +229,7 @@ input{font-family:inherit}
   </div>
 </div>
 
-<script>
+<script nonce="__CSP_NONCE__">
   const STATUS_LABELS = {
     downloading: 'Downloading', extracting: 'Extracting', starting: 'Starting', installing: 'Installing',
     pairing: 'Awaiting pairing', connected: 'Connected', reconnecting: 'Reconnecting', stopped: 'Stopped',
@@ -243,6 +243,8 @@ input{font-family:inherit}
     { key: 'starting', label: 'Start' },
     { key: 'pairing', label: 'Pair' },
   ];
+
+  document.getElementById('dbBackBtn').addEventListener('click', function(){ location.href = '/'; });
 
   async function getJSON(url){ const r = await fetch(url); const d = await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||'Request failed'); return d; }
   async function postJSON(url, body){ const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); const d = await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||'Request failed'); return d; }
