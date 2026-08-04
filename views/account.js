@@ -2827,6 +2827,24 @@ function updateSendBtnEnabled(){
   sendBtn.disabled = !input.value.trim() && !pendingAttachment;
 }
 
+function fixAudioDuration(audio){
+  if (!audio) return;
+  function onLoadedMeta(){
+    if (audio.duration === Infinity || isNaN(audio.duration)) {
+      audio.currentTime = 1e101;
+      audio.addEventListener('timeupdate', function onTime(){
+        audio.currentTime = 0;
+        audio.removeEventListener('timeupdate', onTime);
+      }, { once: true });
+    }
+  }
+  audio.addEventListener('loadedmetadata', onLoadedMeta, { once: true });
+}
+
+function fixAllAudioIn(container){
+  container.querySelectorAll('audio').forEach(fixAudioDuration);
+}
+
 function renderAttachmentPreview(){
   const wrap = document.getElementById('scAttachPreview');
   const inner = document.getElementById('scAttachPreviewInner');
@@ -2836,6 +2854,7 @@ function renderAttachmentPreview(){
     inner.innerHTML = '<img src="' + pendingAttachment.dataUrl + '"><span class="sc-attach-preview-name">Photo</span>';
   } else if (pendingAttachment.type === 'voice') {
     inner.innerHTML = '<audio controls src="' + pendingAttachment.dataUrl + '"></audio>';
+    fixAudioDuration(inner.querySelector('audio'));
   } else {
     inner.innerHTML = SC_FILE_ICON + '<span class="sc-attach-preview-name">' + esc(pendingAttachment.name || 'file') + '</span>';
   }
@@ -3000,6 +3019,7 @@ async function loadSupportChatMessages(isInitial){
     body.innerHTML = messages.length
       ? messages.map(renderSupportBubble).join('')
       : '<div class="sc-chat-empty">No messages yet. Say hello!</div>';
+    fixAllAudioIn(body);
     if (wasAtBottom) body.scrollTop = body.scrollHeight;
     refreshSupportUnread();
   } catch (err) {
