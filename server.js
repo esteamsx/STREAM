@@ -3219,7 +3219,7 @@ function fsRunSearch(q){
         var hasNewPosts = results[1].count > 0;
         var supportCount = results[2].count || 0;
         document.querySelectorAll('.js-account-dot').forEach(function(el){
-          el.classList.toggle('show', hasUnread);
+          el.classList.toggle('show', hasUnread || supportCount > 0);
         });
         document.querySelectorAll('.js-feed-dot').forEach(function(el){
           el.classList.toggle('show', hasNewPosts);

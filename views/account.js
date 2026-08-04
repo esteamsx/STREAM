@@ -59,7 +59,7 @@ input{font-family:inherit}
 .acc-deploy-fab svg{width:24px;height:24px}
 
 .acc-cert-fab{
-  position:fixed;right:20px;bottom:84px;z-index:90;width:48px;height:48px;border-radius:50%;
+  position:fixed;right:20px;bottom:140px;z-index:90;width:48px;height:48px;border-radius:50%;
   background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
   display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
   cursor:pointer;transition:transform .15s var(--ease),opacity .2s var(--ease);
@@ -70,7 +70,7 @@ input{font-family:inherit}
 .acc-cert-fab.dead:active{transform:none}
 
 .acc-support-fab{
-  position:fixed;right:20px;bottom:140px;z-index:90;width:48px;height:48px;border-radius:50%;
+  position:fixed;right:20px;bottom:84px;z-index:90;width:48px;height:48px;border-radius:50%;
   background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
   display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
   cursor:pointer;transition:transform .15s var(--ease);
