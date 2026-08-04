@@ -28,10 +28,6 @@ async function verifyCaptcha(payload) {
 
 const TOOL_DAILY_LIMIT = 3;
 
-// Resolves a hostname and rejects it if any resolved address is loopback, private,
-// link-local (e.g. cloud metadata endpoints), or otherwise non-public, so tools that
-// make server-side requests to a user-supplied host can't be used to probe internal
-// network services (SSRF).
 async function resolvePublicAddress(hostname) {
   let records;
   try {
