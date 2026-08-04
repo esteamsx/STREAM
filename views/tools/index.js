@@ -28,6 +28,9 @@ const CATEGORIES = [
       { href: "/tools/binary-text", name: "Binary ↔ Text Converter", desc: "Convert text to binary and back.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 4v16M15 4v16M4 9l3 3-3 3M21 9l-3 3 3 3"/>` },
       { href: "/tools/caesar-cipher", name: "ROT13 / Caesar Cipher", desc: "Shift letters by any amount, including ROT13.", icon: `<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v9l6 3"/>` },
       { href: "/tools/base-converter", name: "Number Base Converter", desc: "Binary, octal, decimal and hexadecimal, any base.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>` },
+      { href: "/tools/find-replace", name: "Find & Replace", desc: "Find and replace text, with optional regex support.", icon: `<circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/>` },
+      { href: "/tools/csv-json", name: "CSV ⇄ JSON Converter", desc: "Convert CSV data to JSON, or JSON back to CSV.", icon: `<rect x="3" y="4" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M8 9h8M8 13h8M8 17h5"/>` },
+      { href: "/tools/contrast-checker", name: "Contrast Checker", desc: "Check colors against WCAG accessibility guidelines.", icon: `<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/>` },
     ],
   },
   {
@@ -51,6 +54,7 @@ const CATEGORIES = [
       { href: "/tools/slug-generator", name: "Slug Generator", desc: "Turn any text into a clean, URL-friendly slug.", icon: `<path stroke-linecap="round" d="M6 12h12M6 8h12M6 16h8"/>` },
       { href: "/tools/dedupe-lines", name: "Duplicate Line Remover", desc: "Remove duplicate lines from a block of text.", icon: `<path d="M4 6h16M4 12h11M4 18h11"/><path stroke-linecap="round" stroke-linejoin="round" d="M19 15l-2 2-2-2"/>` },
       { href: "/tools/sort-lines", name: "Text Sorter", desc: "Sort lines alphabetically or numerically.", icon: `<path stroke-linecap="round" d="M7 6h13M7 12h9M7 18h5"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 16l1.5 2L6 16"/><path d="M4.5 6v12"/>` },
+      { href: "/tools/text-diff", name: "Text Diff Checker", desc: "Compare two blocks of text and see what changed.", icon: `<path stroke-linecap="round" d="M8 3v18M16 3v18M3 9h5M16 9h5M3 15h5M16 15h5"/>` },
     ],
   },
   {
@@ -58,6 +62,10 @@ const CATEGORIES = [
     tools: [
       { href: "/tools/roman-numeral", name: "Roman Numeral Converter", desc: "Convert between numbers and Roman numerals.", icon: `<path stroke-linecap="round" d="M5 6v12M9 6v12M13 6l4 12M20 6l-4 12"/>` },
       { href: "/tools/age-calculator", name: "Age Calculator", desc: "Exact age in years, months and days from a birth date.", icon: `<rect x="3" y="5" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M3 10h18M8 3v4M16 3v4"/>` },
+      { href: "/tools/number-to-words", name: "Number ⇄ Words Converter", desc: "Spell out numbers as words, or parse words into a number.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 20l4-14 4 14M5.5 15h5M14 20V6h4a3 3 0 010 6h-4"/>` },
+      { href: "/tools/morse-code", name: "Morse Code Translator", desc: "Translate text to Morse code and back.", icon: `<circle cx="5" cy="12" r="1.6"/><circle cx="10" cy="12" r="1.6"/><path stroke-linecap="round" d="M14 12h2M18 12h2"/>` },
+      { href: "/tools/percentage-calculator", name: "Percentage Calculator", desc: "Percentage-of, what-percent, and percent change.", icon: `<circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/><path stroke-linecap="round" d="M19 5L5 19"/>` },
+      { href: "/tools/bmi-calculator", name: "BMI Calculator", desc: "Body Mass Index from your height and weight.", icon: `<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3.5 2"/>` },
     ],
   },
 ];

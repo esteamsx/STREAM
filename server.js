@@ -55,6 +55,14 @@ import { renderDiceRoller } from "./views/tools/dice-roller.js";
 import { renderDedupeLines } from "./views/tools/dedupe-lines.js";
 import { renderSortLines } from "./views/tools/sort-lines.js";
 import { renderAgeCalculator } from "./views/tools/age-calculator.js";
+import { renderTextDiff } from "./views/tools/text-diff.js";
+import { renderFindReplace } from "./views/tools/find-replace.js";
+import { renderCsvJson } from "./views/tools/csv-json.js";
+import { renderNumberToWords } from "./views/tools/number-to-words.js";
+import { renderMorseCode } from "./views/tools/morse-code.js";
+import { renderPercentageCalculator } from "./views/tools/percentage-calculator.js";
+import { renderBmiCalculator } from "./views/tools/bmi-calculator.js";
+import { renderContrastChecker } from "./views/tools/contrast-checker.js";
 import { toolsRouter } from "./routes/tools.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
@@ -397,6 +405,14 @@ const cachedToolsDiceRollerHtml = renderDiceRoller(authPageConfig);
 const cachedToolsDedupeLinesHtml = renderDedupeLines(authPageConfig);
 const cachedToolsSortLinesHtml = renderSortLines(authPageConfig);
 const cachedToolsAgeCalculatorHtml = renderAgeCalculator(authPageConfig);
+const cachedToolsTextDiffHtml = renderTextDiff(authPageConfig);
+const cachedToolsFindReplaceHtml = renderFindReplace(authPageConfig);
+const cachedToolsCsvJsonHtml = renderCsvJson(authPageConfig);
+const cachedToolsNumberToWordsHtml = renderNumberToWords(authPageConfig);
+const cachedToolsMorseCodeHtml = renderMorseCode(authPageConfig);
+const cachedToolsPercentageCalculatorHtml = renderPercentageCalculator(authPageConfig);
+const cachedToolsBmiCalculatorHtml = renderBmiCalculator(authPageConfig);
+const cachedToolsContrastCheckerHtml = renderContrastChecker(authPageConfig);
 
 const cachedFootballHtml = (() => {
   try {
@@ -3789,6 +3805,38 @@ app.get("/tools/sort-lines", scrapeGate, (req, res) => {
 
 app.get("/tools/age-calculator", scrapeGate, (req, res) => {
   res.send(cachedToolsAgeCalculatorHtml);
+});
+
+app.get("/tools/text-diff", scrapeGate, (req, res) => {
+  res.send(cachedToolsTextDiffHtml);
+});
+
+app.get("/tools/find-replace", scrapeGate, (req, res) => {
+  res.send(cachedToolsFindReplaceHtml);
+});
+
+app.get("/tools/csv-json", scrapeGate, (req, res) => {
+  res.send(cachedToolsCsvJsonHtml);
+});
+
+app.get("/tools/number-to-words", scrapeGate, (req, res) => {
+  res.send(cachedToolsNumberToWordsHtml);
+});
+
+app.get("/tools/morse-code", scrapeGate, (req, res) => {
+  res.send(cachedToolsMorseCodeHtml);
+});
+
+app.get("/tools/percentage-calculator", scrapeGate, (req, res) => {
+  res.send(cachedToolsPercentageCalculatorHtml);
+});
+
+app.get("/tools/bmi-calculator", scrapeGate, (req, res) => {
+  res.send(cachedToolsBmiCalculatorHtml);
+});
+
+app.get("/tools/contrast-checker", scrapeGate, (req, res) => {
+  res.send(cachedToolsContrastCheckerHtml);
 });
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {
