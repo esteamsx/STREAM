@@ -15,26 +15,27 @@
       '@media (hover:hover) and (pointer:fine){' +
         'button:hover,[role="button"]:hover,.btn:hover,a.btn:hover{animation:etWibble .36s cubic-bezier(.36,.07,.19,.97) both}' +
       '}' +
-      '@media (prefers-reduced-motion:reduce){.et-wibble{animation:none}' +
-        'button:hover,[role="button"]:hover,.btn:hover,a.btn:hover{animation:none}}' +
-      '.et-glass-rel{position:relative}' +
-      '.et-glass,.et-glass-tint{isolation:isolate}' +
-      '.et-glass::before,.et-glass-tint::before{' +
-        'content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;' +
-        'background:linear-gradient(165deg,rgba(255,255,255,.22),rgba(255,255,255,0) 42%,rgba(0,0,0,.08) 100%);' +
-        'box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),inset 0 -1px 0 rgba(0,0,0,.16)' +
+      '@keyframes etLightTap{' +
+        '0%{transform:translate(-50%,-50%) scale(0);opacity:.75}' +
+        '100%{transform:translate(-50%,-50%) scale(1);opacity:0}' +
       '}' +
-      '.et-glass{' +
-        'background:rgba(255,255,255,.15) !important;' +
-        'border:1px solid rgba(255,255,255,.24) !important;' +
-        'backdrop-filter:blur(16px) saturate(200%);' +
-        '-webkit-backdrop-filter:blur(16px) saturate(200%)' +
+      '.et-light{' +
+        'position:absolute;top:0;left:0;border-radius:50%;pointer-events:none;z-index:2;' +
+        'background:radial-gradient(circle,rgba(255,255,255,.55) 0%,rgba(255,255,255,0) 72%);' +
+        'transform:translate(-50%,-50%) scale(0);opacity:0;' +
+        'animation:etLightTap .55s ease-out forwards' +
+      '}' +
+      '@media (prefers-reduced-motion:reduce){' +
+        '.et-wibble{animation:none}' +
+        'button:hover,[role="button"]:hover,.btn:hover,a.btn:hover{animation:none}' +
+        '.et-light{display:none}' +
       '}';
     document.head.appendChild(style);
   }
 
   var SELECTOR = 'button,[role="button"],.btn,a.btn';
   var audioCtx = null;
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function playWibbleSound() {
     try {
@@ -58,6 +59,28 @@
     } catch (e) {}
   }
 
+  function spawnLightTap(el, evt) {
+    if (reduceMotion) return;
+    var rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var x = evt.clientX ? evt.clientX - rect.left : rect.width / 2;
+    var y = evt.clientY ? evt.clientY - rect.top : rect.height / 2;
+    var cs = getComputedStyle(el);
+    if (cs.position === 'static') el.style.position = 'relative';
+    if (cs.overflow !== 'hidden') el.style.overflow = 'hidden';
+    var size = Math.max(rect.width, rect.height) * 1.5;
+    var light = document.createElement('span');
+    light.className = 'et-light';
+    light.style.width = size + 'px';
+    light.style.height = size + 'px';
+    light.style.left = x + 'px';
+    light.style.top = y + 'px';
+    el.appendChild(light);
+    var cleanup = function () { if (light.parentNode) light.parentNode.removeChild(light); };
+    light.addEventListener('animationend', cleanup);
+    setTimeout(cleanup, 700);
+  }
+
   document.addEventListener('click', function (e) {
     var el = e.target && e.target.closest ? e.target.closest(SELECTOR) : null;
     if (!el || el.disabled) return;
@@ -65,35 +88,6 @@
     void el.offsetWidth;
     el.classList.add('et-wibble');
     playWibbleSound();
+    spawnLightTap(el, e);
   }, { capture: true, passive: true });
-
-  function glassify(el) {
-    if (!el.getAttribute || el.dataset.etGlass) return;
-    el.dataset.etGlass = '1';
-    var cs = getComputedStyle(el);
-    if (cs.position === 'static') el.classList.add('et-glass-rel');
-    var hasArt = cs.backgroundImage && cs.backgroundImage !== 'none';
-    el.classList.add(hasArt ? 'et-glass-tint' : 'et-glass');
-  }
-
-  function glassifyTree(root) {
-    if (root.nodeType !== 1) return;
-    if (root.matches && root.matches(SELECTOR)) glassify(root);
-    if (root.querySelectorAll) {
-      var found = root.querySelectorAll(SELECTOR);
-      for (var i = 0; i < found.length; i++) glassify(found[i]);
-    }
-  }
-
-  glassifyTree(document.body);
-
-  if (window.MutationObserver) {
-    var observer = new MutationObserver(function (mutations) {
-      for (var i = 0; i < mutations.length; i++) {
-        var added = mutations[i].addedNodes;
-        for (var j = 0; j < added.length; j++) glassifyTree(added[j]);
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
 })();
