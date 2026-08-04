@@ -54,14 +54,16 @@ export function musicPlayerScript() {
   if (!audio || !btn) return;
   var STORE_KEY = 'mp_state';
   var idx = 0;
+  var wantsPlaying = true;
 
-  function writeState(playing){
+  function writeState(){
     try {
-      sessionStorage.setItem(STORE_KEY, JSON.stringify({ idx: idx, time: audio.currentTime || 0, playing: !!playing }));
+      sessionStorage.setItem(STORE_KEY, JSON.stringify({ idx: idx, time: audio.currentTime || 0, wantsPlaying: wantsPlaying }));
     } catch(e){}
   }
 
   function attemptPlay(){
+    wantsPlaying = true;
     var p = audio.play();
     if (p && p.catch) p.catch(function(){
       var resume = function(){
@@ -71,6 +73,11 @@ export function musicPlayerScript() {
       document.addEventListener('keydown', resume, { once: true });
       document.addEventListener('touchstart', resume, { once: true });
     });
+  }
+
+  function pausePlayback(){
+    wantsPlaying = false;
+    audio.pause();
   }
 
   function load(i, autoplay, seekTime){
@@ -95,15 +102,19 @@ export function musicPlayerScript() {
       ],
     });
     navigator.mediaSession.setActionHandler('play', function(){ attemptPlay(); });
-    navigator.mediaSession.setActionHandler('pause', function(){ audio.pause(); });
-    navigator.mediaSession.setActionHandler('previoustrack', function(){ load(idx - 1, true); writeState(true); });
-    navigator.mediaSession.setActionHandler('nexttrack', function(){ load(idx + 1, true); writeState(true); });
+    navigator.mediaSession.setActionHandler('pause', function(){ pausePlayback(); });
+    navigator.mediaSession.setActionHandler('previoustrack', function(){ load(idx - 1, true); writeState(); });
+    navigator.mediaSession.setActionHandler('nexttrack', function(){ load(idx + 1, true); writeState(); });
   }
 
   var saved = null;
   try { saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null'); } catch(e){}
-  if (saved && typeof saved.idx === 'number') load(saved.idx, saved.playing, saved.time);
-  else load(0, true);
+  if (saved && typeof saved.idx === 'number') {
+    wantsPlaying = saved.wantsPlaying !== false;
+    load(saved.idx, wantsPlaying, saved.time);
+  } else {
+    load(0, true);
+  }
 
   function setPlayingUI(playing){
     playIcon.style.display = playing ? 'none' : 'block';
@@ -114,15 +125,15 @@ export function musicPlayerScript() {
 
   btn.addEventListener('click', function(){
     if (audio.paused) attemptPlay();
-    else audio.pause();
+    else pausePlayback();
   });
-  document.getElementById('mpRewind').addEventListener('click', function(){ load(idx - 1, true); writeState(true); });
-  document.getElementById('mpForward').addEventListener('click', function(){ load(idx + 1, true); writeState(true); });
-  audio.addEventListener('play', function(){ setPlayingUI(true); writeState(true); });
-  audio.addEventListener('pause', function(){ setPlayingUI(false); writeState(false); });
-  audio.addEventListener('timeupdate', function(){ writeState(!audio.paused); });
-  audio.addEventListener('ended', function(){ load(idx + 1, true); writeState(true); });
-  window.addEventListener('pagehide', function(){ writeState(!audio.paused); });
+  document.getElementById('mpRewind').addEventListener('click', function(){ load(idx - 1, true); writeState(); });
+  document.getElementById('mpForward').addEventListener('click', function(){ load(idx + 1, true); writeState(); });
+  audio.addEventListener('play', function(){ setPlayingUI(true); writeState(); });
+  audio.addEventListener('pause', function(){ setPlayingUI(false); writeState(); });
+  audio.addEventListener('timeupdate', function(){ writeState(); });
+  audio.addEventListener('ended', function(){ load(idx + 1, true); writeState(); });
+  window.addEventListener('pagehide', function(){ writeState(); });
 })();
 `;
 }

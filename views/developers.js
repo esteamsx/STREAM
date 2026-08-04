@@ -717,10 +717,17 @@ ${musicPlayerHtml()}
     var btn = this;
     var input = document.getElementById('customVisitInput');
     var msg = document.getElementById('customVisitMsg');
+    var value = input.value.trim();
+    if (!value) {
+      msg.textContent = 'Enter a link first.';
+      msg.className = 'dcard-msg err';
+      input.focus();
+      return;
+    }
     btn.disabled = true;
     var originalHtml = btn.innerHTML;
     btn.innerHTML = '<span class="btn-spinner"></span>Saving…';
-    fetch('/api/plan/custom-visit-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: input.value }) })
+    fetch('/api/plan/custom-visit-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: value }) })
       .then(function(r){ return r.json().then(function(data){ return { ok: r.ok, data: data }; }); })
       .then(function(res){
         btn.disabled = false;
