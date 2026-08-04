@@ -75,7 +75,7 @@ function maintenanceHtml(enabledAt) {
     </div>
     <div class="brand">ES TEAMS TV</div>
   </div>
-  <script>
+  <script nonce="__CSP_NONCE__">
     document.getElementById('logoutBtn').addEventListener('click', function(){
       var btn = this;
       btn.disabled = true;

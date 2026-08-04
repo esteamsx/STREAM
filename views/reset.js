@@ -6,10 +6,10 @@ export function renderReset(cfg) {
 <head>
 <meta charset="UTF-8">
 ${cfg.devToolsBlock || ""}
-<script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
+<script nonce="__CSP_NONCE__">document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${siteHeadFor("reset")}
-<script>(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
+<script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <title>Reset Password — ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -217,7 +217,7 @@ a{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
   </div>
 </div>
 
-<script type="module">
+<script nonce="__CSP_NONCE__" type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 

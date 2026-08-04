@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
+    <script nonce="__CSP_NONCE__">document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ES TEAMS TV</title>
-    <script>(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
+    <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script nonce="__CSP_NONCE__" src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         :root{
           --red:#FF3B5C;--red-dim:#8f1530;--accent:#00E0FF;--accent2:#7c5cff;
@@ -713,7 +713,7 @@
 
 <!-- TOP NAV -->
 <nav class="cx-nav">
-    <button class="fb-back" onclick="location.href='/'" aria-label="Back">
+    <button class="fb-back" id="fbBackBtn" aria-label="Back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
         Back
     </button>
@@ -733,7 +733,7 @@
     <!-- STICKY PLAYER -->
     <div class="player-sticky" id="playerSticky">
         <div class="player-head">
-            <button class="back" onclick="closePlayer()">
+            <button class="back" id="playerBackBtn">
                 <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
             </button>
             <div>
@@ -755,7 +755,7 @@
             </div>
 
             <!-- IDLE OVERLAY -->
-            <div class="idle-overlay" id="idleOverlay" onclick="playVideo()">
+            <div class="idle-overlay" id="idleOverlay">
                 <div class="big-play"><svg width="28" height="28" fill="#fff" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
                 <div class="tap-text">Tap to play</div>
             </div>
@@ -770,7 +770,7 @@
             <div class="err-overlay" id="errOverlay">
                 <p style="font-weight:700;">Stream unavailable</p>
                 <p id="errMsg" style="font-size:0.8rem;color:rgba(255,255,255,0.55);">The stream isn't responding.</p>
-                <button class="err-retry" onclick="refreshStream()">Retry</button>
+                <button class="err-retry" id="errRetryBtn">Retry</button>
             </div>
 
             <!-- WHATSAPP -->
@@ -784,17 +784,17 @@
 
             <!-- CONTROLS -->
             <div class="controls" id="controls">
-                <button onclick="togglePlay()">
+                <button id="btnTogglePlay">
                     <svg id="icPlay" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                     <svg id="icPause" width="22" height="22" fill="currentColor" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
                 </button>
-                <button onclick="toggleMute()">
+                <button id="btnToggleMute">
                     <svg id="icVol" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
                     <svg id="icMute" width="20" height="20" fill="currentColor" viewBox="0 0 24 24" style="display:none;"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73z"/></svg>
                 </button>
                 <span class="mini-info" id="miniInfo"></span>
                 <span class="spacer"></span>
-                <button onclick="goFullscreen()" title="Fullscreen">
+                <button id="btnFullscreen" title="Fullscreen">
                     <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
                 </button>
             </div>
@@ -818,7 +818,7 @@
     <div class="match-detail" id="matchDetail">
         <div class="header">
             <span class="league" id="detailLeague">League</span>
-            <button class="close" onclick="closeDetail()">✕</button>
+            <button class="close" id="detailCloseBtn">✕</button>
         </div>
         <div class="scoreboard">
             <div class="team">
@@ -851,7 +851,7 @@
                 </div>
             </div>
         </div>
-        <button class="watch-btn" onclick="playMatchFromDetail()">▶ Watch Stream</button>
+        <button class="watch-btn" id="watchStreamBtn">▶ Watch Stream</button>
     </div>
 
     <!-- FEATURED CARD -->
@@ -870,7 +870,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="__CSP_NONCE__">
     const API_URL = 'https://sportstreamer.live/api/matches';
     const HIGHLIGHTS_URL = 'https://sportstreamer.live/api/highlights';
     let allMatches = [];
@@ -938,7 +938,7 @@
         let html = '';
         highlights.forEach(h => {
             html += `
-                <div class="highlight-card" onclick="playHighlight('${h.url}')">
+                <div class="highlight-card" data-url="${h.url}">
                     <div class="thumb">
                         <video src="${h.url}" muted preload="metadata"></video>
                     </div>
@@ -1015,7 +1015,7 @@
             const awayScore = m.awayScore ?? '-';
             const time = m.startTime ? new Date(m.startTime).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
             html += `
-                <div class="match-card ${status}" onclick="openMatchDetail('${m.id}')">
+                <div class="match-card ${status}" data-match-id="${m.id}">
                     <div class="top">
                         <span>${m.league || ''}</span>
                         <span class="status">${status}</span>
@@ -1067,7 +1067,7 @@
             const statusColor = status === 'live' ? 'var(--red)' : status === 'upcoming' ? 'var(--amber)' : 'var(--muted2)';
 
             featuredContainer.innerHTML = `
-                <div class="featured-card" onclick="openMatchDetail('${m.id}')">
+                <div class="featured-card" data-match-id="${m.id}">
                     <div class="top">
                         <span>${m.league || ''}</span>
                         <span class="status" style="color:${statusColor}">${statusLabel}</span>
@@ -1333,6 +1333,29 @@
         tab.addEventListener('click', function() {
             switchCategory(this.dataset.category);
         });
+    });
+
+    document.getElementById('fbBackBtn').addEventListener('click', () => { location.href = '/'; });
+    document.getElementById('playerBackBtn').addEventListener('click', closePlayer);
+    idleOverlay.addEventListener('click', playVideo);
+    document.getElementById('errRetryBtn').addEventListener('click', refreshStream);
+    document.getElementById('btnTogglePlay').addEventListener('click', togglePlay);
+    document.getElementById('btnToggleMute').addEventListener('click', toggleMute);
+    document.getElementById('btnFullscreen').addEventListener('click', goFullscreen);
+    document.getElementById('detailCloseBtn').addEventListener('click', closeDetail);
+    document.getElementById('watchStreamBtn').addEventListener('click', playMatchFromDetail);
+
+    grid.addEventListener('click', (e) => {
+        const card = e.target.closest('.match-card');
+        if (card) openMatchDetail(card.dataset.matchId);
+    });
+    featuredContainer.addEventListener('click', (e) => {
+        const card = e.target.closest('.featured-card');
+        if (card) openMatchDetail(card.dataset.matchId);
+    });
+    highlightsList.addEventListener('click', (e) => {
+        const card = e.target.closest('.highlight-card');
+        if (card) playHighlight(card.dataset.url);
     });
 
     async function refreshData() {

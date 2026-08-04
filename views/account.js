@@ -6,16 +6,16 @@ export function renderAccount(cfg) {
 <head>
 <meta charset="UTF-8">
 ${cfg.devToolsBlock || ""}
-<script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
+<script nonce="__CSP_NONCE__">document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${siteHeadFor("account")}
-<script>(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
+<script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
-<script async defer src="https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js" type="module"></script>
-<script src="https://js.paystack.co/v1/inline.js"></script>
+<script nonce="__CSP_NONCE__" async defer src="https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js" type="module"></script>
+<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v1/inline.js"></script>
 <style>
 ${cfg.protectionCSS || ""}
 :root{
@@ -1311,7 +1311,7 @@ body:has(.page-overlay.show){overflow:hidden}
   </svg>
 </a>
 
-<script>
+<script nonce="__CSP_NONCE__">
 const params = new URLSearchParams(window.location.search);
 const resetToken = params.get('resetToken');
 if (params.get('require2fa') === 'admin') {

@@ -1,9 +1,65 @@
 
+import crypto from "crypto";
 import ipaddr from "ipaddr.js";
 import helmet from "helmet";
 
+export const cspNonce = (req, res, next) => {
+  const nonce = crypto.randomBytes(16).toString("base64");
+  res.locals.nonce = nonce;
+  const originalSend = res.send.bind(res);
+  res.send = (body) => {
+    if (typeof body === "string" && body.indexOf("__CSP_NONCE__") !== -1) {
+      body = body.split("__CSP_NONCE__").join(nonce);
+    }
+    return originalSend(body);
+  };
+  next();
+};
+
 export const helmetMiddleware = helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        (req, res) => `'nonce-${res.locals.nonce}'`,
+        "https://cdn.jsdelivr.net",
+        "https://cdnjs.cloudflare.com",
+        "https://js.paystack.co",
+        "https://accounts.google.com",
+        "https://www.gstatic.com",
+      ],
+      scriptSrcAttr: ["'none'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "https://www.gravatar.com",
+        (req, res) => (req.path === "/football" ? "https:" : "'self'"),
+      ],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      connectSrc: [
+        "'self'",
+        "https://identitytoolkit.googleapis.com",
+        "https://securetoken.googleapis.com",
+        (req, res) => (req.path === "/football" ? "https://sportstreamer.live" : "'self'"),
+        (req, res) => (req.path === "/tools/ws-tester" ? "ws: wss:" : "'self'"),
+      ],
+      mediaSrc: [
+        "'self'",
+        "blob:",
+        (req, res) => (req.path === "/football" ? "https:" : "'self'"),
+      ],
+      workerSrc: ["'self'", "blob:"],
+      frameSrc: ["https://accounts.google.com", "https://js.paystack.co", "https://checkout.paystack.com"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
   crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
 });

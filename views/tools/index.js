@@ -108,10 +108,10 @@ export function renderToolsIndex(cfg) {
 <head>
 <meta charset="UTF-8">
 ${cfg.devToolsBlock || ""}
-<script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
+<script nonce="__CSP_NONCE__">document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${siteHeadFor("tools")}
-<script>(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
+<script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -240,7 +240,7 @@ ${musicPlayerStyle()}
   </button>
 </div>
 ${musicPlayerHtml()}
-<script>
+<script nonce="__CSP_NONCE__">
 (function(){
   var searchInput = document.getElementById('toolSearch');
   var categories = Array.prototype.slice.call(document.querySelectorAll('[data-category]'));
