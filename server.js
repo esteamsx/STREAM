@@ -253,7 +253,7 @@ import {
 } from "./middleware/security-middleware.js";
 import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
 import { canonicalPath, pageGuards } from "./middleware/navigation.js";
-import { WEB_MANIFEST, siteHeadFor } from "./config/site.js";
+import { WEB_MANIFEST, siteHeadFor, siteOrigin } from "./config/site.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -287,6 +287,45 @@ app.use((req, res, next) => {
   return globalLimiter(req, res, next);
 });
 app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
+
+const SITEMAP_PATHS = [
+  { path: "/football", priority: "0.9", changefreq: "hourly" },
+  { path: "/login", priority: "0.5", changefreq: "monthly" },
+  { path: "/developers", priority: "0.6", changefreq: "monthly" },
+  { path: "/privacy", priority: "0.3", changefreq: "yearly" },
+  { path: "/dmca", priority: "0.3", changefreq: "yearly" },
+  { path: "/tools", priority: "0.8", changefreq: "weekly" },
+  "/tools/dns-lookup", "/tools/obfuscate", "/tools/qr-code", "/tools/ssl-checker", "/tools/whois",
+  "/tools/base64", "/tools/jwt-decode", "/tools/json-formatter", "/tools/fancy-text",
+  "/tools/password-generator", "/tools/hash-generator", "/tools/regex-tester",
+  "/tools/timestamp-converter", "/tools/word-counter", "/tools/case-converter",
+  "/tools/lorem-ipsum", "/tools/slug-generator", "/tools/url-encoder", "/tools/html-entity",
+  "/tools/hex-text", "/tools/binary-text", "/tools/caesar-cipher", "/tools/uuid-generator",
+  "/tools/color-converter", "/tools/base-converter", "/tools/roman-numeral",
+  "/tools/user-agent-parser", "/tools/subnet-calculator", "/tools/random-number",
+  "/tools/dice-roller", "/tools/dedupe-lines", "/tools/sort-lines", "/tools/age-calculator",
+  "/tools/text-diff", "/tools/find-replace", "/tools/csv-json", "/tools/number-to-words",
+  "/tools/morse-code", "/tools/percentage-calculator", "/tools/bmi-calculator",
+  "/tools/contrast-checker", "/tools/markdown-preview", "/tools/fake-data", "/tools/text-encrypt",
+  "/tools/typing-test", "/tools/ip-lookup", "/tools/http-headers", "/tools/cron-explainer",
+  "/tools/css-gradient", "/tools/tip-calculator", "/tools/random-quote", "/tools/ascii-art",
+  "/tools/yaml-json", "/tools/json-diff", "/tools/password-hash", "/tools/totp-tool",
+  "/tools/name-generator", "/tools/countdown-timer", "/tools/minify-beautify",
+  "/tools/robots-txt", "/tools/sitemap-xml", "/tools/sql-format", "/tools/json-schema-validate",
+  "/tools/favicon-generator", "/tools/meme-text", "/tools/signature-generator",
+  "/tools/colorblind-simulator", "/tools/api-tester", "/tools/ws-tester",
+  "/tools/file-type-detector", "/tools/speech-tools", "/tools/qr-scanner", "/tools/ocr-tool",
+];
+
+const SITEMAP_XML = (() => {
+  const origin = siteOrigin();
+  const entries = SITEMAP_PATHS.map((entry) => {
+    const { path: p, priority = "0.7", changefreq = "monthly" } = typeof entry === "string" ? { path: entry } : entry;
+    return `  <url>\n    <loc>${origin}${p}</loc>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+  }).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`;
+})();
+app.get("/sitemap.xml", (req, res) => res.type("application/xml").send(SITEMAP_XML));
 
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
