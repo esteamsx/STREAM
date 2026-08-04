@@ -711,7 +711,6 @@
 </head>
 <body>
 
-<!-- TOP NAV -->
 <nav class="cx-nav">
     <button class="fb-back" id="fbBackBtn" aria-label="Back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
@@ -721,7 +720,6 @@
 </nav>
 
 <div class="container">
-    <!-- CATEGORY TABS -->
     <div class="category-tabs" id="categoryTabs">
         <button class="cat-tab active" data-category="all">All</button>
         <button class="cat-tab" data-category="live"><svg class="ci" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>Live</button>
@@ -730,7 +728,6 @@
         <button class="cat-tab" data-category="highlights"><svg class="ci" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 4v16M16 4v16M2 9h20M2 15h20" stroke-linecap="round"/></svg>Highlights</button>
     </div>
 
-    <!-- STICKY PLAYER -->
     <div class="player-sticky" id="playerSticky">
         <div class="player-head">
             <button class="back" id="playerBackBtn">
@@ -746,7 +743,6 @@
         <div class="stage" id="stage">
             <video id="videoPlayer" playsinline webkit-playsinline x5-playsinline></video>
 
-            <!-- COUNTDOWN OVERLAY -->
             <div class="countdown-overlay" id="countdownOverlay">
                 <div class="cd-label">Kicks off in</div>
                 <div class="cd-time" id="cdTime">--:--:--</div>
@@ -754,26 +750,22 @@
                 <div class="cd-kickoff" id="cdKickoff">Kick-off · Today 10:00 PM</div>
             </div>
 
-            <!-- IDLE OVERLAY -->
             <div class="idle-overlay" id="idleOverlay">
                 <div class="big-play"><svg width="28" height="28" fill="#fff" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
                 <div class="tap-text">Tap to play</div>
             </div>
 
-            <!-- LOADING -->
             <div class="load-overlay" id="loadOverlay">
                 <div class="spinner"></div>
                 <p>Connecting…</p>
             </div>
 
-            <!-- ERROR -->
             <div class="err-overlay" id="errOverlay">
                 <p style="font-weight:700;">Stream unavailable</p>
                 <p id="errMsg" style="font-size:0.8rem;color:rgba(255,255,255,0.55);">The stream isn't responding.</p>
                 <button class="err-retry" id="errRetryBtn">Retry</button>
             </div>
 
-            <!-- WHATSAPP -->
             <a class="wa-btn" id="waBtn" href="https://whatsapp.com/channel/0029VatAyCwFy72JdZXFPm29" target="_blank" rel="noopener" title="Hold &amp; drag to reposition">
                 <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/>
@@ -782,7 +774,6 @@
                 <span class="wa-drag-hint">⠿</span>
             </a>
 
-            <!-- CONTROLS -->
             <div class="controls" id="controls">
                 <button id="btnTogglePlay">
                     <svg id="icPlay" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -800,10 +791,8 @@
             </div>
         </div>
 
-        <!-- Stream selector -->
         <div class="stream-options" id="streamOptions"></div>
 
-        <!-- Match details below player -->
         <div class="match-details" id="matchDetails">
             <div class="teams" id="teamsDisplay">
                 <img id="homeLogo" src="" alt="">
@@ -814,7 +803,6 @@
         </div>
     </div>
 
-    <!-- MATCH DETAIL VIEW -->
     <div class="match-detail" id="matchDetail">
         <div class="header">
             <span class="league" id="detailLeague">League</span>
@@ -854,16 +842,13 @@
         <button class="watch-btn" id="watchStreamBtn">▶ Watch Stream</button>
     </div>
 
-    <!-- FEATURED CARD -->
     <div id="featuredContainer"></div>
 
-    <!-- MATCH GRID -->
     <div class="section-label" id="gridLabel">All Matches</div>
     <div class="match-grid" id="matchGrid">
         <div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--muted2);">Loading matches...</div>
     </div>
 
-    <!-- HIGHLIGHTS -->
     <div class="highlights-container" id="highlightsContainer">
         <div class="section-label">Highlights</div>
         <div class="highlights-list" id="highlightsList"></div>

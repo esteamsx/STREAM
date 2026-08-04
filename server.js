@@ -374,9 +374,6 @@ app.get(["/.well-known/security.txt", "/security.txt"], (req, res) => {
 const DOMAIN_LOCK_ALLOWED_HASHES = JSON.stringify(
   Array.from(new Set([...DOMAIN_LOCK_HOSTS, "localhost", "127.0.0.1"])).map(domainLockHash)
 );
-// Runs before any other script on the page. If the page isn't being served from an
-// allowed domain, it blanks the page and bounces to the real site, so a scraped copy
-// of the HTML/CSS/JS renders nothing useful when re-hosted elsewhere.
 const DOMAIN_LOCK_SCRIPT = `<script nonce="__CSP_NONCE__">
 (function(){
   function _dlh(s){var a=5381;for(var i=0;i<s.length;i++){a=((a<<5)+a+s.charCodeAt(i))|0;}return (a>>>0).toString(36);}
@@ -1788,7 +1785,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 </head>
 <body>
 
-<!-- SVG defs for gradients used in CSS -->
 <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
   <defs>
     <linearGradient id="navGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1851,7 +1847,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       <div class="no-results" id="noResults">No channels found</div>
     </div>
 
-    <!-- ── WATCH HOURS ── -->
     <div class="watch-hours-wrap">
       <div class="wh-ring-wrap">
         <div class="wh-circle" id="whCircle">
@@ -1867,7 +1862,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       </div>
     </div>
 
-    <!-- ── OWNER PROFILE HEAD ── -->
     <div class="owner-card">
       <div class="owner-crown">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -1890,7 +1884,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         <span class="notif-nav-dot js-account-dot" id="acctIconDot"></span>
       </a>
-      <!-- Account menu -->
       <div class="user-menu-wrap">
         <button class="user-menu-btn" id="userMenuBtn" aria-label="Menu" title="Menu">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -1931,7 +1924,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
   <main class="player-area">
 
-    <!-- ── ANNOUNCEMENT TICKER ── -->
     <div class="announce-bar" id="announceTicker">
       <div class="announce-label">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
@@ -1945,7 +1937,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           <span class="announce-item">Press and hold any announcement to pause and read it</span>
           <span class="announce-item">New channels added weekly, stay tuned for more content</span>
           <span class="announce-item">ES TEAMS TV: Powered by ES TEAMS TECH</span>
-          <!-- duplicate for seamless loop -->
           <span class="announce-item">Welcome to ES TEAMS TV: Your #1 live TV streaming destination</span>
           <span class="announce-item">Join our WhatsApp Channel for live updates and announcements</span>
           <span class="announce-item">All channels are streaming in HD quality, enjoy the experience</span>
@@ -1971,20 +1962,16 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       </div>
     </div>
 
-    <!-- HLS video player (replaces iframe) -->
     <div class="video-wrap" id="videoWrap">
       <video id="videoPlayer" playsinline autoplay muted></video>
 
-      <!-- inner frame that matches the actual rendered video rect -->
       <div class="video-frame" id="videoFrame">
 
-        <!-- ── CONNECTING overlay ── -->
         <div class="connecting-overlay" id="connectingOverlay">
           <span class="connecting-spinner"></span>
           <span class="connecting-msg">Connecting to Es Teams Tv...</span>
         </div>
 
-        <!-- ── CHANNEL DOWN overlay ── -->
         <div class="ch-down-overlay" id="chDownOverlay">
           <div class="ch-down-card">
             <span class="ch-down-c3"></span><span class="ch-down-c4"></span>
@@ -2007,13 +1994,11 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           </div>
         </div>
 
-        <!-- ── NETWORK STRENGTH ── -->
         <div class="net-badge" id="netBadge">
           <span class="net-bars"><i></i><i></i><i></i><i></i></span>
           <span class="net-label" id="netLabel">H</span>
         </div>
 
-        <!-- ── WATERMARK ── -->
         <div class="wm-badge">
           <svg class="wm-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2L3 6v5c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V6z"/>
@@ -2022,7 +2007,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           <span class="wm-name">ES TEAMS TV</span>
         </div>
 
-        <!-- ── BRIGHTNESS slide zone (right side) + readout ── -->
         <div class="brightness-zone" id="brightnessZone"></div>
         <div class="brightness-readout" id="brightnessReadout">
           <svg class="brightness-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2033,7 +2017,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           <span class="brightness-pct" id="brightnessPct">100%</span>
         </div>
 
-        <!-- ── VOLUME slide zone (left side) + readout ── -->
         <div class="volume-zone" id="volumeZone"></div>
         <div class="volume-readout" id="volumeReadout">
           <svg class="volume-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -2044,7 +2027,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           <span class="volume-pct" id="volumePct">50%</span>
         </div>
 
-        <!-- ── CUSTOM MEDIA CONTROLS ── -->
         <div class="media-controls" id="mediaControls">
           <button class="mc-btn mc-play" id="mcPlay" aria-label="Play/Pause">
             <svg id="mcPlayIcon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
@@ -2075,9 +2057,8 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           </button>
         </div>
 
-      </div><!-- /video-frame -->
+      </div>
 
-      <!-- overlays (live badge stays on full wrap, top-left) -->
       <div class="live-badge">
         <span class="live-badge-sweep"></span>
         <span class="live-dot"></span>
@@ -2095,13 +2076,11 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       </a>
     </div>
 
-    <!-- status bar -->
     <div class="status-bar" id="statusBar" style="display:none">
       <span class="status-dot" id="statusDot"></span>
       <span id="statusText">Connecting…</span>
     </div>
 
-    <!-- MORE CHANNELS: category grid, fetched fresh on every page load -->
     <div class="more-ch-wrap" id="moreChWrap">
       <div class="more-ch-label">
         <span>More Channels</span>
@@ -2119,7 +2098,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   </main>
 </div>
 
-<!-- More Channels reopen bar: independent fixed element, shown only while the grid below is collapsed -->
 <div class="more-ch-reopen" id="moreChReopen">
   <span>More Channels</span>
   <button type="button" class="more-ch-toggle" id="moreChReopenBtn" aria-label="Expand">
@@ -2127,7 +2105,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   </button>
 </div>
 
-<!-- More Channels: category channel list, centered overlay (same pattern as Find Friends search) -->
 <div class="page-overlay" id="moreChOverlay">
   <div class="overlay-card">
     <div class="overlay-title" id="moreChPanelTitle">Category</div>
@@ -2232,7 +2209,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   </div>
 </div>
 
-<!-- hls.js -->
 <script nonce="__CSP_NONCE__" src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js" integrity="sha384-1B+J55elPxu+trIhW7QThjZg3evX8C5P6zjB82Xnn46RKPAXpL+vkanRSjCidsJv" crossorigin="anonymous"></script>
 
 <script nonce="__CSP_NONCE__">

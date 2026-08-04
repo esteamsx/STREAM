@@ -72,10 +72,6 @@ export const securityHeaders = (req, res, next) => {
   next();
 };
 
-// Matches the UA family real Google crawlers use (Googlebot, the Search Console
-// "URL Inspection" tool, AdsBot, Storebot, GoogleOther, etc). A UA claiming to be one
-// of these is not proof by itself, anyone can set this header, which is exactly why
-// every match gets verified below via reverse+forward DNS before being trusted.
 const GOOGLE_CRAWLER_UA = /googlebot|google-inspectiontool|adsbot-google|storebot-google|googleother|feedfetcher-google/i;
 const GOOGLE_PTR_SUFFIX = /\.(googlebot\.com|google\.com)$/i;
 const GOOGLEBOT_VERIFY_CACHE_MS = 60 * 60 * 1000;
@@ -104,11 +100,6 @@ async function verifyGooglebotIp(ip) {
   return verified;
 }
 
-// Anyone can set User-Agent: Googlebot. This middleware checks whether a request
-// actually is Google's crawler using Google's own recommended verification method
-// (reverse DNS lookup of the IP, confirmed by a forward lookup of the resulting
-// hostname), so downstream middleware can safely let verified crawlers through
-// scrape-gate's JS challenge while still rejecting everyone just spoofing the UA.
 export const googlebotVerifier = async (req, res, next) => {
   const ua = req.get("user-agent") || "";
   if (!GOOGLE_CRAWLER_UA.test(ua)) {
