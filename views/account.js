@@ -660,7 +660,7 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
     <div class="tfa-body">
       <div class="tfa-body-inner">
-        <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Sign in with your fingerprint or face — no password needed. Up to 3 passkeys per account.</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Sign in with your fingerprint or face — no password needed. <span id="passkeyLimitText">Up to 1 passkey per account.</span></div>
         <div id="passkeyList"></div>
         <div id="passkeyAddRow">
           <div class="field" style="margin-bottom:10px">
@@ -672,7 +672,7 @@ body:has(.page-overlay.show){overflow:hidden}
             Add Passkey
           </button>
         </div>
-        <div id="passkeyMaxMsg" style="display:none;font-size:.76rem;color:var(--muted);text-align:center;padding:8px 0">Maximum of 3 passkeys reached. Delete one to add another.</div>
+        <div id="passkeyMaxMsg" style="display:none;font-size:.76rem;color:var(--muted);text-align:center;padding:8px 0">Maximum passkeys reached for your account. Delete one to add another, or get verified for more.</div>
         <div class="acc-msg" id="passkeyMsg"></div>
       </div>
     </div>
@@ -1741,10 +1741,12 @@ function timeAgo(ts){
 
 async function loadPasskeys(){
   try {
-    const { passkeys } = await getJSON('/api/passkey/list');
+    const { passkeys, maxPasskeys } = await getJSON('/api/passkey/list');
     const listEl = document.getElementById('passkeyList');
     const addRow = document.getElementById('passkeyAddRow');
     const maxMsg = document.getElementById('passkeyMaxMsg');
+    const limit = maxPasskeys || 1;
+    document.getElementById('passkeyLimitText').textContent = 'Up to ' + limit + ' passkey' + (limit === 1 ? '' : 's') + ' per account.';
     listEl.innerHTML = passkeys.map(p =>
       '<div class="pk-row" data-id="' + p.id + '">' +
         '<div>' +
@@ -1760,7 +1762,7 @@ async function loadPasskeys(){
     listEl.querySelectorAll('.pk-delete-btn').forEach(btn => {
       btn.addEventListener('click', () => deletePasskeyRow(btn.dataset.deleteId, btn));
     });
-    const atMax = passkeys.length >= 3;
+    const atMax = passkeys.length >= limit;
     addRow.style.display = atMax ? 'none' : 'block';
     maxMsg.style.display = atMax ? 'block' : 'none';
   } catch (err) {

@@ -95,6 +95,7 @@ import {
   checkPendingSignupCode,
   getUserProfile,
   getPasskeysForUser,
+  getMaxPasskeysForUser,
   beginPasskeyRegistration,
   finishPasskeyRegistration,
   deletePasskey,
@@ -4896,9 +4897,13 @@ const PASSKEY_ORIGIN = "https://esteamstv.devs.surf";
 
 app.get("/api/passkey/list", requireAuth, async (req, res) => {
   try {
-    const passkeys = await getPasskeysForUser(req.uid);
+    const [passkeys, maxPasskeys] = await Promise.all([
+      getPasskeysForUser(req.uid),
+      getMaxPasskeysForUser(req.uid),
+    ]);
     res.json({
       passkeys: passkeys.map((p) => ({ id: p.id, name: p.name, createdAt: p.createdAt })),
+      maxPasskeys,
     });
   } catch (err) {
     console.error(err);
