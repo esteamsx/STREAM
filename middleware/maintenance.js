@@ -45,15 +45,31 @@ function maintenanceHtml() {
     margin-top:28px;font-family:'Space Grotesk',system-ui,sans-serif;font-weight:700;font-size:.85rem;
     background:linear-gradient(90deg,#00E0FF,#7c5cff);-webkit-background-clip:text;background-clip:text;color:transparent;
   }
+  .logout-btn{
+    position:fixed;top:16px;right:16px;background:transparent;border:1px solid rgba(255,255,255,.15);
+    color:rgba(255,255,255,.6);font-size:.72rem;font-weight:600;padding:7px 14px;border-radius:20px;
+    cursor:pointer;font-family:inherit;transition:all .2s ease;
+  }
+  .logout-btn:hover{color:#fff;border-color:rgba(255,255,255,.3)}
+  .logout-btn:disabled{opacity:.6;cursor:default}
 </style>
 </head>
 <body>
+  <button type="button" class="logout-btn" id="logoutBtn">Log out</button>
   <div class="box">
     <div class="ring"></div>
     <h1>Maintenance in progress</h1>
     <p>We're making some improvements to ES TEAMS TV. Please try again later.</p>
     <div class="brand">ES TEAMS TV</div>
   </div>
+  <script>
+    document.getElementById('logoutBtn').addEventListener('click', function(){
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = 'Logging out…';
+      fetch('/api/logout', { method: 'POST' }).finally(function(){ location.reload(); });
+    });
+  </script>
 </body>
 </html>`;
 }
