@@ -5267,18 +5267,6 @@ setInterval(() => {
   growAdminFollowerCount().catch((err) => console.error("Admin follower growth failed:", err));
 }, 60 * 60 * 1000);
 
-const SELF_URL = process.env.SELF_URL || `http://localhost:${process.env.PORT || 3000}`;
-
-setInterval(async () => {
-  try {
-    const resp = await fetch(`${SELF_URL}/health`, { headers: { "user-agent": "ESTeamsTV-KeepAlive/1.0" } });
-    if (!resp.ok) console.warn(`⚠️ ES TEAMS TV PING returned ${resp.status}`);
-    else console.log("✅ ES TEAMS TV IS PINGING...");
-  } catch (err) {
-    console.error("❌ ES TEAMS TV PING FAILED:", err.message);
-  }
-}, 240000);
-
 app.use(notFoundHandler);
 app.use(errorHandler);
 

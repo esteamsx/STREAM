@@ -175,11 +175,4 @@ app.listen(PORT, () => {
   console.log(`🤖 Bot service listening on port ${PORT}`);
   startBotUpdateChecker();
   restoreBotsOnBoot().catch((err) => console.error("Bot restore-on-boot failed:", err));
-
-  const SELF_URL = process.env.SELF_URL || `http://localhost:${PORT}`;
-  setInterval(() => {
-    fetch(`${SELF_URL}/internal/health`)
-      .then(() => console.log("✅ Bot service self-ping OK"))
-      .catch((err) => console.error("❌ Bot service self-ping failed:", err.message));
-  }, 240000);
 });
