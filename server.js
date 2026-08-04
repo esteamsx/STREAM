@@ -113,7 +113,7 @@ async function botServiceFetch(pathAndQuery, options = {}) {
     });
   } catch (err) {
     if (err.name === "TimeoutError" || err.name === "AbortError") {
-      throw Object.assign(new Error("Bot service didn't respond in time. It may be waking up — try again shortly."), { status: 504 });
+      throw Object.assign(new Error("Bot service didn't respond in time. It may be waking up, try again shortly."), { status: 504 });
     }
     throw Object.assign(new Error("Could not reach the bot service."), { status: 502 });
   }
@@ -373,7 +373,7 @@ const DOMAIN_LOCK_ALLOWED_HASHES = JSON.stringify(
   Array.from(new Set([...DOMAIN_LOCK_HOSTS, "localhost", "127.0.0.1"])).map(domainLockHash)
 );
 // Runs before any other script on the page. If the page isn't being served from an
-// allowed domain, it blanks the page and bounces to the real site — so a scraped copy
+// allowed domain, it blanks the page and bounces to the real site, so a scraped copy
 // of the HTML/CSS/JS renders nothing useful when re-hosted elsewhere.
 const DOMAIN_LOCK_SCRIPT = `<script nonce="__CSP_NONCE__">
 (function(){
@@ -413,7 +413,7 @@ document.addEventListener('contextmenu', function(e){
     if (shown) return;
     shown = true;
     var bar = document.createElement('div');
-    bar.textContent = 'Developer tools detected — this session is logged.';
+    bar.textContent = 'Developer tools detected. This session is logged.';
     bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#1a0a0f;color:#ff8fa3;font:600 12px system-ui;text-align:center;padding:8px;border-top:1px solid #ff3b5c;';
     var closeBtn = document.createElement('span');
     closeBtn.textContent = ' ✕';
@@ -1917,7 +1917,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
             <svg class="umi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             DMCA
           </a>
-          <span class="user-menu-avatar" id="menuAvatar" style="display:none">–</span>
+          <span class="user-menu-avatar" id="menuAvatar" style="display:none">-</span>
           <button class="user-menu-item user-menu-logout" id="menuLogoutBtn" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
             Logout
@@ -1937,19 +1937,19 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       </div>
       <div class="announce-track" id="announceTrack">
         <div class="announce-scroll" id="announceScroll">
-          <span class="announce-item">Welcome to ES TEAMS TV — Your #1 live TV streaming destination</span>
+          <span class="announce-item">Welcome to ES TEAMS TV: Your #1 live TV streaming destination</span>
           <span class="announce-item">Join our WhatsApp Channel for live updates and announcements</span>
-          <span class="announce-item">All channels are streaming in HD quality — enjoy the experience</span>
+          <span class="announce-item">All channels are streaming in HD quality, enjoy the experience</span>
           <span class="announce-item">Press and hold any announcement to pause and read it</span>
-          <span class="announce-item">New channels added weekly — stay tuned for more content</span>
-          <span class="announce-item">ES TEAMS TV — Powered by ES TEAMS TECH</span>
+          <span class="announce-item">New channels added weekly, stay tuned for more content</span>
+          <span class="announce-item">ES TEAMS TV: Powered by ES TEAMS TECH</span>
           <!-- duplicate for seamless loop -->
-          <span class="announce-item">Welcome to ES TEAMS TV — Your #1 live TV streaming destination</span>
+          <span class="announce-item">Welcome to ES TEAMS TV: Your #1 live TV streaming destination</span>
           <span class="announce-item">Join our WhatsApp Channel for live updates and announcements</span>
-          <span class="announce-item">All channels are streaming in HD quality — enjoy the experience</span>
+          <span class="announce-item">All channels are streaming in HD quality, enjoy the experience</span>
           <span class="announce-item">Press and hold any announcement to pause and read it</span>
-          <span class="announce-item">New channels added weekly — stay tuned for more content</span>
-          <span class="announce-item">ES TEAMS TV — Powered by ES TEAMS TECH</span>
+          <span class="announce-item">New channels added weekly, stay tuned for more content</span>
+          <span class="announce-item">ES TEAMS TV: Powered by ES TEAMS TECH</span>
         </div>
       </div>
     </div>
@@ -2081,7 +2081,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         <span class="live-dot"></span>
         <span class="live-on-air">ON AIR</span>
         <span class="live-sep">·</span>
-        <span id="liveName">—</span>
+        <span id="liveName">-</span>
       </div>
 
       <a class="wa-btn" id="waBtn" href="https://whatsapp.com/channel/0029VatAyCwFy72JdZXFPm29" target="_blank" rel="noopener" title="Hold &amp; drag to reposition">
@@ -2099,7 +2099,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       <span id="statusText">Connecting…</span>
     </div>
 
-    <!-- ── MORE CHANNELS — category grid, fetched fresh on every page load ── -->
+    <!-- MORE CHANNELS: category grid, fetched fresh on every page load -->
     <div class="more-ch-wrap" id="moreChWrap">
       <div class="more-ch-label">
         <span>More Channels</span>
@@ -2117,7 +2117,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   </main>
 </div>
 
-<!-- More Channels reopen bar — independent fixed element, shown only while the grid below is collapsed -->
+<!-- More Channels reopen bar: independent fixed element, shown only while the grid below is collapsed -->
 <div class="more-ch-reopen" id="moreChReopen">
   <span>More Channels</span>
   <button type="button" class="more-ch-toggle" id="moreChReopenBtn" aria-label="Expand">
@@ -2125,7 +2125,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   </button>
 </div>
 
-<!-- More Channels — category channel list, centered overlay (same pattern as Find Friends search) -->
+<!-- More Channels: category channel list, centered overlay (same pattern as Find Friends search) -->
 <div class="page-overlay" id="moreChOverlay">
   <div class="overlay-card">
     <div class="overlay-title" id="moreChPanelTitle">Category</div>
@@ -2217,9 +2217,9 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
 <div class="page-overlay" id="mpvOverlay">
   <div class="mpv-card">
-    <div class="mpv-avatar" id="mpvAvatar">–</div>
-    <div class="mpv-name" id="mpvName">–</div>
-    <div class="mpv-username" id="mpvUsername">–</div>
+    <div class="mpv-avatar" id="mpvAvatar">-</div>
+    <div class="mpv-name" id="mpvName">-</div>
+    <div class="mpv-username" id="mpvUsername">-</div>
     <div class="mpv-stats">
       <div class="mpv-stat"><div class="mpv-stat-num" id="mpvFollowers">0</div><div class="mpv-stat-label">Followers</div></div>
       <div class="mpv-stat"><div class="mpv-stat-num" id="mpvFollowing">0</div><div class="mpv-stat-label">Following</div></div>
@@ -2376,7 +2376,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           if(data.type === Hls.ErrorTypes.NETWORK_ERROR){
             _netRetries++;
             if(_netRetries <= MAX_NET_RETRIES){
-              setStatus('Network error — retrying (' + _netRetries + '/' + MAX_NET_RETRIES + ')…', 'error');
+              setStatus('Network error, retrying (' + _netRetries + '/' + MAX_NET_RETRIES + ')...', 'error');
               if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
               hls.startLoad();
             } else {
@@ -2389,7 +2389,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
               if(dBtn){ var d=dBtn.querySelector('.ch-dot'); if(d){d.classList.add('ch-dot-down');d.classList.remove('ch-dot-up');} dBtn.dataset.chStatus='down'; }
             }
           } else if(data.type === Hls.ErrorTypes.MEDIA_ERROR){
-            setStatus('Media error — recovering…', 'error');
+            setStatus('Media error, recovering...', 'error');
             if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
             hls.recoverMediaError();
           } else {
@@ -2512,7 +2512,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
               '<span class="more-ch-cat-name">' + cat.category + '</span>' +
               '<span class="more-ch-cat-count">' + cat.count + ' ch</span>' +
             '</button>';
-          }).join('') + '<div class="more-ch-end">— The End —</div>';
+          }).join('') + '<div class="more-ch-end">The End</div>';
           grid.querySelectorAll('.more-ch-cat').forEach(function(btn){
             btn.addEventListener('click', function(){ openCategory(btn.dataset.cat); });
           });
@@ -3207,7 +3207,7 @@ async function openMiniPreview(username){
   document.getElementById('mpvName').textContent = 'Loading…';
   document.getElementById('mpvUsername').textContent = '';
   document.getElementById('mpvAvatar').style.backgroundImage = '';
-  document.getElementById('mpvAvatar').textContent = '–';
+  document.getElementById('mpvAvatar').textContent = '-';
   document.getElementById('mpvFollowers').textContent = '0';
   document.getElementById('mpvFollowing').textContent = '0';
   document.getElementById('mpvLikes').textContent = '0';
@@ -3717,7 +3717,7 @@ app.get("/api/admin/bots/users", requireAuth, requireAdmin, async (req, res) => 
 
 app.get("/api/admin/bots/users/:uid", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/admin/bots/users/${req.params.uid}`));
+    res.json(await botServiceFetch(`/internal/admin/bots/users/${encodeURIComponent(req.params.uid)}`));
   } catch (err) {
     res.status(err.status || 500).json({ error: "Could not load that user's deployments." });
   }
@@ -3725,7 +3725,7 @@ app.get("/api/admin/bots/users/:uid", requireAuth, requireAdmin, async (req, res
 
 app.post("/api/admin/bots/:id/stop", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/admin/bots/${req.params.id}/stop`, { method: "POST" }));
+    res.json(await botServiceFetch(`/internal/admin/bots/${encodeURIComponent(req.params.id)}/stop`, { method: "POST" }));
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "Could not stop that deployment." });
   }
@@ -3733,7 +3733,7 @@ app.post("/api/admin/bots/:id/stop", requireAuth, requireAdmin, async (req, res)
 
 app.post("/api/admin/bots/:id/restart", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/admin/bots/${req.params.id}/restart`, { method: "POST" }));
+    res.json(await botServiceFetch(`/internal/admin/bots/${encodeURIComponent(req.params.id)}/restart`, { method: "POST" }));
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "Could not restart that deployment." });
   }
@@ -3741,7 +3741,7 @@ app.post("/api/admin/bots/:id/restart", requireAuth, requireAdmin, async (req, r
 
 app.delete("/api/admin/bots/:id", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/admin/bots/${req.params.id}`, { method: "DELETE" }));
+    res.json(await botServiceFetch(`/internal/admin/bots/${encodeURIComponent(req.params.id)}`, { method: "DELETE" }));
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "Could not delete that deployment." });
   }
@@ -4122,7 +4122,7 @@ app.post("/api/bots/deploy", requireAuth, botDeployLimiter, async (req, res) => 
 
 app.get("/api/bots/:id/status", requireAuth, botStatusLimiter, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/bots/${req.params.id}/status?uid=${encodeURIComponent(req.uid)}`));
+    res.json(await botServiceFetch(`/internal/bots/${encodeURIComponent(req.params.id)}/status?uid=${encodeURIComponent(req.uid)}`));
   } catch (err) {
     res.status(err.status || 404).json({ error: err.message || "Deployment not found." });
   }
@@ -4130,7 +4130,7 @@ app.get("/api/bots/:id/status", requireAuth, botStatusLimiter, async (req, res) 
 
 app.post("/api/bots/:id/stop", requireAuth, botActionLimiter, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/bots/${req.params.id}/stop`, {
+    res.json(await botServiceFetch(`/internal/bots/${encodeURIComponent(req.params.id)}/stop`, {
       method: "POST", body: JSON.stringify({ uid: req.uid }),
     }));
   } catch (err) {
@@ -4140,7 +4140,7 @@ app.post("/api/bots/:id/stop", requireAuth, botActionLimiter, async (req, res) =
 
 app.post("/api/bots/:id/restart", requireAuth, botActionLimiter, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/bots/${req.params.id}/restart`, {
+    res.json(await botServiceFetch(`/internal/bots/${encodeURIComponent(req.params.id)}/restart`, {
       method: "POST", body: JSON.stringify({ uid: req.uid }),
     }));
   } catch (err) {
@@ -4150,7 +4150,7 @@ app.post("/api/bots/:id/restart", requireAuth, botActionLimiter, async (req, res
 
 app.delete("/api/bots/:id", requireAuth, botActionLimiter, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/bots/${req.params.id}?uid=${encodeURIComponent(req.uid)}`, { method: "DELETE" }));
+    res.json(await botServiceFetch(`/internal/bots/${encodeURIComponent(req.params.id)}?uid=${encodeURIComponent(req.uid)}`, { method: "DELETE" }));
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "Could not delete deployment." });
   }
@@ -5579,9 +5579,9 @@ let shuttingDown = false;
 function shutdown(signal, code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`${signal} received — finishing in-flight requests before exit.`);
+  console.log(`${signal} received, finishing in-flight requests before exit.`);
   const force = setTimeout(() => {
-    console.error("Shutdown timed out — exiting now.");
+    console.error("Shutdown timed out, exiting now.");
     process.exit(code || 1);
   }, 15000);
   force.unref();

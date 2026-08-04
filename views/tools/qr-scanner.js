@@ -5,7 +5,7 @@ export function renderQrScanner(cfg) {
     pageKey: "toolsQrScanner",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path stroke-linecap="round" d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/></svg>`,
     heading: "QR Code Scanner",
-    subtitle: "Upload an image of a QR code and decode its contents — all in your browser, nothing is uploaded.",
+    subtitle: "Upload an image of a QR code and decode its contents, all in your browser, nothing is uploaded.",
     bodyHtml: `
       <div class="file-drop" id="fileDrop">
         <input type="file" id="fileInput" accept="image/*">

@@ -5,7 +5,7 @@ export function renderHashGenerator(cfg) {
     pageKey: "toolsHashGenerator",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" d="M5 9h14M5 15h14M9 3L7 21M17 3l-2 18"/></svg>`,
     heading: "Hash Generator",
-    subtitle: "MD5, SHA-1, SHA-256 or SHA-512 — hash text or a file (max 20MB).",
+    subtitle: "MD5, SHA-1, SHA-256 or SHA-512. Hash text or a file (max 20MB).",
     bodyHtml: `
       <div class="field">
         <label for="algoSelect">Algorithm</label>
@@ -20,7 +20,7 @@ export function renderHashGenerator(cfg) {
         <label>Upload a file (optional)</label>
         <div class="file-drop" id="fileDrop">
           <input type="file" id="fileInput">
-          <div class="file-drop-label"><b>Click to choose</b> a file — max 20MB</div>
+          <div class="file-drop-label"><b>Click to choose</b> a file (max 20MB)</div>
           <div class="file-drop-name" id="fileDropName"></div>
         </div>
       </div>
@@ -51,7 +51,7 @@ export function renderHashGenerator(cfg) {
         if (!file) return;
         hideMsg();
         if (file.size > MAX_FILE_BYTES) {
-          showMsg('That file is over 20MB — pick a smaller one.', false);
+          showMsg('That file is over 20MB. Pick a smaller one.', false);
           fileInput.value = '';
           return;
         }

@@ -5,7 +5,7 @@ export function renderJsonFormatter(cfg) {
     pageKey: "toolsJsonFormatter",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M7 4a2 2 0 00-2 2v3a2 2 0 01-2 2 2 2 0 012 2v3a2 2 0 002 2M17 4a2 2 0 012 2v3a2 2 0 002 2 2 2 0 00-2 2v3a2 2 0 01-2 2"/></svg>`,
     heading: "JSON Formatter",
-    subtitle: "Format and validate JSON — pretty-printed with 2-space indentation.",
+    subtitle: "Format and validate JSON, pretty-printed with 2-space indentation.",
     bodyHtml: `
       <div class="field">
         <label for="jsonInput">JSON</label>
