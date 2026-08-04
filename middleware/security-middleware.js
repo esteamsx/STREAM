@@ -31,12 +31,7 @@ export const helmetMiddleware = helmet({
       ],
       scriptSrcAttr: ["'none'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      imgSrc: [
-        "'self'",
-        "data:",
-        "https://www.gravatar.com",
-        (req, res) => (req.path === "/football" ? "https:" : "'self'"),
-      ],
+      imgSrc: ["'self'", "data:", "https:"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       connectSrc: [
         "'self'",
