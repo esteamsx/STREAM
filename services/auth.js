@@ -529,6 +529,25 @@ async function checkAndIncrementAccountApiUsage(uid) {
   return { allowed: true, requestsThisMonth, monthlyLimit: API_KEY_MONTHLY_LIMIT };
 }
 
+function currentUsageDay() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function checkAndIncrementDailyLimit(key, limit) {
+  const today = currentUsageDay();
+  const docId = crypto.createHash("sha256").update(key).digest("hex");
+  const ref = db.collection("dailyLimits").doc(docId);
+  const snap = await ref.get();
+  const data = snap.exists ? snap.data() : null;
+  const current = data && data.day === today ? (data.count || 0) : 0;
+  if (current >= limit) {
+    return { allowed: false, count: current, limit };
+  }
+  const count = current + 1;
+  await ref.set({ day: today, count, updatedAt: Date.now() }, { merge: true });
+  return { allowed: true, count, limit };
+}
+
 async function createApiKey(uid, label) {
   const rawKey = "estv_" + crypto.randomBytes(24).toString("hex");
   const keyHash = hashApiKey(rawKey);
@@ -2293,6 +2312,7 @@ export {
   API_KEY_MONTHLY_LIMIT,
   getAccountApiUsage,
   checkAndIncrementAccountApiUsage,
+  checkAndIncrementDailyLimit,
   recordIssuedStreamLink,
   getIssuedStreamLinks,
   issueResetToken,
