@@ -5,7 +5,7 @@ export function renderTotpTool(cfg) {
     pageKey: "toolsTotpTool",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/></svg>`,
     heading: "TOTP Generator / Tester",
-    subtitle: "Generate a fresh 2FA secret and code, or check whether a code matches a secret. Handy for testing authenticator app integrations.",
+    subtitle: "Generate a fresh 2FA secret and code, or check whether a code matches a secret — handy for testing authenticator app integrations.",
     bodyHtml: `
       <div class="field">
         <label for="modeSelect">Mode</label>

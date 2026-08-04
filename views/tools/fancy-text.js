@@ -5,7 +5,7 @@ export function renderFancyText(cfg) {
     pageKey: "toolsFancyText",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7V5h16v2M9 5v14m0 0h6M9 19H9"/></svg>`,
     heading: "Fancy Text Generator",
-    subtitle: "Type some text and get it back in a bunch of stylish Unicode fonts: bold, italic, script, circled, small caps and more. Great for bios and usernames.",
+    subtitle: "Type some text and get it back in a bunch of stylish Unicode fonts — bold, italic, script, circled, small caps and more. Great for bios and usernames.",
     bodyHtml: `
       <div class="field">
         <label for="ftInput">Your Text</label>

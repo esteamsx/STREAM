@@ -5,13 +5,13 @@ export function renderObfuscate(cfg) {
     pageKey: "toolsObfuscate",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-12M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>`,
     heading: "JavaScript Obfuscator",
-    subtitle: "Paste JavaScript code, or upload a .js file (max 20MB). Control-flow flattening, string encoding, self-defending code.",
+    subtitle: "Paste JavaScript code, or upload a .js file (max 20MB) — control-flow flattening, string encoding, self-defending code.",
     bodyHtml: `
       <div class="field">
         <label>Upload a .js file</label>
         <div class="file-drop" id="fileDrop">
           <input type="file" id="fileInput" accept=".js,text/javascript,application/javascript">
-          <div class="file-drop-label"><b>Click to choose</b> a .js file (max 20MB)</div>
+          <div class="file-drop-label"><b>Click to choose</b> a .js file — max 20MB</div>
           <div class="file-drop-name" id="fileDropName"></div>
         </div>
       </div>
@@ -46,7 +46,7 @@ export function renderObfuscate(cfg) {
           return;
         }
         if (file.size > MAX_FILE_BYTES) {
-          showMsg('That file is over 20MB. Pick a smaller one.', false);
+          showMsg('That file is over 20MB — pick a smaller one.', false);
           fileInput.value = '';
           return;
         }
@@ -69,7 +69,7 @@ export function renderObfuscate(cfg) {
         try {
           var data = await postTool('/api/tools/obfuscate', { code: codeInput.value });
           var downloadName = (uploadedFileName ? uploadedFileName.replace(/\\.js$/i, '') : 'obfuscated') + '.obfuscated.js';
-          resultEl.innerHTML = '<div class="result-head"><span>Obfuscated Code Preview</span>' +
+          resultEl.innerHTML = '<div class="result-head"><span>Obfuscated Code — Preview</span>' +
             '<span style="display:flex;gap:6px">' +
             '<button class="copy-btn" id="copyResultBtn" type="button">Copy</button>' +
             '<button class="copy-btn" id="downloadResultBtn" type="button">Download</button>' +

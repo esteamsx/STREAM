@@ -5,7 +5,7 @@ export function renderBaseConverter(cfg) {
     pageKey: "toolsBaseConverter",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>`,
     heading: "Number Base Converter",
-    subtitle: "Convert numbers between binary, octal, decimal, hexadecimal, or any base 2-36.",
+    subtitle: "Convert numbers between binary, octal, decimal, hexadecimal, or any base 2–36.",
     bodyHtml: `
       <div class="field-row">
         <div class="field" style="flex:1">

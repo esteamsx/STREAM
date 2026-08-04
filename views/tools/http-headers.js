@@ -5,7 +5,7 @@ export function renderHttpHeaders(cfg) {
     pageKey: "toolsHttpHeaders",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M7 9h10M7 13h10M7 17h6"/></svg>`,
     heading: "HTTP Headers Inspector",
-    subtitle: "See the response headers a site sends back: server, caching, security headers and more.",
+    subtitle: "See the response headers a site sends back — server, caching, security headers and more.",
     bodyHtml: `
       <div class="field">
         <label for="urlInput">URL</label>

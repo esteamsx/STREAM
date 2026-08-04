@@ -138,8 +138,6 @@ ${PREVIEW_TAGS}
 }
 
 export function scrapeGate(req, res, next) {
-  if (req.isVerifiedGooglebot) return next();
-
   const secureCookie =
     req.secure || String(req.get?.("x-forwarded-proto") || "").split(",")[0].trim() === "https";
 

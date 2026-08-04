@@ -5,7 +5,7 @@ export function renderApiTester(cfg) {
     pageKey: "toolsApiTester",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>`,
     heading: "API Request Tester",
-    subtitle: "Send an HTTP request straight from your browser and inspect the response. Runs entirely client-side, so the target API's CORS policy applies, just like calling it from your own app.",
+    subtitle: "Send an HTTP request straight from your browser and inspect the response. Runs entirely client-side, so the target API's CORS policy applies — just like calling it from your own app.",
     bodyHtml: `
       <div class="field-row">
         <div class="field" style="flex:0 0 110px">
@@ -69,7 +69,7 @@ export function renderApiTester(cfg) {
             navigator.clipboard.writeText(text).catch(function(){});
           });
         } catch (err) {
-          showMsg('Request failed. This is often the target API blocking cross-origin requests (CORS), not a bug here. ' + (err.message || ''), false);
+          showMsg('Request failed — this is often the target API blocking cross-origin requests (CORS), not a bug here. ' + (err.message || ''), false);
         }
         submitBtn.disabled = false;
         submitBtn.textContent = 'Send Request';

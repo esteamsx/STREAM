@@ -6,8 +6,8 @@ const CATEGORIES = [
     name: "Network & Security",
     tools: [
       { href: "/tools/dns-lookup", name: "DNS Lookup", desc: "Look up A, AAAA, MX, TXT, NS, CNAME and SOA records.", icon: `<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M3 12h18M12 3c2.5 2.6 4 6 4 9s-1.5 6.4-4 9c-2.5-2.6-4-6-4-9s1.5-6.4 4-9z"/>` },
-      { href: "/tools/ssl-checker", name: "SSL Certificate Checker", desc: "Check a domain's TLS certificate: issuer, expiry, validity.", icon: `<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/>` },
-      { href: "/tools/whois", name: "WHOIS Lookup", desc: "Domain registration info: owner, registrar, dates.", icon: `<circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/>` },
+      { href: "/tools/ssl-checker", name: "SSL Certificate Checker", desc: "Check a domain's TLS certificate — issuer, expiry, validity.", icon: `<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/>` },
+      { href: "/tools/whois", name: "WHOIS Lookup", desc: "Domain registration info — owner, registrar, dates.", icon: `<circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/>` },
       { href: "/tools/user-agent-parser", name: "User Agent Parser", desc: "Break down a User-Agent string into browser, OS, device.", icon: `<rect x="4" y="3" width="16" height="12" rx="2"/><path stroke-linecap="round" d="M9 21h6M12 15v6"/>` },
       { href: "/tools/subnet-calculator", name: "Subnet / CIDR Calculator", desc: "Network range, broadcast address and host count.", icon: `<circle cx="5" cy="12" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path stroke-linecap="round" d="M7 12h5M12 12l5-6M12 12l5 6"/>` },
       { href: "/tools/ip-lookup", name: "IP Address Lookup", desc: "Geolocation and ISP info for any IP address.", icon: `<circle cx="12" cy="10" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-6.5 7-11a7 7 0 10-14 0c0 4.5 7 11 7 11z"/>` },
@@ -72,7 +72,7 @@ const CATEGORIES = [
   {
     name: "Text Tools",
     tools: [
-      { href: "/tools/fancy-text", name: "Fancy Text Generator", desc: "30 stylish Unicode fonts: bold, script, circled and more.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 7V5h16v2M9 5v14m0 0h6M9 19H9"/>` },
+      { href: "/tools/fancy-text", name: "Fancy Text Generator", desc: "30 stylish Unicode fonts — bold, script, circled and more.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 7V5h16v2M9 5v14m0 0h6M9 19H9"/>` },
       { href: "/tools/word-counter", name: "Word & Character Counter", desc: "Count words, characters, sentences and paragraphs.", icon: `<path d="M4 6h16M4 12h10M4 18h16"/>` },
       { href: "/tools/case-converter", name: "Case Converter", desc: "UPPER, lower, Title, camelCase, snake_case and more.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 20l4-14 4 14M5.5 15h5M14 20V6h4a3 3 0 010 6h-4"/>` },
       { href: "/tools/slug-generator", name: "Slug Generator", desc: "Turn any text into a clean, URL-friendly slug.", icon: `<path stroke-linecap="round" d="M6 12h12M6 8h12M6 16h8"/>` },
@@ -210,7 +210,7 @@ ${musicPlayerStyle()}
       ES TEAMS TV
     </div>
     <h1>Free Tools</h1>
-    <p class="subtitle">Free, fast, no ads. 3 uses a day per tool, unlimited once your account is verified.</p>
+    <p class="subtitle">Free, fast, no ads — 3 uses a day per tool, unlimited once your account is verified.</p>
     <div class="search-wrap">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
       <input type="text" id="toolSearch" placeholder="Search tools…" autocomplete="off" spellcheck="false">

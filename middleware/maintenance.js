@@ -116,7 +116,7 @@ export async function maintenanceGate(req, res, next) {
   if (ALLOWED_PATHS.has(req.path)) return next();
 
   try {
-    const sessionId = req.cookies?.["__Host-session"];
+    const sessionId = req.cookies?.session;
     const uid = sessionId ? await verifySession(sessionId) : null;
     if (uid) {
       const profile = await getUserProfile(uid);

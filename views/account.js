@@ -656,10 +656,10 @@ body:has(.page-overlay.show){overflow:hidden}
 
 <div class="acc-wrap" id="accWrap" style="display:none">
   <div class="acc-hero">
-    <div class="acc-avatar" id="heroAvatar">-</div>
+    <div class="acc-avatar" id="heroAvatar">–</div>
     <div style="flex:1">
-      <div class="acc-hero-name" id="heroName">Hi, -</div>
-      <div class="acc-hero-email" id="heroEmail">-</div>
+      <div class="acc-hero-name" id="heroName">Hi, –</div>
+      <div class="acc-hero-email" id="heroEmail">–</div>
     </div>
     <button type="button" class="acc-verify-link" id="getVerifiedLink" style="display:none">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
@@ -809,7 +809,7 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
     <div class="tfa-body">
       <div class="tfa-body-inner">
-        <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Sign in with your fingerprint or face, no password needed. <span id="passkeyLimitText">Up to 1 passkey per account.</span></div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Sign in with your fingerprint or face — no password needed. <span id="passkeyLimitText">Up to 1 passkey per account.</span></div>
         <div id="passkeyList"></div>
         <div id="passkeyAddRow">
           <div class="field" style="margin-bottom:10px">
@@ -950,7 +950,7 @@ body:has(.page-overlay.show){overflow:hidden}
         </div>
         <div id="apiKeyMaxMsg" style="display:none;font-size:.76rem;color:var(--muted);text-align:center;padding:8px 0">Maximum API keys reached for your plan. Revoke one, or <a href="/developers" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">upgrade your plan</a>.</div>
         <div id="apiKeyRevealBox" style="display:none;margin-top:12px;padding:12px;border-radius:10px;background:rgba(0,224,255,.08);border:1px solid rgba(0,224,255,.25)">
-          <div style="font-size:.76rem;color:var(--muted);margin-bottom:8px">Copy this now. You won't be able to see it again.</div>
+          <div style="font-size:.76rem;color:var(--muted);margin-bottom:8px">Copy this now — you won't be able to see it again.</div>
           <div style="display:flex;gap:8px;align-items:center">
             <code id="apiKeyRevealValue" style="flex:1;font-size:.78rem;word-break:break-all;font-family:var(--font-mono)"></code>
             <button type="button" class="acc-inline-link" id="apiKeyCopyBtn" style="display:inline;white-space:nowrap">Copy</button>
@@ -975,7 +975,7 @@ body:has(.page-overlay.show){overflow:hidden}
             <li>You won't be able to access your account or use this email again until after 24 hours.</li>
             <li>All your saved preferences, watch history, and settings will be permanently erased after the 24-hour period.</li>
             <li>Any active sessions on other devices will be logged out immediately.</li>
-            <li>This action cannot be undone once the 24-hour window has passed. Recovery will not be possible.</li>
+            <li>This action cannot be undone once the 24-hour window has passed — recovery will not be possible.</li>
             <li>If you change your mind within the 24 hours, contact support before the grace period ends.</li>
           </ol>
         </div>
@@ -1243,7 +1243,7 @@ body:has(.page-overlay.show){overflow:hidden}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
       </div>
       <div class="overlay-title" style="text-align:center">You are now Verified</div>
-      <div class="overlay-sub" style="text-align:center">Your certificate is ready, valid for 30 days.</div>
+      <div class="overlay-sub" style="text-align:center">Your certificate is ready — valid for 30 days.</div>
       <button class="acc-btn" id="verifyViewCertBtn" style="width:100%">View Certificate</button>
       <button class="overlay-cancel" id="verifyCancel2">Close</button>
     </div>
@@ -1264,17 +1264,17 @@ body:has(.page-overlay.show){overflow:hidden}
         <div class="cert-status-chip" id="certStatusChip">VALID</div>
       </div>
       <div class="cert-label">Certificate of Verification</div>
-      <div class="cert-name" id="certName">-</div>
-      <div class="cert-username" id="certUsername">-</div>
+      <div class="cert-name" id="certName">–</div>
+      <div class="cert-username" id="certUsername">–</div>
       <div class="cert-divider"></div>
       <div class="cert-meta-row">
         <div>
           <span class="cert-meta-label">Issued</span>
-          <span class="cert-meta-val" id="certIssued">-</span>
+          <span class="cert-meta-val" id="certIssued">–</span>
         </div>
         <div>
           <span class="cert-meta-label">Expires</span>
-          <span class="cert-meta-val" id="certExpires">-</span>
+          <span class="cert-meta-val" id="certExpires">–</span>
         </div>
       </div>
       <div class="cert-signature-wrap">
@@ -1283,7 +1283,7 @@ body:has(.page-overlay.show){overflow:hidden}
           <path d="M6 22 C 34 4, 58 36, 90 16 S 148 2, 176 24 S 210 8, 214 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </div>
-      <div class="cert-signature-label">Authorized Signature, ES TEAMS TV</div>
+      <div class="cert-signature-label">Authorized Signature — ES TEAMS TV</div>
       <div class="cert-tear-edge"></div>
     </div>
     <button type="button" class="acc-btn cert-download-btn" id="certDownloadBtn">
@@ -1490,7 +1490,7 @@ usernameField.input.addEventListener('input', () => {
     } catch {
       if (seq !== acctUsernameCheckSeq) return;
       status.className = 'uname-status taken';
-      status.textContent = 'Could not check username right now, try again in a moment.';
+      status.textContent = 'Could not check username right now — try again in a moment.';
     }
   }, 450);
 });
@@ -1588,7 +1588,7 @@ function initAltUsernames(){
         if (res.status === 429) {
           if (seq !== altUnameCheckSeq) return;
           msg.className = 'alt-uname-msg err';
-          msg.textContent = "You're checking a bit fast, wait a few seconds and try again.";
+          msg.textContent = "You're checking a bit fast — wait a few seconds and try again.";
           return;
         }
         let data = null;
@@ -1604,12 +1604,12 @@ function initAltUsernames(){
           msg.textContent = data.error || 'Username has already been used.';
         } else {
           msg.className = 'alt-uname-msg err';
-          msg.textContent = 'Could not check username right now, try again in a moment.';
+          msg.textContent = 'Could not check username right now — try again in a moment.';
         }
       } catch {
         if (seq !== altUnameCheckSeq) return;
         msg.className = 'alt-uname-msg err';
-        msg.textContent = 'Could not check username right now, try again in a moment.';
+        msg.textContent = 'Could not check username right now — try again in a moment.';
       }
     }, 450);
   });
@@ -2948,10 +2948,10 @@ let currentChatMessagesById = {};
 function renderAttachmentHtml(m){
   if (!m.attachmentType || !m.attachmentDataUrl) return '';
   if (m.attachmentType === 'image') {
-    return '<img class="sc-bubble-image" src="' + esc(m.attachmentDataUrl) + '" data-msg-id="' + m.id + '">';
+    return '<img class="sc-bubble-image" src="' + m.attachmentDataUrl + '" data-msg-id="' + m.id + '">';
   }
   if (m.attachmentType === 'voice') {
-    return '<audio controls src="' + esc(m.attachmentDataUrl) + '"></audio>';
+    return '<audio controls src="' + m.attachmentDataUrl + '"></audio>';
   }
   return '<button type="button" class="sc-doc-chip" data-msg-id="' + m.id + '" data-state="idle">' +
     '<span class="sc-doc-icon-wrap">' + SC_DOWNLOAD_ICON + '<span class="sc-doc-spinner"></span></span>' +
@@ -3345,7 +3345,7 @@ document.getElementById('verifyViewCertBtn').addEventListener('click', () => {
 });
 
 function formatCertDate(ts){
-  if (!ts) return '-';
+  if (!ts) return '–';
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function openCertOverlay(){
@@ -3500,7 +3500,7 @@ async function drawCertificateCanvas(data){
   ctx.font = '700 12px "Inter", sans-serif';
   ctx.fillStyle = muted;
   ctx.textAlign = 'center';
-  ctx.fillText('AUTHORIZED SIGNATURE, ES TEAMS TV', W / 2, pad + 450);
+  ctx.fillText('AUTHORIZED SIGNATURE — ES TEAMS TV', W / 2, pad + 450);
 
   if (data.expired) {
     ctx.save();
