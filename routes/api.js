@@ -325,7 +325,9 @@ async function requireApiKey(req, res, next) {
   try {
     const found = await findApiKeyByRawKey(String(key));
     if (!found) return res.status(401).json({ error: "Invalid or revoked API key." });
-    const usage = await checkAndIncrementAccountApiUsage(found.uid);
+    const ownerProfile = await getUserProfile(found.uid).catch(() => null);
+    const monthlyLimit = getApiPlanConfig(ownerProfile).monthlyRequests;
+    const usage = await checkAndIncrementAccountApiUsage(found.uid, monthlyLimit);
     if (!usage.allowed) {
       return res.status(429).json({
         error: "Monthly request limit reached for this account.",
@@ -554,12 +556,12 @@ router.post("/api/dev/keys", requireAuth, async (req, res) => {
 
 router.get("/api/dev/keys", requireAuth, async (req, res) => {
   try {
-    const [keys, usage] = await Promise.all([
-      listApiKeysForUser(req.uid),
-      getAccountApiUsage(req.uid),
-    ]);
     const planKey = getEffectiveApiPlan(req.userProfile);
     const plan = API_PLANS[planKey];
+    const [keys, usage] = await Promise.all([
+      listApiKeysForUser(req.uid),
+      getAccountApiUsage(req.uid, plan.monthlyRequests),
+    ]);
     let planExpiresAt = null;
     if (planKey !== "free" && planKey !== "starter") planExpiresAt = req.userProfile.apiPlanExpiresAt || null;
     else if (planKey === "starter") planExpiresAt = req.userProfile.verifiedExpiresAt || null;
@@ -573,7 +575,7 @@ router.get("/api/dev/keys", requireAuth, async (req, res) => {
       })),
       usage: {
         requestsThisMonth: usage.requestsThisMonth,
-        monthlyLimit: usage.monthlyLimit,
+        monthlyLimit: Number.isFinite(usage.monthlyLimit) ? usage.monthlyLimit : null,
       },
       plan: {
         key: planKey,

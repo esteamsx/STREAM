@@ -500,33 +500,31 @@ function hashApiKey(rawKey) {
   return crypto.createHash("sha256").update(rawKey).digest("hex");
 }
 
-const API_KEY_MONTHLY_LIMIT = 100;
-
 function currentUsageMonth() {
   const d = new Date();
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-async function getAccountApiUsage(uid) {
+async function getAccountApiUsage(uid, monthlyLimit) {
   const nowMonth = currentUsageMonth();
   const snap = await db.collection("apiUsage").doc(uid).get();
   const data = snap.exists ? snap.data() : null;
   const requestsThisMonth = data && data.usageMonth === nowMonth ? (data.requestsThisMonth || 0) : 0;
-  return { requestsThisMonth, monthlyLimit: API_KEY_MONTHLY_LIMIT };
+  return { requestsThisMonth, monthlyLimit };
 }
 
-async function checkAndIncrementAccountApiUsage(uid) {
+async function checkAndIncrementAccountApiUsage(uid, monthlyLimit) {
   const nowMonth = currentUsageMonth();
   const ref = db.collection("apiUsage").doc(uid);
   const snap = await ref.get();
   const data = snap.exists ? snap.data() : null;
   const current = data && data.usageMonth === nowMonth ? (data.requestsThisMonth || 0) : 0;
-  if (current >= API_KEY_MONTHLY_LIMIT) {
-    return { allowed: false, requestsThisMonth: current, monthlyLimit: API_KEY_MONTHLY_LIMIT };
+  if (current >= monthlyLimit) {
+    return { allowed: false, requestsThisMonth: current, monthlyLimit };
   }
   const requestsThisMonth = current + 1;
   await ref.set({ uid, requestsThisMonth, usageMonth: nowMonth }, { merge: true });
-  return { allowed: true, requestsThisMonth, monthlyLimit: API_KEY_MONTHLY_LIMIT };
+  return { allowed: true, requestsThisMonth, monthlyLimit };
 }
 
 function currentUsageDay() {
@@ -875,7 +873,10 @@ async function sweepOrphanedUsers() {
 
 const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
-const MAX_PASSKEYS_PER_USER = 3;
+async function getMaxPasskeysForUser(uid) {
+  const profile = await getUserProfile(uid);
+  return isVerificationActive(profile) ? MAX_PASSKEYS_VERIFIED : MAX_PASSKEYS_UNVERIFIED;
+}
 
 function toBase64url(value) {
   if (typeof value === "string") return value;
@@ -930,8 +931,9 @@ async function getPasskeysForUser(uid) {
 
 async function beginPasskeyRegistration(uid, email, displayName, rpID) {
   const existing = await getPasskeysForUser(uid);
-  if (existing.length >= MAX_PASSKEYS_PER_USER) {
-    throw new Error(`You can only have up to ${MAX_PASSKEYS_PER_USER} passkeys. Delete one to add another.`);
+  const maxPasskeys = await getMaxPasskeysForUser(uid);
+  if (existing.length >= maxPasskeys) {
+    throw new Error(`You can only have up to ${maxPasskeys} passkey${maxPasskeys === 1 ? "" : "s"}. Delete one to add another, or get verified for more.`);
   }
   const rawOptions = await generateRegistrationOptions({
     rpName: "ES TEAMS TV",
@@ -965,8 +967,9 @@ async function finishPasskeyRegistration(uid, response, rpID, origin, name) {
     if (Date.now() > expiresAt) throw new Error("Passkey setup session expired. Try again.");
 
     const existing = await getPasskeysForUser(uid);
-    if (existing.length >= MAX_PASSKEYS_PER_USER) {
-      throw new Error(`You can only have up to ${MAX_PASSKEYS_PER_USER} passkeys. Delete one to add another.`);
+    const maxPasskeys = await getMaxPasskeysForUser(uid);
+    if (existing.length >= maxPasskeys) {
+      throw new Error(`You can only have up to ${maxPasskeys} passkey${maxPasskeys === 1 ? "" : "s"}. Delete one to add another, or get verified for more.`);
     }
 
     let verification;
@@ -2167,12 +2170,15 @@ async function finalizeVerificationPayment(reference, paystackData) {
 const API_PLAN_DAYS = 30;
 
 const API_PLANS = {
-  free: { name: "Free", apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, priceNgn: 0 },
-  starter: { name: "Starter", apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, priceNgn: 0 },
-  standard: { name: "Standard", apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, priceNgn: 3000 },
-  pro: { name: "Pro", apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, priceNgn: 5000 },
-  max: { name: "Max", apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, priceNgn: 10000 },
+  free: { name: "Free", apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 50 },
+  starter: { name: "Starter", apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 50 },
+  standard: { name: "Standard", apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, priceNgn: 3000, monthlyRequests: 100 },
+  pro: { name: "Pro", apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, priceNgn: 5000, monthlyRequests: 100 },
+  max: { name: "Max", apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, priceNgn: 10000, monthlyRequests: Infinity },
 };
+
+const MAX_PASSKEYS_VERIFIED = 3;
+const MAX_PASSKEYS_UNVERIFIED = 1;
 
 const PURCHASABLE_API_PLANS = ["standard", "pro", "max"];
 
@@ -2309,7 +2315,6 @@ export {
   revokeApiKey,
   findApiKeyByRawKey,
   getApiKeyOwnerUid,
-  API_KEY_MONTHLY_LIMIT,
   getAccountApiUsage,
   checkAndIncrementAccountApiUsage,
   checkAndIncrementDailyLimit,
@@ -2334,6 +2339,7 @@ export {
   getTwoFactorPendingLogin,
   deleteTwoFactorPendingLogin,
   getPasskeysForUser,
+  getMaxPasskeysForUser,
   beginPasskeyRegistration,
   finishPasskeyRegistration,
   deletePasskey,

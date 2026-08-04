@@ -136,6 +136,12 @@ body:has(.page-overlay.show){overflow:hidden}
 .dcard-title{font-family:var(--font-display);font-size:.95rem;font-weight:700}
 .dcard-sub{font-size:.72rem;color:var(--muted);margin-top:1px}
 
+.dcard-collapsible .dcard-head{cursor:pointer;user-select:none}
+.dcard-chevron{width:16px;height:16px;color:var(--muted);transition:transform .25s var(--ease);flex-shrink:0;margin-left:auto}
+.dcard-collapsible.open .dcard-chevron{transform:rotate(180deg)}
+.dcard-collapse-body{max-height:0;overflow:hidden;transition:max-height .35s var(--ease)}
+.dcard-collapsible.open .dcard-collapse-body{max-height:2400px}
+
 .plans-grid{display:grid;grid-template-columns:1fr;gap:12px}
 @media(min-width:600px){ .plans-grid{grid-template-columns:repeat(2,1fr)} }
 @media(min-width:1080px){ .plans-grid{grid-template-columns:repeat(5,1fr)} }
@@ -292,22 +298,25 @@ ${musicPlayerStyle()}
     <div class="dash-grid">
 
       <!-- PLANS -->
-      <div class="dcard span2" id="plansCard">
-        <div class="dcard-head">
+      <div class="dcard span2 dcard-collapsible" id="plansCard">
+        <div class="dcard-head" id="plansHead">
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/></svg></span>
           <div>
             <div class="dcard-title">Plans &amp; Pricing</div>
             <div class="dcard-sub">More API keys, longer-lived links, no watermark on the higher tiers</div>
           </div>
+          <svg class="dcard-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
         </div>
-        <div class="plans-grid" id="plansGrid"><div class="ch-loading">Loading…</div></div>
-        <div id="customVisitWrap" style="display:none;margin-top:16px">
-          <div class="field">
-            <label>Custom Visit Page URL <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— Max plan, shown on expired stream links</span></label>
-            <input type="text" id="customVisitInput" placeholder="https://yoursite.com">
+        <div class="dcard-collapse-body" id="plansCollapseBody">
+          <div class="plans-grid" id="plansGrid" style="margin-top:16px"><div class="ch-loading">Loading…</div></div>
+          <div id="customVisitWrap" style="display:none;margin-top:16px">
+            <div class="field">
+              <label>Custom Visit Page URL <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— Max plan, shown on expired stream links</span></label>
+              <input type="text" id="customVisitInput" placeholder="https://yoursite.com">
+            </div>
+            <button class="btn btn-primary btn-sm" id="customVisitSaveBtn" type="button">Save Link</button>
+            <div class="dcard-msg" id="customVisitMsg"></div>
           </div>
-          <button class="btn btn-primary btn-sm" id="customVisitSaveBtn" type="button">Save Link</button>
-          <div class="dcard-msg" id="customVisitMsg"></div>
         </div>
       </div>
 
@@ -541,11 +550,11 @@ ${musicPlayerHtml()}
   var currentProfile = null;
 
   var PLAN_DEFS = [
-    { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, note: 'Default plan' },
-    { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, note: 'Auto with account verification' },
-    { key: 'standard', name: 'Standard', priceNgn: 3000, apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, note: '30 days' },
-    { key: 'pro', name: 'Pro', priceNgn: 5000, apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, note: '30 days' },
-    { key: 'max', name: 'Max', priceNgn: 10000, apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, note: '30 days', highlight: true },
+    { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, monthlyRequests: 50, note: 'Default plan' },
+    { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, monthlyRequests: 50, note: 'Auto with account verification' },
+    { key: 'standard', name: 'Standard', priceNgn: 3000, apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, monthlyRequests: 100, note: '30 days' },
+    { key: 'pro', name: 'Pro', priceNgn: 5000, apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, monthlyRequests: 100, note: '30 days' },
+    { key: 'max', name: 'Max', priceNgn: 10000, apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, monthlyRequests: null, note: '30 days', highlight: true },
   ];
 
   function fmtNgn(n){ return '₦' + n.toLocaleString('en-NG'); }
@@ -591,6 +600,7 @@ ${musicPlayerHtml()}
         '<div class="plan-note">' + (isCurrent ? '' : p.note) + '</div>' +
         '<div class="plan-features">' +
           planFeatureRow(true, p.apiKeys + ' API key' + (p.apiKeys === 1 ? '' : 's')) +
+          planFeatureRow(true, (p.monthlyRequests == null ? 'Unlimited' : p.monthlyRequests) + ' requests/mo') +
           planFeatureRow(true, fmtHours(p.streamHours) + ' link lifetime') +
           planFeatureRow(!p.watermark, 'No watermark') +
           planFeatureRow(p.customVisitPage, 'Custom visit page link') +
@@ -699,6 +709,10 @@ ${musicPlayerHtml()}
     });
   }
 
+  document.getElementById('plansHead').addEventListener('click', function(){
+    document.getElementById('plansCard').classList.toggle('open');
+  });
+
   document.getElementById('customVisitSaveBtn').addEventListener('click', function(){
     var btn = this;
     var input = document.getElementById('customVisitInput');
@@ -793,7 +807,11 @@ ${musicPlayerHtml()}
     var html = '';
     var keyLimit = plan ? plan.apiKeys : 1;
 
-    if(usage){
+    if(usage && usage.monthlyLimit == null){
+      html += '<div class="usage-wrap" style="margin-top:0;margin-bottom:16px">' +
+        '<div class="usage-top"><span class="usage-label">Account usage this month</span><span class="usage-count">' + usage.requestsThisMonth + ' / Unlimited</span></div>' +
+      '</div>';
+    } else if(usage){
       var pct = usage.monthlyLimit ? Math.min(100, Math.round((usage.requestsThisMonth / usage.monthlyLimit) * 100)) : 0;
       html += '<div class="usage-wrap" style="margin-top:0;margin-bottom:16px">' +
         '<div class="usage-top"><span class="usage-label">Account usage this month</span><span class="usage-count">' + usage.requestsThisMonth + ' / ' + usage.monthlyLimit + '</span></div>' +
