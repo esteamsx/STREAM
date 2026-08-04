@@ -1247,4 +1247,137 @@ router.post("/api/tools/contrast-check", optionalAuth, toolGate("contrast-check"
   });
 });
 
+function escapeHtmlMd(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function inlineMarkdown(text) {
+  let s = escapeHtmlMd(text);
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+  s = s.replace(/\*([^*\s][^*]*?)\*/g, "<em>$1</em>");
+  s = s.replace(/(^|[^\w])_([^_\s][^_]*?)_(?!\w)/g, "$1<em>$2</em>");
+  return s;
+}
+
+function markdownToHtml(md) {
+  const lines = String(md).replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let i = 0;
+  let paragraph = [];
+  let listType = null;
+
+  function flushParagraph() {
+    if (paragraph.length) { out.push("<p>" + inlineMarkdown(paragraph.join(" ")) + "</p>"); paragraph = []; }
+  }
+  function closeList() {
+    if (listType) { out.push(listType === "ul" ? "</ul>" : "</ol>"); listType = null; }
+  }
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (/^```/.test(line)) {
+      flushParagraph(); closeList();
+      const codeLines = [];
+      i++;
+      while (i < lines.length && !/^```/.test(lines[i])) { codeLines.push(lines[i]); i++; }
+      out.push("<pre><code>" + escapeHtmlMd(codeLines.join("\n")) + "</code></pre>");
+      i++;
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      flushParagraph(); closeList();
+      const level = headingMatch[1].length;
+      out.push(`<h${level}>` + inlineMarkdown(headingMatch[2]) + `</h${level}>`);
+      i++;
+      continue;
+    }
+
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+      flushParagraph(); closeList();
+      out.push("<hr>");
+      i++;
+      continue;
+    }
+
+    const blockquoteMatch = line.match(/^>\s?(.*)$/);
+    if (blockquoteMatch) {
+      flushParagraph(); closeList();
+      const quoteLines = [blockquoteMatch[1]];
+      i++;
+      while (i < lines.length && lines[i].match(/^>\s?(.*)$/)) {
+        quoteLines.push(lines[i].match(/^>\s?(.*)$/)[1]);
+        i++;
+      }
+      out.push("<blockquote><p>" + inlineMarkdown(quoteLines.join(" ")) + "</p></blockquote>");
+      continue;
+    }
+
+    const ulMatch = line.match(/^[-*+]\s+(.*)$/);
+    const olMatch = line.match(/^\d+\.\s+(.*)$/);
+    if (ulMatch || olMatch) {
+      flushParagraph();
+      const wantType = ulMatch ? "ul" : "ol";
+      if (listType !== wantType) { closeList(); out.push(wantType === "ul" ? "<ul>" : "<ol>"); listType = wantType; }
+      out.push("<li>" + inlineMarkdown((ulMatch || olMatch)[1]) + "</li>");
+      i++;
+      continue;
+    }
+
+    if (!line.trim()) { flushParagraph(); closeList(); i++; continue; }
+
+    paragraph.push(line.trim());
+    i++;
+  }
+  flushParagraph();
+  closeList();
+  return out.join("\n");
+}
+
+router.post("/api/tools/markdown-preview", optionalAuth, toolGate("markdown-preview"), async (req, res) => {
+  const md = String(req.body?.markdown || "");
+  if (!md.trim()) return res.status(400).json({ error: "Enter some markdown first." });
+  if (md.length > 200000) return res.status(400).json({ error: "That's too long (max 200,000 characters)." });
+  res.json({ html: markdownToHtml(md) });
+});
+
+router.post("/api/tools/text-encrypt-gate", optionalAuth, toolGate("text-encrypt"), async (req, res) => {
+  res.json({ ok: true });
+});
+
+router.post("/api/tools/typing-test-gate", optionalAuth, toolGate("typing-test"), async (req, res) => {
+  res.json({ ok: true });
+});
+
+const FAKE_FIRST_NAMES = ["James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda", "David", "Elizabeth", "Chidi", "Amara", "Kwame", "Fatima", "Yuki", "Wei", "Sofia", "Liam", "Olivia", "Noah"];
+const FAKE_LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Okafor", "Adeyemi", "Tanaka", "Kim", "Rossi", "Muller", "Silva", "Chen", "Nguyen", "Patel", "Osei", "Diallo"];
+const FAKE_STREET_NAMES = ["Main", "Oak", "Maple", "Cedar", "Elm", "Washington", "Lake", "Hill", "Park", "Sunset"];
+const FAKE_STREET_TYPES = ["St", "Ave", "Blvd", "Rd", "Ln", "Dr"];
+const FAKE_DOMAINS = ["example.com", "mailtest.dev", "fakemail.io", "sample.org"];
+const FAKE_COMPANY_SUFFIX = ["Inc", "LLC", "Group", "Co", "Ltd", "Partners"];
+
+function fakeRandItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function fakeRandInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+function generateFakePerson() {
+  const firstName = fakeRandItem(FAKE_FIRST_NAMES);
+  const lastName = fakeRandItem(FAKE_LAST_NAMES);
+  const email = (firstName + "." + lastName + fakeRandInt(1, 99)).toLowerCase() + "@" + fakeRandItem(FAKE_DOMAINS);
+  const phone = "+1-" + fakeRandInt(200, 999) + "-" + fakeRandInt(200, 999) + "-" + String(fakeRandInt(0, 9999)).padStart(4, "0");
+  const address = fakeRandInt(100, 9999) + " " + fakeRandItem(FAKE_STREET_NAMES) + " " + fakeRandItem(FAKE_STREET_TYPES);
+  const company = fakeRandItem(FAKE_LAST_NAMES) + " " + fakeRandItem(FAKE_COMPANY_SUFFIX);
+  return { firstName, lastName, email, phone, address, company };
+}
+
+router.post("/api/tools/fake-data", optionalAuth, toolGate("fake-data"), async (req, res) => {
+  const count = Math.min(Math.max(parseInt(req.body?.count, 10) || 1, 1), 50);
+  const people = Array.from({ length: count }, generateFakePerson);
+  res.json({ people });
+});
+
 export { router as toolsRouter };
