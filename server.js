@@ -73,6 +73,13 @@ import { renderCronExplainer } from "./views/tools/cron-explainer.js";
 import { renderCssGradient } from "./views/tools/css-gradient.js";
 import { renderTipCalculator } from "./views/tools/tip-calculator.js";
 import { renderRandomQuote } from "./views/tools/random-quote.js";
+import { renderAsciiArt } from "./views/tools/ascii-art.js";
+import { renderYamlJson } from "./views/tools/yaml-json.js";
+import { renderJsonDiff } from "./views/tools/json-diff.js";
+import { renderPasswordHash } from "./views/tools/password-hash.js";
+import { renderTotpTool } from "./views/tools/totp-tool.js";
+import { renderNameGenerator } from "./views/tools/name-generator.js";
+import { renderCountdownTimer } from "./views/tools/countdown-timer.js";
 import { toolsRouter } from "./routes/tools.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
@@ -433,6 +440,13 @@ const cachedToolsCronExplainerHtml = renderCronExplainer(authPageConfig);
 const cachedToolsCssGradientHtml = renderCssGradient(authPageConfig);
 const cachedToolsTipCalculatorHtml = renderTipCalculator(authPageConfig);
 const cachedToolsRandomQuoteHtml = renderRandomQuote(authPageConfig);
+const cachedToolsAsciiArtHtml = renderAsciiArt(authPageConfig);
+const cachedToolsYamlJsonHtml = renderYamlJson(authPageConfig);
+const cachedToolsJsonDiffHtml = renderJsonDiff(authPageConfig);
+const cachedToolsPasswordHashHtml = renderPasswordHash(authPageConfig);
+const cachedToolsTotpToolHtml = renderTotpTool(authPageConfig);
+const cachedToolsNameGeneratorHtml = renderNameGenerator(authPageConfig);
+const cachedToolsCountdownTimerHtml = renderCountdownTimer(authPageConfig);
 
 const cachedFootballHtml = (() => {
   try {
@@ -3897,6 +3911,34 @@ app.get("/tools/tip-calculator", scrapeGate, (req, res) => {
 
 app.get("/tools/random-quote", scrapeGate, (req, res) => {
   res.send(cachedToolsRandomQuoteHtml);
+});
+
+app.get("/tools/ascii-art", scrapeGate, (req, res) => {
+  res.send(cachedToolsAsciiArtHtml);
+});
+
+app.get("/tools/yaml-json", scrapeGate, (req, res) => {
+  res.send(cachedToolsYamlJsonHtml);
+});
+
+app.get("/tools/json-diff", scrapeGate, (req, res) => {
+  res.send(cachedToolsJsonDiffHtml);
+});
+
+app.get("/tools/password-hash", scrapeGate, (req, res) => {
+  res.send(cachedToolsPasswordHashHtml);
+});
+
+app.get("/tools/totp-tool", scrapeGate, (req, res) => {
+  res.send(cachedToolsTotpToolHtml);
+});
+
+app.get("/tools/name-generator", scrapeGate, (req, res) => {
+  res.send(cachedToolsNameGeneratorHtml);
+});
+
+app.get("/tools/countdown-timer", scrapeGate, (req, res) => {
+  res.send(cachedToolsCountdownTimerHtml);
 });
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {
