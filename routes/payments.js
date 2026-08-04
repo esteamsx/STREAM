@@ -15,12 +15,33 @@ import {
   setCustomVisitPageUrl,
 } from "../services/auth.js";
 import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN } from "../services/paystack.js";
+import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 
 const router = express.Router();
 
 const PAYSTACK_PUBLIC_KEY = process.env.PAYSTACK_PUBLIC_KEY || "";
 
-router.post("/api/verification/initialize", requireAuth, async (req, res) => {
+const initLimiter = new SimpleRateLimiter(
+  5,
+  60 * 60 * 1000,
+  (req) => req.uid,
+  "Too many payment attempts. Please try again in a bit."
+).middleware();
+const confirmLimiter = new SimpleRateLimiter(
+  20,
+  60 * 60 * 1000,
+  (req) => req.uid,
+  "Too many payment confirmation attempts. Please try again in a bit."
+).middleware();
+const visitUrlLimiter = new SimpleRateLimiter(
+  10,
+  60 * 60 * 1000,
+  (req) => req.uid,
+  "Too many changes to that link. Please try again in a bit."
+).middleware();
+const webhookLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.ip).middleware();
+
+router.post("/api/verification/initialize", requireAuth, initLimiter, async (req, res) => {
   try {
     const profile = await getUserProfile(req.uid);
     if (!profile) return res.status(404).json({ error: "Account not found." });
@@ -49,7 +70,7 @@ router.post("/api/verification/initialize", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/api/verification/confirm", requireAuth, async (req, res) => {
+router.post("/api/verification/confirm", requireAuth, confirmLimiter, async (req, res) => {
   try {
     const reference = String(req.body?.reference || "").trim();
     if (!reference) return res.status(400).json({ error: "Missing payment reference." });
@@ -71,7 +92,7 @@ router.post("/api/verification/confirm", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/api/plan/initialize", requireAuth, async (req, res) => {
+router.post("/api/plan/initialize", requireAuth, initLimiter, async (req, res) => {
   try {
     const plan = String(req.body?.plan || "").trim();
     if (!PURCHASABLE_API_PLANS.includes(plan)) return res.status(400).json({ error: "Unknown plan." });
@@ -104,7 +125,7 @@ router.post("/api/plan/initialize", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/api/plan/confirm", requireAuth, async (req, res) => {
+router.post("/api/plan/confirm", requireAuth, confirmLimiter, async (req, res) => {
   try {
     const reference = String(req.body?.reference || "").trim();
     if (!reference) return res.status(400).json({ error: "Missing payment reference." });
@@ -126,7 +147,7 @@ router.post("/api/plan/confirm", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/api/plan/custom-visit-url", requireAuth, async (req, res) => {
+router.post("/api/plan/custom-visit-url", requireAuth, visitUrlLimiter, async (req, res) => {
   try {
     const result = await setCustomVisitPageUrl(req.uid, req.body?.url);
     res.json({ ok: true, ...result });
@@ -135,7 +156,7 @@ router.post("/api/plan/custom-visit-url", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/api/paystack/webhook", async (req, res) => {
+router.post("/api/paystack/webhook", webhookLimiter, async (req, res) => {
   try {
     const signature = req.get("x-paystack-signature");
     if (!verifyWebhookSignature(req.rawBody, signature)) return res.status(401).end();

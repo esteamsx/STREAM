@@ -443,6 +443,7 @@ const DELETE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const UNBAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 109-9" stroke-linecap="round"/><path d="M3 4v5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
 const VERIFIED_BADGE = '<svg width="15" height="15" viewBox="0 0 24 24" aria-label="Admin"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
 const PROFILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/></svg>';
 const PROFILE_VERIFIED_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/><g transform="translate(13.5,12.5) scale(0.6)"><path fill="currentColor" stroke="none" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke="var(--card2)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></g></svg>';
 
@@ -485,7 +486,7 @@ function renderUserRow(u){
   info.className = 'ad-row-info';
   const name = document.createElement('div');
   name.className = 'ad-row-name';
-  name.innerHTML = '<span>' + (((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
+  name.innerHTML = '<span>' + esc(((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
   const email = document.createElement('div');
   email.className = 'ad-row-email';
   email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : (u.githubLogin ? 'GitHub: @' + u.githubLogin : ''));
@@ -540,7 +541,7 @@ function renderBannedRow(u){
   info.className = 'ad-row-info';
   const name = document.createElement('div');
   name.className = 'ad-row-name';
-  name.innerHTML = '<span>' + (((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>';
+  name.innerHTML = '<span>' + esc(((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>';
   const email = document.createElement('div');
   email.className = 'ad-row-email';
   email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : (u.githubLogin ? 'GitHub: @' + u.githubLogin : ''));
@@ -578,7 +579,7 @@ function renderVerifyRow(u){
   info.className = 'ad-row-info';
   const name = document.createElement('div');
   name.className = 'ad-row-name';
-  name.innerHTML = '<span>' + (((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
+  name.innerHTML = '<span>' + esc(((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username))) + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
   const email = document.createElement('div');
   email.className = 'ad-row-email';
   email.textContent = u.email || (u.telegramId ? 'Telegram ID: ' + u.telegramId : (u.githubLogin ? 'GitHub: @' + u.githubLogin : ''));
@@ -954,7 +955,7 @@ function renderBotUserRow(u){
   const name = document.createElement('div');
   name.className = 'ad-row-name';
   const displayName = ((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : (u.username ? '@' + u.username : u.uid));
-  name.innerHTML = '<span>' + displayName + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
+  name.innerHTML = '<span>' + esc(displayName) + '</span>' + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
   const email = document.createElement('div');
   email.className = 'ad-row-email';
   email.textContent = (u.email ? u.email + '  ·  ' : '') + u.activeCount + ' active / ' + u.count + ' total';
@@ -1158,7 +1159,7 @@ document.getElementById('botsModalCloseBtn').addEventListener('click', () => {
       avatar.textContent = (((me.firstName || '')[0] || '') + ((me.lastName || '')[0] || '')) || 'A';
     }
     document.getElementById('adName').innerHTML =
-      '<span>' + (((me.firstName || me.lastName) ? ((me.firstName || '') + ' ' + (me.lastName || '')).trim() : ('@' + me.username))) + '</span>' + VERIFIED_BADGE;
+      '<span>' + esc(((me.firstName || me.lastName) ? ((me.firstName || '') + ' ' + (me.lastName || '')).trim() : ('@' + me.username))) + '</span>' + VERIFIED_BADGE;
   } catch (err) {
     document.getElementById('adName').textContent = 'Admin';
   }

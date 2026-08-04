@@ -767,6 +767,7 @@ async function postJSON(url, body){
   return data;
 }
 const VERIFIED_BADGE = '<svg class="pf-verified" viewBox="0 0 24 24" width="18" height="18" aria-label="Verified"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
 
 function setupAltUsernames(altUsernames){
   const toggle = document.getElementById('pfAltToggle');
@@ -1109,7 +1110,7 @@ async function runTagSearch(q){
       info.className = 'flist-info';
       const name = document.createElement('div');
       name.className = 'flist-name';
-      name.innerHTML = ((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username)) + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
+      name.innerHTML = esc((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username)) + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
       const uname = document.createElement('div');
       uname.className = 'flist-username';
       uname.textContent = '@' + (u.matchedAltUsername || u.username);
@@ -1174,7 +1175,7 @@ function createFeedPostCard(post){
   const nameRow = document.createElement('div');
   const nameEl = document.createElement('span');
   nameEl.className = 'feed-post-name';
-  nameEl.innerHTML = ((author.firstName || author.lastName) ? ((author.firstName || '') + ' ' + (author.lastName || '')).trim() : ('@' + (author.username || ''))) +
+  nameEl.innerHTML = esc((author.firstName || author.lastName) ? ((author.firstName || '') + ' ' + (author.lastName || '')).trim() : ('@' + (author.username || ''))) +
     ((author.isAdmin || author.verified) ? VERIFIED_BADGE : '');
   nameEl.addEventListener('click', (e) => { e.stopPropagation(); goToProfile(author.username); });
   nameRow.appendChild(nameEl);
@@ -1296,7 +1297,7 @@ function createPostCard(post, isOwner){
   if (post.resharedFrom) {
     const reshareLabel = document.createElement('div');
     reshareLabel.className = 'pf-post-reshare-label';
-    reshareLabel.innerHTML = RESHARE_ICON + '<span>Reshared from @' + post.resharedFrom.username + '</span>';
+    reshareLabel.innerHTML = RESHARE_ICON + '<span>Reshared from @' + esc(post.resharedFrom.username) + '</span>';
     reshareLabel.addEventListener('click', () => {
       window.location.href = '/u/' + post.resharedFrom.username + '#post-' + post.resharedFrom.postId;
     });
@@ -1674,7 +1675,7 @@ let loadedCommentsById = {};
 function commentAuthorLabel(author){
   if (!author) return 'Someone';
   const name = ((author.firstName || '') + ' ' + (author.lastName || '')).trim();
-  return (name || ('@' + author.username)) + ((author.isAdmin || author.verified) ? VERIFIED_BADGE : '');
+  return esc(name || ('@' + author.username)) + ((author.isAdmin || author.verified) ? VERIFIED_BADGE : '');
 }
 
 function renderCommentRow(c, postId){
@@ -2136,7 +2137,7 @@ function flistRenderRow(u){
   info.className = 'flist-info';
   const name = document.createElement('div');
   name.className = 'flist-name';
-  name.innerHTML = ((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username)) + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
+  name.innerHTML = esc((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username)) + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
   const uname = document.createElement('div');
   uname.className = 'flist-username';
   uname.textContent = '@' + u.username;
@@ -2207,7 +2208,7 @@ async function openMiniPreview(username){
     } else {
       avatar.textContent = ((u.firstName || '')[0] || (u.username || '?')[0] || '?').toUpperCase();
     }
-    document.getElementById('mpvName').innerHTML = ((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username)) + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
+    document.getElementById('mpvName').innerHTML = esc((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username)) + ((u.isAdmin || u.verified) ? VERIFIED_BADGE : '');
     document.getElementById('mpvUsername').textContent = '@' + u.username;
     document.getElementById('mpvFollowers').textContent = formatCount(u.followers ?? 0);
     document.getElementById('mpvFollowing').textContent = formatCount(u.following ?? 0);

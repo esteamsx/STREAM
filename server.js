@@ -2994,6 +2994,7 @@ function showLiquidToast(message){
 var FS_ADD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" d="M19 8v6M22 11h-6"/></svg>';
 var FS_FOLLOWING_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M17 11l2 2 4-4"/></svg>';
 var FS_VERIFIED_BADGE = '<svg class="fs-verified-badge" viewBox="0 0 24 24" width="14" height="14" aria-label="Verified"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
+function fsEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
 var fsDebounceTimer = null;
 
 function openFriendSearch(){
@@ -3029,7 +3030,7 @@ function fsRenderUser(u){
   info.className = 'fs-user-info';
   var name = document.createElement('div');
   name.className = 'fs-user-name';
-  name.innerHTML = ((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username)) + ((u.isAdmin || u.verified) ? FS_VERIFIED_BADGE : '');
+  name.innerHTML = fsEsc((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username)) + ((u.isAdmin || u.verified) ? FS_VERIFIED_BADGE : '');
   var uname = document.createElement('div');
   uname.className = 'fs-user-username';
   uname.textContent = '@' + (u.matchedAltUsername || u.username);
@@ -3084,7 +3085,7 @@ async function openMiniPreview(username){
     } else {
       avatar.textContent = ((u.firstName || '')[0] || (u.username || '?')[0] || '?').toUpperCase();
     }
-    document.getElementById('mpvName').innerHTML = ((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username)) + ((u.isAdmin || u.verified) ? FS_VERIFIED_BADGE : '');
+    document.getElementById('mpvName').innerHTML = fsEsc((u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username)) + ((u.isAdmin || u.verified) ? FS_VERIFIED_BADGE : '');
     document.getElementById('mpvUsername').textContent = '@' + u.username;
     document.getElementById('mpvFollowers').textContent = formatCount(u.followers != null ? u.followers : 0);
     document.getElementById('mpvFollowing').textContent = formatCount(u.following != null ? u.following : 0);

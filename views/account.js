@@ -1083,6 +1083,7 @@ body:has(.page-overlay.show){overflow:hidden}
 const params = new URLSearchParams(window.location.search);
 const resetToken = params.get('resetToken');
 const VERIFIED_BADGE = '<svg class="verified-badge" viewBox="0 0 24 24" width="15" height="15" aria-label="Verified"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
 const PAYSTACK_PUBLIC_KEY = ${JSON.stringify(cfg.paystackPublicKey || "")};
 
 document.getElementById('accBackBtn').addEventListener('click', () => {
@@ -1426,7 +1427,7 @@ async function loadProfile(){
     avatar.textContent = '';
   }
   
-  document.getElementById('heroName').innerHTML = 'Hi, ' + profile.firstName + ((profile.isAdmin || profile.verified) ? VERIFIED_BADGE : '');
+  document.getElementById('heroName').innerHTML = 'Hi, ' + esc(profile.firstName) + ((profile.isAdmin || profile.verified) ? VERIFIED_BADGE : '');
   updateVerificationUI();
   updateHeroIdentity();
   document.getElementById('firstName').value = profile.firstName || '';
@@ -2596,7 +2597,7 @@ async function confirmVerificationPayment(reference){
     profile.verified = true;
     profile.verifiedAt = profile.verifiedAt || Date.now();
     profile.verifiedExpiresAt = result.expiresAt;
-    document.getElementById('heroName').innerHTML = 'Hi, ' + profile.firstName + VERIFIED_BADGE;
+    document.getElementById('heroName').innerHTML = 'Hi, ' + esc(profile.firstName) + VERIFIED_BADGE;
     updateVerificationUI();
     showVerifyStep('verifyStepSuccess');
   } catch (err) {
