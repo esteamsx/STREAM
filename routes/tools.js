@@ -8,8 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifySolution } from "altcha-lib";
 import QRCode from "qrcode";
-import { SimpleRateLimiter } from "../middleware/security-middleware.js";
-import { optionalAuth, isAdminEmail, isVerificationActive } from "../services/auth.js";
+import { optionalAuth, isAdminEmail, isVerificationActive, checkAndIncrementDailyLimit } from "../services/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = express.Router();
@@ -26,16 +25,8 @@ async function verifyCaptcha(payload) {
 }
 
 const TOOL_DAILY_LIMIT = 3;
-const TOOL_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function toolGate(toolName) {
-  const limiter = new SimpleRateLimiter(
-    TOOL_DAILY_LIMIT,
-    TOOL_LIMIT_WINDOW_MS,
-    (req) => `${req.uid || req.ip}:${toolName}`,
-    `You've used this tool ${TOOL_DAILY_LIMIT} times today. Verified accounts get unlimited use — otherwise, try again in 24 hours.`
-  );
-  const limiterMw = limiter.middleware();
   return async (req, res, next) => {
     if (!(await verifyCaptcha(req.body?.altcha))) {
       return res.status(400).json({ error: "Captcha not completed." });
@@ -43,7 +34,12 @@ function toolGate(toolName) {
     const profile = req.userProfile;
     const privileged = !!(profile && (isAdminEmail(profile.email) || isVerificationActive(profile)));
     if (privileged) return next();
-    return limiterMw(req, res, next);
+    const key = `tool:${toolName}:${req.uid || req.ip}`;
+    const result = await checkAndIncrementDailyLimit(key, TOOL_DAILY_LIMIT);
+    if (!result.allowed) {
+      return res.status(429).json({ error: `You've used this tool ${TOOL_DAILY_LIMIT} times today. Verified accounts get unlimited use — otherwise, try again in 24 hours.` });
+    }
+    next();
   };
 }
 
