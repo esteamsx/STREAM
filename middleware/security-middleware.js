@@ -100,7 +100,11 @@ async function verifyGooglebotIp(ip) {
   return verified;
 }
 
+const GOOGLEBOT_VERIFY_EXEMPT_PATHS = new Set(["/robots.txt", "/sitemap.xml", "/health"]);
+
 export const googlebotVerifier = async (req, res, next) => {
+  if (GOOGLEBOT_VERIFY_EXEMPT_PATHS.has(req.path)) return next();
+
   const ua = req.get("user-agent") || "";
   if (!GOOGLE_CRAWLER_UA.test(ua)) {
     req.isVerifiedGooglebot = false;
