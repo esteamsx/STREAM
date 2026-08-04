@@ -1170,12 +1170,20 @@ async function getNotifications(uid, limit = 50) {
 }
 
 async function hasUnreadNotifications(uid) {
-  const list = await getNotifications(uid, 200);
-  return list.some((n) => !n.read && n.type !== "comment");
+  const snap = await db.collection("notifications")
+    .where("uid", "==", uid)
+    .where("read", "==", false)
+    .limit(20)
+    .get();
+  return snap.docs.some((d) => d.data().type !== "comment");
 }
 
 async function markAllNotificationsRead(uid) {
-  const snap = await db.collection("notifications").where("uid", "==", uid).limit(500).get();
+  const snap = await db.collection("notifications")
+    .where("uid", "==", uid)
+    .where("read", "==", false)
+    .limit(500)
+    .get();
   const batch = db.batch();
   let any = false;
   snap.docs.forEach((d) => {

@@ -317,6 +317,7 @@ const channelApiLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid)
 const botDeployLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000, (req) => req.uid).middleware();
 const botActionLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
 const botStatusLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.uid).middleware();
+const notifPollLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
 
 const ALTCHA_HMAC_KEY = process.env.ALTCHA_SECRET;
 if (!ALTCHA_HMAC_KEY) {
@@ -3356,7 +3357,7 @@ function fsRunSearch(q){
       });
     }
     refreshNotifDots();
-    setInterval(refreshNotifDots, 20000);
+    setInterval(refreshNotifDots, 60000);
     document.addEventListener('visibilitychange', function(){
       if (!document.hidden) refreshNotifDots();
     });
@@ -4849,7 +4850,7 @@ app.get("/api/notifications", requireAuth, async (req, res) => {
   }
 });
 
-app.get("/api/notifications/unread", requireAuth, async (req, res) => {
+app.get("/api/notifications/unread", requireAuth, notifPollLimiter, async (req, res) => {
   try {
     const hasUnread = await hasUnreadNotifications(req.uid);
     res.json({ hasUnread });
@@ -4877,7 +4878,7 @@ app.post("/api/support/messages", requireAuth, async (req, res) => {
   }
 });
 
-app.get("/api/support/unread", requireAuth, async (req, res) => {
+app.get("/api/support/unread", requireAuth, notifPollLimiter, async (req, res) => {
   try {
     const isAdmin = isAdminEmail(req.userProfile?.email);
     const count = isAdmin ? await getSupportUnreadCountForAdmin() : await getSupportUnreadCountForUser(req.uid);
@@ -5118,7 +5119,7 @@ app.get("/api/feed/following", requireAuth, async (req, res) => {
   }
 });
 
-app.get("/api/feed/following/unseen-count", requireAuth, async (req, res) => {
+app.get("/api/feed/following/unseen-count", requireAuth, notifPollLimiter, async (req, res) => {
   try {
     const count = await getFollowingFeedUnseenCount(req.uid, req.userProfile);
     res.json({ count });
