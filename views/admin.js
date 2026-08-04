@@ -76,6 +76,20 @@ input{font-family:inherit}
 .ad-card.open .ad-card-body{max-height:2400px}
 .ad-card-body-inner{padding:0 18px 18px}
 
+@keyframes adSpin{to{transform:rotate(360deg)}}
+.tfa-switch{
+  position:relative;width:46px;height:26px;border-radius:20px;background:var(--dark3);
+  border:1px solid var(--border-strong);cursor:pointer;flex-shrink:0;transition:background .2s var(--ease);
+}
+.tfa-switch.on{background:linear-gradient(90deg,var(--accent),var(--accent2));border-color:transparent}
+.tfa-switch-dot{
+  position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;
+  transition:transform .2s var(--ease);box-shadow:0 1px 3px rgba(0,0,0,.3);
+}
+.tfa-switch.on .tfa-switch-dot{transform:translateX(20px)}
+.tfa-switch.busy{pointer-events:none;opacity:.65}
+.tfa-switch.busy .tfa-switch-dot{border:2px solid rgba(4,20,26,.35);border-top-color:#04141a;background:#fff;animation:adSpin .6s linear infinite}
+
 .ad-search-wrap{position:relative;margin-bottom:14px}
 .ad-search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;opacity:.4;pointer-events:none}
 .ad-search-wrap input{
@@ -229,6 +243,24 @@ body:has(.ad-overlay.show){overflow:hidden}
     <div>
       <div class="ad-hero-name" id="adName">Loading…</div>
       <div class="ad-hero-sub">Admin / Control Panel account</div>
+    </div>
+  </div>
+
+  <div class="ad-card open" id="maintenanceCard">
+    <div class="ad-card-header" style="cursor:default">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      <div class="ad-card-header-title">Maintenance Mode</div>
+    </div>
+    <div class="ad-card-body" style="max-height:none">
+      <div class="ad-card-body-inner">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+          <div>
+            <div style="font-size:.85rem;font-weight:600" id="maintenanceStatusLabel">Site is live</div>
+            <div style="font-size:.74rem;color:var(--muted);margin-top:2px;line-height:1.5">When on, only your admin account can use the site. Everyone else sees a maintenance page.</div>
+          </div>
+          <div class="tfa-switch" id="maintenanceSwitch"><div class="tfa-switch-dot"></div></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1151,6 +1183,35 @@ async function loadStorage(){
   }
 }
 
+async function loadMaintenanceStatus(){
+  const label = document.getElementById('maintenanceStatusLabel');
+  const sw = document.getElementById('maintenanceSwitch');
+  try {
+    const data = await getJSON('/api/admin/maintenance');
+    sw.classList.toggle('on', !!data.maintenanceMode);
+    label.textContent = data.maintenanceMode ? 'Maintenance is ON — site locked' : 'Site is live';
+  } catch (err) {
+    label.textContent = 'Could not load status.';
+  }
+}
+document.getElementById('maintenanceSwitch').addEventListener('click', async () => {
+  const sw = document.getElementById('maintenanceSwitch');
+  const label = document.getElementById('maintenanceStatusLabel');
+  if (sw.classList.contains('busy')) return;
+  const next = !sw.classList.contains('on');
+  sw.classList.add('busy');
+  try {
+    const data = await postJSON('/api/admin/maintenance', { enabled: next });
+    sw.classList.toggle('on', !!data.maintenanceMode);
+    label.textContent = data.maintenanceMode ? 'Maintenance is ON — site locked' : 'Site is live';
+    showToast(data.maintenanceMode ? 'Maintenance mode enabled.' : 'Maintenance mode disabled.');
+  } catch (err) {
+    showToast(err.message || 'Could not change maintenance mode.');
+  }
+  sw.classList.remove('busy');
+});
+
+loadMaintenanceStatus();
 loadUsersPage(true);
 loadBannedUsers();
 loadVerifyPage(true);

@@ -2261,6 +2261,19 @@ async function adminResetPassword(uid, newPassword) {
   return { ok: true };
 }
 
+async function getMaintenanceMode() {
+  const snap = await db.collection("settings").doc("site").get();
+  return !!(snap.exists && snap.data().maintenanceMode);
+}
+
+async function setMaintenanceMode(enabled) {
+  await db.collection("settings").doc("site").set(
+    { maintenanceMode: !!enabled, maintenanceModeUpdatedAt: Date.now() },
+    { merge: true }
+  );
+  return { maintenanceMode: !!enabled };
+}
+
 export {
   adminListUsers,
   adminSearchUsers,
@@ -2271,6 +2284,8 @@ export {
   adminUnverifyUser,
   adminDeleteUser,
   adminResetPassword,
+  getMaintenanceMode,
+  setMaintenanceMode,
   createVerificationPayment,
   getVerificationPayment,
   finalizeVerificationPayment,
