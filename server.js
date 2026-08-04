@@ -177,6 +177,8 @@ import {
   requireAuth,
   isAdminEmail,
   isVerificationActive,
+  getEffectiveApiPlan,
+  API_PLANS,
   SESSION_TTL_MS,
 } from "./services/auth.js";
 import { paymentsRouter } from "./routes/payments.js";
@@ -4283,6 +4285,15 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       verified: isVerificationActive(profile),
       verifiedAt: profile.verifiedAt || null,
       verifiedExpiresAt: profile.verifiedExpiresAt || null,
+      apiPlan: (() => {
+        const planKey = getEffectiveApiPlan(profile);
+        const plan = API_PLANS[planKey];
+        let expiresAt = null;
+        if (planKey === "starter") expiresAt = profile.verifiedExpiresAt || null;
+        else if (planKey !== "free") expiresAt = profile.apiPlanExpiresAt || null;
+        return { key: planKey, name: plan.name, apiKeys: plan.apiKeys, streamHours: plan.streamHours, watermark: plan.watermark, customVisitPage: plan.customVisitPage, expiresAt };
+      })(),
+      customVisitPageUrl: profile.customVisitPageUrl || "",
     });
   } catch (err) {
     console.error(err);

@@ -457,6 +457,7 @@ body:has(.page-overlay.show){overflow:hidden}
   background:rgba(18,196,139,.12);color:var(--green);border:1px solid rgba(18,196,139,.3);
 }
 .cert-status-chip.expired{background:rgba(255,59,92,.12);color:var(--red);border-color:rgba(255,59,92,.3)}
+.cert-status-chip.neutral{background:var(--card2);color:var(--muted);border-color:var(--border-strong)}
 .cert-label{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px}
 .cert-name{font-family:var(--font-display);font-weight:700;font-size:1.3rem;color:var(--text);text-align:center;margin-bottom:2px}
 .cert-username{font-size:.82rem;color:var(--muted);text-align:center;margin-bottom:18px}
@@ -783,7 +784,8 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
     <div class="tfa-body">
       <div class="tfa-body-inner">
-        <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Use an API key to pull ES TEAMS TV channels into your own site or bot. Up to 5 keys per account. <a href="/developers" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">Open the API Dashboard</a> to test requests, see usage, and read the docs.</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;line-height:1.5">Use an API key to pull ES TEAMS TV channels into your own site or bot. <span id="apiKeyLimitText">Up to 1 key per account.</span> <a href="/developers" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">Open the API Dashboard</a> to test requests, see usage, upgrade your plan, and read the docs.</div>
+        <div id="apiPlanBadgeRow" style="display:none;margin-bottom:12px"><span class="cert-status-chip" id="apiPlanBadge">Free</span></div>
         <div id="apiKeyList"></div>
         <div id="apiKeyAddRow">
           <div class="field" style="margin-bottom:10px">
@@ -795,7 +797,7 @@ body:has(.page-overlay.show){overflow:hidden}
             Create API Key
           </button>
         </div>
-        <div id="apiKeyMaxMsg" style="display:none;font-size:.76rem;color:var(--muted);text-align:center;padding:8px 0">Maximum of 5 API keys reached. Revoke one to create another.</div>
+        <div id="apiKeyMaxMsg" style="display:none;font-size:.76rem;color:var(--muted);text-align:center;padding:8px 0">Maximum API keys reached for your plan. Revoke one, or <a href="/developers" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">upgrade your plan</a>.</div>
         <div id="apiKeyRevealBox" style="display:none;margin-top:12px;padding:12px;border-radius:10px;background:rgba(0,224,255,.08);border:1px solid rgba(0,224,255,.25)">
           <div style="font-size:.76rem;color:var(--muted);margin-bottom:8px">Copy this now — you won't be able to see it again.</div>
           <div style="display:flex;gap:8px;align-items:center">
@@ -1785,10 +1787,18 @@ document.getElementById('apiHeader').addEventListener('click', () => {
 
 async function loadApiKeys(){
   try {
-    const { keys } = await getJSON('/api/dev/keys');
+    const { keys, plan } = await getJSON('/api/dev/keys');
     const listEl = document.getElementById('apiKeyList');
     const addRow = document.getElementById('apiKeyAddRow');
     const maxMsg = document.getElementById('apiKeyMaxMsg');
+    if (plan) {
+      document.getElementById('apiKeyLimitText').textContent = 'Up to ' + plan.apiKeys + ' key' + (plan.apiKeys === 1 ? '' : 's') + ' per account.';
+      const badgeRow = document.getElementById('apiPlanBadgeRow');
+      const badge = document.getElementById('apiPlanBadge');
+      badgeRow.style.display = 'block';
+      badge.textContent = plan.name + ' Plan';
+      badge.className = 'cert-status-chip' + (plan.key === 'free' ? ' neutral' : '');
+    }
     listEl.innerHTML = keys.map(k =>
       '<div class="pk-row" data-id="' + k.id + '">' +
         '<div>' +
@@ -1804,7 +1814,7 @@ async function loadApiKeys(){
     listEl.querySelectorAll('.pk-delete-btn').forEach(btn => {
       btn.addEventListener('click', () => revokeApiKeyRow(btn.dataset.deleteId, btn));
     });
-    const atMax = keys.length >= 5;
+    const atMax = keys.length >= (plan ? plan.apiKeys : 1);
     addRow.style.display = atMax ? 'none' : 'block';
     maxMsg.style.display = atMax ? 'block' : 'none';
   } catch (err) {

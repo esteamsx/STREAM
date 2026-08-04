@@ -568,6 +568,12 @@ async function findApiKeyByRawKey(rawKey) {
   return { id: snap.id, uid: snap.data().uid };
 }
 
+async function getApiKeyOwnerUid(keyId) {
+  if (!keyId) return null;
+  const snap = await db.collection("apiKeys").doc(keyId).get();
+  return snap.exists ? snap.data().uid : null;
+}
+
 const MAX_ISSUED_LINKS_PER_ACCOUNT = 50;
 
 async function recordIssuedStreamLink(uid, entry) {
@@ -2139,6 +2145,81 @@ async function finalizeVerificationPayment(reference, paystackData) {
   return { alreadyProcessed: false, uid: record.uid, expiresAt };
 }
 
+const API_PLAN_DAYS = 30;
+
+const API_PLANS = {
+  free: { name: "Free", apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, priceNgn: 0 },
+  starter: { name: "Starter", apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, priceNgn: 0 },
+  standard: { name: "Standard", apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, priceNgn: 3000 },
+  pro: { name: "Pro", apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, priceNgn: 5000 },
+  max: { name: "Max", apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, priceNgn: 10000 },
+};
+
+const PURCHASABLE_API_PLANS = ["standard", "pro", "max"];
+
+function getEffectiveApiPlan(data) {
+  if (!data) return "free";
+  if (data.apiPlanPaid && API_PLANS[data.apiPlanPaid] && data.apiPlanExpiresAt && Date.now() < data.apiPlanExpiresAt) {
+    return data.apiPlanPaid;
+  }
+  if (isVerificationActive(data)) return "starter";
+  return "free";
+}
+
+function getApiPlanConfig(data) {
+  return API_PLANS[getEffectiveApiPlan(data)];
+}
+
+async function createApiPlanPayment(uid, reference, amountKobo, plan) {
+  await db.collection("apiPlanPayments").doc(reference).set({
+    uid,
+    plan,
+    amountKobo,
+    status: "pending",
+    createdAt: Date.now(),
+  });
+}
+
+async function getApiPlanPayment(reference) {
+  const snap = await db.collection("apiPlanPayments").doc(reference).get();
+  return snap.exists ? snap.data() : null;
+}
+
+async function finalizeApiPlanPayment(reference, paystackData) {
+  const ref = db.collection("apiPlanPayments").doc(reference);
+  const snap = await ref.get();
+  if (!snap.exists) return { notOurs: true };
+  const record = snap.data();
+  if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
+
+  if (paystackData.status !== "success" || paystackData.amount < record.amountKobo) {
+    await ref.update({ status: "failed", failedAt: Date.now() });
+    throw new Error("Payment was not successful.");
+  }
+
+  const expiresAt = Date.now() + API_PLAN_DAYS * 24 * 60 * 60 * 1000;
+  await db.collection("users").doc(record.uid).update({
+    apiPlanPaid: record.plan,
+    apiPlanPurchasedAt: Date.now(),
+    apiPlanExpiresAt: expiresAt,
+  });
+  await ref.update({ status: "success", confirmedAt: Date.now() });
+  const planName = API_PLANS[record.plan]?.name || record.plan;
+  await addNotification(record.uid, "api_plan", `Your ${planName} API plan is now active`, { plan: record.plan, expiresAt });
+
+  return { alreadyProcessed: false, uid: record.uid, plan: record.plan, expiresAt };
+}
+
+async function setCustomVisitPageUrl(uid, url) {
+  const profile = await getUserProfile(uid);
+  if (!profile) throw new Error("Account not found.");
+  if (getEffectiveApiPlan(profile) !== "max") throw new Error("The custom visit page link is a Max plan feature.");
+  const trimmed = String(url || "").trim();
+  if (trimmed && !/^https:\/\/[^\s"'<>]{3,300}$/i.test(trimmed)) throw new Error("Enter a valid https:// URL, without spaces or quote characters.");
+  await db.collection("users").doc(uid).update({ customVisitPageUrl: trimmed || null });
+  return { customVisitPageUrl: trimmed || null };
+}
+
 async function adminDeleteUser(uid) {
   const profile = await getUserProfile(uid);
   if (!profile) throw new Error("Account not found.");
@@ -2168,6 +2249,10 @@ export {
   createVerificationPayment,
   getVerificationPayment,
   finalizeVerificationPayment,
+  createApiPlanPayment,
+  getApiPlanPayment,
+  finalizeApiPlanPayment,
+  setCustomVisitPageUrl,
 };
 
 export {
@@ -2204,6 +2289,7 @@ export {
   listApiKeysForUser,
   revokeApiKey,
   findApiKeyByRawKey,
+  getApiKeyOwnerUid,
   API_KEY_MONTHLY_LIMIT,
   getAccountApiUsage,
   checkAndIncrementAccountApiUsage,
@@ -2269,5 +2355,9 @@ export {
   optionalAuth,
   isAdminEmail,
   isVerificationActive,
+  API_PLANS,
+  PURCHASABLE_API_PLANS,
+  getEffectiveApiPlan,
+  getApiPlanConfig,
   SESSION_TTL_MS,
 };

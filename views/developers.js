@@ -15,6 +15,7 @@ ${siteHeadFor("developers")}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://js.paystack.co/v1/inline.js"></script>
 <style>
 ${cfg.protectionCSS || ""}
 :root{
@@ -114,6 +115,8 @@ body:has(.page-overlay.show){overflow:hidden}
 .overlay-sub{font-size:.82rem;color:var(--muted);line-height:1.5}
 .overlay-sub b{color:var(--text)}
 .overlay-cancel{background:transparent;border:none;color:var(--muted);font-size:.78rem;align-self:center;text-decoration:underline;cursor:pointer}
+.overlay-step{display:none;flex-direction:column;gap:14px}
+.overlay-step.active{display:flex}
 
 .hero{margin-bottom:26px}
 .hero h1{font-family:var(--font-display);font-size:1.7rem;margin-bottom:6px}
@@ -132,6 +135,30 @@ body:has(.page-overlay.show){overflow:hidden}
 .dcard-icon svg{width:15px;height:15px}
 .dcard-title{font-family:var(--font-display);font-size:.95rem;font-weight:700}
 .dcard-sub{font-size:.72rem;color:var(--muted);margin-top:1px}
+
+.plans-grid{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:600px){ .plans-grid{grid-template-columns:repeat(2,1fr)} }
+@media(min-width:1080px){ .plans-grid{grid-template-columns:repeat(5,1fr)} }
+.plan-card{
+  background:var(--card2);border:1px solid var(--border-strong);border-radius:14px;padding:16px;
+  display:flex;flex-direction:column;gap:12px;position:relative;
+}
+.plan-card.current{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.plan-card.highlight{border-color:var(--accent2);background:linear-gradient(160deg,rgba(124,92,255,.1),var(--card2))}
+.plan-name{font-family:var(--font-display);font-weight:700;font-size:1rem}
+.plan-price{font-family:var(--font-display);font-weight:700;font-size:1.4rem}
+.plan-price span{font-size:.68rem;font-weight:500;color:var(--muted)}
+.plan-note{font-size:.68rem;color:var(--muted);min-height:14px}
+.plan-features{display:flex;flex-direction:column;gap:7px;flex:1}
+.plan-feature{display:flex;align-items:center;gap:7px;font-size:.76rem;color:var(--text)}
+.plan-feature svg{width:13px;height:13px;color:var(--green);flex-shrink:0}
+.plan-feature.off{color:var(--muted2)}
+.plan-feature.off svg{color:var(--muted2)}
+.plan-cta{width:100%;justify-content:center;font-size:.78rem;padding:9px 10px}
+.plan-current-badge{
+  align-self:flex-start;font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:3px 9px;border-radius:20px;background:rgba(0,224,255,.14);color:var(--accent);border:1px solid rgba(0,224,255,.3);
+}
 
 .key-row{
   display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:11px;
@@ -264,13 +291,33 @@ ${musicPlayerStyle()}
 
     <div class="dash-grid">
 
+      <!-- PLANS -->
+      <div class="dcard span2" id="plansCard">
+        <div class="dcard-head">
+          <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/></svg></span>
+          <div>
+            <div class="dcard-title">Plans &amp; Pricing</div>
+            <div class="dcard-sub">More API keys, longer-lived links, no watermark on the higher tiers</div>
+          </div>
+        </div>
+        <div class="plans-grid" id="plansGrid"><div class="ch-loading">Loading…</div></div>
+        <div id="customVisitWrap" style="display:none;margin-top:16px">
+          <div class="field">
+            <label>Custom Visit Page URL <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— Max plan, shown on expired stream links</span></label>
+            <input type="text" id="customVisitInput" placeholder="https://yoursite.com">
+          </div>
+          <button class="btn btn-primary btn-sm" id="customVisitSaveBtn" type="button">Save Link</button>
+          <div class="dcard-msg" id="customVisitMsg"></div>
+        </div>
+      </div>
+
       <!-- API KEY -->
       <div class="dcard span2" id="keyCard">
         <div class="dcard-head">
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></span>
           <div>
             <div class="dcard-title">API Key</div>
-            <div class="dcard-sub">Up to 5 keys per account · shown once at creation</div>
+            <div class="dcard-sub">Key limit depends on your plan · shown once at creation</div>
           </div>
         </div>
         <div id="keyCardBody"><div class="ch-loading">Loading…</div></div>
@@ -374,7 +421,7 @@ ${musicPlayerStyle()}
     <p class="doc-p">Pull live channels into your own site, bot, or app — with a key tied to your account, and a link that never exposes the real stream source.</p>
 
     <h2 class="doc-h2">Getting a key</h2>
-    <p class="doc-p">Create an API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. You can have up to 5 keys, and revoke any of them at any time.</p>
+    <p class="doc-p">Create an API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. How many keys you can have — 1 to 15 — depends on your plan; see <a href="#" id="docsToDashLink3">Plans &amp; Pricing</a>. You can revoke any key at any time.</p>
 
     <h2 class="doc-h2">Authentication</h2>
     <p class="doc-p">Pass your key in the <code>x-api-key</code> header on every request.</p>
@@ -409,15 +456,19 @@ ${musicPlayerStyle()}
     <pre>&lt;iframe src="https://esteamstv.devs.surf/embed/nickelodeon?token=..." 
         width="100%" height="400" frameborder="0" allowfullscreen&gt;
 &lt;/iframe&gt;</pre>
-    <p class="doc-p">Or, in a Telegram bot, send it as a link or a Web App button so it opens in-app. Either way, viewers see the ES TEAMS TV watermark on the player — that stays on regardless of where it's embedded.</p>
+    <p class="doc-p">Or, in a Telegram bot, send it as a link or a Web App button so it opens in-app. On the Free, Starter and Standard plans, viewers see the ES TEAMS TV watermark on the player — Pro and Max remove it.</p>
 
     <h2 class="doc-h2">Link lifetime</h2>
     <table>
-      <tr><th>Thing</th><th>Expires after</th></tr>
-      <tr><td>Embed link (<code>embed_url</code>)</td><td>6 hours</td></tr>
+      <tr><th>Plan</th><th>Embed link expires after</th></tr>
+      <tr><td>Free</td><td>6 hours</td></tr>
+      <tr><td>Starter</td><td>12 hours</td></tr>
+      <tr><td>Standard</td><td>24 hours</td></tr>
+      <tr><td>Pro</td><td>3 days</td></tr>
+      <tr><td>Max</td><td>7 days</td></tr>
     </table>
-    <p class="doc-p">Once a link expires, call <code>/api/v1/stream/:channel</code> again for a fresh one. Don't try to cache or redistribute the underlying player URL past its expiry — it stops working, by design.</p>
-    <p class="doc-p">Every link is also tied to the specific API key that generated it. If you revoke that key — from the dashboard, whether or not the link has hit its 6-hour mark yet — the link stops working immediately too. There's no way to keep a link alive past its key's lifetime, so revoking a key is a clean, complete way to cut off everything it was used for.</p>
+    <p class="doc-p">Once a link expires, call <code>/api/v1/stream/:channel</code> again for a fresh one — it's issued with whatever lifetime your current plan allows. Don't try to cache or redistribute the underlying player URL past its expiry — it stops working, by design.</p>
+    <p class="doc-p">Every link is also tied to the specific API key that generated it. If you revoke that key — from the dashboard, whether or not the link has hit its expiry yet — the link stops working immediately too. There's no way to keep a link alive past its key's lifetime, so revoking a key is a clean, complete way to cut off everything it was used for.</p>
 
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
     <p class="doc-p">30 requests per minute per API key on the issuance endpoints — plenty for normal use, since it's one call per viewer session, not per segment. On top of that, every account has a monthly allowance of 100 requests, shared across all your keys — it's tied to your account, so revoking a key and creating a new one doesn't reset it. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink2">API Dashboard</a>.</p>
@@ -460,11 +511,217 @@ ${musicPlayerStyle()}
     <button class="overlay-cancel" id="linkUrlCloseBtn" type="button">Close</button>
   </div>
 </div>
+
+<div class="page-overlay" id="planPayOverlay">
+  <div class="overlay-card">
+    <div class="overlay-step active" id="planPayStepIntro">
+      <div class="overlay-title" id="planPayTitle">Upgrade plan</div>
+      <div class="overlay-sub" id="planPaySub"></div>
+      <div class="dcard-msg err" id="planPayMsg"></div>
+      <button class="btn btn-primary" id="planPayBtn" type="button" style="width:100%;justify-content:center">Pay &amp; Upgrade</button>
+      <button class="overlay-cancel" id="planPayCancel1" type="button">Cancel</button>
+    </div>
+    <div class="overlay-step" id="planPayStepProcessing">
+      <div class="ch-loading">Confirming your payment…</div>
+    </div>
+    <div class="overlay-step" id="planPayStepSuccess">
+      <div class="overlay-title">Plan upgraded</div>
+      <div class="overlay-sub" id="planPaySuccessSub"></div>
+      <button class="btn btn-primary" id="planPayCancel2" type="button" style="width:100%;justify-content:center">Done</button>
+    </div>
+  </div>
+</div>
 ${musicPlayerHtml()}
 
 <script>
 (function(){
   'use strict';
+
+  var PAYSTACK_PUBLIC_KEY = ${JSON.stringify(cfg.paystackPublicKey || "")};
+  var currentProfile = null;
+
+  var PLAN_DEFS = [
+    { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, note: 'Default plan' },
+    { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, note: 'Auto with account verification' },
+    { key: 'standard', name: 'Standard', priceNgn: 3000, apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, note: '30 days' },
+    { key: 'pro', name: 'Pro', priceNgn: 5000, apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, note: '30 days' },
+    { key: 'max', name: 'Max', priceNgn: 10000, apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, note: '30 days', highlight: true },
+  ];
+
+  function fmtNgn(n){ return '₦' + n.toLocaleString('en-NG'); }
+  function fmtHours(h){ return h >= 24 ? Math.round(h / 24) + ' day' + (Math.round(h / 24) === 1 ? '' : 's') : h + ' hours'; }
+
+  function planFeatureRow(ok, label){
+    return '<div class="plan-feature' + (ok ? '' : ' off') + '">' +
+      (ok
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>'
+      ) + label + '</div>';
+  }
+
+  function renderPlans(){
+    var grid = document.getElementById('plansGrid');
+    var currentKey = currentProfile && currentProfile.apiPlan ? currentProfile.apiPlan.key : 'free';
+    var currentExpiresAt = currentProfile && currentProfile.apiPlan ? currentProfile.apiPlan.expiresAt : null;
+    var loggedIn = !!currentProfile;
+
+    grid.innerHTML = PLAN_DEFS.map(function(p){
+      var isCurrent = p.key === currentKey;
+      var cls = 'plan-card' + (isCurrent ? ' current' : '') + (p.highlight ? ' highlight' : '');
+      var priceHtml = p.priceNgn === 0
+        ? (p.key === 'starter' ? '<div class="plan-price">Free<span> · with verification</span></div>' : '<div class="plan-price">Free</div>')
+        : '<div class="plan-price">' + fmtNgn(p.priceNgn) + '<span> / 30 days</span></div>';
+
+      var cta;
+      if(!loggedIn){
+        cta = '<a class="btn btn-primary plan-cta" href="/login?next=%2Fdevelopers">Log in to upgrade</a>';
+      } else if(isCurrent){
+        cta = '<div class="plan-current-badge">Current plan' + (currentExpiresAt ? ' · until ' + fmtDate(currentExpiresAt) : '') + '</div>';
+      } else if(p.key === 'free'){
+        cta = '';
+      } else if(p.key === 'starter'){
+        cta = '<a class="btn plan-cta" href="/account" target="_blank" rel="noopener">Get Verified</a>';
+      } else {
+        cta = '<button class="btn btn-primary plan-cta" type="button" data-upgrade="' + p.key + '">Upgrade</button>';
+      }
+
+      return '<div class="' + cls + '">' +
+        '<div class="plan-name">' + p.name + '</div>' +
+        priceHtml +
+        '<div class="plan-note">' + (isCurrent ? '' : p.note) + '</div>' +
+        '<div class="plan-features">' +
+          planFeatureRow(true, p.apiKeys + ' API key' + (p.apiKeys === 1 ? '' : 's')) +
+          planFeatureRow(true, fmtHours(p.streamHours) + ' link lifetime') +
+          planFeatureRow(!p.watermark, 'No watermark') +
+          planFeatureRow(p.customVisitPage, 'Custom visit page link') +
+        '</div>' +
+        cta +
+      '</div>';
+    }).join('');
+
+    grid.querySelectorAll('[data-upgrade]').forEach(function(btn){
+      btn.addEventListener('click', function(){ openPlanPay(btn.getAttribute('data-upgrade')); });
+    });
+
+    var customWrap = document.getElementById('customVisitWrap');
+    if(currentKey === 'max'){
+      customWrap.style.display = 'block';
+      document.getElementById('customVisitInput').value = (currentProfile && currentProfile.customVisitPageUrl) || '';
+    } else {
+      customWrap.style.display = 'none';
+    }
+  }
+
+  var planPayOverlay = document.getElementById('planPayOverlay');
+  function showPlanPayStep(id){
+    planPayOverlay.querySelectorAll('.overlay-step').forEach(function(el){ el.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+  function openPlanPay(planKey){
+    var matches = PLAN_DEFS.filter(function(p){ return p.key === planKey; });
+    var def = matches[0];
+    if(!def) return;
+    document.getElementById('planPayTitle').textContent = 'Upgrade to ' + def.name;
+    document.getElementById('planPaySub').textContent = fmtNgn(def.priceNgn) + ' for 30 days — ' + def.apiKeys + ' API keys, ' + fmtHours(def.streamHours) + ' links' + (!def.watermark ? ', no watermark' : '') + (def.customVisitPage ? ', custom visit page' : '') + '.';
+    var payBtn = document.getElementById('planPayBtn');
+    payBtn.setAttribute('data-plan', planKey);
+    payBtn.disabled = false;
+    payBtn.textContent = 'Pay & Upgrade';
+    document.getElementById('planPayMsg').textContent = '';
+    showPlanPayStep('planPayStepIntro');
+    planPayOverlay.classList.add('show');
+  }
+  document.getElementById('planPayCancel1').addEventListener('click', function(){ planPayOverlay.classList.remove('show'); });
+  document.getElementById('planPayCancel2').addEventListener('click', function(){ planPayOverlay.classList.remove('show'); refreshProfileAndPlans(); });
+  planPayOverlay.addEventListener('click', function(e){ if(e.target === planPayOverlay) planPayOverlay.classList.remove('show'); });
+
+  document.getElementById('planPayBtn').addEventListener('click', function(){
+    var btn = this;
+    var plan = btn.getAttribute('data-plan');
+    var msg = document.getElementById('planPayMsg');
+    msg.textContent = '';
+    if(!PAYSTACK_PUBLIC_KEY || typeof PaystackPop === 'undefined'){
+      msg.textContent = 'Payments are temporarily unavailable. Please try again later.';
+      return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span>Starting…';
+    fetch('/api/plan/initialize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: plan }) })
+      .then(function(r){ return r.json().then(function(data){ return { ok: r.ok, data: data }; }); })
+      .then(function(res){
+        btn.disabled = false;
+        btn.textContent = 'Pay & Upgrade';
+        if(!res.ok){ msg.textContent = res.data.error || 'Could not start payment.'; return; }
+        var handler = PaystackPop.setup({
+          key: res.data.publicKey,
+          email: res.data.email,
+          amount: res.data.amountKobo,
+          ref: res.data.reference,
+          currency: 'NGN',
+          onClose: function(){},
+          callback: function(response){
+            showPlanPayStep('planPayStepProcessing');
+            confirmPlanPayment(response.reference);
+          },
+        });
+        handler.openIframe();
+      })
+      .catch(function(){
+        btn.disabled = false;
+        btn.textContent = 'Pay & Upgrade';
+        msg.textContent = 'Could not start payment.';
+      });
+  });
+
+  function confirmPlanPayment(reference){
+    fetch('/api/plan/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reference: reference }) })
+      .then(function(r){ return r.json().then(function(data){ return { ok: r.ok, data: data }; }); })
+      .then(function(res){
+        if(!res.ok){
+          showPlanPayStep('planPayStepIntro');
+          document.getElementById('planPayMsg').textContent = res.data.error || 'Could not confirm payment.';
+          return;
+        }
+        var matches = PLAN_DEFS.filter(function(p){ return p.key === res.data.plan; });
+        var def = matches[0];
+        document.getElementById('planPaySuccessSub').textContent = 'You are now on the ' + (def ? def.name : res.data.plan) + ' plan.';
+        showPlanPayStep('planPayStepSuccess');
+      })
+      .catch(function(){
+        showPlanPayStep('planPayStepIntro');
+        document.getElementById('planPayMsg').textContent = 'Could not confirm payment.';
+      });
+  }
+
+  function refreshProfileAndPlans(){
+    getJSON('/api/profile').then(function(r){
+      if(r.ok){ currentProfile = r.data; renderPlans(); loadKeys(); }
+    });
+  }
+
+  document.getElementById('customVisitSaveBtn').addEventListener('click', function(){
+    var btn = this;
+    var input = document.getElementById('customVisitInput');
+    var msg = document.getElementById('customVisitMsg');
+    btn.disabled = true;
+    var originalHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="btn-spinner"></span>Saving…';
+    fetch('/api/plan/custom-visit-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: input.value }) })
+      .then(function(r){ return r.json().then(function(data){ return { ok: r.ok, data: data }; }); })
+      .then(function(res){
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        if(!res.ok){ msg.textContent = res.data.error || 'Could not save that link.'; msg.className = 'dcard-msg err'; return; }
+        msg.textContent = 'Saved.';
+        msg.className = 'dcard-msg ok';
+      })
+      .catch(function(){
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        msg.textContent = 'Could not save that link.';
+        msg.className = 'dcard-msg err';
+      });
+  });
 
   var viewDash = document.getElementById('view-dash');
   var viewDocs = document.getElementById('view-docs');
@@ -474,6 +731,7 @@ ${musicPlayerHtml()}
   document.getElementById('backToDashBtn').addEventListener('click', function(e){ e.preventDefault(); showDash(); });
   document.getElementById('docsToDashLink1').addEventListener('click', function(e){ e.preventDefault(); showDash(); });
   document.getElementById('docsToDashLink2').addEventListener('click', function(e){ e.preventDefault(); showDash(); });
+  document.getElementById('docsToDashLink3').addEventListener('click', function(e){ e.preventDefault(); showDash(); });
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
   function fmtDate(ms){ if(!ms) return 'never'; var d = new Date(ms); return d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }); }
@@ -531,8 +789,9 @@ ${musicPlayerHtml()}
       '<a class="btn btn-primary" href="/login?next=%2Fdevelopers">Log in</a>';
   }
 
-  function renderKeys(keys, usage){
+  function renderKeys(keys, usage, plan){
     var html = '';
+    var keyLimit = plan ? plan.apiKeys : 1;
 
     if(usage){
       var pct = usage.monthlyLimit ? Math.min(100, Math.round((usage.requestsThisMonth / usage.monthlyLimit) * 100)) : 0;
@@ -557,7 +816,7 @@ ${musicPlayerHtml()}
         '</div>';
       });
     }
-    var atMax = keys.length >= 5;
+    var atMax = keys.length >= keyLimit;
     html += '<div class="field" style="margin-top:12px' + (atMax ? ';display:none' : '') + '" id="createKeyField">' +
       '<label>Label a new key</label>' +
       '<input type="text" id="newKeyLabel" placeholder="e.g. My Discord bot" maxlength="60">' +
@@ -565,7 +824,7 @@ ${musicPlayerHtml()}
     '<button class="btn btn-primary" id="createKeyBtn" type="button" disabled style="' + (atMax ? 'display:none' : '') + '">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Create API Key' +
     '</button>' +
-    (atMax ? '<div class="empty-state">Maximum of 5 keys reached. Revoke one to create another.</div>' : '') +
+    (atMax ? '<div class="empty-state">Maximum of ' + keyLimit + ' key' + (keyLimit === 1 ? '' : 's') + ' reached for your plan. Revoke one, or upgrade your plan above.</div>' : '') +
     '<div id="revealBoxWrap">' + revealBoxHtml(lastRevealedKey) + '</div>' +
     '<div class="dcard-msg" id="keyMsg"></div>';
 
@@ -629,7 +888,7 @@ ${musicPlayerHtml()}
   function loadKeys(){
     getJSON('/api/dev/keys').then(function(r){
       if(!r.ok){ renderLoggedOutKeyCard(); return; }
-      renderKeys(r.data.keys || [], r.data.usage || null);
+      renderKeys(r.data.keys || [], r.data.usage || null, r.data.plan || null);
     }).catch(function(){ renderLoggedOutKeyCard(); });
   }
 
@@ -735,12 +994,14 @@ ${musicPlayerHtml()}
   });
 
   getJSON('/api/profile').then(function(r){
-    if(r.ok){ loadKeys(); loadLinks(); } else {
+    if(r.ok){ currentProfile = r.data; loadKeys(); loadLinks(); } else {
+      currentProfile = null;
       renderLoggedOutKeyCard();
       linksList.innerHTML = '<div class="ch-loading">Log in to see your generated links.</div>';
       linksCountSub.textContent = '';
     }
-  }).catch(function(){ renderLoggedOutKeyCard(); });
+    renderPlans();
+  }).catch(function(){ currentProfile = null; renderLoggedOutKeyCard(); renderPlans(); });
 
   var chList = document.getElementById('chList');
   var chSearchInput = document.getElementById('chSearchInput');

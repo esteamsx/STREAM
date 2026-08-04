@@ -11,10 +11,15 @@ import {
   listApiKeysForUser,
   revokeApiKey,
   findApiKeyByRawKey,
+  getApiKeyOwnerUid,
   getAccountApiUsage,
   checkAndIncrementAccountApiUsage,
   recordIssuedStreamLink,
   getIssuedStreamLinks,
+  getUserProfile,
+  getEffectiveApiPlan,
+  getApiPlanConfig,
+  API_PLANS,
 } from "../services/auth.js";
 
 const router = express.Router();
@@ -28,6 +33,14 @@ const UPSTREAM_HEADERS = {
 };
 
 const PUBLIC_BASE = "https://esteamstv.devs.surf";
+
+function escapeAttr(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 function getStreamTokenSecret() {
   if (process.env.STREAM_TOKEN_SECRET) return process.env.STREAM_TOKEN_SECRET;
@@ -61,9 +74,10 @@ const VALID_CHANNEL_IDS = new Set(
   liveTV.flatMap((cat) => cat.channels).filter((c) => !c.redirect).map((c) => c.id)
 );
 
-function signStreamToken(channel, ttlMs, keyId) {
+function signStreamToken(channel, ttlMs, keyId, watermark = true) {
   const exp = Date.now() + ttlMs;
-  const payloadB64 = Buffer.from(`${channel}|${exp}|${keyId}`).toString("base64url");
+  const wm = watermark ? "1" : "0";
+  const payloadB64 = Buffer.from(`${channel}|${exp}|${keyId}|${wm}`).toString("base64url");
   const sig = crypto.createHmac("sha256", STREAM_TOKEN_SECRET).update(payloadB64).digest("hex").slice(0, 32);
   return `${payloadB64}.${sig}`;
 }
@@ -81,10 +95,10 @@ function decodeStreamToken(token) {
   } catch {
     return { ok: false };
   }
-  const [channel, expStr, keyId] = payload.split("|");
+  const [channel, expStr, keyId, wmStr] = payload.split("|");
   const exp = Number(expStr);
   if (!channel || !exp) return { ok: false };
-  return { ok: true, channel, exp, keyId };
+  return { ok: true, channel, exp, keyId, watermark: wmStr !== "0" };
 }
 
 function verifyStreamToken(token, expectedChannel) {
@@ -93,7 +107,7 @@ function verifyStreamToken(token, expectedChannel) {
   if (Date.now() > decoded.exp) return { valid: false };
   if (expectedChannel && decoded.channel !== expectedChannel) return { valid: false };
   if (decoded.keyId && revokedApiKeyIds.has(decoded.keyId)) return { valid: false };
-  return { valid: true, channel: decoded.channel, exp: decoded.exp, keyId: decoded.keyId };
+  return { valid: true, channel: decoded.channel, exp: decoded.exp, keyId: decoded.keyId, watermark: decoded.watermark };
 }
 
 const resourceStores = new Map();
@@ -121,8 +135,6 @@ setInterval(() => {
     if (store.expiresAt < now) resourceStores.delete(token);
   }
 }, 5 * 60 * 1000).unref();
-
-const STREAM_LINK_TTL_MS = 6 * 60 * 60 * 1000;
 
 const REVOKED_KEYS_PATH = path.join(process.cwd(), ".revoked-api-keys.log");
 const revokedApiKeyIds = new Set();
@@ -340,23 +352,29 @@ router.get("/api/v1/channels", devApiLimiter, (req, res) => {
   });
 });
 
-router.get("/api/v1/stream/:channel", requireApiKey, devApiLimiter, (req, res) => {
+router.get("/api/v1/stream/:channel", requireApiKey, devApiLimiter, async (req, res) => {
   const { channel } = req.params;
   if (!VALID_CHANNEL_IDS.has(channel)) return res.status(404).json({ error: "Unknown channel id. See /api/v1/channels." });
 
-  const ttlMs = STREAM_LINK_TTL_MS;
-  const token = signStreamToken(channel, ttlMs, req.apiKeyId);
+  const ownerProfile = await getUserProfile(req.apiKeyUid).catch(() => null);
+  const plan = getApiPlanConfig(ownerProfile);
+  const ttlMs = plan.streamHours * 60 * 60 * 1000;
+  const token = signStreamToken(channel, ttlMs, req.apiKeyId, plan.watermark);
   const createdAt = Date.now();
   recordIssuedLink(req.apiKeyUid, { channel, token, createdAt, exp: createdAt + ttlMs });
   res.json({
     channel,
     embed_url: `${PUBLIC_BASE}/embed/${encodeURIComponent(channel)}?token=${encodeURIComponent(token)}`,
     expires_at: new Date(createdAt + ttlMs).toISOString(),
-    note: "Embed this URL in an iframe (or open it directly). It carries the ES TEAMS TV watermark and expires — it isn't the real stream source, and can't be used to reach it.",
+    watermark: plan.watermark,
+    plan: plan.name,
+    note: plan.watermark
+      ? "Embed this URL in an iframe (or open it directly). It carries the ES TEAMS TV watermark and expires — it isn't the real stream source, and can't be used to reach it."
+      : "Embed this URL in an iframe (or open it directly). Your plan has the watermark removed. It still expires and isn't the real stream source, so it can't be used to reach it.",
   });
 });
 
-router.get("/embed/:channel", (req, res) => {
+router.get("/embed/:channel", async (req, res) => {
   const { channel } = req.params;
   const { token } = req.query;
   const check = verifyStreamToken(token, channel);
@@ -365,6 +383,20 @@ router.get("/embed/:channel", (req, res) => {
   res.set("Cache-Control", "no-store");
 
   if (!check.valid) {
+    let visitUrl = PUBLIC_BASE;
+    const decoded = decodeStreamToken(token);
+    if (decoded.ok && decoded.keyId) {
+      try {
+        const ownerUid = await getApiKeyOwnerUid(decoded.keyId);
+        if (ownerUid) {
+          const ownerProfile = await getUserProfile(ownerUid);
+          if (ownerProfile && getEffectiveApiPlan(ownerProfile) === "max" && ownerProfile.customVisitPageUrl) {
+            visitUrl = ownerProfile.customVisitPageUrl;
+          }
+        }
+      } catch {
+      }
+    }
     res.status(403).type("html").send(`<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
@@ -386,7 +418,7 @@ router.get("/embed/:channel", (req, res) => {
   <div class="card">
     <div class="title">This video streaming link has expired / Invalid</div>
     <div class="sub">Want more access?</div>
-    <a class="visit-btn" href="${PUBLIC_BASE}" target="_top" rel="noopener">
+    <a class="visit-btn" href="${escapeAttr(visitUrl)}" target="_top" rel="noopener">
       Visit Page
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
     </a>
@@ -398,6 +430,7 @@ router.get("/embed/:channel", (req, res) => {
 
   const channelMeta = liveTV.flatMap((c) => c.channels).find((c) => c.id === channel);
   const title = channelMeta ? channelMeta.name : channel;
+  const showWatermark = check.watermark !== false;
 
   res.type("html").send(`<!doctype html>
 <html>
@@ -446,7 +479,7 @@ router.get("/embed/:channel", (req, res) => {
 <div class="wrap">
   <video id="v" playsinline autoplay muted></video>
 
-  <a class="wm-hitbox"
+  ${showWatermark ? `<a class="wm-hitbox"
      href="https://whatsapp.com/channel/0029VatAyCwFy72JdZXFPm29"
      target="_blank"
      rel="noopener noreferrer"
@@ -457,7 +490,7 @@ router.get("/embed/:channel", (req, res) => {
       <path d="M9 12l2 2 4-4" stroke-width="2"/>
     </svg>
     <span class="wm-name">ES TEAMS TV</span>
-  </div>
+  </div>` : ""}
   <div class="status" id="status">Connecting…</div>
   <button type="button" class="mute-btn muted" id="muteBtn" aria-label="Toggle sound">
     <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
@@ -506,8 +539,11 @@ router.post("/api/dev/keys", requireAuth, async (req, res) => {
   try {
     const label = ((req.body && req.body.label) || "").trim();
     if (!label) return res.status(400).json({ error: "Give the key a name first." });
+    const plan = getApiPlanConfig(req.userProfile);
     const existing = await listApiKeysForUser(req.uid);
-    if (existing.length >= 5) return res.status(400).json({ error: "You can have up to 5 API keys. Revoke one first." });
+    if (existing.length >= plan.apiKeys) {
+      return res.status(400).json({ error: `Your ${plan.name} plan allows up to ${plan.apiKeys} API key${plan.apiKeys === 1 ? "" : "s"}. Revoke one, or upgrade your plan on /developers.` });
+    }
     const { id, rawKey } = await createApiKey(req.uid, label);
     res.json({ id, key: rawKey });
   } catch (err) {
@@ -522,6 +558,11 @@ router.get("/api/dev/keys", requireAuth, async (req, res) => {
       listApiKeysForUser(req.uid),
       getAccountApiUsage(req.uid),
     ]);
+    const planKey = getEffectiveApiPlan(req.userProfile);
+    const plan = API_PLANS[planKey];
+    let planExpiresAt = null;
+    if (planKey !== "free" && planKey !== "starter") planExpiresAt = req.userProfile.apiPlanExpiresAt || null;
+    else if (planKey === "starter") planExpiresAt = req.userProfile.verifiedExpiresAt || null;
     res.json({
       keys: keys.map((k) => ({
         id: k.id,
@@ -533,6 +574,15 @@ router.get("/api/dev/keys", requireAuth, async (req, res) => {
       usage: {
         requestsThisMonth: usage.requestsThisMonth,
         monthlyLimit: usage.monthlyLimit,
+      },
+      plan: {
+        key: planKey,
+        name: plan.name,
+        apiKeys: plan.apiKeys,
+        streamHours: plan.streamHours,
+        watermark: plan.watermark,
+        customVisitPage: plan.customVisitPage,
+        expiresAt: planExpiresAt,
       },
     });
   } catch (err) {
@@ -558,7 +608,7 @@ function describeLink(channel, createdAt, exp, token, keyId) {
   return {
     channel,
     channel_name: channelDisplayName(channel),
-    created_at: new Date(createdAt).toISOString(),
+    created_at: createdAt ? new Date(createdAt).toISOString() : null,
     expires_at: new Date(exp).toISOString(),
     status: now > exp || revoked ? "expired" : "active",
     ms_left: Math.max(0, exp - now),
@@ -596,7 +646,7 @@ router.get("/api/dev/links/lookup", requireAuth, (req, res) => {
   const decoded = decodeStreamToken(token);
   if (!decoded.ok) return res.json({ valid: false });
 
-  res.json({ valid: true, ...describeLink(decoded.channel, decoded.exp - STREAM_LINK_TTL_MS, decoded.exp, token, decoded.keyId) });
+  res.json({ valid: true, ...describeLink(decoded.channel, null, decoded.exp, token, decoded.keyId) });
 });
 
 export { router as apiRouter };
