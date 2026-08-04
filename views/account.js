@@ -460,8 +460,13 @@ body:has(.page-overlay.show){overflow:hidden}
 .cert-meta-label{display:block;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px}
 .cert-meta-val{display:block;font-family:var(--font-mono);font-size:.82rem;color:var(--text)}
 .cert-meta-row div:last-child{text-align:right}
-.cert-signature{font-family:var(--font-script);font-size:1.7rem;color:var(--accent2);text-align:center;line-height:1}
-.cert-signature-label{font-size:.64rem;color:var(--muted);text-align:center;margin-top:6px;text-transform:uppercase;letter-spacing:.06em}
+.cert-signature-wrap{display:flex;flex-direction:column;align-items:center}
+.cert-signature{
+  font-family:var(--font-script);font-size:2rem;font-weight:700;color:var(--accent2);line-height:1;
+  letter-spacing:-1px;transform:rotate(-4deg) skewX(-8deg);
+}
+.cert-signature-flourish{width:150px;height:24px;color:var(--accent2);opacity:.7;margin-top:-4px;transform:rotate(-2deg)}
+.cert-signature-label{font-size:.64rem;color:var(--muted);text-align:center;margin-top:4px;text-transform:uppercase;letter-spacing:.06em}
 .cert-tear-edge{display:none;height:14px;margin:16px -24px -20px;
   background:
     linear-gradient(135deg, var(--dark) 25%, transparent 25%) -7px 0,
@@ -1048,7 +1053,12 @@ body:has(.page-overlay.show){overflow:hidden}
           <span class="cert-meta-val" id="certExpires">–</span>
         </div>
       </div>
-      <div class="cert-signature" id="certSignature">–</div>
+      <div class="cert-signature-wrap">
+        <div class="cert-signature">Es Teams</div>
+        <svg class="cert-signature-flourish" viewBox="0 0 220 40" preserveAspectRatio="none">
+          <path d="M6 22 C 34 4, 58 36, 90 16 S 148 2, 176 24 S 210 8, 214 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
       <div class="cert-signature-label">Authorized Signature — ES TEAMS TV</div>
       <div class="cert-tear-edge"></div>
     </div>
@@ -2615,7 +2625,6 @@ function openCertOverlay(){
   document.getElementById('certUsername').textContent = '@' + (profile.username || '');
   document.getElementById('certIssued').textContent = formatCertDate(profile.verifiedAt);
   document.getElementById('certExpires').textContent = formatCertDate(profile.verifiedExpiresAt);
-  document.getElementById('certSignature').textContent = fullName;
   const chip = document.getElementById('certStatusChip');
   chip.textContent = expired ? 'EXPIRED' : 'VALID';
   chip.className = 'cert-status-chip' + (expired ? ' expired' : '');
@@ -2737,13 +2746,29 @@ async function drawCertificateCanvas(data){
   ctx.fillStyle = text;
   ctx.fillText(data.expires, W - pad - 60, pad + 335);
 
+  ctx.save();
+  ctx.translate(W / 2, pad + 415);
+  ctx.rotate(-0.08);
+  ctx.transform(1, 0, -0.18, 1, 0, 0);
   ctx.textAlign = 'center';
-  ctx.font = '700 46px "Dancing Script", cursive';
+  ctx.font = '700 50px "Dancing Script", cursive';
   ctx.fillStyle = accent2;
-  ctx.fillText(data.fullName, W / 2, pad + 420);
+  ctx.fillText('Es Teams', 0, 0);
+  ctx.globalAlpha = 0.7;
+  ctx.strokeStyle = accent2;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-72, 18);
+  ctx.bezierCurveTo(-38, -2, -8, 30, 22, 8);
+  ctx.bezierCurveTo(48, -10, 68, 4, 74, -2);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
 
   ctx.font = '700 12px "Inter", sans-serif';
   ctx.fillStyle = muted;
+  ctx.textAlign = 'center';
   ctx.fillText('AUTHORIZED SIGNATURE — ES TEAMS TV', W / 2, pad + 450);
 
   if (data.expired) {
