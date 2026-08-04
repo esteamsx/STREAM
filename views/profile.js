@@ -328,14 +328,29 @@ body:has(.page-overlay.show){overflow:hidden}
 .lightbox-close{
   position:absolute;top:18px;right:18px;width:38px;height:38px;border-radius:50%;
   background:rgba(255,255,255,.12);border:none;color:#fff;display:flex;align-items:center;justify-content:center;
+  transition:transform .15s var(--ease);
 }
+.lightbox-close:active{transform:scale(.9)}
 .lightbox-close svg{width:18px;height:18px}
 .lightbox-download{
   display:flex;align-items:center;gap:7px;padding:10px 20px;border-radius:24px;
   background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;font-size:.85rem;font-weight:700;
-  text-decoration:none;
+  text-decoration:none;transition:transform .15s var(--ease),opacity .2s var(--ease);
 }
-.lightbox-download svg{width:16px;height:16px}
+.lightbox-download:active{transform:scale(.95)}
+.lightbox-download.downloading{opacity:.85}
+.lb-dl-icon{position:relative;width:16px;height:16px;flex-shrink:0}
+.lb-dl-icon svg{position:absolute;inset:0;width:16px;height:16px}
+.lb-dl-spinner{
+  display:none;position:absolute;inset:0;width:16px;height:16px;box-sizing:border-box;border-radius:50%;
+  border:2px solid rgba(4,20,26,.3);border-top-color:#04141a;animation:lbDlSpin .7s linear infinite;
+}
+@keyframes lbDlSpin{to{transform:rotate(360deg)}}
+.lb-dl-check{display:none}
+.lightbox-download.downloading .lb-dl-arrow{display:none}
+.lightbox-download.downloading .lb-dl-spinner{display:block}
+.lightbox-download.done .lb-dl-arrow{display:none}
+.lightbox-download.done .lb-dl-check{display:block}
 .pf-post-footer{display:flex;align-items:center;gap:6px;margin-top:10px}
 .pf-post-heart{background:transparent;border:none;color:var(--muted);display:flex;align-items:center;padding:2px}
 .pf-post-heart svg{width:21px;height:21px;transition:transform .15s var(--ease)}
@@ -633,8 +648,12 @@ body:has(.page-overlay.show){overflow:hidden}
   </button>
   <img id="lightboxImg" alt="">
   <a class="lightbox-download" id="lightboxDownloadBtn" download="photo.jpg">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
-    Download
+    <span class="lb-dl-icon">
+      <svg class="lb-dl-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+      <span class="lb-dl-spinner"></span>
+      <svg class="lb-dl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    </span>
+    <span class="lb-dl-label">Download</span>
   </a>
 </div>
 
@@ -1616,12 +1635,22 @@ function openImageLightbox(src, name){
   dl.download = name || 'photo.jpg';
   document.getElementById('imgLightboxOverlay').classList.add('show');
 }
+function playDownloadAnimation(btn){
+  btn.classList.remove('done');
+  btn.classList.add('downloading');
+  setTimeout(() => {
+    btn.classList.remove('downloading');
+    btn.classList.add('done');
+    setTimeout(() => btn.classList.remove('done'), 1200);
+  }, 600);
+}
 document.getElementById('lightboxCloseBtn').addEventListener('click', () => {
   document.getElementById('imgLightboxOverlay').classList.remove('show');
 });
 document.getElementById('imgLightboxOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'imgLightboxOverlay') document.getElementById('imgLightboxOverlay').classList.remove('show');
 });
+document.getElementById('lightboxDownloadBtn').addEventListener('click', function(){ playDownloadAnimation(this); });
 document.getElementById('postVisCloseBtn').addEventListener('click', () => {
   document.getElementById('postVisibilityOverlay').classList.remove('show');
 });
