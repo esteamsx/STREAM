@@ -2285,19 +2285,69 @@ async function setMaintenanceMode(enabled) {
 }
 
 const SUPPORT_MESSAGE_MAX_LEN = 2000;
+const SUPPORT_MESSAGE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+const SUPPORT_ATTACHMENT_MAX_BYTES = 900 * 1024;
+const SUPPORT_ATTACHMENT_TYPES = ["image", "file", "voice"];
+const ATTACHMENT_PREVIEW_LABEL = { image: "📷 Photo", file: "📎 File", voice: "🎤 Voice message" };
 
-async function sendSupportMessage(uid, text, fromAdmin) {
+function validateSupportAttachment(attachment) {
+  if (!attachment) return null;
+  const { dataUrl, type, name } = attachment;
+  if (!SUPPORT_ATTACHMENT_TYPES.includes(type)) throw new Error("Unsupported attachment type.");
+  if (typeof dataUrl !== "string" || !/^data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base64,/i.test(dataUrl)) {
+    throw new Error("That attachment couldn't be read.");
+  }
+  if (dataUrl.length > SUPPORT_ATTACHMENT_MAX_BYTES) throw new Error("That attachment is too large.");
+  return { dataUrl, type, name: type === "file" ? String(name || "file").slice(0, 200) : null };
+}
+
+async function purgeExpiredSupportMessages(uid) {
+  const cutoff = Date.now() - SUPPORT_MESSAGE_TTL_MS;
+  const threadRef = db.collection("supportThreads").doc(uid);
+  const oldSnap = await threadRef.collection("messages").where("createdAt", "<", cutoff).get();
+  if (oldSnap.empty) return;
+  const batch = db.batch();
+  oldSnap.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
+  const remainingSnap = await threadRef.collection("messages").orderBy("createdAt", "desc").limit(1).get();
+  if (remainingSnap.empty) {
+    await threadRef.update({ lastMessageText: "", lastMessageAt: null }).catch(() => {});
+  } else {
+    const last = remainingSnap.docs[0].data();
+    const preview = last.text || ATTACHMENT_PREVIEW_LABEL[last.attachmentType] || "";
+    await threadRef.update({ lastMessageText: preview, lastMessageAt: last.createdAt }).catch(() => {});
+  }
+}
+
+async function sweepExpiredSupportMessages() {
+  const snap = await db.collection("supportThreads").get();
+  for (const doc of snap.docs) {
+    await purgeExpiredSupportMessages(doc.id).catch(() => {});
+  }
+}
+
+async function sendSupportMessage(uid, text, fromAdmin, attachment) {
   const trimmed = String(text || "").trim();
-  if (!trimmed) throw new Error("Type a message first.");
+  const cleanAttachment = validateSupportAttachment(attachment);
+  if (!trimmed && !cleanAttachment) throw new Error("Type a message first.");
   if (trimmed.length > SUPPORT_MESSAGE_MAX_LEN) throw new Error("Message is too long.");
   const now = Date.now();
   const threadRef = db.collection("supportThreads").doc(uid);
   const msgRef = threadRef.collection("messages").doc();
-  await msgRef.set({ text: trimmed, fromAdmin: !!fromAdmin, createdAt: now });
+  const messageDoc = {
+    text: trimmed,
+    fromAdmin: !!fromAdmin,
+    createdAt: now,
+    attachmentDataUrl: cleanAttachment ? cleanAttachment.dataUrl : null,
+    attachmentType: cleanAttachment ? cleanAttachment.type : null,
+    attachmentName: cleanAttachment ? cleanAttachment.name : null,
+  };
+  await msgRef.set(messageDoc);
+  const preview = trimmed || (cleanAttachment ? ATTACHMENT_PREVIEW_LABEL[cleanAttachment.type] : "");
   await threadRef.set(
     {
       uid,
-      lastMessageText: trimmed,
+      lastMessageText: preview,
       lastMessageAt: now,
       updatedAt: now,
       unreadForAdmin: admin.firestore.FieldValue.increment(fromAdmin ? 0 : 1),
@@ -2305,10 +2355,11 @@ async function sendSupportMessage(uid, text, fromAdmin) {
     },
     { merge: true }
   );
-  return { id: msgRef.id, text: trimmed, fromAdmin: !!fromAdmin, createdAt: now };
+  return { id: msgRef.id, ...messageDoc };
 }
 
 async function getSupportMessages(uid, asAdmin) {
+  await purgeExpiredSupportMessages(uid).catch(() => {});
   const threadRef = db.collection("supportThreads").doc(uid);
   const [msgSnap, threadSnap] = await Promise.all([
     threadRef.collection("messages").orderBy("createdAt", "asc").limit(500).get(),
@@ -2379,6 +2430,7 @@ export {
   getSupportUnreadCountForUser,
   getSupportUnreadCountForAdmin,
   getSupportThreadsForAdmin,
+  sweepExpiredSupportMessages,
 };
 
 export {

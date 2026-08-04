@@ -183,6 +183,7 @@ import {
   getSupportUnreadCountForUser,
   getSupportUnreadCountForAdmin,
   getSupportThreadsForAdmin,
+  sweepExpiredSupportMessages,
   requireAuth,
   isAdminEmail,
   isVerificationActive,
@@ -1469,12 +1470,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .notif-nav-dot.show{display:block}
 .bnav-icon-wrap{position:relative;display:inline-flex}
 .bnav-icon-wrap .notif-nav-dot{top:-3px;right:-5px;border-color:var(--nav-bg,var(--card2))}
-.bnav-badge{
-  position:absolute;top:-6px;right:-8px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;
-  background:var(--red);color:#fff;font-size:.58rem;font-weight:800;display:none;align-items:center;justify-content:center;
-  border:2px solid var(--nav-bg,var(--card2));line-height:1;pointer-events:none;
-}
-.bnav-badge.show{display:flex}
 .notif-menu-dot{
   display:none;width:6px;height:6px;border-radius:50%;background:var(--red);margin-left:auto;flex-shrink:0;
 }
@@ -2012,7 +2007,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     <span class="bnav-icon-wrap">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span class="notif-nav-dot js-notif-dot" id="bnavProfileDot"></span>
-      <span class="bnav-badge" id="bnavSupportBadge"></span>
     </span>
     Profile
   </a>
@@ -3225,13 +3219,8 @@ function fsRunSearch(q){
           el.classList.toggle('show', hasNewPosts);
         });
         document.querySelectorAll('.js-notif-dot').forEach(function(el){
-          el.classList.toggle('show', hasUnread || hasNewPosts || supportCount > 0);
+          el.classList.toggle('show', hasUnread || hasNewPosts);
         });
-        var supportBadge = document.getElementById('bnavSupportBadge');
-        if (supportBadge) {
-          supportBadge.textContent = supportCount > 99 ? '99+' : (supportCount || '');
-          supportBadge.classList.toggle('show', supportCount > 0);
-        }
       });
     }
     refreshNotifDots();
@@ -3561,7 +3550,7 @@ app.get("/api/admin/support/threads/:uid/messages", requireAuth, requireAdmin, a
 
 app.post("/api/admin/support/threads/:uid/messages", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const message = await sendSupportMessage(req.params.uid, req.body?.text, true);
+    const message = await sendSupportMessage(req.params.uid, req.body?.text, true, req.body?.attachment);
     res.json({ message });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not send that message." });
@@ -4585,7 +4574,7 @@ app.get("/api/support/messages", requireAuth, async (req, res) => {
 
 app.post("/api/support/messages", requireAuth, async (req, res) => {
   try {
-    const message = await sendSupportMessage(req.uid, req.body?.text, false);
+    const message = await sendSupportMessage(req.uid, req.body?.text, false, req.body?.attachment);
     res.json({ message });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not send that message." });
@@ -5267,6 +5256,11 @@ setInterval(() => {
 sweepOrphanedUsers().catch((err) => console.error("Orphaned user sweep failed:", err));
 setInterval(() => {
   sweepOrphanedUsers().catch((err) => console.error("Orphaned user sweep failed:", err));
+}, 30 * 60 * 1000);
+
+sweepExpiredSupportMessages().catch((err) => console.error("Support message sweep failed:", err));
+setInterval(() => {
+  sweepExpiredSupportMessages().catch((err) => console.error("Support message sweep failed:", err));
 }, 30 * 60 * 1000);
 
 setInterval(() => {
