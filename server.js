@@ -67,6 +67,12 @@ import { renderMarkdownPreview } from "./views/tools/markdown-preview.js";
 import { renderFakeData } from "./views/tools/fake-data.js";
 import { renderTextEncrypt } from "./views/tools/text-encrypt.js";
 import { renderTypingTest } from "./views/tools/typing-test.js";
+import { renderIpLookup } from "./views/tools/ip-lookup.js";
+import { renderHttpHeaders } from "./views/tools/http-headers.js";
+import { renderCronExplainer } from "./views/tools/cron-explainer.js";
+import { renderCssGradient } from "./views/tools/css-gradient.js";
+import { renderTipCalculator } from "./views/tools/tip-calculator.js";
+import { renderRandomQuote } from "./views/tools/random-quote.js";
 import { toolsRouter } from "./routes/tools.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
@@ -421,6 +427,12 @@ const cachedToolsMarkdownPreviewHtml = renderMarkdownPreview(authPageConfig);
 const cachedToolsFakeDataHtml = renderFakeData(authPageConfig);
 const cachedToolsTextEncryptHtml = renderTextEncrypt(authPageConfig);
 const cachedToolsTypingTestHtml = renderTypingTest(authPageConfig);
+const cachedToolsIpLookupHtml = renderIpLookup(authPageConfig);
+const cachedToolsHttpHeadersHtml = renderHttpHeaders(authPageConfig);
+const cachedToolsCronExplainerHtml = renderCronExplainer(authPageConfig);
+const cachedToolsCssGradientHtml = renderCssGradient(authPageConfig);
+const cachedToolsTipCalculatorHtml = renderTipCalculator(authPageConfig);
+const cachedToolsRandomQuoteHtml = renderRandomQuote(authPageConfig);
 
 const cachedFootballHtml = (() => {
   try {
@@ -3861,6 +3873,30 @@ app.get("/tools/text-encrypt", scrapeGate, (req, res) => {
 
 app.get("/tools/typing-test", scrapeGate, (req, res) => {
   res.send(cachedToolsTypingTestHtml);
+});
+
+app.get("/tools/ip-lookup", scrapeGate, (req, res) => {
+  res.send(cachedToolsIpLookupHtml);
+});
+
+app.get("/tools/http-headers", scrapeGate, (req, res) => {
+  res.send(cachedToolsHttpHeadersHtml);
+});
+
+app.get("/tools/cron-explainer", scrapeGate, (req, res) => {
+  res.send(cachedToolsCronExplainerHtml);
+});
+
+app.get("/tools/css-gradient", scrapeGate, (req, res) => {
+  res.send(cachedToolsCssGradientHtml);
+});
+
+app.get("/tools/tip-calculator", scrapeGate, (req, res) => {
+  res.send(cachedToolsTipCalculatorHtml);
+});
+
+app.get("/tools/random-quote", scrapeGate, (req, res) => {
+  res.send(cachedToolsRandomQuoteHtml);
 });
 
 app.get("/api/bots/cap", requireAuth, async (req, res) => {

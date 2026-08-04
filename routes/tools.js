@@ -1380,4 +1380,192 @@ router.post("/api/tools/fake-data", optionalAuth, toolGate("fake-data"), async (
   res.json({ people });
 });
 
+router.post("/api/tools/ip-lookup", optionalAuth, toolGate("ip-lookup"), async (req, res) => {
+  const raw = String(req.body?.ip || "").trim();
+  const target = raw || req.ip;
+  try {
+    const upstream = await fetch(`https://ipapi.co/${encodeURIComponent(target)}/json/`, {
+      headers: { "user-agent": "ES-TEAMS-TV-Tools/1.0" },
+    });
+    const data = await upstream.json().catch(() => null);
+    if (!data || data.error) return res.status(400).json({ error: data?.reason || "Could not look up that IP." });
+    res.json({
+      ip: data.ip, city: data.city, region: data.region, country: data.country_name,
+      postal: data.postal, timezone: data.timezone, isp: data.org, latitude: data.latitude, longitude: data.longitude,
+    });
+  } catch (err) {
+    res.status(502).json({ error: "Could not reach the IP lookup service." });
+  }
+});
+
+router.post("/api/tools/http-headers", optionalAuth, toolGate("http-headers"), async (req, res) => {
+  let raw = String(req.body?.url || "").trim();
+  if (!raw) return res.status(400).json({ error: "Enter a URL first." });
+  if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw;
+  let target;
+  try { target = new URL(raw); } catch { return res.status(400).json({ error: "That's not a valid URL." }); }
+  try {
+    const upstream = await fetch(target.href, { method: "GET", redirect: "follow", headers: { "user-agent": "ES-TEAMS-TV-Tools/1.0" } });
+    const headers = {};
+    upstream.headers.forEach((value, key) => { headers[key] = value; });
+    res.json({ status: upstream.status, statusText: upstream.statusText, headers });
+  } catch (err) {
+    res.status(502).json({ error: "Could not reach that URL." });
+  }
+});
+
+const CRON_MONTH_NAMES = ["", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const CRON_DOW_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+function cronNameToNum(token, names) {
+  if (/^\d+$/.test(token)) return parseInt(token, 10);
+  const idx = names ? names.indexOf(token.toUpperCase()) : -1;
+  if (idx === -1) throw new Error("Invalid cron field value: " + token);
+  return idx;
+}
+
+function parseCronField(field, min, max, names) {
+  const values = new Set();
+  for (const part of field.split(",")) {
+    let m;
+    if (part === "*") { for (let v = min; v <= max; v++) values.add(v); }
+    else if ((m = part.match(/^\*\/(\d+)$/))) {
+      const step = parseInt(m[1], 10);
+      for (let v = min; v <= max; v += step) values.add(v);
+    } else if ((m = part.match(/^(\d+|[a-zA-Z]+)-(\d+|[a-zA-Z]+)(?:\/(\d+))?$/))) {
+      const start = cronNameToNum(m[1], names);
+      const end = cronNameToNum(m[2], names);
+      const step = m[3] ? parseInt(m[3], 10) : 1;
+      for (let v = start; v <= end; v += step) values.add(v);
+    } else {
+      values.add(cronNameToNum(part, names));
+    }
+  }
+  const out = [...values].filter((v) => v >= min && v <= max).sort((a, b) => a - b);
+  if (!out.length) throw new Error("Invalid cron field: " + field);
+  return out;
+}
+
+function parseCron(expr) {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) throw new Error("A cron expression needs exactly 5 fields (minute hour day month weekday).");
+  const [minuteF, hourF, domF, monthF, dowF] = parts;
+  return {
+    minutes: parseCronField(minuteF, 0, 59),
+    hours: parseCronField(hourF, 0, 23),
+    daysOfMonth: parseCronField(domF, 1, 31),
+    months: parseCronField(monthF, 1, 12, CRON_MONTH_NAMES),
+    daysOfWeek: parseCronField(dowF, 0, 6, CRON_DOW_NAMES),
+    domWildcard: domF === "*",
+    dowWildcard: dowF === "*",
+  };
+}
+
+function cronMatches(date, cron) {
+  const minute = date.getUTCMinutes();
+  const hour = date.getUTCHours();
+  const dom = date.getUTCDate();
+  const month = date.getUTCMonth() + 1;
+  const dow = date.getUTCDay();
+  if (!cron.minutes.includes(minute)) return false;
+  if (!cron.hours.includes(hour)) return false;
+  if (!cron.months.includes(month)) return false;
+  const domOk = cron.daysOfMonth.includes(dom);
+  const dowOk = cron.daysOfWeek.includes(dow);
+  if (cron.domWildcard && cron.dowWildcard) return true;
+  if (cron.domWildcard) return dowOk;
+  if (cron.dowWildcard) return domOk;
+  return domOk || dowOk;
+}
+
+function cronNextRuns(cron, fromDate, count) {
+  const results = [];
+  const cursor = new Date(fromDate.getTime());
+  cursor.setUTCSeconds(0, 0);
+  cursor.setUTCMinutes(cursor.getUTCMinutes() + 1);
+  let iterations = 0;
+  while (results.length < count && iterations < 2 * 366 * 24 * 60) {
+    if (cronMatches(cursor, cron)) results.push(new Date(cursor.getTime()));
+    cursor.setUTCMinutes(cursor.getUTCMinutes() + 1);
+    iterations++;
+  }
+  return results;
+}
+
+function describeCron(cron) {
+  const parts = [];
+  if (cron.minutes.length === 60) parts.push("every minute");
+  else if (cron.minutes.length === 1) parts.push(`at minute ${cron.minutes[0]}`);
+  else parts.push(`at minutes ${cron.minutes.join(", ")}`);
+  if (cron.hours.length < 24) parts.push(cron.hours.length === 1 ? `of hour ${cron.hours[0]}` : `of hours ${cron.hours.join(", ")}`);
+  if (!cron.domWildcard) parts.push(`on day-of-month ${cron.daysOfMonth.join(", ")}`);
+  if (cron.months.length < 12) parts.push(`in month ${cron.months.map((m) => CRON_MONTH_NAMES[m]).join(", ")}`);
+  if (!cron.dowWildcard) parts.push(`on ${cron.daysOfWeek.map((d) => CRON_DOW_NAMES[d]).join(", ")}`);
+  return parts.join(" ");
+}
+
+router.post("/api/tools/cron-explain", optionalAuth, toolGate("cron-explain"), async (req, res) => {
+  const expr = String(req.body?.expression || "").trim();
+  if (!expr) return res.status(400).json({ error: "Enter a cron expression first." });
+  try {
+    const cron = parseCron(expr);
+    const description = describeCron(cron);
+    const nextRuns = cronNextRuns(cron, new Date(), 5).map((d) => d.toISOString());
+    res.json({ description, nextRuns });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not parse that cron expression." });
+  }
+});
+
+router.post("/api/tools/css-gradient", optionalAuth, toolGate("css-gradient"), async (req, res) => {
+  const type = req.body?.type === "radial" ? "radial" : "linear";
+  const angle = Math.min(Math.max(parseInt(req.body?.angle, 10) || 0, 0), 360);
+  const colors = Array.isArray(req.body?.colors) ? req.body.colors.map(String).slice(0, 8) : [];
+  const cleanColors = colors.filter((c) => /^#[0-9a-f]{3,8}$/i.test(c.trim()));
+  if (cleanColors.length < 2) return res.status(400).json({ error: "Enter at least two valid hex colors." });
+  const css = type === "linear"
+    ? `linear-gradient(${angle}deg, ${cleanColors.join(", ")})`
+    : `radial-gradient(circle, ${cleanColors.join(", ")})`;
+  res.json({ css: `background: ${css};` });
+});
+
+router.post("/api/tools/tip-calculator", optionalAuth, toolGate("tip-calculator"), async (req, res) => {
+  const bill = Number(req.body?.bill);
+  const tipPercent = Number(req.body?.tipPercent);
+  const people = Math.max(1, parseInt(req.body?.people, 10) || 1);
+  if (!Number.isFinite(bill) || bill < 0 || !Number.isFinite(tipPercent) || tipPercent < 0) {
+    return res.status(400).json({ error: "Enter a valid bill amount and tip percentage." });
+  }
+  const tipAmount = bill * (tipPercent / 100);
+  const total = bill + tipAmount;
+  res.json({
+    tipAmount: tipAmount.toFixed(2),
+    total: total.toFixed(2),
+    perPersonTotal: (total / people).toFixed(2),
+    perPersonTip: (tipAmount / people).toFixed(2),
+  });
+});
+
+const QUOTES = [
+  { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+  { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+  { text: "In the middle of difficulty lies opportunity.", author: "Albert Einstein" },
+  { text: "Do what you can, with what you have, where you are.", author: "Theodore Roosevelt" },
+  { text: "It always seems impossible until it's done.", author: "Nelson Mandela" },
+  { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+  { text: "Well done is better than well said.", author: "Benjamin Franklin" },
+  { text: "Whether you think you can or you think you can't, you're right.", author: "Henry Ford" },
+  { text: "Dream big and dare to fail.", author: "Norman Vaughan" },
+  { text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
+  { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
+  { text: "Everything you've ever wanted is on the other side of fear.", author: "George Addair" },
+  { text: "Hardships often prepare ordinary people for an extraordinary destiny.", author: "C.S. Lewis" },
+  { text: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky" },
+  { text: "What lies behind us and what lies before us are tiny matters compared to what lies within us.", author: "Ralph Waldo Emerson" },
+];
+
+router.post("/api/tools/random-quote", optionalAuth, toolGate("random-quote"), async (req, res) => {
+  res.json(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
+});
+
 export { router as toolsRouter };

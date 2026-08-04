@@ -10,6 +10,8 @@ const CATEGORIES = [
       { href: "/tools/whois", name: "WHOIS Lookup", desc: "Domain registration info — owner, registrar, dates.", icon: `<circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/>` },
       { href: "/tools/user-agent-parser", name: "User Agent Parser", desc: "Break down a User-Agent string into browser, OS, device.", icon: `<rect x="4" y="3" width="16" height="12" rx="2"/><path stroke-linecap="round" d="M9 21h6M12 15v6"/>` },
       { href: "/tools/subnet-calculator", name: "Subnet / CIDR Calculator", desc: "Network range, broadcast address and host count.", icon: `<circle cx="5" cy="12" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path stroke-linecap="round" d="M7 12h5M12 12l5-6M12 12l5 6"/>` },
+      { href: "/tools/ip-lookup", name: "IP Address Lookup", desc: "Geolocation and ISP info for any IP address.", icon: `<circle cx="12" cy="10" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-6.5 7-11a7 7 0 10-14 0c0 4.5 7 11 7 11z"/>` },
+      { href: "/tools/http-headers", name: "HTTP Headers Inspector", desc: "See the response headers any site sends back.", icon: `<rect x="3" y="4" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M7 9h10M7 13h10M7 17h6"/>` },
     ],
   },
   {
@@ -34,6 +36,7 @@ const CATEGORIES = [
       { href: "/tools/markdown-preview", name: "Markdown Previewer", desc: "Write Markdown and see the rendered HTML instantly.", icon: `<rect x="3" y="5" width="18" height="14" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 15V9l3 3 3-3v6M17 9v6M14.5 12.5L17 15l2.5-2.5"/>` },
       { href: "/tools/text-encrypt", name: "Text Encryption", desc: "Encrypt or decrypt text with a passphrase, entirely in your browser.", icon: `<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/>` },
       { href: "/tools/typing-test", name: "Typing Speed Test", desc: "Test your typing speed and accuracy.", icon: `<rect x="3" y="5" width="18" height="14" rx="2"/><path stroke-linecap="round" d="M7 9h.01M11 9h.01M15 9h.01M7 13h6"/>` },
+      { href: "/tools/cron-explainer", name: "Cron Expression Explainer", desc: "What a cron schedule means, and when it next runs.", icon: `<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/>` },
     ],
   },
   {
@@ -47,6 +50,7 @@ const CATEGORIES = [
       { href: "/tools/lorem-ipsum", name: "Lorem Ipsum Generator", desc: "Placeholder paragraphs for mockups and layouts.", icon: `<path d="M4 6h16M4 12h16M4 18h10"/>` },
       { href: "/tools/color-converter", name: "Color Converter", desc: "Convert between Hex, RGB and HSL.", icon: `<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18 4.5 4.5 0 000-9h1a3 3 0 000-6"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="10" cy="7" r="1"/>` },
       { href: "/tools/fake-data", name: "Fake Data Generator", desc: "Realistic fake names, emails and addresses for testing.", icon: `<circle cx="9" cy="8" r="3.2"/><path stroke-linecap="round" d="M3.5 20a5.5 5.5 0 0111 0M16 8.5a3 3 0 010 6M20.5 20a5 5 0 00-6-4.9"/>` },
+      { href: "/tools/css-gradient", name: "CSS Gradient Generator", desc: "Pick colors, get ready-to-use CSS gradient code.", icon: `<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 3l18 18" stroke-linecap="round"/>` },
     ],
   },
   {
@@ -70,6 +74,8 @@ const CATEGORIES = [
       { href: "/tools/morse-code", name: "Morse Code Translator", desc: "Translate text to Morse code and back.", icon: `<circle cx="5" cy="12" r="1.6"/><circle cx="10" cy="12" r="1.6"/><path stroke-linecap="round" d="M14 12h2M18 12h2"/>` },
       { href: "/tools/percentage-calculator", name: "Percentage Calculator", desc: "Percentage-of, what-percent, and percent change.", icon: `<circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/><path stroke-linecap="round" d="M19 5L5 19"/>` },
       { href: "/tools/bmi-calculator", name: "BMI Calculator", desc: "Body Mass Index from your height and weight.", icon: `<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3.5 2"/>` },
+      { href: "/tools/tip-calculator", name: "Tip Calculator", desc: "Tip amount, total, and per-person split.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>` },
+      { href: "/tools/random-quote", name: "Random Quote Generator", desc: "An inspiring quote whenever you need one.", icon: `<path d="M7 8a3 3 0 00-3 3v2a3 3 0 003 3h1v3l-3-1M17 8a3 3 0 00-3 3v2a3 3 0 003 3h1v3l-3-1"/>` },
     ],
   },
 ];
