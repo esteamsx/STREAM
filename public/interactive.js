@@ -21,13 +21,14 @@
       '.et-glass,.et-glass-tint{isolation:isolate}' +
       '.et-glass::before,.et-glass-tint::before{' +
         'content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;' +
-        'background:linear-gradient(165deg,rgba(255,255,255,.16),rgba(255,255,255,0) 42%,rgba(0,0,0,.06) 100%);' +
-        'box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -1px 0 rgba(0,0,0,.12)' +
+        'background:linear-gradient(165deg,rgba(255,255,255,.22),rgba(255,255,255,0) 42%,rgba(0,0,0,.08) 100%);' +
+        'box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),inset 0 -1px 0 rgba(0,0,0,.16)' +
       '}' +
       '.et-glass{' +
-        'background:rgba(255,255,255,.07) !important;' +
-        'backdrop-filter:blur(14px) saturate(180%);' +
-        '-webkit-backdrop-filter:blur(14px) saturate(180%)' +
+        'background:rgba(255,255,255,.15) !important;' +
+        'border:1px solid rgba(255,255,255,.24) !important;' +
+        'backdrop-filter:blur(16px) saturate(200%);' +
+        '-webkit-backdrop-filter:blur(16px) saturate(200%)' +
       '}';
     document.head.appendChild(style);
   }
