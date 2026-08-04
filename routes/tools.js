@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifySolution } from "altcha-lib";
 import QRCode from "qrcode";
+import { TOTP, Secret } from "otpauth";
 import { optionalAuth, isAdminEmail, isVerificationActive, checkAndIncrementDailyLimit } from "../services/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1566,6 +1567,279 @@ const QUOTES = [
 
 router.post("/api/tools/random-quote", optionalAuth, toolGate("random-quote"), async (req, res) => {
   res.json(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
+});
+
+const ASCII_FONT = {
+  A: ["#####", "#...#", "#####", "#...#", "#...#"],
+  B: ["####.", "#...#", "####.", "#...#", "####."],
+  C: [".####", "#....", "#....", "#....", ".####"],
+  D: ["####.", "#...#", "#...#", "#...#", "####."],
+  E: ["#####", "#....", "###..", "#....", "#####"],
+  F: ["#####", "#....", "###..", "#....", "#...."],
+  G: [".####", "#....", "#.###", "#...#", ".####"],
+  H: ["#...#", "#...#", "#####", "#...#", "#...#"],
+  I: ["#####", "..#..", "..#..", "..#..", "#####"],
+  J: ["#####", "...#.", "...#.", "#..#.", ".##.."],
+  K: ["#...#", "#..#.", "###..", "#..#.", "#...#"],
+  L: ["#....", "#....", "#....", "#....", "#####"],
+  M: ["#...#", "##.##", "#.#.#", "#...#", "#...#"],
+  N: ["#...#", "##..#", "#.#.#", "#..##", "#...#"],
+  O: [".###.", "#...#", "#...#", "#...#", ".###."],
+  P: ["####.", "#...#", "####.", "#....", "#...."],
+  Q: [".###.", "#...#", "#...#", "#..##", ".####"],
+  R: ["####.", "#...#", "####.", "#..#.", "#...#"],
+  S: [".####", "#....", ".###.", "....#", "####."],
+  T: ["#####", "..#..", "..#..", "..#..", "..#.."],
+  U: ["#...#", "#...#", "#...#", "#...#", ".###."],
+  V: ["#...#", "#...#", "#...#", ".#.#.", "..#.."],
+  W: ["#...#", "#...#", "#.#.#", "##.##", "#...#"],
+  X: ["#...#", ".#.#.", "..#..", ".#.#.", "#...#"],
+  Y: ["#...#", ".#.#.", "..#..", "..#..", "..#.."],
+  Z: ["#####", "...#.", "..#..", ".#...", "#####"],
+  "0": [".###.", "#...#", "#...#", "#...#", ".###."],
+  "1": ["..#..", ".##..", "..#..", "..#..", "#####"],
+  "2": [".###.", "#...#", "..##.", ".#...", "#####"],
+  "3": ["####.", "....#", "..##.", "....#", "####."],
+  "4": ["#..#.", "#..#.", "#####", "...#.", "...#."],
+  "5": ["#####", "#....", "####.", "....#", "####."],
+  "6": [".###.", "#....", "####.", "#...#", ".###."],
+  "7": ["#####", "....#", "...#.", "..#..", "..#.."],
+  "8": [".###.", "#...#", ".###.", "#...#", ".###."],
+  "9": [".###.", "#...#", ".####", "....#", ".###."],
+  " ": [".....", ".....", ".....", ".....", "....."],
+  "!": ["..#..", "..#..", "..#..", ".....", "..#.."],
+  "?": [".###.", "#...#", "..##.", ".....", "..#.."],
+  ".": [".....", ".....", ".....", ".....", "..#.."],
+  ",": [".....", ".....", ".....", "..#..", ".#..."],
+};
+
+router.post("/api/tools/ascii-art", optionalAuth, toolGate("ascii-art"), async (req, res) => {
+  const text = String(req.body?.text || "").trim();
+  if (!text) return res.status(400).json({ error: "Enter some text first." });
+  if (text.length > 20) return res.status(400).json({ error: "Keep it to 20 characters or fewer." });
+  const chars = text.toUpperCase().split("").map((c) => ASCII_FONT[c] || ASCII_FONT[" "]);
+  const rows = ["", "", "", "", ""];
+  chars.forEach((glyph) => {
+    for (let r = 0; r < 5; r++) rows[r] += glyph[r].split("").map((px) => (px === "#" ? "█" : " ")).join("") + "  ";
+  });
+  res.json({ output: rows.join("\n") });
+});
+
+function parseYamlScalar(raw) {
+  const s = raw.trim();
+  if (s === "") return "";
+  if (s === "null" || s === "~") return null;
+  if (s === "true") return true;
+  if (s === "false") return false;
+  if (/^-?\d+$/.test(s)) return parseInt(s, 10);
+  if (/^-?\d+\.\d+$/.test(s)) return parseFloat(s);
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) return s.slice(1, -1);
+  if (s.startsWith("[") && s.endsWith("]")) {
+    const inner = s.slice(1, -1).trim();
+    if (!inner) return [];
+    return inner.split(",").map((x) => parseYamlScalar(x.trim()));
+  }
+  return s;
+}
+
+function yamlToJs(text) {
+  const lines = text.replace(/\r\n/g, "\n").split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
+  let pos = 0;
+  function indentOf(line) { return line.match(/^ */)[0].length; }
+
+  function parseBlock(baseIndent) {
+    if (pos >= lines.length) return null;
+    const firstIndent = indentOf(lines[pos]);
+    if (firstIndent < baseIndent) return null;
+    const isList = lines[pos].trim().startsWith("- ") || lines[pos].trim() === "-";
+
+    if (isList) {
+      const arr = [];
+      while (pos < lines.length && indentOf(lines[pos]) === firstIndent && (lines[pos].trim().startsWith("- ") || lines[pos].trim() === "-")) {
+        const line = lines[pos];
+        const trimmed = line.trim().replace(/^-\s?/, "");
+        if (trimmed.includes(":") && !trimmed.startsWith("{")) {
+          const dashCol = line.indexOf("-");
+          lines[pos] = " ".repeat(dashCol + 2) + trimmed;
+          arr.push(parseBlock(dashCol + 2));
+        } else if (trimmed === "") {
+          pos++;
+          arr.push(parseBlock(firstIndent + 2));
+        } else {
+          arr.push(parseYamlScalar(trimmed));
+          pos++;
+        }
+      }
+      return arr;
+    } else {
+      const obj = {};
+      while (pos < lines.length && indentOf(lines[pos]) === firstIndent) {
+        const line = lines[pos];
+        const colonIdx = line.indexOf(":");
+        if (colonIdx === -1) { pos++; continue; }
+        const key = line.slice(0, colonIdx).trim();
+        const rest = line.slice(colonIdx + 1).trim();
+        pos++;
+        if (rest === "") {
+          const nextIndent = pos < lines.length ? indentOf(lines[pos]) : -1;
+          obj[key] = nextIndent > firstIndent ? parseBlock(nextIndent) : null;
+        } else {
+          obj[key] = parseYamlScalar(rest);
+        }
+      }
+      return obj;
+    }
+  }
+  return parseBlock(0);
+}
+
+function yamlScalarToStr(v) {
+  if (v === null || v === undefined) return "null";
+  if (typeof v === "string") return /[:#\-\[\]{}]/.test(v) || v === "" ? JSON.stringify(v) : v;
+  return String(v);
+}
+
+function jsToYaml(value, indent) {
+  indent = indent || 0;
+  const pad = "  ".repeat(indent);
+  if (Array.isArray(value)) {
+    if (!value.length) return pad + "[]\n";
+    return value.map((v) => {
+      if (v !== null && typeof v === "object") {
+        const inner = jsToYaml(v, indent + 1).replace(/^ {2}/, "- ");
+        return pad + inner.trimStart().split("\n").map((l, i) => (i === 0 ? l : pad + "  " + l)).join("\n");
+      }
+      return pad + "- " + yamlScalarToStr(v);
+    }).join("\n") + "\n";
+  }
+  if (value !== null && typeof value === "object") {
+    const keys = Object.keys(value);
+    if (!keys.length) return pad + "{}\n";
+    return keys.map((k) => {
+      const v = value[k];
+      if (v !== null && typeof v === "object" && (Array.isArray(v) ? v.length : Object.keys(v).length)) {
+        return pad + k + ":\n" + jsToYaml(v, indent + 1);
+      }
+      return pad + k + ": " + yamlScalarToStr(v);
+    }).join("\n") + "\n";
+  }
+  return pad + yamlScalarToStr(value) + "\n";
+}
+
+router.post("/api/tools/yaml-json", optionalAuth, toolGate("yaml-json"), async (req, res) => {
+  const input = String(req.body?.input || "");
+  const direction = req.body?.direction === "jsonToYaml" ? "jsonToYaml" : "yamlToJson";
+  if (!input.trim()) return res.status(400).json({ error: "Paste some data first." });
+  if (input.length > 200000) return res.status(400).json({ error: "That's too long (max 200,000 characters)." });
+  try {
+    if (direction === "yamlToJson") {
+      res.json({ output: JSON.stringify(yamlToJs(input), null, 2) });
+    } else {
+      const data = JSON.parse(input);
+      res.json({ output: jsToYaml(data).replace(/\n{3,}/g, "\n\n").trim() + "\n" });
+    }
+  } catch (err) {
+    res.status(400).json({ error: direction === "yamlToJson" ? "Could not parse that as YAML." : "Could not parse that as JSON." });
+  }
+});
+
+function jsonDiffCompare(a, b, path) {
+  path = path || "";
+  const diffs = [];
+  if (typeof a !== typeof b || Array.isArray(a) !== Array.isArray(b)) {
+    if (JSON.stringify(a) !== JSON.stringify(b)) diffs.push({ path: path || "$", type: "changed", from: a, to: b });
+    return diffs;
+  }
+  if (a !== null && b !== null && typeof a === "object") {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    for (const key of keys) {
+      const childPath = path + (Array.isArray(a) ? `[${key}]` : (path ? "." : "") + key);
+      if (!(key in a)) diffs.push({ path: childPath, type: "added", to: b[key] });
+      else if (!(key in b)) diffs.push({ path: childPath, type: "removed", from: a[key] });
+      else diffs.push(...jsonDiffCompare(a[key], b[key], childPath));
+    }
+  } else if (a !== b) {
+    diffs.push({ path: path || "$", type: "changed", from: a, to: b });
+  }
+  return diffs;
+}
+
+router.post("/api/tools/json-diff", optionalAuth, toolGate("json-diff"), async (req, res) => {
+  const jsonA = String(req.body?.jsonA || "");
+  const jsonB = String(req.body?.jsonB || "");
+  if (!jsonA.trim() || !jsonB.trim()) return res.status(400).json({ error: "Paste JSON in both boxes first." });
+  if (jsonA.length > 200000 || jsonB.length > 200000) return res.status(400).json({ error: "That's too long (max 200,000 characters each)." });
+  let a, b;
+  try { a = JSON.parse(jsonA); } catch { return res.status(400).json({ error: "The first box isn't valid JSON." }); }
+  try { b = JSON.parse(jsonB); } catch { return res.status(400).json({ error: "The second box isn't valid JSON." }); }
+  const diffs = jsonDiffCompare(a, b);
+  res.json({ diffs, identical: diffs.length === 0 });
+});
+
+router.post("/api/tools/password-hash", optionalAuth, toolGate("password-hash"), async (req, res) => {
+  const mode = req.body?.mode === "verify" ? "verify" : "generate";
+  const password = String(req.body?.password || "");
+  if (!password) return res.status(400).json({ error: "Enter a password first." });
+  if (password.length > 1000) return res.status(400).json({ error: "That password is too long." });
+  if (mode === "generate") {
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+    res.json({ output: `${salt}:${hash}` });
+  } else {
+    const stored = String(req.body?.hash || "").trim();
+    const [salt, hash] = stored.split(":");
+    if (!salt || !hash) return res.status(400).json({ error: "That doesn't look like a hash this tool generated." });
+    try {
+      const check = crypto.scryptSync(password, salt, 64).toString("hex");
+      const matches = check.length === hash.length && crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(check, "hex"));
+      res.json({ matches });
+    } catch {
+      res.status(400).json({ error: "That doesn't look like a hash this tool generated." });
+    }
+  }
+});
+
+router.post("/api/tools/totp", optionalAuth, toolGate("totp"), async (req, res) => {
+  const mode = req.body?.mode === "verify" ? "verify" : "generate";
+  try {
+    if (mode === "generate") {
+      const secret = new Secret({ size: 20 });
+      const totp = new TOTP({ issuer: "ES TEAMS TV", label: "demo", algorithm: "SHA1", digits: 6, period: 30, secret });
+      res.json({ secret: secret.base32, code: totp.generate(), period: 30 });
+    } else {
+      const secretB32 = String(req.body?.secret || "").trim().toUpperCase();
+      const token = String(req.body?.token || "").trim();
+      if (!secretB32 || !token) return res.status(400).json({ error: "Enter both a secret and a code." });
+      let secret;
+      try { secret = Secret.fromBase32(secretB32); } catch { return res.status(400).json({ error: "That doesn't look like a valid Base32 secret." }); }
+      const totp = new TOTP({ algorithm: "SHA1", digits: 6, period: 30, secret });
+      const delta = totp.validate({ token, window: 1 });
+      res.json({ valid: delta !== null });
+    }
+  } catch (err) {
+    res.status(400).json({ error: "Could not process that TOTP request." });
+  }
+});
+
+const NAME_PREFIXES = ["Bright", "Swift", "Blue", "Prime", "Nova", "Peak", "Core", "True", "Nex", "Vivid", "Clear", "North"];
+const NAME_SUFFIXES = ["ify", "ly", "Hub", "Base", "Labs", "Works", "ify", "io", "wise", "ify", "app", "spot"];
+
+router.post("/api/tools/name-generator", optionalAuth, toolGate("name-generator"), async (req, res) => {
+  const keyword = String(req.body?.keyword || "").trim().replace(/[^a-zA-Z0-9]/g, "");
+  if (!keyword) return res.status(400).json({ error: "Enter a keyword first." });
+  if (keyword.length > 40) return res.status(400).json({ error: "Keep the keyword under 40 characters." });
+  const capitalized = keyword[0].toUpperCase() + keyword.slice(1).toLowerCase();
+  const names = new Set();
+  while (names.size < 10) {
+    const usePrefix = Math.random() > 0.5;
+    const decorator = usePrefix ? NAME_PREFIXES[Math.floor(Math.random() * NAME_PREFIXES.length)] : NAME_SUFFIXES[Math.floor(Math.random() * NAME_SUFFIXES.length)];
+    names.add(usePrefix ? decorator + capitalized : capitalized + decorator);
+  }
+  res.json({ names: [...names] });
+});
+
+router.post("/api/tools/countdown-gate", optionalAuth, toolGate("countdown"), async (req, res) => {
+  res.json({ ok: true });
 });
 
 export { router as toolsRouter };
