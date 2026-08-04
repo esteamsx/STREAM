@@ -2294,7 +2294,7 @@ function validateSupportAttachment(attachment) {
   if (!attachment) return null;
   const { dataUrl, type, name } = attachment;
   if (!SUPPORT_ATTACHMENT_TYPES.includes(type)) throw new Error("Unsupported attachment type.");
-  if (typeof dataUrl !== "string" || !/^data:[a-z0-9.+-]+\/[a-z0-9.+-]+(?:;[a-z0-9.+-]+=[a-z0-9.+-]+)*;base64,/i.test(dataUrl)) {
+  if (typeof dataUrl !== "string" || !/^data:[a-z0-9.+-]+\/[a-z0-9.+-]+(?:;[a-z0-9.+-]+=[a-z0-9.+-]+)*;base64,[a-z0-9+/]*={0,2}$/i.test(dataUrl)) {
     throw new Error("That attachment couldn't be read.");
   }
   if (dataUrl.length > SUPPORT_ATTACHMENT_MAX_BYTES) throw new Error("That attachment is too large.");

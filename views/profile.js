@@ -2456,7 +2456,7 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
     document.getElementById('pfWrap').style.display = 'block';
     setAvatar(user);
     document.getElementById('pfName').innerHTML =
-      (((user.firstName || '') + ' ' + (user.lastName || '')).trim() || ('@' + user.username)) +
+      esc(((user.firstName || '') + ' ' + (user.lastName || '')).trim() || ('@' + user.username)) +
       ((user.isAdmin || user.verified) ? VERIFIED_BADGE : '');
     document.getElementById('pfUsername').textContent = '@' + user.username;
     setupAltUsernames(user.altUsernames);
@@ -2552,7 +2552,7 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
   document.getElementById('pfAvatarWrap').appendChild(editBadge);
   setAvatar(profile);
   document.getElementById('pfName').innerHTML =
-    (((profile.firstName || '') + ' ' + (profile.lastName || '')).trim() || 'Unnamed') +
+    esc(((profile.firstName || '') + ' ' + (profile.lastName || '')).trim() || 'Unnamed') +
     ((profile.isAdmin || profile.verified) ? VERIFIED_BADGE : '');
   document.getElementById('pfUsername').textContent = profile.username ? ('@' + profile.username) : profile.email;
   setupAltUsernames(profile.altUsernames);
@@ -2622,7 +2622,7 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
       vaAvatar.textContent = (((ownProfile.firstName || '')[0] || '') + ((ownProfile.lastName || '')[0] || '')) || 'U';
     }
     document.getElementById('vaName').innerHTML =
-      (((ownProfile.firstName || '') + ' ' + (ownProfile.lastName || '')).trim() || ('@' + ownProfile.username)) +
+      esc(((ownProfile.firstName || '') + ' ' + (ownProfile.lastName || '')).trim() || ('@' + ownProfile.username)) +
       ((ownProfile.isAdmin || ownProfile.verified) ? VERIFIED_BADGE : '');
     document.getElementById('vaUsername').textContent = ownProfile.username ? ('@' + ownProfile.username) : '';
 

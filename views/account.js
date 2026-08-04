@@ -2948,10 +2948,10 @@ let currentChatMessagesById = {};
 function renderAttachmentHtml(m){
   if (!m.attachmentType || !m.attachmentDataUrl) return '';
   if (m.attachmentType === 'image') {
-    return '<img class="sc-bubble-image" src="' + m.attachmentDataUrl + '" data-msg-id="' + m.id + '">';
+    return '<img class="sc-bubble-image" src="' + esc(m.attachmentDataUrl) + '" data-msg-id="' + m.id + '">';
   }
   if (m.attachmentType === 'voice') {
-    return '<audio controls src="' + m.attachmentDataUrl + '"></audio>';
+    return '<audio controls src="' + esc(m.attachmentDataUrl) + '"></audio>';
   }
   return '<button type="button" class="sc-doc-chip" data-msg-id="' + m.id + '" data-state="idle">' +
     '<span class="sc-doc-icon-wrap">' + SC_DOWNLOAD_ICON + '<span class="sc-doc-spinner"></span></span>' +
