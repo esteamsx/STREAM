@@ -5,7 +5,7 @@ export function renderOcrTool(cfg) {
     pageKey: "toolsOcrTool",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M7 9h10M7 13h7M7 17h4"/></svg>`,
     heading: "Image Text Extractor (OCR)",
-    subtitle: "Upload an image containing text and extract it as editable text — runs a full OCR engine right in your browser.",
+    subtitle: "Upload an image containing text and extract it as editable text. Runs a full OCR engine right in your browser.",
     bodyHtml: `
       <div class="file-drop" id="fileDrop">
         <input type="file" id="fileInput" accept="image/*">
@@ -77,7 +77,7 @@ export function renderOcrTool(cfg) {
           var result = await window.Tesseract.recognize(pendingFile, 'eng', {
             logger: function(m){
               if (m.status && typeof m.progress === 'number') {
-                ocrProgress.textContent = m.status + ' — ' + Math.round(m.progress * 100) + '%';
+                ocrProgress.textContent = m.status + ': ' + Math.round(m.progress * 100) + '%';
               }
             },
           });

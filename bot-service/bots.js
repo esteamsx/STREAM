@@ -201,14 +201,14 @@ async function ensureTemplate(onStage) {
 
 async function checkForUpdates() {
   try {
-    if (!templateExists()) return { checked: false, reason: "No template built yet — deploy a bot first." };
+    if (!templateExists()) return { checked: false, reason: "No template built yet, deploy a bot first." };
     if (templateReadyPromise) return { checked: false, reason: "A build is already in progress." };
     const meta = readTemplateMeta();
     const latestSha = await fetchLatestCommitSha();
     if (!latestSha) return { checked: false, reason: "GitHub didn't return a usable commit SHA." };
     if (meta.sha === latestSha) return { checked: true, updated: false, currentSha: meta.sha, latestSha };
 
-    console.log(`🤖 New commit on ES_TEAMS-V1 (${latestSha.slice(0, 7)}) — updating the shared template…`);
+    console.log(`🤖 New commit on ES_TEAMS-V1 (${latestSha.slice(0, 7)}), updating the shared template...`);
     await buildTemplate();
 
     const snap = await db.collection("botDeployments").where("status", "in", ACTIVE_STATUSES).get();
@@ -245,11 +245,11 @@ async function ensureLatestTemplate() {
     const meta = readTemplateMeta();
     const latestSha = await fetchLatestCommitSha();
     if (latestSha && meta.sha !== latestSha) {
-      console.log(`🤖 Restart triggered a refetch — new commit found (${latestSha.slice(0, 7)}).`);
+      console.log(`🤖 Restart triggered a refetch, new commit found (${latestSha.slice(0, 7)}).`);
       await buildTemplate();
     }
   } catch (err) {
-    console.error("Could not check for the latest commit before restarting — using the existing template:", err.message);
+    console.error("Could not check for the latest commit before restarting, using the existing template:", err.message);
   }
 }
 
@@ -328,7 +328,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   const setStatus = (status, extra = {}) =>
     ref.update({ status, updatedAt: Date.now(), logs: entry.logs.slice(-150), ...extra }).catch(() => {});
 
-  if (!templateExists()) pushLog(entry, "Preparing shared files (first deploy on this server — this one's slower, later ones won't be)…");
+  if (!templateExists()) pushLog(entry, "Preparing shared files (first deploy on this server, this one's slower, later ones won't be)...");
   await ensureTemplate(async (stage) => {
     pushLog(entry, stage === "downloading" ? "Downloading ES_TEAMS-V1…" : stage === "extracting" ? "Extracting…" : "Installing dependencies…");
     await setStatus(stage);
@@ -379,20 +379,20 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         return;
       }
       if (/Delete Session and Scan again/i.test(line)) {
-        setStatus("needs_repair", { lastError: "Session invalid — restart to get a new pairing code." });
+        setStatus("needs_repair", { lastError: "Session invalid, restart to get a new pairing code." });
         return;
       }
       if (/Bad MAC|Failed to decrypt message with any known session/i.test(line)) {
         entry.badMacCount = (entry.badMacCount || 0) + 1;
         if (entry.badMacCount >= 3) {
-          setStatus("needs_repair", { lastError: "Session out of sync with WhatsApp (messages failing to decrypt) — restart to get a new pairing code." });
+          setStatus("needs_repair", { lastError: "Session out of sync with WhatsApp (messages failing to decrypt), restart to get a new pairing code." });
         }
         return;
       }
       if (/^Scan again/i.test(line) || /Close current Session first/i.test(line)) {
         entry.disconnectSignalCount = (entry.disconnectSignalCount || 0) + 1;
         if (entry.disconnectSignalCount >= 2) {
-          setStatus("disconnected", { lastError: "Disconnected from WhatsApp — restart to get a new pairing code." });
+          setStatus("disconnected", { lastError: "Disconnected from WhatsApp, restart to get a new pairing code." });
           if (entry.proc) entry.proc.kill("SIGTERM");
         }
         return;
@@ -424,7 +424,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         const attempts = (crashRestartCounts.get(botId) || 0) + 1;
         crashRestartCounts.set(botId, attempts);
         if (attempts > MAX_AUTO_RESTARTS) {
-          ref.update({ lastError: `Crashed ${attempts} times in a row — stopped auto-restarting. Restart manually once it's fixed.` }).catch(() => {});
+          ref.update({ lastError: `Crashed ${attempts} times in a row, stopped auto-restarting. Restart manually once it's fixed.` }).catch(() => {});
           return;
         }
         setTimeout(() => {

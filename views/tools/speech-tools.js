@@ -5,7 +5,7 @@ export function renderSpeechTools(cfg) {
     pageKey: "toolsSpeechTools",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="2" width="6" height="12" rx="3"/><path stroke-linecap="round" d="M5 10a7 7 0 0014 0M12 17v5M8 22h8"/></svg>`,
     heading: "Speech-to-Text / Text-to-Speech",
-    subtitle: "Dictate text using your microphone, or have any text read aloud — powered by your browser's built-in speech engine.",
+    subtitle: "Dictate text using your microphone, or have any text read aloud. Powered by your browser's built-in speech engine.",
     bodyHtml: `
       <div class="field">
         <label for="modeSelect">Mode</label>
@@ -61,7 +61,7 @@ export function renderSpeechTools(cfg) {
       }
 
       async function handleStt(){
-        if (!SpeechRec) { showMsg('Your browser does not support speech recognition — try Chrome.', false); return; }
+        if (!SpeechRec) { showMsg('Your browser does not support speech recognition. Try Chrome.', false); return; }
         if (listening) { recognition.stop(); return; }
         hideMsg(); hideResult();
         try {

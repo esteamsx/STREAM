@@ -5,7 +5,7 @@ export function renderCaesarCipher(cfg) {
     pageKey: "toolsCaesarCipher",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v9l6 3"/></svg>`,
     heading: "ROT13 / Caesar Cipher",
-    subtitle: "Shift letters by any amount — defaults to ROT13.",
+    subtitle: "Shift letters by any amount. Defaults to ROT13.",
     bodyHtml: `
       <div class="field">
         <label for="shiftInput">Shift: <span id="shiftValue">13</span></label>

@@ -29,7 +29,7 @@ async function sendVerificationCode(email, code, purpose) {
   const footer = isDeletion
     ? "If you didn't request this, ignore this email and your account will remain active. If you did, your account will be deactivated immediately and permanently removed after 24 hours."
     : isReset
-    ? "If you didn't request a password reset, your password will remain unchanged — you can safely ignore this email."
+    ? "If you didn't request a password reset, your password will remain unchanged. You can safely ignore this email."
     : "If you didn't request this, ignore this email.";
   return sendMailWithFallback({
     from: `"ES TEAMS TV" <${process.env.GMAIL_USER}>`,
@@ -105,10 +105,10 @@ async function sendDmcaReportEmail(report) {
     from: `"ES TEAMS TV" <${process.env.GMAIL_USER}>`,
     to: process.env.DMCA_AGENT_EMAIL || process.env.GMAIL_USER,
     replyTo: reporterEmail,
-    subject: `DMCA Takedown Request — ${copyrightOwner || reporterName}`,
+    subject: `DMCA Takedown Request: ${copyrightOwner || reporterName}`,
     html: `
       <div style="font-family:Arial,sans-serif;background:#0A0A0F;padding:32px;color:#F3F3FA">
-        <h2 style="color:#00E0FF;margin:0 0 12px">ES TEAMS TV — DMCA Takedown Request</h2>
+        <h2 style="color:#00E0FF;margin:0 0 12px">ES TEAMS TV: DMCA Takedown Request</h2>
         <table style="width:100%;border-collapse:collapse;font-size:14px">
           <tr><td style="padding:6px 0;color:rgba(255,255,255,.5);width:180px">Reporter name</td><td>${escapeHtml(reporterName)}</td></tr>
           <tr><td style="padding:6px 0;color:rgba(255,255,255,.5)">Reporter email</td><td>${escapeHtml(reporterEmail)}</td></tr>

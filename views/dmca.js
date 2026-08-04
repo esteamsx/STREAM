@@ -148,14 +148,14 @@ h1{font-family:var(--font-display);font-size:1.4rem;margin-bottom:6px}
     <p>1. A physical or electronic signature of the copyright owner or someone authorized to act on their behalf.</p>
     <p>2. Identification of the copyrighted work claimed to be infringed.</p>
     <p>3. Identification of the material you claim is infringing, including the specific URL(s) on this site.</p>
-    <p>4. Your contact information — name, address, phone number, and email.</p>
+    <p>4. Your contact information: name, address, phone number, and email.</p>
     <p>5. A statement that you have a good-faith belief the use is not authorized by the copyright owner, its agent, or the law.</p>
     <p>6. A statement, under penalty of perjury, that the information in the notice is accurate and that you are authorized to act on behalf of the owner.</p>
 
     <h2>Designated Agent</h2>
     <div class="agent-box">
-      ES TEAMS TV — Copyright Agent<br>
-      Email: <span id="agentEmail">—</span>
+      ES TEAMS TV, Copyright Agent<br>
+      Email: <span id="agentEmail">-</span>
     </div>
 
     <h2>Counter-Notification</h2>
