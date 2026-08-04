@@ -101,7 +101,7 @@ input{font-family:inherit}
   font-size:.66rem;font-weight:800;display:flex;align-items:center;justify-content:center;
 }
 .sc-chat-card{width:100%;max-width:420px;max-height:82vh;height:560px}
-.sc-chat-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.sc-chat-body{flex:1;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 .sc-bubble{max-width:78%;padding:8px 12px;border-radius:14px;font-size:.84rem;line-height:1.4;white-space:pre-wrap;word-break:break-word}
 .sc-bubble-me{align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-bottom-right-radius:4px}
 .sc-bubble-them{align-self:flex-start;background:var(--card2);color:var(--text);border:1px solid var(--border-strong);border-bottom-left-radius:4px}
@@ -119,6 +119,30 @@ input{font-family:inherit}
 }
 .sc-chat-send:disabled{opacity:.4;cursor:default}
 .sc-chat-send svg{width:16px;height:16px;transform:translateX(-1px)}
+.sc-chat-icon-btn{
+  flex-shrink:0;width:38px;height:38px;border-radius:50%;background:var(--dark3);border:1px solid var(--border-strong);
+  color:var(--muted);display:flex;align-items:center;justify-content:center;transition:all .2s var(--ease);touch-action:none;
+}
+.sc-chat-icon-btn:hover{color:var(--accent);border-color:var(--accent)}
+.sc-chat-icon-btn svg{width:17px;height:17px}
+.sc-chat-mic.recording{background:var(--red);border-color:var(--red);color:#fff}
+.sc-attach-preview{display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid var(--border);flex-shrink:0}
+.sc-attach-preview-inner{flex:1;display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text);min-width:0}
+.sc-attach-preview-inner img{width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0}
+.sc-attach-preview-inner svg{width:20px;height:20px;flex-shrink:0;color:var(--muted)}
+.sc-attach-preview-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc-attach-remove{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--card2);border:none;color:var(--muted);display:flex;align-items:center;justify-content:center}
+.sc-attach-remove svg{width:13px;height:13px}
+.sc-record-banner{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;font-size:.82rem;color:var(--text)}
+.sc-record-dot{width:9px;height:9px;border-radius:50%;background:var(--red);animation:scPulse 1s ease-in-out infinite;flex-shrink:0}
+@keyframes scPulse{0%,100%{opacity:1}50%{opacity:.3}}
+.sc-record-hint{color:var(--muted);flex:1}
+.sc-record-cancel{background:transparent;border:none;color:var(--red);font-size:.78rem;font-weight:700}
+.sc-bubble-image{max-width:220px;max-height:220px;border-radius:10px;display:block;margin-top:4px;object-fit:cover}
+.sc-bubble-file{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.15);margin-top:4px;text-decoration:inherit;color:inherit}
+.sc-bubble-file svg{width:20px;height:20px;flex-shrink:0}
+.sc-bubble-file-name{font-size:.78rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc-bubble audio{margin-top:4px;max-width:220px;height:36px}
 
 .acc-nav{
   position:sticky;top:0;z-index:10;height:58px;display:flex;align-items:center;gap:14px;padding:0 18px;
@@ -411,7 +435,7 @@ body:has(.page-overlay.show){overflow:hidden}
 .flist-close:hover{color:var(--accent);background:rgba(0,224,255,.1)}
 .flist-close svg{width:18px;height:18px}
 .flist-search-wrap{padding:14px 18px}
-.flist-list{overflow-y:auto;padding:0 10px 14px;flex:1}
+.flist-list{overflow-y:auto;padding:0 10px 14px;flex:1;min-height:0}
 #notifList{max-height:340px;flex:none}
 .flist-empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:.84rem}
 
@@ -1058,8 +1082,27 @@ body:has(.page-overlay.show){overflow:hidden}
       </button>
     </div>
     <div class="sc-chat-body" id="supportChatBody"></div>
+    <div class="sc-attach-preview" id="scAttachPreview" style="display:none">
+      <div class="sc-attach-preview-inner" id="scAttachPreviewInner"></div>
+      <button type="button" class="sc-attach-remove" id="scAttachRemoveBtn" aria-label="Remove attachment">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="sc-record-banner" id="scRecordBanner" style="display:none">
+      <span class="sc-record-dot"></span>
+      <span id="scRecordTimer">0:00</span>
+      <span class="sc-record-hint">Recording… release to send</span>
+      <button type="button" class="sc-record-cancel" id="scRecordCancelBtn">Cancel</button>
+    </div>
     <div class="sc-chat-footer">
+      <input type="file" id="scFileInput" style="display:none">
+      <button type="button" class="sc-chat-icon-btn" id="scAttachBtn" aria-label="Attach a file">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+      </button>
       <input type="text" id="supportChatInput" class="sc-chat-input" maxlength="2000" placeholder="Type a message…" autocomplete="off">
+      <button type="button" class="sc-chat-icon-btn sc-chat-mic" id="scMicBtn" aria-label="Hold to record a voice note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 19v3"/></svg>
+      </button>
       <button type="button" class="sc-chat-send" id="supportChatSendBtn" aria-label="Send" disabled>
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
       </button>
@@ -2626,6 +2669,82 @@ document.getElementById('certFab').addEventListener('click', () => {
 let supportChatTargetUid = null;
 let supportChatIsAdminView = false;
 let supportChatPollTimer = null;
+let pendingAttachment = null;
+let scMediaRecorder = null;
+let scRecordChunks = [];
+let scRecordStartedAt = 0;
+let scRecordTimerHandle = null;
+let scRecordStream = null;
+
+const SC_ATTACHMENT_MAX_BYTES = 900 * 1024;
+const SC_FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>';
+
+function resizeImageFile(file, maxDim){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+        else if (height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = () => reject(new Error('Could not read that image.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Could not read that image.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function readFileAsDataUrl(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Could not read that file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function blobToDataUrl(blob){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Could not read that recording.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function updateSendBtnEnabled(){
+  const input = document.getElementById('supportChatInput');
+  const sendBtn = document.getElementById('supportChatSendBtn');
+  sendBtn.disabled = !input.value.trim() && !pendingAttachment;
+}
+
+function renderAttachmentPreview(){
+  const wrap = document.getElementById('scAttachPreview');
+  const inner = document.getElementById('scAttachPreviewInner');
+  if (!pendingAttachment) { wrap.style.display = 'none'; inner.innerHTML = ''; return; }
+  wrap.style.display = 'flex';
+  if (pendingAttachment.type === 'image') {
+    inner.innerHTML = '<img src="' + pendingAttachment.dataUrl + '"><span class="sc-attach-preview-name">Photo</span>';
+  } else if (pendingAttachment.type === 'voice') {
+    inner.innerHTML = '<audio controls src="' + pendingAttachment.dataUrl + '"></audio>';
+  } else {
+    inner.innerHTML = SC_FILE_ICON + '<span class="sc-attach-preview-name">' + esc(pendingAttachment.name || 'file') + '</span>';
+  }
+}
+
+function clearPendingAttachment(){
+  pendingAttachment = null;
+  renderAttachmentPreview();
+  updateSendBtnEnabled();
+}
 
 async function refreshSupportUnread(){
   try {
@@ -2687,10 +2806,23 @@ async function openSupportInbox(){
   }
 }
 
+function renderAttachmentHtml(m){
+  if (!m.attachmentType || !m.attachmentDataUrl) return '';
+  if (m.attachmentType === 'image') {
+    return '<img class="sc-bubble-image" src="' + m.attachmentDataUrl + '">';
+  }
+  if (m.attachmentType === 'voice') {
+    return '<audio controls src="' + m.attachmentDataUrl + '"></audio>';
+  }
+  return '<a class="sc-bubble-file" href="' + m.attachmentDataUrl + '" download="' + esc(m.attachmentName || 'file') + '">' +
+    SC_FILE_ICON + '<span class="sc-bubble-file-name">' + esc(m.attachmentName || 'file') + '</span></a>';
+}
+
 function renderSupportBubble(m){
   const mine = supportChatIsAdminView ? m.fromAdmin : !m.fromAdmin;
   return '<div class="sc-bubble ' + (mine ? 'sc-bubble-me' : 'sc-bubble-them') + '">' +
-    esc(m.text) + '<span class="sc-bubble-time">' + timeAgo(m.createdAt) + '</span>' +
+    (m.text ? esc(m.text) : '') + renderAttachmentHtml(m) +
+    '<span class="sc-bubble-time">' + timeAgo(m.createdAt) + '</span>' +
   '</div>';
 }
 
@@ -2719,6 +2851,7 @@ async function openSupportChat(uid, title, isAdminView){
   document.getElementById('supportChatTitle').textContent = isAdminView ? title : 'Customer Care';
   document.getElementById('supportChatInput').value = '';
   document.getElementById('supportChatSendBtn').disabled = true;
+  clearPendingAttachment();
   document.getElementById('supportChatOverlay').classList.add('show');
   await loadSupportChatMessages(true);
   if (supportChatPollTimer) clearInterval(supportChatPollTimer);
@@ -2728,7 +2861,9 @@ async function openSupportChat(uid, title, isAdminView){
 function closeSupportChat(){
   document.getElementById('supportChatOverlay').classList.remove('show');
   if (supportChatPollTimer) { clearInterval(supportChatPollTimer); supportChatPollTimer = null; }
-  if (supportChatIsAdminView) document.getElementById('supportInboxOverlay').classList.add('show');
+  cancelVoiceRecording();
+  clearPendingAttachment();
+  if (supportChatIsAdminView) openSupportInbox();
   supportChatTargetUid = null;
   refreshSupportUnread();
 }
@@ -2737,20 +2872,119 @@ async function sendSupportChatMessage(){
   const input = document.getElementById('supportChatInput');
   const sendBtn = document.getElementById('supportChatSendBtn');
   const text = input.value.trim();
-  if (!text || !supportChatTargetUid) return;
+  const attachment = pendingAttachment;
+  if ((!text && !attachment) || !supportChatTargetUid) return;
   sendBtn.disabled = true;
   input.value = '';
+  clearPendingAttachment();
   try {
     const url = supportChatIsAdminView
       ? '/api/admin/support/threads/' + encodeURIComponent(supportChatTargetUid) + '/messages'
       : '/api/support/messages';
-    await postJSON(url, { text });
+    await postJSON(url, attachment ? { text, attachment } : { text });
     await loadSupportChatMessages(false);
   } catch (err) {
     showToast(err.message || 'Could not send that message.');
     input.value = text;
+    pendingAttachment = attachment;
+    renderAttachmentPreview();
   }
-  sendBtn.disabled = !input.value.trim();
+  updateSendBtnEnabled();
+}
+
+function formatRecordTime(ms){
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return m + ':' + String(rem).padStart(2, '0');
+}
+
+function teardownRecordingUI(){
+  document.getElementById('scMicBtn').classList.remove('recording');
+  document.getElementById('scRecordBanner').style.display = 'none';
+  if (scRecordTimerHandle) { clearInterval(scRecordTimerHandle); scRecordTimerHandle = null; }
+}
+
+function stopRecordStream(){
+  if (scRecordStream) { scRecordStream.getTracks().forEach(t => t.stop()); scRecordStream = null; }
+}
+
+async function startVoiceRecording(){
+  if (scMediaRecorder) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+    showToast('Voice recording is not supported on this browser.');
+    return;
+  }
+  try {
+    scRecordStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    showToast('Microphone access was denied.');
+    return;
+  }
+  scRecordChunks = [];
+  let mimeType = '';
+  if (window.MediaRecorder && MediaRecorder.isTypeSupported) {
+    if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+    else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+  }
+  scMediaRecorder = mimeType ? new MediaRecorder(scRecordStream, { mimeType }) : new MediaRecorder(scRecordStream);
+  scMediaRecorder.addEventListener('dataavailable', (e) => { if (e.data && e.data.size) scRecordChunks.push(e.data); });
+  scMediaRecorder.start();
+  scRecordStartedAt = Date.now();
+  document.getElementById('scMicBtn').classList.add('recording');
+  document.getElementById('scRecordBanner').style.display = 'flex';
+  document.getElementById('scRecordTimer').textContent = '0:00';
+  scRecordTimerHandle = setInterval(() => {
+    document.getElementById('scRecordTimer').textContent = formatRecordTime(Date.now() - scRecordStartedAt);
+  }, 200);
+}
+
+function cancelVoiceRecording(){
+  if (!scMediaRecorder) return;
+  const recorder = scMediaRecorder;
+  scMediaRecorder = null;
+  scRecordChunks = [];
+  teardownRecordingUI();
+  try { if (recorder.state !== 'inactive') recorder.stop(); } catch (err) {}
+  stopRecordStream();
+}
+
+async function finishVoiceRecording(){
+  if (!scMediaRecorder) return;
+  const recorder = scMediaRecorder;
+  const heldMs = Date.now() - scRecordStartedAt;
+  scMediaRecorder = null;
+  teardownRecordingUI();
+  if (heldMs < 700) {
+    try { if (recorder.state !== 'inactive') recorder.stop(); } catch (err) {}
+    stopRecordStream();
+    scRecordChunks = [];
+    showToast('Hold the mic button to record.');
+    return;
+  }
+  const stopped = new Promise((resolve) => { recorder.addEventListener('stop', resolve, { once: true }); });
+  try { if (recorder.state !== 'inactive') recorder.stop(); } catch (err) {}
+  await stopped;
+  stopRecordStream();
+  const blob = new Blob(scRecordChunks, { type: recorder.mimeType || 'audio/webm' });
+  scRecordChunks = [];
+  if (!blob.size) return;
+  if (blob.size > SC_ATTACHMENT_MAX_BYTES) {
+    showToast('That recording is too long. Keep voice notes short.');
+    return;
+  }
+  try {
+    const dataUrl = await blobToDataUrl(blob);
+    if (dataUrl.length > SC_ATTACHMENT_MAX_BYTES) {
+      showToast('That recording is too long. Keep voice notes short.');
+      return;
+    }
+    pendingAttachment = { dataUrl, type: 'voice', name: null };
+    renderAttachmentPreview();
+    updateSendBtnEnabled();
+  } catch (err) {
+    showToast(err.message || 'Could not process that recording.');
+  }
 }
 
 function initSupportFab(){
@@ -2766,11 +3000,44 @@ function initSupportFab(){
   document.getElementById('supportChatCloseBtn').addEventListener('click', closeSupportChat);
   const chatInput = document.getElementById('supportChatInput');
   const chatSendBtn = document.getElementById('supportChatSendBtn');
-  chatInput.addEventListener('input', () => { chatSendBtn.disabled = !chatInput.value.trim(); });
+  chatInput.addEventListener('input', updateSendBtnEnabled);
   chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !chatSendBtn.disabled) sendSupportChatMessage();
   });
   chatSendBtn.addEventListener('click', sendSupportChatMessage);
+
+  const attachBtn = document.getElementById('scAttachBtn');
+  const fileInput = document.getElementById('scFileInput');
+  attachBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      if (file.type && file.type.startsWith('image/')) {
+        const dataUrl = await resizeImageFile(file, 1280);
+        if (dataUrl.length > SC_ATTACHMENT_MAX_BYTES) { showToast('That image is too large.'); return; }
+        pendingAttachment = { dataUrl, type: 'image', name: null };
+      } else {
+        if (file.size > SC_ATTACHMENT_MAX_BYTES) { showToast('That file is too large (about 650KB max).'); return; }
+        const dataUrl = await readFileAsDataUrl(file);
+        if (dataUrl.length > SC_ATTACHMENT_MAX_BYTES) { showToast('That file is too large.'); return; }
+        pendingAttachment = { dataUrl, type: 'file', name: file.name };
+      }
+      renderAttachmentPreview();
+      updateSendBtnEnabled();
+    } catch (err) {
+      showToast(err.message || 'Could not read that file.');
+    }
+  });
+  document.getElementById('scAttachRemoveBtn').addEventListener('click', clearPendingAttachment);
+
+  const micBtn = document.getElementById('scMicBtn');
+  micBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); startVoiceRecording(); });
+  micBtn.addEventListener('pointerup', () => finishVoiceRecording());
+  micBtn.addEventListener('pointerleave', () => { if (scMediaRecorder) cancelVoiceRecording(); });
+  micBtn.addEventListener('pointercancel', () => { if (scMediaRecorder) cancelVoiceRecording(); });
+  document.getElementById('scRecordCancelBtn').addEventListener('click', cancelVoiceRecording);
 }
 
 function showVerifyStep(id){
