@@ -82,9 +82,9 @@ export function errorHandler(err, req, res, next) {
   const id = req.id || "-";
 
   if (status >= 500) {
-    console.error(`[${id}] ${req.method} ${req.originalUrl}: ${err?.stack || err}`);
+    console.error(`[${id}] ${req.method} ${req.originalUrl} — ${err?.stack || err}`);
   } else {
-    console.warn(`[${id}] ${req.method} ${req.originalUrl}: ${status} ${err?.message || err}`);
+    console.warn(`[${id}] ${req.method} ${req.originalUrl} — ${status} ${err?.message || err}`);
   }
 
   if (res.headersSent) return next(err);
@@ -109,7 +109,7 @@ export function errorHandler(err, req, res, next) {
       title: status >= 500 ? "Something went wrong" : "That request couldn't be handled",
       message:
         status >= 500
-          ? "This one is on us. Try again in a moment, and if it keeps happening, quote the reference below."
+          ? "This one is on us. Try again in a moment — if it keeps happening, quote the reference below."
           : "Please check the address and try again.",
       id,
     })

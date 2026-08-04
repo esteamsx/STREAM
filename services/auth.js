@@ -37,7 +37,7 @@ async function autoFollowAdmin(newUid, newUserEmail) {
 }
 
 function generateCode() {
-  return String(crypto.randomInt(100000, 1000000));
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 async function issueCode(uid, contact, purpose, channel = "email") {
@@ -86,10 +86,7 @@ async function checkCode(uid, purpose, code) {
     await ref.delete();
     return { ok: false, reason: "expired" };
   }
-  const storedCodeBuf = Buffer.from(String(data.code));
-  const givenCodeBuf = Buffer.from(String(code));
-  const codeMatches = storedCodeBuf.length === givenCodeBuf.length && crypto.timingSafeEqual(storedCodeBuf, givenCodeBuf);
-  if (!codeMatches) return { ok: false, reason: "mismatch" };
+  if (data.code !== code) return { ok: false, reason: "mismatch" };
   await ref.delete();
   return { ok: true, email: data.email };
 }
@@ -202,10 +199,7 @@ async function checkPendingSignupCode(email, code) {
     await ref.delete();
     return { ok: false, reason: "expired" };
   }
-  const storedCodeBuf = Buffer.from(String(data.code));
-  const givenCodeBuf = Buffer.from(String(code));
-  const codeMatches = storedCodeBuf.length === givenCodeBuf.length && crypto.timingSafeEqual(storedCodeBuf, givenCodeBuf);
-  if (!codeMatches) return { ok: false, reason: "mismatch" };
+  if (data.code !== code) return { ok: false, reason: "mismatch" };
   await ref.delete();
   return { ok: true, data };
 }
@@ -898,7 +892,7 @@ function toBase64url(value) {
 function toSafeCredentialDescriptor(c, label) {
   const id = toBase64url(c && c.id);
   if (!id || typeof id !== "string") {
-    throw new Error(`Server produced an invalid ${label} entry, passkey data may be corrupted.`);
+    throw new Error(`Server produced an invalid ${label} entry — passkey data may be corrupted.`);
   }
   return { ...c, id };
 }
@@ -1955,7 +1949,7 @@ async function searchUsersByUsername(query, excludeUid, limit = 15) {
 const LAST_ACTIVE_UPDATE_THROTTLE_MS = 2 * 60 * 1000;
 
 function requireAuth(req, res, next) {
-  const sessionId = req.cookies?.["__Host-session"];
+  const sessionId = req.cookies?.session;
   verifySession(sessionId)
     .then(async (uid) => {
       if (!uid) return res.status(401).json({ error: "not_authenticated" });
@@ -1976,7 +1970,7 @@ function requireAuth(req, res, next) {
 
 async function optionalAuth(req, res, next) {
   try {
-    const sessionId = req.cookies?.["__Host-session"];
+    const sessionId = req.cookies?.session;
     const uid = sessionId ? await verifySession(sessionId) : null;
     if (uid) {
       const profile = await getUserProfile(uid);
@@ -2300,7 +2294,7 @@ function validateSupportAttachment(attachment) {
   if (!attachment) return null;
   const { dataUrl, type, name } = attachment;
   if (!SUPPORT_ATTACHMENT_TYPES.includes(type)) throw new Error("Unsupported attachment type.");
-  if (typeof dataUrl !== "string" || !/^data:[a-z0-9.+-]+\/[a-z0-9.+-]+(?:;[a-z0-9.+-]+=[a-z0-9.+-]+)*;base64,[a-z0-9+/]*={0,2}$/i.test(dataUrl)) {
+  if (typeof dataUrl !== "string" || !/^data:[a-z0-9.+-]+\/[a-z0-9.+-]+(?:;[a-z0-9.+-]+=[a-z0-9.+-]+)*;base64,/i.test(dataUrl)) {
     throw new Error("That attachment couldn't be read.");
   }
   if (dataUrl.length > SUPPORT_ATTACHMENT_MAX_BYTES) throw new Error("That attachment is too large.");

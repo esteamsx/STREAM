@@ -4,7 +4,7 @@ export const SITE = {
   short: "ES TEAMS",
   tagline: "Live TV & sport, streaming free.",
   description:
-    "Hundreds of live channels and every match, in your browser. No app, no set-top box.",
+    "Hundreds of live channels and every match, in your browser — no app, no set-top box.",
   locale: "en_US",
   themeColor: "#0A0A0F",
   twitter: "",
@@ -79,7 +79,7 @@ export const PAGES = {
   },
   tools: {
     path: "/tools",
-    description: "Free developer and network tools: DNS lookup, JS obfuscator, QR codes, SSL checker, WHOIS, and more.",
+    description: "Free developer and network tools — DNS lookup, JS obfuscator, QR codes, SSL checker, WHOIS, and more.",
     auth: "public",
   },
   toolsDnsLookup: {
@@ -99,7 +99,7 @@ export const PAGES = {
   },
   toolsSslChecker: {
     path: "/tools/ssl-checker",
-    description: "Check a domain's TLS certificate: issuer, expiry and validity.",
+    description: "Check a domain's TLS certificate — issuer, expiry and validity.",
     auth: "public",
   },
   toolsWhois: {
@@ -326,7 +326,7 @@ export function siteHead({ title, description, path = "/", image = "/og.png", ty
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="${escapeAttr(SITE.name)}: ${escapeAttr(SITE.tagline)}">
+<meta property="og:image:alt" content="${escapeAttr(SITE.name)} — ${escapeAttr(SITE.tagline)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${escapeAttr(finalTitle)}">
 <meta name="twitter:description" content="${escapeAttr(finalDescription)}">

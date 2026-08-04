@@ -113,7 +113,7 @@ async function botServiceFetch(pathAndQuery, options = {}) {
     });
   } catch (err) {
     if (err.name === "TimeoutError" || err.name === "AbortError") {
-      throw Object.assign(new Error("Bot service didn't respond in time. It may be waking up, try again shortly."), { status: 504 });
+      throw Object.assign(new Error("Bot service didn't respond in time. It may be waking up — try again shortly."), { status: 504 });
     }
     throw Object.assign(new Error("Could not reach the bot service."), { status: 502 });
   }
@@ -239,7 +239,6 @@ import {
   securityHeaders,
   helmetMiddleware,
   cspNonce,
-  googlebotVerifier,
   botBlocker,
   SimpleRateLimiter,
   suspiciousRequestDetector,
@@ -253,7 +252,7 @@ import {
 } from "./middleware/security-middleware.js";
 import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
 import { canonicalPath, pageGuards } from "./middleware/navigation.js";
-import { WEB_MANIFEST, siteHeadFor, siteOrigin } from "./config/site.js";
+import { WEB_MANIFEST, siteHeadFor } from "./config/site.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -278,7 +277,6 @@ app.use(hppGuard);
 app.use(probePathTrap);
 app.use(new RepeatedRefusalGuard(15, 5 * 60 * 1000, 30 * 60 * 1000).middleware());
 app.use(ipBlocklist);
-app.use(googlebotVerifier);
 app.use(botBlocker);
 app.use(suspiciousRequestDetector);
 const globalLimiter = new SimpleRateLimiter(400, 60000).middleware();
@@ -287,45 +285,6 @@ app.use((req, res, next) => {
   return globalLimiter(req, res, next);
 });
 app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
-
-const SITEMAP_PATHS = [
-  { path: "/football", priority: "0.9", changefreq: "hourly" },
-  { path: "/login", priority: "0.5", changefreq: "monthly" },
-  { path: "/developers", priority: "0.6", changefreq: "monthly" },
-  { path: "/privacy", priority: "0.3", changefreq: "yearly" },
-  { path: "/dmca", priority: "0.3", changefreq: "yearly" },
-  { path: "/tools", priority: "0.8", changefreq: "weekly" },
-  "/tools/dns-lookup", "/tools/obfuscate", "/tools/qr-code", "/tools/ssl-checker", "/tools/whois",
-  "/tools/base64", "/tools/jwt-decode", "/tools/json-formatter", "/tools/fancy-text",
-  "/tools/password-generator", "/tools/hash-generator", "/tools/regex-tester",
-  "/tools/timestamp-converter", "/tools/word-counter", "/tools/case-converter",
-  "/tools/lorem-ipsum", "/tools/slug-generator", "/tools/url-encoder", "/tools/html-entity",
-  "/tools/hex-text", "/tools/binary-text", "/tools/caesar-cipher", "/tools/uuid-generator",
-  "/tools/color-converter", "/tools/base-converter", "/tools/roman-numeral",
-  "/tools/user-agent-parser", "/tools/subnet-calculator", "/tools/random-number",
-  "/tools/dice-roller", "/tools/dedupe-lines", "/tools/sort-lines", "/tools/age-calculator",
-  "/tools/text-diff", "/tools/find-replace", "/tools/csv-json", "/tools/number-to-words",
-  "/tools/morse-code", "/tools/percentage-calculator", "/tools/bmi-calculator",
-  "/tools/contrast-checker", "/tools/markdown-preview", "/tools/fake-data", "/tools/text-encrypt",
-  "/tools/typing-test", "/tools/ip-lookup", "/tools/http-headers", "/tools/cron-explainer",
-  "/tools/css-gradient", "/tools/tip-calculator", "/tools/random-quote", "/tools/ascii-art",
-  "/tools/yaml-json", "/tools/json-diff", "/tools/password-hash", "/tools/totp-tool",
-  "/tools/name-generator", "/tools/countdown-timer", "/tools/minify-beautify",
-  "/tools/robots-txt", "/tools/sitemap-xml", "/tools/sql-format", "/tools/json-schema-validate",
-  "/tools/favicon-generator", "/tools/meme-text", "/tools/signature-generator",
-  "/tools/colorblind-simulator", "/tools/api-tester", "/tools/ws-tester",
-  "/tools/file-type-detector", "/tools/speech-tools", "/tools/qr-scanner", "/tools/ocr-tool",
-];
-
-const SITEMAP_XML = (() => {
-  const origin = siteOrigin();
-  const entries = SITEMAP_PATHS.map((entry) => {
-    const { path: p, priority = "0.7", changefreq = "monthly" } = typeof entry === "string" ? { path: entry } : entry;
-    return `  <url>\n    <loc>${origin}${p}</loc>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
-  }).join("\n");
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`;
-})();
-app.get("/sitemap.xml", (req, res) => res.type("application/xml").send(SITEMAP_XML));
 
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
@@ -413,6 +372,9 @@ app.get(["/.well-known/security.txt", "/security.txt"], (req, res) => {
 const DOMAIN_LOCK_ALLOWED_HASHES = JSON.stringify(
   Array.from(new Set([...DOMAIN_LOCK_HOSTS, "localhost", "127.0.0.1"])).map(domainLockHash)
 );
+// Runs before any other script on the page. If the page isn't being served from an
+// allowed domain, it blanks the page and bounces to the real site — so a scraped copy
+// of the HTML/CSS/JS renders nothing useful when re-hosted elsewhere.
 const DOMAIN_LOCK_SCRIPT = `<script nonce="__CSP_NONCE__">
 (function(){
   function _dlh(s){var a=5381;for(var i=0;i<s.length;i++){a=((a<<5)+a+s.charCodeAt(i))|0;}return (a>>>0).toString(36);}
@@ -451,7 +413,7 @@ document.addEventListener('contextmenu', function(e){
     if (shown) return;
     shown = true;
     var bar = document.createElement('div');
-    bar.textContent = 'Developer tools detected. This session is logged.';
+    bar.textContent = 'Developer tools detected — this session is logged.';
     bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#1a0a0f;color:#ff8fa3;font:600 12px system-ui;text-align:center;padding:8px;border-top:1px solid #ff3b5c;';
     var closeBtn = document.createElement('span');
     closeBtn.textContent = ' ✕';
@@ -1824,6 +1786,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 </head>
 <body>
 
+<!-- SVG defs for gradients used in CSS -->
 <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
   <defs>
     <linearGradient id="navGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1886,6 +1849,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       <div class="no-results" id="noResults">No channels found</div>
     </div>
 
+    <!-- ── WATCH HOURS ── -->
     <div class="watch-hours-wrap">
       <div class="wh-ring-wrap">
         <div class="wh-circle" id="whCircle">
@@ -1901,6 +1865,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       </div>
     </div>
 
+    <!-- ── OWNER PROFILE HEAD ── -->
     <div class="owner-card">
       <div class="owner-crown">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -1923,6 +1888,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         <span class="notif-nav-dot js-account-dot" id="acctIconDot"></span>
       </a>
+      <!-- Account menu -->
       <div class="user-menu-wrap">
         <button class="user-menu-btn" id="userMenuBtn" aria-label="Menu" title="Menu">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -1951,7 +1917,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
             <svg class="umi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             DMCA
           </a>
-          <span class="user-menu-avatar" id="menuAvatar" style="display:none">-</span>
+          <span class="user-menu-avatar" id="menuAvatar" style="display:none">–</span>
           <button class="user-menu-item user-menu-logout" id="menuLogoutBtn" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
             Logout
@@ -1963,6 +1929,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
   <main class="player-area">
 
+    <!-- ── ANNOUNCEMENT TICKER ── -->
     <div class="announce-bar" id="announceTicker">
       <div class="announce-label">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
@@ -1970,18 +1937,19 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       </div>
       <div class="announce-track" id="announceTrack">
         <div class="announce-scroll" id="announceScroll">
-          <span class="announce-item">Welcome to ES TEAMS TV: Your #1 live TV streaming destination</span>
+          <span class="announce-item">Welcome to ES TEAMS TV — Your #1 live TV streaming destination</span>
           <span class="announce-item">Join our WhatsApp Channel for live updates and announcements</span>
-          <span class="announce-item">All channels are streaming in HD quality, enjoy the experience</span>
+          <span class="announce-item">All channels are streaming in HD quality — enjoy the experience</span>
           <span class="announce-item">Press and hold any announcement to pause and read it</span>
-          <span class="announce-item">New channels added weekly, stay tuned for more content</span>
-          <span class="announce-item">ES TEAMS TV: Powered by ES TEAMS TECH</span>
-          <span class="announce-item">Welcome to ES TEAMS TV: Your #1 live TV streaming destination</span>
+          <span class="announce-item">New channels added weekly — stay tuned for more content</span>
+          <span class="announce-item">ES TEAMS TV — Powered by ES TEAMS TECH</span>
+          <!-- duplicate for seamless loop -->
+          <span class="announce-item">Welcome to ES TEAMS TV — Your #1 live TV streaming destination</span>
           <span class="announce-item">Join our WhatsApp Channel for live updates and announcements</span>
-          <span class="announce-item">All channels are streaming in HD quality, enjoy the experience</span>
+          <span class="announce-item">All channels are streaming in HD quality — enjoy the experience</span>
           <span class="announce-item">Press and hold any announcement to pause and read it</span>
-          <span class="announce-item">New channels added weekly, stay tuned for more content</span>
-          <span class="announce-item">ES TEAMS TV: Powered by ES TEAMS TECH</span>
+          <span class="announce-item">New channels added weekly — stay tuned for more content</span>
+          <span class="announce-item">ES TEAMS TV — Powered by ES TEAMS TECH</span>
         </div>
       </div>
     </div>
@@ -2001,16 +1969,20 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       </div>
     </div>
 
+    <!-- HLS video player (replaces iframe) -->
     <div class="video-wrap" id="videoWrap">
       <video id="videoPlayer" playsinline autoplay muted></video>
 
+      <!-- inner frame that matches the actual rendered video rect -->
       <div class="video-frame" id="videoFrame">
 
+        <!-- ── CONNECTING overlay ── -->
         <div class="connecting-overlay" id="connectingOverlay">
           <span class="connecting-spinner"></span>
           <span class="connecting-msg">Connecting to Es Teams Tv...</span>
         </div>
 
+        <!-- ── CHANNEL DOWN overlay ── -->
         <div class="ch-down-overlay" id="chDownOverlay">
           <div class="ch-down-card">
             <span class="ch-down-c3"></span><span class="ch-down-c4"></span>
@@ -2033,11 +2005,13 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           </div>
         </div>
 
+        <!-- ── NETWORK STRENGTH ── -->
         <div class="net-badge" id="netBadge">
           <span class="net-bars"><i></i><i></i><i></i><i></i></span>
           <span class="net-label" id="netLabel">H</span>
         </div>
 
+        <!-- ── WATERMARK ── -->
         <div class="wm-badge">
           <svg class="wm-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2L3 6v5c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V6z"/>
@@ -2046,6 +2020,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           <span class="wm-name">ES TEAMS TV</span>
         </div>
 
+        <!-- ── BRIGHTNESS slide zone (right side) + readout ── -->
         <div class="brightness-zone" id="brightnessZone"></div>
         <div class="brightness-readout" id="brightnessReadout">
           <svg class="brightness-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2056,6 +2031,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           <span class="brightness-pct" id="brightnessPct">100%</span>
         </div>
 
+        <!-- ── VOLUME slide zone (left side) + readout ── -->
         <div class="volume-zone" id="volumeZone"></div>
         <div class="volume-readout" id="volumeReadout">
           <svg class="volume-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -2066,6 +2042,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           <span class="volume-pct" id="volumePct">50%</span>
         </div>
 
+        <!-- ── CUSTOM MEDIA CONTROLS ── -->
         <div class="media-controls" id="mediaControls">
           <button class="mc-btn mc-play" id="mcPlay" aria-label="Play/Pause">
             <svg id="mcPlayIcon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
@@ -2096,14 +2073,15 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           </button>
         </div>
 
-      </div>
+      </div><!-- /video-frame -->
 
+      <!-- overlays (live badge stays on full wrap, top-left) -->
       <div class="live-badge">
         <span class="live-badge-sweep"></span>
         <span class="live-dot"></span>
         <span class="live-on-air">ON AIR</span>
         <span class="live-sep">·</span>
-        <span id="liveName">-</span>
+        <span id="liveName">—</span>
       </div>
 
       <a class="wa-btn" id="waBtn" href="https://whatsapp.com/channel/0029VatAyCwFy72JdZXFPm29" target="_blank" rel="noopener" title="Hold &amp; drag to reposition">
@@ -2115,11 +2093,13 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       </a>
     </div>
 
+    <!-- status bar -->
     <div class="status-bar" id="statusBar" style="display:none">
       <span class="status-dot" id="statusDot"></span>
       <span id="statusText">Connecting…</span>
     </div>
 
+    <!-- ── MORE CHANNELS — category grid, fetched fresh on every page load ── -->
     <div class="more-ch-wrap" id="moreChWrap">
       <div class="more-ch-label">
         <span>More Channels</span>
@@ -2137,6 +2117,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   </main>
 </div>
 
+<!-- More Channels reopen bar — independent fixed element, shown only while the grid below is collapsed -->
 <div class="more-ch-reopen" id="moreChReopen">
   <span>More Channels</span>
   <button type="button" class="more-ch-toggle" id="moreChReopenBtn" aria-label="Expand">
@@ -2144,6 +2125,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   </button>
 </div>
 
+<!-- More Channels — category channel list, centered overlay (same pattern as Find Friends search) -->
 <div class="page-overlay" id="moreChOverlay">
   <div class="overlay-card">
     <div class="overlay-title" id="moreChPanelTitle">Category</div>
@@ -2235,9 +2217,9 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
 <div class="page-overlay" id="mpvOverlay">
   <div class="mpv-card">
-    <div class="mpv-avatar" id="mpvAvatar">-</div>
-    <div class="mpv-name" id="mpvName">-</div>
-    <div class="mpv-username" id="mpvUsername">-</div>
+    <div class="mpv-avatar" id="mpvAvatar">–</div>
+    <div class="mpv-name" id="mpvName">–</div>
+    <div class="mpv-username" id="mpvUsername">–</div>
     <div class="mpv-stats">
       <div class="mpv-stat"><div class="mpv-stat-num" id="mpvFollowers">0</div><div class="mpv-stat-label">Followers</div></div>
       <div class="mpv-stat"><div class="mpv-stat-num" id="mpvFollowing">0</div><div class="mpv-stat-label">Following</div></div>
@@ -2248,6 +2230,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   </div>
 </div>
 
+<!-- hls.js -->
 <script nonce="__CSP_NONCE__" src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js" integrity="sha384-1B+J55elPxu+trIhW7QThjZg3evX8C5P6zjB82Xnn46RKPAXpL+vkanRSjCidsJv" crossorigin="anonymous"></script>
 
 <script nonce="__CSP_NONCE__">
@@ -2393,7 +2376,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           if(data.type === Hls.ErrorTypes.NETWORK_ERROR){
             _netRetries++;
             if(_netRetries <= MAX_NET_RETRIES){
-              setStatus('Network error, retrying (' + _netRetries + '/' + MAX_NET_RETRIES + ')...', 'error');
+              setStatus('Network error — retrying (' + _netRetries + '/' + MAX_NET_RETRIES + ')…', 'error');
               if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
               hls.startLoad();
             } else {
@@ -2406,7 +2389,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
               if(dBtn){ var d=dBtn.querySelector('.ch-dot'); if(d){d.classList.add('ch-dot-down');d.classList.remove('ch-dot-up');} dBtn.dataset.chStatus='down'; }
             }
           } else if(data.type === Hls.ErrorTypes.MEDIA_ERROR){
-            setStatus('Media error, recovering...', 'error');
+            setStatus('Media error — recovering…', 'error');
             if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
             hls.recoverMediaError();
           } else {
@@ -2529,7 +2512,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
               '<span class="more-ch-cat-name">' + cat.category + '</span>' +
               '<span class="more-ch-cat-count">' + cat.count + ' ch</span>' +
             '</button>';
-          }).join('') + '<div class="more-ch-end">The End</div>';
+          }).join('') + '<div class="more-ch-end">— The End —</div>';
           grid.querySelectorAll('.more-ch-cat').forEach(function(btn){
             btn.addEventListener('click', function(){ openCategory(btn.dataset.cat); });
           });
@@ -3224,7 +3207,7 @@ async function openMiniPreview(username){
   document.getElementById('mpvName').textContent = 'Loading…';
   document.getElementById('mpvUsername').textContent = '';
   document.getElementById('mpvAvatar').style.backgroundImage = '';
-  document.getElementById('mpvAvatar').textContent = '-';
+  document.getElementById('mpvAvatar').textContent = '–';
   document.getElementById('mpvFollowers').textContent = '0';
   document.getElementById('mpvFollowing').textContent = '0';
   document.getElementById('mpvLikes').textContent = '0';
@@ -3533,7 +3516,7 @@ app.get("/u/:username", scrapeGate, requireUser, (req, res) => {
 });
 
 app.get("/admin", scrapeGate, async (req, res) => {
-  const sessionId = req.cookies?.["__Host-session"];
+  const sessionId = req.cookies?.session;
   const uid = await verifySession(sessionId);
   if (!uid) return res.redirect("/login");
   const profile = await getUserProfile(uid);
@@ -3734,7 +3717,7 @@ app.get("/api/admin/bots/users", requireAuth, requireAdmin, async (req, res) => 
 
 app.get("/api/admin/bots/users/:uid", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/admin/bots/users/${encodeURIComponent(req.params.uid)}`));
+    res.json(await botServiceFetch(`/internal/admin/bots/users/${req.params.uid}`));
   } catch (err) {
     res.status(err.status || 500).json({ error: "Could not load that user's deployments." });
   }
@@ -3742,7 +3725,7 @@ app.get("/api/admin/bots/users/:uid", requireAuth, requireAdmin, async (req, res
 
 app.post("/api/admin/bots/:id/stop", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/admin/bots/${encodeURIComponent(req.params.id)}/stop`, { method: "POST" }));
+    res.json(await botServiceFetch(`/internal/admin/bots/${req.params.id}/stop`, { method: "POST" }));
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "Could not stop that deployment." });
   }
@@ -3750,7 +3733,7 @@ app.post("/api/admin/bots/:id/stop", requireAuth, requireAdmin, async (req, res)
 
 app.post("/api/admin/bots/:id/restart", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/admin/bots/${encodeURIComponent(req.params.id)}/restart`, { method: "POST" }));
+    res.json(await botServiceFetch(`/internal/admin/bots/${req.params.id}/restart`, { method: "POST" }));
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "Could not restart that deployment." });
   }
@@ -3758,7 +3741,7 @@ app.post("/api/admin/bots/:id/restart", requireAuth, requireAdmin, async (req, r
 
 app.delete("/api/admin/bots/:id", requireAuth, requireAdmin, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/admin/bots/${encodeURIComponent(req.params.id)}`, { method: "DELETE" }));
+    res.json(await botServiceFetch(`/internal/admin/bots/${req.params.id}`, { method: "DELETE" }));
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "Could not delete that deployment." });
   }
@@ -4139,7 +4122,7 @@ app.post("/api/bots/deploy", requireAuth, botDeployLimiter, async (req, res) => 
 
 app.get("/api/bots/:id/status", requireAuth, botStatusLimiter, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/bots/${encodeURIComponent(req.params.id)}/status?uid=${encodeURIComponent(req.uid)}`));
+    res.json(await botServiceFetch(`/internal/bots/${req.params.id}/status?uid=${encodeURIComponent(req.uid)}`));
   } catch (err) {
     res.status(err.status || 404).json({ error: err.message || "Deployment not found." });
   }
@@ -4147,7 +4130,7 @@ app.get("/api/bots/:id/status", requireAuth, botStatusLimiter, async (req, res) 
 
 app.post("/api/bots/:id/stop", requireAuth, botActionLimiter, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/bots/${encodeURIComponent(req.params.id)}/stop`, {
+    res.json(await botServiceFetch(`/internal/bots/${req.params.id}/stop`, {
       method: "POST", body: JSON.stringify({ uid: req.uid }),
     }));
   } catch (err) {
@@ -4157,7 +4140,7 @@ app.post("/api/bots/:id/stop", requireAuth, botActionLimiter, async (req, res) =
 
 app.post("/api/bots/:id/restart", requireAuth, botActionLimiter, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/bots/${encodeURIComponent(req.params.id)}/restart`, {
+    res.json(await botServiceFetch(`/internal/bots/${req.params.id}/restart`, {
       method: "POST", body: JSON.stringify({ uid: req.uid }),
     }));
   } catch (err) {
@@ -4167,7 +4150,7 @@ app.post("/api/bots/:id/restart", requireAuth, botActionLimiter, async (req, res
 
 app.delete("/api/bots/:id", requireAuth, botActionLimiter, async (req, res) => {
   try {
-    res.json(await botServiceFetch(`/internal/bots/${encodeURIComponent(req.params.id)}?uid=${encodeURIComponent(req.uid)}`, { method: "DELETE" }));
+    res.json(await botServiceFetch(`/internal/bots/${req.params.id}?uid=${encodeURIComponent(req.uid)}`, { method: "DELETE" }));
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "Could not delete deployment." });
   }
@@ -4607,7 +4590,7 @@ app.post("/api/session", passwordLoginLimiter, async (req, res) => {
       return res.json({ requires2FA: true, pendingToken });
     }
     const sessionId = await withDeadline(createSession(decoded.uid), "createSession");
-    res.cookie("__Host-session", sessionId, {
+    res.cookie("session", sessionId, {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
@@ -4635,7 +4618,7 @@ app.post("/api/2fa/login-verify", twoFactorLoginLimiter, async (req, res) => {
     if (!valid) return res.status(400).json({ error: "Incorrect code." });
     await deleteTwoFactorPendingLogin(pendingToken);
     const sessionId = await createSession(pending.uid);
-    res.cookie("__Host-session", sessionId, {
+    res.cookie("session", sessionId, {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
@@ -4649,8 +4632,8 @@ app.post("/api/2fa/login-verify", twoFactorLoginLimiter, async (req, res) => {
 });
 
 app.post("/api/logout", async (req, res) => {
-  await deleteSession(req.cookies?.["__Host-session"]);
-  res.clearCookie("__Host-session", { path: "/" });
+  await deleteSession(req.cookies?.session);
+  res.clearCookie("session");
   res.json({ ok: true });
 });
 
@@ -5461,7 +5444,7 @@ app.post("/api/confirm-account-deletion", requireAuth, async (req, res) => {
       return res.status(400).json({ error: messages[result.reason] || "Invalid code." });
     }
     await scheduleAccountDeletion(req.uid);
-    res.clearCookie("__Host-session", { path: "/" });
+    res.clearCookie("session");
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -5480,16 +5463,14 @@ app.post("/api/request-password-reset", resetLimiter, async (req, res) => {
       if (!user || !user.email) return res.status(404).json({ error: "No account found with that username." });
       email = user.email;
     }
-    let userRecord = null;
+    let userRecord;
     try {
       userRecord = await firebaseAuth.getUserByEmail(email);
-    } catch {
-      userRecord = null;
+    } catch (err) {
+      return res.status(404).json({ error: isEmail ? "No account found with that email." : "No account found with that username." });
     }
-    if (userRecord) {
-      await issueCode(userRecord.uid, email, "forgot_password");
-    }
-    res.json({ uid: userRecord ? userRecord.uid : `noacct_${crypto.randomBytes(12).toString("hex")}`, email });
+    await issueCode(userRecord.uid, email, "forgot_password");
+    res.json({ uid: userRecord.uid, email });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not send reset code." });
@@ -5598,9 +5579,9 @@ let shuttingDown = false;
 function shutdown(signal, code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`${signal} received, finishing in-flight requests before exit.`);
+  console.log(`${signal} received — finishing in-flight requests before exit.`);
   const force = setTimeout(() => {
-    console.error("Shutdown timed out, exiting now.");
+    console.error("Shutdown timed out — exiting now.");
     process.exit(code || 1);
   }, 15000);
   force.unref();

@@ -5,7 +5,7 @@ export function renderCountdownTimer(cfg) {
     pageKey: "toolsCountdownTimer",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="13" r="8"/><path stroke-linecap="round" d="M12 9v4l3 2M9 2h6"/></svg>`,
     heading: "Countdown Timer / Stopwatch",
-    subtitle: "Set a countdown, or run a stopwatch, right in your browser. Complete the verification below, then press Start.",
+    subtitle: "Set a countdown, or run a stopwatch — right in your browser. Complete the verification below, then press Start.",
     bodyHtml: `
       <div class="field">
         <label for="modeSelect">Mode</label>

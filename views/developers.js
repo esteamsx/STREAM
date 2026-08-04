@@ -271,6 +271,7 @@ ${musicPlayerStyle()}
 <body>
 <div class="wrap">
 
+  <!-- ══════════════════════════ DASHBOARD VIEW ══════════════════════════ -->
   <div id="view-dash">
 
     <div class="back-row">
@@ -291,11 +292,12 @@ ${musicPlayerStyle()}
 
     <div class="hero">
       <h1>Developer API</h1>
-      <p>Pull live channels into your own site, bot, or app. Manage your key, test a real request, and watch your usage, all from one place.</p>
+      <p>Pull live channels into your own site, bot, or app — manage your key, test a real request, and watch your usage, all from one place.</p>
     </div>
 
     <div class="dash-grid">
 
+      <!-- PLANS -->
       <div class="dcard span2 dcard-collapsible" id="plansCard">
         <div class="dcard-head" id="plansHead">
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/></svg></span>
@@ -309,7 +311,7 @@ ${musicPlayerStyle()}
           <div class="plans-grid" id="plansGrid" style="margin-top:16px"><div class="ch-loading">Loading…</div></div>
           <div id="customVisitWrap" style="display:none;margin-top:16px">
             <div class="field">
-              <label>Custom Visit Page URL <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(Max plan, shown on expired stream links)</span></label>
+              <label>Custom Visit Page URL <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— Max plan, shown on expired stream links</span></label>
               <input type="text" id="customVisitInput" placeholder="https://yoursite.com">
             </div>
             <button class="btn btn-primary btn-sm" id="customVisitSaveBtn" type="button">Save Link</button>
@@ -318,6 +320,7 @@ ${musicPlayerStyle()}
         </div>
       </div>
 
+      <!-- API KEY -->
       <div class="dcard span2" id="keyCard">
         <div class="dcard-head">
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></span>
@@ -329,6 +332,7 @@ ${musicPlayerStyle()}
         <div id="keyCardBody"><div class="ch-loading">Loading…</div></div>
       </div>
 
+      <!-- CHANNELS -->
       <div class="dcard" id="channelsCard">
         <div class="dcard-head">
           <span class="dcard-icon">
@@ -345,6 +349,7 @@ ${musicPlayerStyle()}
         <div class="ch-list" id="chList"><div class="ch-loading">Loading channels…</div></div>
       </div>
 
+      <!-- TRY IT -->
       <div class="dcard" id="tryitCard">
         <div class="dcard-head">
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></span>
@@ -385,6 +390,7 @@ ${musicPlayerStyle()}
         <pre id="tryitCurl">curl https://esteamstv.devs.surf/api/v1/channels</pre>
       </div>
 
+      <!-- GENERATED LINKS -->
       <div class="dcard span2" id="linksCard">
         <div class="dcard-head">
           <span class="dcard-icon">
@@ -405,6 +411,7 @@ ${musicPlayerStyle()}
 
   </div>
 
+  <!-- ══════════════════════════ DOCUMENTATION VIEW ══════════════════════════ -->
   <div id="view-docs">
 
     <div class="back-row">
@@ -420,10 +427,10 @@ ${musicPlayerStyle()}
     </div>
 
     <h1>Developer API</h1>
-    <p class="doc-p">Pull live channels into your own site, bot, or app, with a key tied to your account, and a link that never exposes the real stream source.</p>
+    <p class="doc-p">Pull live channels into your own site, bot, or app — with a key tied to your account, and a link that never exposes the real stream source.</p>
 
     <h2 class="doc-h2">Getting a key</h2>
-    <p class="doc-p">Create an API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. How many keys you can have (1 to 15) depends on your plan; see <a href="#" id="docsToDashLink3">Plans &amp; Pricing</a>. You can revoke any key at any time.</p>
+    <p class="doc-p">Create an API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. How many keys you can have — 1 to 15 — depends on your plan; see <a href="#" id="docsToDashLink3">Plans &amp; Pricing</a>. You can revoke any key at any time.</p>
 
     <h2 class="doc-h2">Authentication</h2>
     <p class="doc-p">Pass your key in the <code>x-api-key</code> header on every request.</p>
@@ -443,7 +450,7 @@ ${musicPlayerStyle()}
 
     <h2 class="doc-h2">Get a stream link</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/stream/:channel</code></p>
-    <p class="doc-p">Give it a channel id (e.g. <code>nickelodeon</code>) and get back a watermarked, single-use embed link. It is <strong>not</strong> the real stream URL, it's a short-lived link to our own player, which is the only thing that ever talks to the actual source.</p>
+    <p class="doc-p">Give it a channel id (e.g. <code>nickelodeon</code>) and get back a watermarked, single-use embed link. It is <strong>not</strong> the real stream URL — it's a short-lived link to our own player, which is the only thing that ever talks to the actual source.</p>
     <pre>curl -H "x-api-key: estv_your_key_here" \\
   https://esteamstv.devs.surf/api/v1/stream/nickelodeon</pre>
     <pre>{
@@ -458,7 +465,7 @@ ${musicPlayerStyle()}
     <pre>&lt;iframe src="https://esteamstv.devs.surf/embed/nickelodeon?token=..." 
         width="100%" height="400" frameborder="0" allowfullscreen&gt;
 &lt;/iframe&gt;</pre>
-    <p class="doc-p">Or, in a Telegram bot, send it as a link or a Web App button so it opens in-app. On the Free, Starter and Standard plans, viewers see the ES TEAMS TV watermark on the player; Pro and Max remove it.</p>
+    <p class="doc-p">Or, in a Telegram bot, send it as a link or a Web App button so it opens in-app. On the Free, Starter and Standard plans, viewers see the ES TEAMS TV watermark on the player — Pro and Max remove it.</p>
 
     <h2 class="doc-h2">Link lifetime</h2>
     <table>
@@ -469,22 +476,22 @@ ${musicPlayerStyle()}
       <tr><td>Pro</td><td>3 days</td></tr>
       <tr><td>Max</td><td>7 days</td></tr>
     </table>
-    <p class="doc-p">Once a link expires, call <code>/api/v1/stream/:channel</code> again for a fresh one. It's issued with whatever lifetime your current plan allows. Don't try to cache or redistribute the underlying player URL past its expiry, it stops working, by design.</p>
-    <p class="doc-p">Every link is also tied to the specific API key that generated it. If you revoke that key (from the dashboard, whether or not the link has hit its expiry yet), the link stops working immediately too. There's no way to keep a link alive past its key's lifetime, so revoking a key is a clean, complete way to cut off everything it was used for.</p>
+    <p class="doc-p">Once a link expires, call <code>/api/v1/stream/:channel</code> again for a fresh one — it's issued with whatever lifetime your current plan allows. Don't try to cache or redistribute the underlying player URL past its expiry — it stops working, by design.</p>
+    <p class="doc-p">Every link is also tied to the specific API key that generated it. If you revoke that key — from the dashboard, whether or not the link has hit its expiry yet — the link stops working immediately too. There's no way to keep a link alive past its key's lifetime, so revoking a key is a clean, complete way to cut off everything it was used for.</p>
 
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
-    <p class="doc-p">30 requests per minute per API key on the issuance endpoints, plenty for normal use, since it's one call per viewer session, not per segment. On top of that, every account has a monthly allowance of 100 requests, shared across all your keys. It's tied to your account, so revoking a key and creating a new one doesn't reset it. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink2">API Dashboard</a>.</p>
+    <p class="doc-p">30 requests per minute per API key on the issuance endpoints — plenty for normal use, since it's one call per viewer session, not per segment. On top of that, every account has a monthly allowance of 100 requests, shared across all your keys — it's tied to your account, so revoking a key and creating a new one doesn't reset it. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink2">API Dashboard</a>.</p>
 
     <h2 class="doc-h2">Errors</h2>
     <table>
       <tr><th>Status</th><th>Meaning</th></tr>
       <tr><td>401</td><td>Missing, invalid, or revoked API key</td></tr>
-      <tr><td>404</td><td>Unknown channel id, check <code>/api/v1/channels</code></td></tr>
+      <tr><td>404</td><td>Unknown channel id — check <code>/api/v1/channels</code></td></tr>
       <tr><td>429</td><td>Per-minute rate limit hit, or the account's monthly request limit is reached</td></tr>
-      <tr><td>502</td><td>Could not reach the stream source, try again shortly</td></tr>
+      <tr><td>502</td><td>Could not reach the stream source — try again shortly</td></tr>
     </table>
 
-    <div class="note">This is an early version of the API. Endpoints and limits may change, nothing here is guaranteed stable yet.</div>
+    <div class="note">This is an early version of the API. Endpoints and limits may change — nothing here is guaranteed stable yet.</div>
 
   </div>
 
@@ -625,7 +632,7 @@ ${musicPlayerHtml()}
     var def = matches[0];
     if(!def) return;
     document.getElementById('planPayTitle').textContent = 'Upgrade to ' + def.name;
-    document.getElementById('planPaySub').textContent = fmtNgn(def.priceNgn) + ' for 30 days: ' + def.apiKeys + ' API keys, ' + fmtHours(def.streamHours) + ' links' + (!def.watermark ? ', no watermark' : '') + (def.customVisitPage ? ', custom visit page' : '') + '.';
+    document.getElementById('planPaySub').textContent = fmtNgn(def.priceNgn) + ' for 30 days — ' + def.apiKeys + ' API keys, ' + fmtHours(def.streamHours) + ' links' + (!def.watermark ? ', no watermark' : '') + (def.customVisitPage ? ', custom visit page' : '') + '.';
     var payBtn = document.getElementById('planPayBtn');
     payBtn.setAttribute('data-plan', planKey);
     payBtn.disabled = false;
@@ -758,7 +765,7 @@ ${musicPlayerHtml()}
   var lastRevealedKey = ''; 
   function revealBoxHtml(key){
     if(!key) return '';
-    return '<div class="reveal-box"><div class="reveal-label">Copy this now. You won\\'t be able to see it again.</div>' +
+    return '<div class="reveal-box"><div class="reveal-label">Copy this now — you won\\'t be able to see it again.</div>' +
       '<div class="reveal-row"><code>' + esc(key) + '</code><button type="button" class="btn btn-sm" id="copyRevealBtn">Copy</button></div></div>';
   }
 
@@ -816,7 +823,7 @@ ${musicPlayerHtml()}
       html += '<div class="usage-wrap" style="margin-top:0;margin-bottom:16px">' +
         '<div class="usage-top"><span class="usage-label">Account usage this month</span><span class="usage-count">' + usage.requestsThisMonth + ' / ' + usage.monthlyLimit + '</span></div>' +
         '<div class="usage-track"><div class="usage-fill ' + usageLevelClass(pct) + '" style="width:0%" data-pct="' + pct + '"></div></div>' +
-        (pct >= 100 ? '<div class="dcard-msg err" style="margin-top:6px">Monthly limit reached, requests will fail until it resets next month.</div>' : '') +
+        (pct >= 100 ? '<div class="dcard-msg err" style="margin-top:6px">Monthly limit reached — requests will fail until it resets next month.</div>' : '') +
       '</div>';
     }
 
@@ -929,7 +936,7 @@ ${musicPlayerHtml()}
     setTimeout(function(){ linkUrlCopyBtn.textContent = 'Copy'; }, 1500);
   });
   function openLinkUrlOverlay(l){
-    linkUrlOverlaySub.innerHTML = esc(l.channel_name) + ': <span class="status-pill ' +
+    linkUrlOverlaySub.innerHTML = esc(l.channel_name) + ' — <span class="status-pill ' +
       (l.status === 'active' ? 'ok' : 'bad') + '" style="margin-left:2px">' + (l.status === 'active' ? 'Active' : 'Inactive') + '</span>';
     linkUrlOverlayInput.value = l.embed_url || '';
     linkUrlCopyBtn.textContent = 'Copy';
@@ -1117,7 +1124,7 @@ ${musicPlayerHtml()}
       var key = tryitKeyInput ? tryitKeyInput.value.trim() : '';
       if(!key){
         resultBox.style.display = 'block';
-        resultStatus.innerHTML = '<span class="status-pill bad">-</span>';
+        resultStatus.innerHTML = '<span class="status-pill bad">—</span>';
         resultBody.textContent = 'Paste your API key above first.';
         return;
       }
@@ -1136,7 +1143,7 @@ ${musicPlayerHtml()}
       });
     }).catch(function(){
       resultBox.style.display = 'block';
-      resultStatus.innerHTML = '<span class="status-pill bad">-</span>';
+      resultStatus.innerHTML = '<span class="status-pill bad">—</span>';
       resultBody.textContent = 'Request failed. Check your connection and try again.';
     }).finally(function(){ btn.disabled = false; btn.innerHTML = originalHtml; });
   });

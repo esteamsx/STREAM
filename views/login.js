@@ -531,7 +531,7 @@ suUsername.addEventListener('input', () => {
     } catch {
       if (seq !== usernameCheckSeq) return;
       usernameAvailable = false;
-      setUsernameStatus('taken', 'Could not check username right now, try again in a moment.');
+      setUsernameStatus('taken', 'Could not check username right now — try again in a moment.');
     }
     updateSignupSubmitState();
   }, 450);
@@ -946,7 +946,7 @@ document.getElementById('troubleGoogleBtn').addEventListener('click', () => {
   if (gsiButton) {
     gsiButton.click();
   } else {
-    showError('Google sign-in is not available right now, use the Google icon on the sign-in form.');
+    showError('Google sign-in is not available right now — use the Google icon on the sign-in form.');
   }
 });
 document.getElementById('troubleTelegramBtn').addEventListener('click', () => {
@@ -1006,7 +1006,7 @@ document.getElementById('pkSquareBtn').addEventListener('click', signInWithPassk
     btn.disabled = true;
     btn.style.opacity = '.45';
     btn.style.cursor = 'not-allowed';
-    btn.title = 'Passkeys are not available in this browser. Try Chrome, Safari, or Edge directly (not an in-app browser).';
+    btn.title = 'Passkeys are not available in this browser — try Chrome, Safari, or Edge directly (not an in-app browser).';
   }
 })();
 document.getElementById('troublePasskeyBtn').addEventListener('click', () => {

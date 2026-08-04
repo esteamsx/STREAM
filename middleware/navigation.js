@@ -63,7 +63,7 @@ export function canonicalPath(req, res, next) {
 
 export function pageGuards({ verifySession, getUserProfile, isSessionRevoked }) {
   async function currentUser(req) {
-    const sessionId = req.cookies?.["__Host-session"];
+    const sessionId = req.cookies?.session;
     if (!sessionId) return null;
     const uid = await verifySession(sessionId);
     if (!uid) return null;

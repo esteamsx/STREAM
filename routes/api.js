@@ -49,7 +49,7 @@ function getStreamTokenSecret() {
   try {
     const existing = fs.readFileSync(secretPath, "utf8").trim();
     if (existing) {
-      console.warn("⚠️ STREAM_TOKEN_SECRET is not set, reusing the secret persisted at " +
+      console.warn("⚠️ STREAM_TOKEN_SECRET is not set — reusing the secret persisted at " +
         secretPath + ". Set STREAM_TOKEN_SECRET as an env var for the most reliable, redeploy-proof setup.");
       return existing;
     }
@@ -59,10 +59,10 @@ function getStreamTokenSecret() {
   const generated = crypto.randomBytes(32).toString("hex");
   try {
     fs.writeFileSync(secretPath, generated, { mode: 0o600 });
-    console.warn("⚠️ STREAM_TOKEN_SECRET is not set, generated one and saved it to " +
+    console.warn("⚠️ STREAM_TOKEN_SECRET is not set — generated one and saved it to " +
       secretPath + " so restarts reuse it. Set STREAM_TOKEN_SECRET as an env var instead for a setup that also survives redeploys.");
   } catch (err) {
-    console.warn("⚠️ STREAM_TOKEN_SECRET is not set and couldn't be persisted to disk (" + err.message + "), " +
+    console.warn("⚠️ STREAM_TOKEN_SECRET is not set and couldn't be persisted to disk (" + err.message + ") — " +
       "using a secret generated at boot. This means existing embed/stream links break every time the server restarts. " +
       "Set STREAM_TOKEN_SECRET as an environment variable on your host for stable links.");
   }
@@ -148,14 +148,14 @@ try {
 }
 function persistRevokedKeyId(id) {
   fs.appendFile(REVOKED_KEYS_PATH, id + "\n", (err) => {
-    if (err) console.warn("⚠️ Could not persist revoked API key id to disk (" + err.message + "), " +
+    if (err) console.warn("⚠️ Could not persist revoked API key id to disk (" + err.message + ") — " +
       "it's still revoked for this process, but a restart before its links naturally expire would let them work again.");
   });
 }
 
 function recordIssuedLink(uid, entry) {
   recordIssuedStreamLink(uid, entry).catch((err) => {
-    console.warn("⚠️ Could not persist issued link (" + err.message + "), " +
+    console.warn("⚠️ Could not persist issued link (" + err.message + ") — " +
       "the link itself still works fine, it just won't show up in the dashboard's history list.");
   });
 }
@@ -371,7 +371,7 @@ router.get("/api/v1/stream/:channel", requireApiKey, devApiLimiter, async (req, 
     watermark: plan.watermark,
     plan: plan.name,
     note: plan.watermark
-      ? "Embed this URL in an iframe (or open it directly). It carries the ES TEAMS TV watermark and expires. It isn't the real stream source, and can't be used to reach it."
+      ? "Embed this URL in an iframe (or open it directly). It carries the ES TEAMS TV watermark and expires — it isn't the real stream source, and can't be used to reach it."
       : "Embed this URL in an iframe (or open it directly). Your plan has the watermark removed. It still expires and isn't the real stream source, so it can't be used to reach it.",
   });
 });
@@ -439,7 +439,7 @@ router.get("/embed/:channel", async (req, res) => {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title}: ES TEAMS TV</title>
+<title>${title} — ES TEAMS TV</title>
 <style>
   html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden}
   .wrap{position:relative;width:100vw;height:100vh;background:#000}

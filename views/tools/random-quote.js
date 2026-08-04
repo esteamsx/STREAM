@@ -16,7 +16,7 @@ export function renderRandomQuote(cfg) {
         try {
           var data = await postTool('/api/tools/random-quote', {});
           resultEl.innerHTML = '<blockquote style="font-size:1.05rem;font-family:var(--font-display);line-height:1.6;text-align:center;padding:8px 4px">"' + esc(data.text) + '"</blockquote>' +
-            '<div style="text-align:center;color:var(--muted);font-size:.8rem;margin-top:8px">by ' + esc(data.author) + '</div>';
+            '<div style="text-align:center;color:var(--muted);font-size:.8rem;margin-top:8px">— ' + esc(data.author) + '</div>';
           showResult();
         } catch (err) {
           showMsg(err.message, false);

@@ -10,7 +10,6 @@ import { verifySolution } from "altcha-lib";
 import QRCode from "qrcode";
 import { TOTP, Secret } from "otpauth";
 import { optionalAuth, isAdminEmail, isVerificationActive, checkAndIncrementDailyLimit } from "../services/auth.js";
-import ipaddr from "ipaddr.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = express.Router();
@@ -28,21 +27,6 @@ async function verifyCaptcha(payload) {
 
 const TOOL_DAILY_LIMIT = 3;
 
-async function resolvePublicAddress(hostname) {
-  let records;
-  try {
-    records = await dns.lookup(hostname, { all: true, verbatim: true });
-  } catch {
-    throw new Error("Could not resolve that host.");
-  }
-  if (!records.length) throw new Error("Could not resolve that host.");
-  for (const { address } of records) {
-    const range = ipaddr.parse(address).range();
-    if (range !== "unicast") throw new Error("That host resolves to a private or internal address, which isn't allowed.");
-  }
-  return records[0].address;
-}
-
 function toolGate(toolName) {
   return async (req, res, next) => {
     if (!(await verifyCaptcha(req.body?.altcha))) {
@@ -54,7 +38,7 @@ function toolGate(toolName) {
     const key = `tool:${toolName}:${req.uid || req.ip}`;
     const result = await checkAndIncrementDailyLimit(key, TOOL_DAILY_LIMIT);
     if (!result.allowed) {
-      return res.status(429).json({ error: `You've used this tool ${TOOL_DAILY_LIMIT} times today. Verified accounts get unlimited use, otherwise, try again in 24 hours.` });
+      return res.status(429).json({ error: `You've used this tool ${TOOL_DAILY_LIMIT} times today. Verified accounts get unlimited use — otherwise, try again in 24 hours.` });
     }
     next();
   };
@@ -114,13 +98,13 @@ function obfuscateInWorker(code) {
     });
     const timer = setTimeout(() => {
       worker.terminate();
-      reject(new Error("That file took too long to obfuscate. Try a smaller file."));
+      reject(new Error("That file took too long to obfuscate — try a smaller file."));
     }, OBFUSCATE_WORKER_TIMEOUT_MS);
     worker.once("message", (msg) => {
       clearTimeout(timer);
       worker.terminate();
       if (msg.ok) resolve(msg.code);
-      else reject(new Error(msg.error || "Could not obfuscate that code, check it's valid JavaScript."));
+      else reject(new Error(msg.error || "Could not obfuscate that code — check it's valid JavaScript."));
     });
     worker.once("error", (err) => {
       clearTimeout(timer);
@@ -139,7 +123,7 @@ router.post("/api/tools/obfuscate", optionalAuth, toolGate("obfuscate"), async (
     const obfuscatedCode = await obfuscateInWorker(code);
     res.json({ code: obfuscatedCode });
   } catch (err) {
-    res.status(400).json({ error: err.message || "Could not obfuscate that code, check it's valid JavaScript." });
+    res.status(400).json({ error: err.message || "Could not obfuscate that code — check it's valid JavaScript." });
   }
 });
 
@@ -155,9 +139,9 @@ router.post("/api/tools/qr-code", optionalAuth, toolGate("qr-code"), async (req,
   }
 });
 
-function checkSslCertificate(hostname, resolvedIp) {
+function checkSslCertificate(hostname) {
   return new Promise((resolve, reject) => {
-    const socket = tls.connect({ host: resolvedIp, port: 443, servername: hostname, timeout: 8000 }, () => {
+    const socket = tls.connect({ host: hostname, port: 443, servername: hostname, timeout: 8000 }, () => {
       const cert = socket.getPeerCertificate();
       const authorized = socket.authorized;
       const authorizationError = socket.authorizationError || null;
@@ -183,8 +167,7 @@ router.post("/api/tools/ssl-check", optionalAuth, toolGate("ssl-check"), async (
   const domain = cleanDomain(req.body?.domain);
   if (!DOMAIN_RE.test(domain)) return res.status(400).json({ error: "Enter a valid domain name." });
   try {
-    const resolvedIp = await resolvePublicAddress(domain);
-    const result = await checkSslCertificate(domain, resolvedIp);
+    const result = await checkSslCertificate(domain);
     res.json({ domain, ...result });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not check that certificate." });
@@ -249,7 +232,7 @@ router.post("/api/tools/jwt-decode", optionalAuth, toolGate("jwt-decode"), async
     const payload = decodePart(parts[1]);
     res.json({ header, payload, signaturePresent: parts.length === 3 && !!parts[2] });
   } catch {
-    res.status(400).json({ error: "Could not decode that token, check it's a valid JWT." });
+    res.status(400).json({ error: "Could not decode that token — check it's a valid JWT." });
   }
 });
 
@@ -480,7 +463,7 @@ function runRegexInWorker(pattern, flags, testString) {
     });
     const timer = setTimeout(() => {
       worker.terminate();
-      reject(new Error("That pattern took too long to run against this text. It may be catastrophically slow (ReDoS). Try a simpler pattern."));
+      reject(new Error("That pattern took too long to run against this text — it may be catastrophically slow (ReDoS). Try a simpler pattern."));
     }, REGEX_WORKER_TIMEOUT_MS);
     worker.once("message", (msg) => {
       clearTimeout(timer);
@@ -502,7 +485,7 @@ router.post("/api/tools/regex-test", optionalAuth, toolGate("regex-test"), async
   if (!pattern) return res.status(400).json({ error: "Enter a regular expression first." });
   if (pattern.length > 2000) return res.status(400).json({ error: "Pattern is too long." });
   if (testString.length > 200000) return res.status(400).json({ error: "Test string is too long (max 200,000 characters)." });
-  if (!VALID_REGEX_FLAGS.test(flags)) return res.status(400).json({ error: "Invalid flags, only g, i, m, s, u, y are supported." });
+  if (!VALID_REGEX_FLAGS.test(flags)) return res.status(400).json({ error: "Invalid flags — only g, i, m, s, u, y are supported." });
 
   try {
     const result = await runRegexInWorker(pattern, flags, testString);
@@ -619,7 +602,7 @@ router.post("/api/tools/url-encode", optionalAuth, toolGate("url-encode"), async
   try {
     res.json({ output: mode === "encode" ? encodeURIComponent(text) : decodeURIComponent(text) });
   } catch {
-    res.status(400).json({ error: "Could not decode that, check it's valid percent-encoding." });
+    res.status(400).json({ error: "Could not decode that — check it's valid percent-encoding." });
   }
 });
 
@@ -764,7 +747,7 @@ router.post("/api/tools/color-convert", optionalAuth, toolGate("color-convert"),
   else if (rgbMatch) rgb = { r: Number(rgbMatch[1]), g: Number(rgbMatch[2]), b: Number(rgbMatch[3]) };
   else if (hslMatch) rgb = hslToRgb({ h: Number(hslMatch[1]), s: Number(hslMatch[2]), l: Number(hslMatch[3]) });
 
-  if (!rgb) return res.status(400).json({ error: "Could not parse that color, try a hex code, rgb(), or hsl() value." });
+  if (!rgb) return res.status(400).json({ error: "Could not parse that color — try a hex code, rgb(), or hsl() value." });
 
   const hsl = rgbToHsl(rgb);
   res.json({
@@ -1422,16 +1405,8 @@ router.post("/api/tools/http-headers", optionalAuth, toolGate("http-headers"), a
   if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw;
   let target;
   try { target = new URL(raw); } catch { return res.status(400).json({ error: "That's not a valid URL." }); }
-  if (target.protocol !== "http:" && target.protocol !== "https:") {
-    return res.status(400).json({ error: "Only http:// and https:// URLs are supported." });
-  }
   try {
-    await resolvePublicAddress(target.hostname);
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-  try {
-    const upstream = await fetch(target.href, { method: "GET", redirect: "manual", headers: { "user-agent": "ES-TEAMS-TV-Tools/1.0" } });
+    const upstream = await fetch(target.href, { method: "GET", redirect: "follow", headers: { "user-agent": "ES-TEAMS-TV-Tools/1.0" } });
     const headers = {};
     upstream.headers.forEach((value, key) => { headers[key] = value; });
     res.json({ status: upstream.status, statusText: upstream.statusText, headers });

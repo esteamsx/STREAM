@@ -5,7 +5,7 @@ export function renderTextEncrypt(cfg) {
     pageKey: "toolsTextEncrypt",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>`,
     heading: "Text Encryption",
-    subtitle: "Encrypt or decrypt text with a passphrase, using AES-GCM. Runs entirely in your browser; your text and passphrase are never sent anywhere.",
+    subtitle: "Encrypt or decrypt text with a passphrase, using AES-GCM. Runs entirely in your browser — your text and passphrase are never sent anywhere.",
     bodyHtml: `
       <div class="field">
         <label for="modeSelect">Mode</label>
@@ -104,7 +104,7 @@ export function renderTextEncrypt(cfg) {
             navigator.clipboard.writeText(output).catch(function(){});
           });
         } catch (err) {
-          showMsg(encrypting ? (err.message || 'Could not encrypt that text.') : 'Could not decrypt. Wrong passphrase, or the text was not encrypted with this tool.', false);
+          showMsg(encrypting ? (err.message || 'Could not encrypt that text.') : 'Could not decrypt — wrong passphrase, or the text was not encrypted with this tool.', false);
         }
         submitBtn.disabled = false;
         submitBtn.textContent = encrypting ? 'Encrypt' : 'Decrypt';
