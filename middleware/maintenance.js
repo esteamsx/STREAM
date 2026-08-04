@@ -1,4 +1,4 @@
-import { verifySession, getUserProfile, isAdminEmail, getMaintenanceMode } from "../services/auth.js";
+import { verifySession, getUserProfile, isAdminEmail, getMaintenanceStatus } from "../services/auth.js";
 
 const ALLOWED_PATHS = new Set([
   "/login",
@@ -14,7 +14,9 @@ const ALLOWED_PATHS = new Set([
   "/health",
 ]);
 
-function maintenanceHtml() {
+const MAINTENANCE_DURATION_MS = 24 * 60 * 60 * 1000;
+
+function maintenanceHtml(enabledAt) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -52,6 +54,13 @@ function maintenanceHtml() {
   }
   .logout-btn:hover{color:#fff;border-color:rgba(255,255,255,.3)}
   .logout-btn:disabled{opacity:.6;cursor:default}
+  .countdown{
+    display:flex;align-items:center;gap:7px;margin-top:22px;padding:9px 16px;border-radius:20px;
+    background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.25);color:#FF3B5C;
+    font-size:.78rem;font-weight:600;
+  }
+  .countdown svg{width:15px;height:15px;flex-shrink:0}
+  .countdown b{font-family:ui-monospace,'JetBrains Mono',monospace;font-weight:700;letter-spacing:.02em}
 </style>
 </head>
 <body>
@@ -60,6 +69,10 @@ function maintenanceHtml() {
     <div class="ring"></div>
     <h1>Maintenance in progress</h1>
     <p>We're making some improvements to ES TEAMS TV. Please try again later.</p>
+    <div class="countdown" id="countdown">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      Estimated Time: <b id="countdownText">24:00:00</b>
+    </div>
     <div class="brand">ES TEAMS TV</div>
   </div>
   <script>
@@ -67,21 +80,39 @@ function maintenanceHtml() {
       var btn = this;
       btn.disabled = true;
       btn.textContent = 'Logging out…';
-      fetch('/api/logout', { method: 'POST' }).finally(function(){ location.reload(); });
+      fetch('/api/logout', { method: 'POST' }).finally(function(){ window.location.href = '/login'; });
     });
+
+    var enabledAt = ${JSON.stringify(enabledAt)};
+    var DURATION_MS = ${MAINTENANCE_DURATION_MS};
+    function pad(n){ return String(n).padStart(2, '0'); }
+    function tick(){
+      if (!enabledAt) return;
+      var remain = Math.max(0, (enabledAt + DURATION_MS) - Date.now());
+      var h = Math.floor(remain / 3600000);
+      var m = Math.floor((remain % 3600000) / 60000);
+      var s = Math.floor((remain % 60000) / 1000);
+      document.getElementById('countdownText').textContent = pad(h) + ':' + pad(m) + ':' + pad(s);
+    }
+    if (enabledAt) {
+      tick();
+      setInterval(tick, 1000);
+    } else {
+      document.getElementById('countdown').style.display = 'none';
+    }
   </script>
 </body>
 </html>`;
 }
 
 export async function maintenanceGate(req, res, next) {
-  let on;
+  let status;
   try {
-    on = await getMaintenanceMode();
+    status = await getMaintenanceStatus();
   } catch {
     return next();
   }
-  if (!on) return next();
+  if (!status.maintenanceMode) return next();
   if (ALLOWED_PATHS.has(req.path)) return next();
 
   try {
@@ -99,5 +130,5 @@ export async function maintenanceGate(req, res, next) {
   if (req.path.startsWith("/api/") || req.path.startsWith("/embed/")) {
     return res.status(503).json({ error: "ES TEAMS TV is temporarily down for maintenance. Please try again later." });
   }
-  return res.status(503).type("html").send(maintenanceHtml());
+  return res.status(503).type("html").send(maintenanceHtml(status.updatedAt));
 }

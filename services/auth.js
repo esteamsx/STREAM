@@ -2267,6 +2267,15 @@ async function getMaintenanceMode() {
   return !!(snap.exists && snap.data().maintenanceMode);
 }
 
+async function getMaintenanceStatus() {
+  const snap = await db.collection("settings").doc("site").get();
+  const data = snap.exists ? snap.data() : null;
+  return {
+    maintenanceMode: !!(data && data.maintenanceMode),
+    updatedAt: (data && data.maintenanceModeUpdatedAt) || null,
+  };
+}
+
 async function setMaintenanceMode(enabled) {
   await db.collection("settings").doc("site").set(
     { maintenanceMode: !!enabled, maintenanceModeUpdatedAt: Date.now() },
@@ -2286,6 +2295,7 @@ export {
   adminDeleteUser,
   adminResetPassword,
   getMaintenanceMode,
+  getMaintenanceStatus,
   setMaintenanceMode,
   createVerificationPayment,
   getVerificationPayment,
