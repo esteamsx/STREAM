@@ -3505,6 +3505,7 @@ app.get("/admin", scrapeGate, async (req, res) => {
   const profile = await getUserProfile(uid);
   if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.redirect("/login");
   if (!isAdminEmail(profile.email)) return res.redirect("/");
+  if (!profile.twoFactorEnabled) return res.redirect("/account?require2fa=admin#tfaCard");
   res.send(cachedAdminHtml);
 });
 
@@ -3512,6 +3513,9 @@ async function requireAdmin(req, res, next) {
   try {
     const profile = req.userProfile || (await getUserProfile(req.uid));
     if (!profile || !isAdminEmail(profile.email)) return res.status(403).json({ error: "Not authorized." });
+    if (!profile.twoFactorEnabled) {
+      return res.status(403).json({ error: "Admin access requires two-factor authentication. Enable it in Account settings first." });
+    }
     next();
   } catch (err) {
     res.status(403).json({ error: "Not authorized." });
