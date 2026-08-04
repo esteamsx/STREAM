@@ -17,6 +17,7 @@ import { renderPrivacy } from "./views/privacy.js";
 import { renderDevelopers } from "./views/developers.js";
 import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
+import { maintenanceGate } from "./middleware/maintenance.js";
 import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
 import { renderDeployBot } from "./views/deploy-bot.js";
@@ -175,6 +176,8 @@ import {
   adminUnverifyUser,
   adminDeleteUser,
   adminResetPassword,
+  getMaintenanceMode,
+  setMaintenanceMode,
   requireAuth,
   isAdminEmail,
   isVerificationActive,
@@ -286,6 +289,7 @@ app.use(crossOriginWriteGuard);
 
 app.use(express.json({ limit: "25mb", verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(cookieParser());
+app.use(maintenanceGate);
 app.use(apiRouter);
 app.use(toolsRouter);
 app.use(paymentsRouter);
@@ -3477,6 +3481,25 @@ app.post("/api/admin/users/:uid/reset-password", requireAuth, requireAdmin, asyn
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: err.message || "Could not reset that password." });
+  }
+});
+
+app.get("/api/admin/maintenance", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ maintenanceMode: await getMaintenanceMode() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load maintenance status." });
+  }
+});
+
+app.post("/api/admin/maintenance", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await setMaintenanceMode(!!req.body?.enabled);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Could not update maintenance status." });
   }
 });
 
