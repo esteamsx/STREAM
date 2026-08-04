@@ -288,6 +288,11 @@ app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
 
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
+app.get("/interactive.js", (req, res) => {
+  res.set("Cache-Control", "no-cache");
+  res.sendFile(path.join(__dirname, "public", "interactive.js"));
+});
+
 app.use(
   express.static(path.join(__dirname, "public"), {
     maxAge: "7d",
