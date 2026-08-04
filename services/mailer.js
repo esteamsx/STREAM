@@ -79,7 +79,7 @@ async function sendBanNotificationEmail(email, name, appealMailto, logText) {
       <div style="font-family:Arial,sans-serif;background:#0A0A0F;padding:32px;color:#F3F3FA">
         <h2 style="color:#00E0FF;margin:0 0 12px">ES TEAMS TV</h2>
         <p style="margin:0 0 4px;font-weight:700;letter-spacing:1px;color:#FF3B5C;font-size:12px">ACCOUNT BANNED</p>
-        <p style="margin:0 0 4px">Hello, ${name},</p>
+        <p style="margin:0 0 4px">Hello, ${escapeHtml(name)},</p>
         <p style="margin:0 0 22px">Your account has been banned by Admin.</p>
         <a href="${appealMailto}" style="display:inline-block;background:linear-gradient(135deg,#00E0FF,#7c5cff);color:#04141a;font-weight:700;text-decoration:none;padding:12px 26px;border-radius:10px;font-size:14px">Appeal</a>
         <p style="margin:24px 0 0;color:rgba(255,255,255,.5);font-size:13px">If you believe this was a mistake, tap Appeal above to send us a message about your case.</p>
