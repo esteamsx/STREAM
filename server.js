@@ -3494,7 +3494,7 @@ app.get("/u/:username", scrapeGate, requireUser, (req, res) => {
 });
 
 app.get("/admin", scrapeGate, async (req, res) => {
-  const sessionId = req.cookies?.session;
+  const sessionId = req.cookies?.["__Host-session"];
   const uid = await verifySession(sessionId);
   if (!uid) return res.redirect("/login");
   const profile = await getUserProfile(uid);
@@ -4568,7 +4568,7 @@ app.post("/api/session", passwordLoginLimiter, async (req, res) => {
       return res.json({ requires2FA: true, pendingToken });
     }
     const sessionId = await withDeadline(createSession(decoded.uid), "createSession");
-    res.cookie("session", sessionId, {
+    res.cookie("__Host-session", sessionId, {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
@@ -4596,7 +4596,7 @@ app.post("/api/2fa/login-verify", twoFactorLoginLimiter, async (req, res) => {
     if (!valid) return res.status(400).json({ error: "Incorrect code." });
     await deleteTwoFactorPendingLogin(pendingToken);
     const sessionId = await createSession(pending.uid);
-    res.cookie("session", sessionId, {
+    res.cookie("__Host-session", sessionId, {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
@@ -4610,8 +4610,8 @@ app.post("/api/2fa/login-verify", twoFactorLoginLimiter, async (req, res) => {
 });
 
 app.post("/api/logout", async (req, res) => {
-  await deleteSession(req.cookies?.session);
-  res.clearCookie("session");
+  await deleteSession(req.cookies?.["__Host-session"]);
+  res.clearCookie("__Host-session", { path: "/" });
   res.json({ ok: true });
 });
 
@@ -5422,7 +5422,7 @@ app.post("/api/confirm-account-deletion", requireAuth, async (req, res) => {
       return res.status(400).json({ error: messages[result.reason] || "Invalid code." });
     }
     await scheduleAccountDeletion(req.uid);
-    res.clearCookie("session");
+    res.clearCookie("__Host-session", { path: "/" });
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -5441,14 +5441,16 @@ app.post("/api/request-password-reset", resetLimiter, async (req, res) => {
       if (!user || !user.email) return res.status(404).json({ error: "No account found with that username." });
       email = user.email;
     }
-    let userRecord;
+    let userRecord = null;
     try {
       userRecord = await firebaseAuth.getUserByEmail(email);
-    } catch (err) {
-      return res.status(404).json({ error: isEmail ? "No account found with that email." : "No account found with that username." });
+    } catch {
+      userRecord = null;
     }
-    await issueCode(userRecord.uid, email, "forgot_password");
-    res.json({ uid: userRecord.uid, email });
+    if (userRecord) {
+      await issueCode(userRecord.uid, email, "forgot_password");
+    }
+    res.json({ uid: userRecord ? userRecord.uid : `noacct_${crypto.randomBytes(12).toString("hex")}`, email });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not send reset code." });

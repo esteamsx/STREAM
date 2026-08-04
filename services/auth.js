@@ -37,7 +37,7 @@ async function autoFollowAdmin(newUid, newUserEmail) {
 }
 
 function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 async function issueCode(uid, contact, purpose, channel = "email") {
@@ -86,7 +86,10 @@ async function checkCode(uid, purpose, code) {
     await ref.delete();
     return { ok: false, reason: "expired" };
   }
-  if (data.code !== code) return { ok: false, reason: "mismatch" };
+  const storedCodeBuf = Buffer.from(String(data.code));
+  const givenCodeBuf = Buffer.from(String(code));
+  const codeMatches = storedCodeBuf.length === givenCodeBuf.length && crypto.timingSafeEqual(storedCodeBuf, givenCodeBuf);
+  if (!codeMatches) return { ok: false, reason: "mismatch" };
   await ref.delete();
   return { ok: true, email: data.email };
 }
@@ -199,7 +202,10 @@ async function checkPendingSignupCode(email, code) {
     await ref.delete();
     return { ok: false, reason: "expired" };
   }
-  if (data.code !== code) return { ok: false, reason: "mismatch" };
+  const storedCodeBuf = Buffer.from(String(data.code));
+  const givenCodeBuf = Buffer.from(String(code));
+  const codeMatches = storedCodeBuf.length === givenCodeBuf.length && crypto.timingSafeEqual(storedCodeBuf, givenCodeBuf);
+  if (!codeMatches) return { ok: false, reason: "mismatch" };
   await ref.delete();
   return { ok: true, data };
 }
@@ -1949,7 +1955,7 @@ async function searchUsersByUsername(query, excludeUid, limit = 15) {
 const LAST_ACTIVE_UPDATE_THROTTLE_MS = 2 * 60 * 1000;
 
 function requireAuth(req, res, next) {
-  const sessionId = req.cookies?.session;
+  const sessionId = req.cookies?.["__Host-session"];
   verifySession(sessionId)
     .then(async (uid) => {
       if (!uid) return res.status(401).json({ error: "not_authenticated" });
@@ -1970,7 +1976,7 @@ function requireAuth(req, res, next) {
 
 async function optionalAuth(req, res, next) {
   try {
-    const sessionId = req.cookies?.session;
+    const sessionId = req.cookies?.["__Host-session"];
     const uid = sessionId ? await verifySession(sessionId) : null;
     if (uid) {
       const profile = await getUserProfile(uid);
