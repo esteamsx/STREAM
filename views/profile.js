@@ -294,6 +294,15 @@ body:has(.page-overlay.show){overflow:hidden}
   flex:1;background:var(--dark3);border:1px solid var(--border-strong);border-radius:22px;
   padding:11px 16px;color:var(--text);font-size:.88rem;
 }
+.pf-composer-input-wrap{position:relative;flex:1;min-width:0}
+.pf-composer-input-wrap .pf-composer-input{padding-right:34px}
+.pf-composer-expand-btn{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);z-index:3;
+  width:22px;height:22px;border-radius:50%;background:transparent;border:none;
+  color:var(--muted);display:flex;align-items:center;justify-content:center;opacity:.65;transition:all .2s var(--ease);
+}
+.pf-composer-expand-btn:hover{opacity:1;color:var(--accent)}
+.pf-composer-expand-btn svg{width:13px;height:13px}
 .pf-composer-icon-btn{
   flex-shrink:0;width:38px;height:38px;border-radius:50%;background:var(--dark3);border:1px solid var(--border-strong);
   color:var(--muted);display:flex;align-items:center;justify-content:center;transition:all .2s var(--ease);
@@ -574,6 +583,21 @@ body:has(.page-overlay.show){overflow:hidden}
       <img id="postComposeImage" style="width:100%;max-height:280px;object-fit:cover;border-radius:12px;margin-bottom:12px">
       <textarea id="postComposeCaption" class="pf-bio-textarea" rows="3" maxlength="2000" placeholder="Write a caption... use @ to tag someone"></textarea>
       <button type="button" class="pf-follow-btn" id="postComposeSubmitBtn" style="margin-top:12px;margin-bottom:0">Post</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-overlay" id="textComposeOverlay">
+  <div class="flist-card" style="max-width:380px">
+    <div class="flist-header">
+      <div class="flist-title">New Post</div>
+      <button type="button" class="flist-close" id="textComposeCloseBtn" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div style="padding:0 18px 18px">
+      <textarea id="textComposeInput" class="pf-bio-textarea" rows="8" maxlength="2000" placeholder="Share something... use *bold*, _italic_, @ to tag someone"></textarea>
+      <button type="button" class="pf-follow-btn" id="textComposeSubmitBtn" style="margin-top:12px;margin-bottom:0" disabled>Post</button>
     </div>
   </div>
 </div>
@@ -866,6 +890,7 @@ async function toggleFollow(uid, btn){
 
 const PLANE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>';
 const CAMERA_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8a2 2 0 012-2h1.5l1-1.5h7l1 1.5H18a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+const EXPAND_COMPOSER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg>';
 const HEART_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7.2-4.5-9.8-9C.6 8.7 2 5 5.6 4.4 8 4 10.2 5.2 12 7.5 13.8 5.2 16 4 18.4 4.4 22 5 23.4 8.7 21.8 12c-2.6 4.5-9.8 9-9.8 9z"/></svg>';
 const RESHARE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17 2l4 4-4 4"/><path stroke-linecap="round" d="M3 11V9a4 4 0 014-4h14"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 22l-4-4 4-4"/><path stroke-linecap="round" d="M21 13v2a4 4 0 01-4 4H3"/></svg>';
 const COMMENT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>';
@@ -2049,7 +2074,10 @@ function setupComposer(){
   wrap.className = 'pf-composer';
   wrap.innerHTML =
     '<div class="pf-composer-row">' +
-      '<input type="text" id="pfComposerInput" class="pf-composer-input" maxlength="2000" placeholder="Share something...">' +
+      '<div class="pf-composer-input-wrap">' +
+        '<input type="text" id="pfComposerInput" class="pf-composer-input" maxlength="2000" placeholder="Share something...">' +
+        '<button type="button" class="pf-composer-expand-btn" id="pfComposerExpandBtn" aria-label="Open full editor">' + EXPAND_COMPOSER_ICON + '</button>' +
+      '</div>' +
       '<button type="button" class="pf-composer-icon-btn" id="pfComposerPhotoBtn" aria-label="Add photo">' + CAMERA_ICON + '</button>' +
       '<button type="button" class="pf-composer-send-btn" id="pfComposerSendBtn" aria-label="Post" disabled>' + PLANE_ICON + '</button>' +
     '</div>';
@@ -2061,22 +2089,71 @@ function setupComposer(){
   setupLinkInsertion(input);
   input.addEventListener('input', () => { sendBtn.disabled = !input.value.trim(); });
 
-  sendBtn.addEventListener('click', async () => {
-    if (!input.value.trim()) return;
-    sendBtn.disabled = true;
-    const originalIcon = sendBtn.innerHTML;
-    sendBtn.innerHTML = '<span class="pf-mini-spinner"></span>';
+  async function submitTextPost(text, onDone){
+    if (!text.trim()) return;
+    onDone.busy(true);
     try {
-      const data = await postJSON('/api/posts', { text: input.value, taggedUsernames: extractTags(input.value) });
+      const data = await postJSON('/api/posts', { text, taggedUsernames: extractTags(text) });
       input.value = '';
       input.dispatchEvent(new Event('input'));
+      textComposeInput.value = '';
+      textComposeInput.dispatchEvent(new Event('input'));
+      document.getElementById('textComposeOverlay').classList.remove('show');
       document.getElementById('postsList').querySelectorAll('.pf-post-empty').forEach(el => el.remove());
       document.getElementById('postsList').prepend(createPostCard(data.post, true));
     } catch (err) {
       showToast(err.message || 'Could not post that.');
     }
-    sendBtn.innerHTML = originalIcon;
+    onDone.busy(false);
+  }
+
+  sendBtn.addEventListener('click', async () => {
+    const originalIcon = sendBtn.innerHTML;
+    await submitTextPost(input.value, {
+      busy(v){
+        sendBtn.disabled = v;
+        sendBtn.innerHTML = v ? '<span class="pf-mini-spinner"></span>' : originalIcon;
+        if (!v) sendBtn.disabled = !input.value.trim();
+      },
+    });
+  });
+
+  const expandBtn = document.getElementById('pfComposerExpandBtn');
+  const textComposeOverlay = document.getElementById('textComposeOverlay');
+  const textComposeInput = document.getElementById('textComposeInput');
+  const textComposeSubmitBtn = document.getElementById('textComposeSubmitBtn');
+  wireTagTrigger(textComposeInput, { richFormatting: true });
+  setupLinkInsertion(textComposeInput);
+
+  function openTextCompose(){
+    textComposeInput.value = input.value;
+    textComposeInput.dispatchEvent(new Event('input'));
+    textComposeSubmitBtn.disabled = !textComposeInput.value.trim();
+    textComposeOverlay.classList.add('show');
+    setTimeout(() => { textComposeInput.focus(); textComposeInput.setSelectionRange(textComposeInput.value.length, textComposeInput.value.length); }, 50);
+  }
+  expandBtn.addEventListener('click', openTextCompose);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); openTextCompose(); }
+  });
+
+  textComposeInput.addEventListener('input', () => {
+    input.value = textComposeInput.value;
     sendBtn.disabled = !input.value.trim();
+    textComposeSubmitBtn.disabled = !textComposeInput.value.trim();
+  });
+  document.getElementById('textComposeCloseBtn').addEventListener('click', () => {
+    textComposeOverlay.classList.remove('show');
+  });
+  textComposeSubmitBtn.addEventListener('click', async () => {
+    const originalText = textComposeSubmitBtn.textContent;
+    await submitTextPost(textComposeInput.value, {
+      busy(v){
+        textComposeSubmitBtn.disabled = v;
+        textComposeSubmitBtn.innerHTML = v ? '<span class="pf-mini-spinner"></span> Posting…' : originalText;
+        if (!v) textComposeSubmitBtn.disabled = !textComposeInput.value.trim();
+      },
+    });
   });
 
   const fileInput = document.getElementById('pfPostImageInput');
@@ -2098,7 +2175,8 @@ function setupComposer(){
   });
 
   const captionInput = document.getElementById('postComposeCaption');
-  wireTagTrigger(captionInput);
+  wireTagTrigger(captionInput, { richFormatting: true });
+  setupLinkInsertion(captionInput);
   document.getElementById('postComposeCloseBtn').addEventListener('click', () => {
     document.getElementById('postComposeOverlay').classList.remove('show');
   });
