@@ -827,6 +827,8 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
   </div>
 
+  <div class="acc-msg show err" id="require2faBanner" style="display:none;margin-bottom:14px">Admin access now requires two-factor authentication. Set it up below to continue using the admin panel.</div>
+
   <div class="tfa-card" id="tfaCard">
     <div class="tfa-header" id="tfaHeader">
       <svg class="tfa-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
@@ -1312,6 +1314,11 @@ body:has(.page-overlay.show){overflow:hidden}
 <script>
 const params = new URLSearchParams(window.location.search);
 const resetToken = params.get('resetToken');
+if (params.get('require2fa') === 'admin') {
+  const banner = document.getElementById('require2faBanner');
+  if (banner) banner.style.display = 'block';
+  document.getElementById('tfaCard').classList.add('open');
+}
 const VERIFIED_BADGE = '<svg class="verified-badge" viewBox="0 0 24 24" width="15" height="15" aria-label="Verified"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
 const PAYSTACK_PUBLIC_KEY = ${JSON.stringify(cfg.paystackPublicKey || "")};
