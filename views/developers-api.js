@@ -200,7 +200,8 @@ pre{
 .page-overlay.show{display:flex}
 body:has(.page-overlay.show){overflow:hidden}
 .overlay-card{
-  width:100%;max-width:360px;background:var(--card);border:1px solid var(--border-strong);border-radius:16px;
+  width:100%;max-width:360px;max-height:calc(100vh - 48px);overflow-y:auto;
+  background:var(--card);border:1px solid var(--border-strong);border-radius:16px;
   padding:26px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);
   animation:overlayCardIn .22s var(--ease);
 }
@@ -332,6 +333,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 .result-time{color:var(--muted)}
 .curl-label{display:flex;align-items:center;justify-content:space-between;margin-top:14px;margin-bottom:6px}
 .curl-label span{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+#tryitResultBody,#tryitCurl{max-height:220px;overflow-y:auto}
 ${musicPlayerStyle()}
 </style>
 </head>

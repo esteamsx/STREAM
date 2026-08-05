@@ -108,7 +108,8 @@ pre{
 .page-overlay.show{display:flex}
 body:has(.page-overlay.show){overflow:hidden}
 .overlay-card{
-  width:100%;max-width:360px;background:var(--card);border:1px solid var(--border-strong);border-radius:16px;
+  width:100%;max-width:360px;max-height:calc(100vh - 48px);overflow-y:auto;
+  background:var(--card);border:1px solid var(--border-strong);border-radius:16px;
   padding:26px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);
   animation:overlayCardIn .22s var(--ease);
 }
