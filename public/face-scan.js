@@ -10,7 +10,7 @@ const DETECT_SCORE_THRESHOLD = 0.2;
 const WORK_CANVAS_MAX = 480;
 const MIN_FACE_RATIO = 0.12;
 const CAMERA_SETTLE_MS = 280;
-const STABLE_FRAMES_NEEDED = 2;
+const STABLE_FRAMES_NEEDED = 1;
 const DESCRIPTOR_LENGTH = 128;
 const DETECT_TIMEOUT_MS = 3000;
 
@@ -231,7 +231,7 @@ function headTurnRatio(landmarks) {
   const nose = avgPoint(landmarks.getNose());
   const eyeMidX = (leftEye.x + rightEye.x) / 2;
   const eyeDist = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y) || 1;
-  return (nose.x - eyeMidX) / eyeDist;
+  return -((nose.x - eyeMidX) / eyeDist);
 }
 
 function headPitchRatio(landmarks) {

@@ -2104,6 +2104,7 @@ document.getElementById('removeFaceScanBtn').addEventListener('click', async () 
     flashMsg(msg, 'Face Scan removed.', true);
   } catch (err) {
     flashMsg(msg, err.message, false);
+  } finally {
     btn.disabled = false;
     btn.innerHTML = originalHtml;
   }
