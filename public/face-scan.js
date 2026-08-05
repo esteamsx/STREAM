@@ -4,12 +4,17 @@ const CAPTURE_TIMEOUT_MS = 60000;
 const EAR_BLINK_THRESHOLD = 0.21;
 const EAR_OPEN_THRESHOLD = 0.28;
 const STABLE_FRAMES_NEEDED = 2;
-const SUCCESS_HOLD_MS = 700;
+const RESULT_HOLD_MS = 650;
 
 const FACE_CLIP_PATH_D =
   'M 0.5 0.03 C 0.75 0.03 0.95 0.22 0.95 0.42 C 0.95 0.60 0.85 0.72 0.80 0.80 ' +
   'C 0.72 0.92 0.62 0.98 0.5 0.98 C 0.38 0.98 0.28 0.92 0.20 0.80 ' +
   'C 0.15 0.72 0.05 0.60 0.05 0.42 C 0.05 0.22 0.25 0.03 0.5 0.03 Z';
+
+const FACE_GLYPH_PATHS =
+  '<path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/>' +
+  '<circle class="fs-eye" cx="9" cy="10" r=".8" fill="currentColor" stroke="none"/><circle class="fs-eye" cx="15" cy="10" r=".8" fill="currentColor" stroke="none"/>' +
+  '<path d="M9 15c1 1 5 1 6 0"/>';
 
 let modelsLoaded = false;
 let modelsLoadingPromise = null;
@@ -51,6 +56,54 @@ function speak(text) {
   } catch (e) {}
 }
 
+let audioCtx = null;
+function getAudioCtx() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!audioCtx) audioCtx = new Ctx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playSuccessSound() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const t = ctx.currentTime;
+    [0, 0.09].forEach((offset, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(i === 0 ? 740 : 990, t + offset);
+      gain.gain.setValueAtTime(0.0001, t + offset);
+      gain.gain.exponentialRampToValueAtTime(0.18, t + offset + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + offset + 0.16);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t + offset);
+      osc.stop(t + offset + 0.18);
+    });
+  } catch (e) {}
+}
+
+function playErrorSound() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(300, t);
+    osc.frequency.linearRampToValueAtTime(170, t + 0.22);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.28);
+  } catch (e) {}
+}
+
 function ensureOverlayStyles() {
   if (document.getElementById('faceScanStyles')) return;
   const style = document.createElement('style');
@@ -61,13 +114,14 @@ function ensureOverlayStyles() {
 #${OVERLAY_ID} .fs-frame{position:relative;width:min(260px,72vw);height:min(340px,94vw);flex-shrink:0}
 #${OVERLAY_ID} .fs-clip{position:absolute;inset:0;clip-path:url(#${CLIP_ID});overflow:hidden;background:#000}
 #${OVERLAY_ID} .fs-clip video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-#${OVERLAY_ID} .fs-scanline{position:absolute;left:0;right:0;height:3px;top:8%;
+#${OVERLAY_ID} .fs-scanline{position:absolute;left:0;right:0;top:0;height:3px;
   background:linear-gradient(90deg,transparent,rgba(0,224,255,.9),transparent);
-  box-shadow:0 0 12px 2px rgba(0,224,255,.6);animation:fsScan 2.1s ease-in-out infinite}
+  box-shadow:0 0 12px 2px rgba(0,224,255,.6);will-change:transform;
+  animation:fsScan 2.1s ease-in-out infinite}
 @keyframes fsScan{
-  0%{top:4%}
-  50%{top:92%}
-  100%{top:4%}
+  0%{transform:translateY(10px)}
+  50%{transform:translateY(310px)}
+  100%{transform:translateY(10px)}
 }
 #${OVERLAY_ID} .fs-check{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   opacity:0;transform:scale(.5);transition:opacity .25s ease,transform .25s cubic-bezier(.34,1.56,.64,1);
@@ -81,6 +135,35 @@ function ensureOverlayStyles() {
   filter:drop-shadow(0 0 18px rgba(0,224,255,.45))}
 #${OVERLAY_ID} .fs-frame-outline path{fill:none;stroke:rgba(0,224,255,.7);stroke-width:2.5;vector-effect:non-scaling-stroke}
 #${OVERLAY_ID}.fs-success .fs-frame-outline path{stroke:#00E0FF}
+
+#${OVERLAY_ID} .fs-abstract{position:relative;width:120px;height:120px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;color:#00E0FF}
+#${OVERLAY_ID} .fs-abstract-ring{position:absolute;inset:0;border-radius:32%;border:2px solid rgba(0,224,255,.35);
+  animation:fsPulse 1.6s ease-in-out infinite}
+@keyframes fsPulse{
+  0%,100%{transform:scale(1);opacity:.6}
+  50%{transform:scale(1.08);opacity:1}
+}
+#${OVERLAY_ID} .fs-abstract-face{width:64px;height:64px;transition:opacity .2s ease,transform .2s ease}
+#${OVERLAY_ID} .fs-abstract-face .fs-eye{transform-box:fill-box;transform-origin:center;animation:fsBlink 2.4s ease-in-out infinite}
+@keyframes fsBlink{
+  0%,88%,100%{transform:scaleY(1)}
+  92%{transform:scaleY(.1)}
+}
+#${OVERLAY_ID} .fs-abstract-check,#${OVERLAY_ID} .fs-abstract-cross{position:absolute;width:56px;height:56px;
+  opacity:0;transform:scale(.5);transition:opacity .25s ease,transform .25s cubic-bezier(.34,1.56,.64,1)}
+#${OVERLAY_ID} .fs-abstract-check-path,#${OVERLAY_ID} .fs-abstract-cross-path{
+  stroke-dasharray:36;stroke-dashoffset:36;transition:stroke-dashoffset .3s ease .1s}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face{opacity:0;transform:scale(.6)}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-check{opacity:1;transform:scale(1)}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-check-path{stroke-dashoffset:0}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-ring{animation:none;border-color:#00E0FF}
+#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-face{opacity:0;transform:scale(.6)}
+#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-cross{opacity:1;transform:scale(1)}
+#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-cross-path{stroke-dashoffset:0}
+#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-ring{animation:none;border-color:#FF3B5C}
+#${OVERLAY_ID} .fs-hidden-video{position:fixed;width:4px;height:4px;opacity:0;pointer-events:none;overflow:hidden}
+
 #${OVERLAY_ID} .fs-status{color:#F3F3FA;font-family:system-ui,-apple-system,sans-serif;font-size:.85rem;
   font-weight:600;text-align:center;max-width:280px;min-height:1.2em}
 #${OVERLAY_ID} .fs-cancel{background:transparent;border:1px solid rgba(255,255,255,.2);
@@ -97,29 +180,45 @@ function eyeAspectRatio(eye) {
   return vertical / horizontal;
 }
 
-export function captureFaceDescriptor({ requireLiveness = true } = {}) {
+export function captureFaceDescriptor({ requireLiveness = true, showCamera = true, verify = null } = {}) {
   ensureOverlayStyles();
   const overlay = document.createElement('div');
   overlay.id = OVERLAY_ID;
-  overlay.innerHTML =
-    '<svg width="0" height="0" style="position:absolute">' +
-      '<clipPath id="' + CLIP_ID + '" clipPathUnits="objectBoundingBox"><path d="' + FACE_CLIP_PATH_D + '"/></clipPath>' +
-    '</svg>' +
-    '<div class="fs-frame">' +
-      '<div class="fs-clip">' +
-        '<video autoplay playsinline muted></video>' +
-        '<div class="fs-scanline"></div>' +
-        '<div class="fs-check"><svg viewBox="0 0 24 24" fill="none" stroke="#00E0FF" stroke-width="2.6"><path class="fs-check-path" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg></div>' +
+
+  if (showCamera) {
+    overlay.innerHTML =
+      '<svg width="0" height="0" style="position:absolute">' +
+        '<clipPath id="' + CLIP_ID + '" clipPathUnits="objectBoundingBox"><path d="' + FACE_CLIP_PATH_D + '"/></clipPath>' +
+      '</svg>' +
+      '<div class="fs-frame">' +
+        '<div class="fs-clip">' +
+          '<video autoplay playsinline muted></video>' +
+          '<div class="fs-scanline"></div>' +
+          '<div class="fs-check"><svg viewBox="0 0 24 24" fill="none" stroke="#00E0FF" stroke-width="2.6"><path class="fs-check-path" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg></div>' +
+        '</div>' +
+        '<svg class="fs-frame-outline" viewBox="0 0 1 1" preserveAspectRatio="none"><path d="' + FACE_CLIP_PATH_D + '"/></svg>' +
       '</div>' +
-      '<svg class="fs-frame-outline" viewBox="0 0 1 1" preserveAspectRatio="none"><path d="' + FACE_CLIP_PATH_D + '"/></svg>' +
-    '</div>' +
-    '<div class="fs-status">Starting camera…</div>' +
-    '<button type="button" class="fs-cancel">Cancel</button>';
+      '<div class="fs-status">Starting camera…</div>' +
+      '<button type="button" class="fs-cancel">Cancel</button>';
+  } else {
+    overlay.innerHTML =
+      '<div class="fs-abstract" id="fsAbstract">' +
+        '<div class="fs-abstract-ring"></div>' +
+        '<svg class="fs-abstract-face" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">' + FACE_GLYPH_PATHS + '</svg>' +
+        '<svg class="fs-abstract-check" viewBox="0 0 24 24" fill="none" stroke="#00E0FF" stroke-width="2.6"><path class="fs-abstract-check-path" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>' +
+        '<svg class="fs-abstract-cross" viewBox="0 0 24 24" fill="none" stroke="#FF3B5C" stroke-width="2.6"><path class="fs-abstract-cross-path" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>' +
+      '</div>' +
+      '<video class="fs-hidden-video" autoplay playsinline muted></video>' +
+      '<div class="fs-status">Starting camera…</div>' +
+      '<button type="button" class="fs-cancel">Cancel</button>';
+  }
+
   document.body.appendChild(overlay);
 
   const video = overlay.querySelector('video');
   const statusEl = overlay.querySelector('.fs-status');
   const cancelBtn = overlay.querySelector('.fs-cancel');
+  const abstractEl = overlay.querySelector('.fs-abstract');
 
   function setStatus(text) {
     statusEl.textContent = text;
@@ -160,21 +259,49 @@ export function captureFaceDescriptor({ requireLiveness = true } = {}) {
         const faceapi = await loadModels();
         if (cancelled) return;
 
-        setStatus('Position your face in the frame');
+        setStatus(showCamera ? 'Position your face in the frame' : 'Scanning…');
 
-        const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 });
+        const lightOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.3 });
+        const fullOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 });
         let blinkDetected = false;
         let wasOpen = false;
         let stableFrames = 0;
         const startTime = Date.now();
 
-        const finishWithSuccess = (descriptor) => {
-          overlay.classList.add('fs-success');
-          setStatus('Face recognized');
-          setTimeout(() => {
-            cleanup();
-            resolve(descriptor);
-          }, SUCCESS_HOLD_MS);
+        const finishCapture = async (descriptor) => {
+          if (!verify) {
+            overlay.classList.add('fs-success');
+            if (abstractEl) abstractEl.classList.add('success');
+            playSuccessSound();
+            setStatus('Face recognized');
+            setTimeout(() => {
+              cleanup();
+              resolve(descriptor);
+            }, RESULT_HOLD_MS);
+            return;
+          }
+
+          setStatus('Verifying…');
+          try {
+            const outcome = await verify(descriptor);
+            overlay.classList.add('fs-success');
+            if (abstractEl) abstractEl.classList.add('success');
+            playSuccessSound();
+            setStatus('Verified');
+            setTimeout(() => {
+              cleanup();
+              resolve(outcome);
+            }, RESULT_HOLD_MS);
+          } catch (err) {
+            overlay.classList.add('fs-failed');
+            if (abstractEl) abstractEl.classList.add('failed');
+            playErrorSound();
+            setStatus(err.message || 'Not recognized');
+            setTimeout(() => {
+              cleanup();
+              reject(err);
+            }, RESULT_HOLD_MS);
+          }
         };
 
         const tick = async () => {
@@ -185,25 +312,34 @@ export function captureFaceDescriptor({ requireLiveness = true } = {}) {
             return;
           }
 
+          // Cheap presence check first; only run the heavier landmark+descriptor
+          // pipeline once a face is actually in frame.
+          const presence = await faceapi.detectSingleFace(video, lightOptions);
+          if (cancelled) return;
+
+          if (!presence) {
+            stableFrames = 0;
+            if (showCamera) setStatus('Position your face in the frame');
+            rafId = requestAnimationFrame(tick);
+            return;
+          }
+
           const result = await faceapi
-            .detectSingleFace(video, detectorOptions)
+            .detectSingleFace(video, fullOptions)
             .withFaceLandmarks()
             .withFaceDescriptor();
 
           if (cancelled) return;
 
           if (!result) {
-            stableFrames = 0;
-            setStatus('Position your face in the frame');
             rafId = requestAnimationFrame(tick);
             return;
           }
 
           if (!requireLiveness) {
             stableFrames++;
-            if (stableFrames === 1) setStatus('Hold still…');
             if (stableFrames >= STABLE_FRAMES_NEEDED) {
-              finishWithSuccess(Array.from(result.descriptor));
+              finishCapture(Array.from(result.descriptor));
               return;
             }
             rafId = requestAnimationFrame(tick);
@@ -217,14 +353,14 @@ export function captureFaceDescriptor({ requireLiveness = true } = {}) {
           if (!blinkDetected) {
             if (avgEAR > EAR_OPEN_THRESHOLD) {
               wasOpen = true;
-              setStatus('Now blink for us');
+              if (showCamera) setStatus('Now blink for us');
             } else if (wasOpen && avgEAR < EAR_BLINK_THRESHOLD) {
               blinkDetected = true;
             }
           }
 
           if (blinkDetected) {
-            finishWithSuccess(Array.from(result.descriptor));
+            finishCapture(Array.from(result.descriptor));
             return;
           }
 

@@ -1092,15 +1092,19 @@ async function signInWithFaceId(){
   try {
     const { captureFaceDescriptor } = await import('/face-scan.js');
 
-    stage = 'capture-face';
-    const descriptor = await captureFaceDescriptor({ requireLiveness: false });
+    stage = 'capture-and-verify';
+    const customToken = await captureFaceDescriptor({
+      requireLiveness: false,
+      showCamera: false,
+      verify: async (descriptor) => {
+        const { customToken } = await postJSON('/api/facescan/verify', { descriptor });
+        return customToken;
+      },
+    });
 
     const overlay = document.getElementById('pageOverlay');
     document.getElementById('pageOverlayText').textContent = 'Signing in…';
     overlay.classList.add('show');
-
-    stage = 'verify-with-server';
-    const { customToken } = await postJSON('/api/facescan/verify', { descriptor });
 
     stage = 'firebase-sign-in';
     const cred = await withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in');
@@ -1119,7 +1123,7 @@ async function signInWithFaceId(){
   const fab = document.getElementById('faceIdFab');
   const ringProgress = document.getElementById('faceIdRingProgress');
   const RING_CIRC = 182.2;
-  const HOLD_MS = 3000;
+  const HOLD_MS = 2000;
   let holdStart = null;
   let rafId = null;
   let triggered = false;
