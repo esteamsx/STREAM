@@ -591,6 +591,88 @@ async function getApiKeyOwnerUid(keyId) {
   return snap.exists ? snap.data().uid : null;
 }
 
+const DEV_API_PLANS = {
+  free: { name: "Free", apiKeys: 1, priceNgn: 0, monthlyRequests: 50 },
+  starter: { name: "Starter", apiKeys: 3, priceNgn: 0, monthlyRequests: 50 },
+  standard: { name: "Standard", apiKeys: 5, priceNgn: 3000, monthlyRequests: 150 },
+  pro: { name: "Pro", apiKeys: 10, priceNgn: 5000, monthlyRequests: 400 },
+  max: { name: "Max", apiKeys: 15, priceNgn: 10000, monthlyRequests: Infinity },
+};
+
+function getEffectiveDevApiPlan(data) {
+  if (!data) return "free";
+  if (data.devApiPlanPaid && DEV_API_PLANS[data.devApiPlanPaid] && data.devApiPlanExpiresAt && Date.now() < data.devApiPlanExpiresAt) {
+    return data.devApiPlanPaid;
+  }
+  if (isVerificationActive(data)) return "starter";
+  return "free";
+}
+
+function getDevApiPlanConfig(data) {
+  return DEV_API_PLANS[getEffectiveDevApiPlan(data)];
+}
+
+async function createDevApiKey(uid, label) {
+  const rawKey = "estv_" + crypto.randomBytes(24).toString("hex");
+  const keyHash = hashApiKey(rawKey);
+  await db.collection("devApiKeys").doc(keyHash).set({
+    uid,
+    label: (label || "").slice(0, 60) || "Unnamed key",
+    last4: rawKey.slice(-4),
+    createdAt: Date.now(),
+    lastUsedAt: null,
+    revoked: false,
+  });
+  return { id: keyHash, rawKey };
+}
+
+async function listDevApiKeysForUser(uid) {
+  const q = await db.collection("devApiKeys").where("uid", "==", uid).get();
+  return q.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((k) => !k.revoked)
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+async function revokeDevApiKey(uid, keyId) {
+  const ref = db.collection("devApiKeys").doc(keyId);
+  const snap = await ref.get();
+  if (!snap.exists || snap.data().uid !== uid) throw new Error("Key not found.");
+  await ref.update({ revoked: true });
+}
+
+async function findDevApiKeyByRawKey(rawKey) {
+  if (!rawKey || typeof rawKey !== "string") return null;
+  const keyHash = hashApiKey(rawKey);
+  const ref = db.collection("devApiKeys").doc(keyHash);
+  const snap = await ref.get();
+  if (!snap.exists || snap.data().revoked) return null;
+  ref.update({ lastUsedAt: Date.now() }).catch(() => {});
+  return { id: snap.id, uid: snap.data().uid };
+}
+
+async function getAccountDevApiUsage(uid, monthlyLimit) {
+  const nowMonth = currentUsageMonth();
+  const snap = await db.collection("devApiUsage").doc(uid).get();
+  const data = snap.exists ? snap.data() : null;
+  const requestsThisMonth = data && data.usageMonth === nowMonth ? (data.requestsThisMonth || 0) : 0;
+  return { requestsThisMonth, monthlyLimit };
+}
+
+async function checkAndIncrementAccountDevApiUsage(uid, monthlyLimit) {
+  const nowMonth = currentUsageMonth();
+  const ref = db.collection("devApiUsage").doc(uid);
+  const snap = await ref.get();
+  const data = snap.exists ? snap.data() : null;
+  const current = data && data.usageMonth === nowMonth ? (data.requestsThisMonth || 0) : 0;
+  if (current >= monthlyLimit) {
+    return { allowed: false, requestsThisMonth: current, monthlyLimit };
+  }
+  const requestsThisMonth = current + 1;
+  await ref.set({ uid, requestsThisMonth, usageMonth: nowMonth }, { merge: true });
+  return { allowed: true, requestsThisMonth, monthlyLimit };
+}
+
 const MAX_ISSUED_LINKS_PER_ACCOUNT = 50;
 
 async function recordIssuedStreamLink(uid, entry) {
@@ -2578,6 +2660,15 @@ export {
   getApiKeyOwnerUid,
   getAccountApiUsage,
   checkAndIncrementAccountApiUsage,
+  DEV_API_PLANS,
+  getEffectiveDevApiPlan,
+  getDevApiPlanConfig,
+  createDevApiKey,
+  listDevApiKeysForUser,
+  revokeDevApiKey,
+  findDevApiKeyByRawKey,
+  getAccountDevApiUsage,
+  checkAndIncrementAccountDevApiUsage,
   checkAndIncrementDailyLimit,
   recordIssuedStreamLink,
   getIssuedStreamLinks,

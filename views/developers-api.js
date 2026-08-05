@@ -1,7 +1,9 @@
 import { siteHeadFor } from "../config/site.js";
+import { musicPlayerStyle, musicPlayerHtml, musicPlayerScript } from "./music-player.js";
 
 const FEATURES = [
   {
+    key: "mp3",
     title: "MP3 Downloader",
     desc: "Search and download MP3 audio by title or artist.",
     icon: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
@@ -11,6 +13,7 @@ const FEATURES = [
     example: "GET /api/v1/dev/mp3?query=your song here",
   },
   {
+    key: "mp4",
     title: "MP4 Downloader",
     desc: "Search and download MP4 video by title.",
     icon: '<path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
@@ -20,6 +23,7 @@ const FEATURES = [
     example: "GET /api/v1/dev/mp4?query=your video here",
   },
   {
+    key: "facebook",
     title: "Facebook Downloader",
     desc: "Pull a direct video file from a Facebook link.",
     icon: '<path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/>',
@@ -29,6 +33,7 @@ const FEATURES = [
     example: "GET /api/v1/dev/facebook?url=https://facebook.com/watch/?v=...",
   },
   {
+    key: "audiomack",
     title: "Audiomack",
     desc: "Search and fetch tracks from Audiomack.",
     icon: '<circle cx="12" cy="12" r="9"/><path d="M9 9v6l6-3-6-3z"/>',
@@ -38,6 +43,7 @@ const FEATURES = [
     example: "GET /api/v1/dev/audiomack?query=your track here",
   },
   {
+    key: "ai",
     title: "AI",
     desc: "Send a prompt, get a real AI response back.",
     icon: '<path d="M12 2a5 5 0 015 5v1a5 5 0 01-10 0V7a5 5 0 015-5z"/><path d="M8 14v2a4 4 0 004 4 4 4 0 004-4v-2"/><path d="M12 20v2"/>',
@@ -47,6 +53,7 @@ const FEATURES = [
     example: 'POST /api/v1/dev/ai  { "prompt": "..." }',
   },
   {
+    key: "ocr",
     title: "OCR",
     desc: "Extract text from an image.",
     icon: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6M7 17h4"/>',
@@ -73,6 +80,7 @@ function featureCardHtml(f) {
         <span class="feature-badge${f.live ? " is-live" : ""}">${f.live ? "LIVE" : "SOON"}</span>
       </div>
       ${f.example ? `<div class="feature-example">${f.example}</div>` : ""}
+      ${f.live ? `<button class="btn btn-sm tryit-open-btn" type="button" data-endpoint="${f.key}" style="width:100%;justify-content:center;margin-top:12px">Try it</button>` : ""}
     </div>`;
 }
 
@@ -312,14 +320,6 @@ th{color:var(--muted);font-weight:600}
 h2.doc-h2{font-family:var(--font-display);font-size:1.15rem;margin:34px 0 10px;padding-top:14px;border-top:1px solid var(--border)}
 p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 
-.tryit-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
-.tryit-tab{
-  padding:7px 12px;border-radius:8px;font-size:.74rem;font-weight:600;cursor:pointer;
-  border:1px solid var(--border-strong);background:var(--card2);color:var(--muted);font-family:var(--font-mono);
-}
-.tryit-tab.active{background:rgba(0,224,255,.12);border-color:rgba(0,224,255,.3);color:var(--accent)}
-.tryit-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
-.tryit-row .field{flex:1;min-width:160px;margin-bottom:0}
 .result-box{margin-top:4px}
 .result-status{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.76rem;font-family:var(--font-mono)}
 .status-pill{padding:3px 9px;border-radius:6px;font-weight:700;font-size:.72rem}
@@ -328,6 +328,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 .result-time{color:var(--muted)}
 .curl-label{display:flex;align-items:center;justify-content:space-between;margin-top:14px;margin-bottom:6px}
 .curl-label span{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+${musicPlayerStyle()}
 </style>
 </head>
 <body>
@@ -374,55 +375,10 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></span>
           <div>
             <div class="dcard-title">API Key</div>
-            <div class="dcard-sub">Same key works across Live Tv &amp; Developer Api &middot; shown once at creation</div>
+            <div class="dcard-sub">Separate from your Live Tv Api key &middot; shown once at creation</div>
           </div>
         </div>
         <div id="keyCardBody"><div class="empty-state">Loading…</div></div>
-      </div>
-
-      <div class="dcard span2" id="tryitCard">
-        <div class="dcard-head">
-          <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></span>
-          <div>
-            <div class="dcard-title">Try it</div>
-            <div class="dcard-sub">Send a real request from your browser</div>
-          </div>
-        </div>
-
-        <div class="tryit-tabs">
-          <div class="tryit-tab active" data-endpoint="ocr">OCR</div>
-          <div class="tryit-tab" data-endpoint="mp3">MP3 Downloader</div>
-          <div class="tryit-tab" data-endpoint="mp4">MP4 Downloader</div>
-          <div class="tryit-tab" data-endpoint="facebook">Facebook Downloader</div>
-          <div class="tryit-tab" data-endpoint="audiomack">Audiomack</div>
-          <div class="tryit-tab" data-endpoint="ai">AI</div>
-        </div>
-
-        <div class="field">
-          <label>Your API key</label>
-          <input type="text" id="tryitKeyInput" placeholder="estv_… (pasted, never stored)" autocomplete="off">
-        </div>
-
-        <div class="tryit-row">
-          <div class="field">
-            <label id="tryitParamLabel">Image URL</label>
-            <input type="text" id="tryitParamInput" placeholder="https://example.com/image.png">
-          </div>
-        </div>
-
-        <button class="btn btn-primary" id="tryitSendBtn" type="button" style="width:100%;justify-content:center;margin-bottom:4px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-          Send test request
-        </button>
-
-        <div class="result-box" id="tryitResultBox" style="display:none">
-          <div class="result-status" id="tryitResultStatus"></div>
-          <pre id="tryitResultBody"></pre>
-        </div>
-
-        <div class="curl-label"><span>Equivalent curl</span><button class="btn btn-sm" id="tryitCopyCurl" type="button">Copy</button></div>
-        <pre id="tryitCurl">curl -H "x-api-key: estv_your_key_here" \\
-  "https://esteamstv.devs.surf/api/v1/dev/ocr?url=https://example.com/image.png"</pre>
       </div>
 
     </div>
@@ -468,7 +424,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     <p class="doc-p">Media and AI tools for your own site or bot: downloaders, AI, and OCR, all under one key. Endpoints are rolling out one at a time; anything marked LIVE below works today.</p>
 
     <h2 class="doc-h2">Getting a key</h2>
-    <p class="doc-p">Create an API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. This is the same key system used by the <a href="/developers/live-tv" target="_blank" rel="noopener">Live Tv Api</a>, one key works for both. How many keys you can have depends on your plan; see <a href="#" id="docsToDashLink2">Plans &amp; Pricing</a>. You can revoke any key at any time.</p>
+    <p class="doc-p">Create an API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. This key is specific to the Developer Api, separate from the <a href="/developers/live-tv" target="_blank" rel="noopener">Live Tv Api</a>'s key, each has its own plan, limits, and usage. How many keys you can have depends on your plan; see <a href="#" id="docsToDashLink2">Plans &amp; Pricing</a>. You can revoke any key at any time.</p>
 
     <h2 class="doc-h2">Authentication</h2>
     <p class="doc-p">Pass your key in the <code>x-api-key</code> header on every request.</p>
@@ -555,7 +511,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 }</pre>
 
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
-    <p class="doc-p">20 requests per minute per API key on each endpoint (15 for AI). On top of that, every account has a monthly allowance shared across <strong>all</strong> your keys and across both the Developer Api and the Live Tv Api, since it's tied to your account, not any one product. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
+    <p class="doc-p">20 requests per minute per API key on each endpoint (15 for AI). On top of that, every account has a monthly allowance shared across <strong>all</strong> your Developer Api keys, separate from the Live Tv Api's own allowance. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
 
     <h2 class="doc-h2">Errors</h2>
     <table>
@@ -578,11 +534,52 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 <div class="page-overlay" id="revokeKeyOverlay">
   <div class="overlay-card">
     <div class="overlay-title">Revoke this API key?</div>
-    <div class="overlay-sub">Anything using it will stop working <b>immediately</b>, including on the Live Tv Api. This can't be undone.</div>
+    <div class="overlay-sub">Anything using it will stop working <b>immediately</b>. This can't be undone.</div>
     <button class="btn btn-primary" id="revokeKeyConfirmBtn" type="button" style="width:100%;justify-content:center;background:linear-gradient(90deg,var(--red),#ff7a8d)">Revoke Key</button>
     <button class="overlay-cancel" id="revokeKeyCancelBtn" type="button">Cancel</button>
   </div>
 </div>
+
+<div class="page-overlay" id="noKeyOverlay">
+  <div class="overlay-card">
+    <div class="overlay-title">Generate an API key first</div>
+    <div class="overlay-sub">You need at least one Developer Api key before you can test an endpoint.</div>
+    <button class="btn btn-primary" id="noKeyGoBtn" type="button" style="width:100%;justify-content:center">Go to API Key</button>
+    <button class="overlay-cancel" id="noKeyCancelBtn" type="button">Cancel</button>
+  </div>
+</div>
+
+<div class="page-overlay" id="tryitOverlay">
+  <div class="overlay-card" style="max-width:420px">
+    <div class="overlay-title" id="tryitOverlayTitle">Try it</div>
+
+    <div class="field">
+      <label>Your API key</label>
+      <input type="text" id="tryitKeyInput" placeholder="estv_… (pasted, never stored)" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label id="tryitParamLabel">Image URL</label>
+      <input type="text" id="tryitParamInput" placeholder="https://example.com/image.png">
+    </div>
+
+    <button class="btn btn-primary" id="tryitSendBtn" type="button" style="width:100%;justify-content:center;margin-bottom:4px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      Send test request
+    </button>
+
+    <div class="result-box" id="tryitResultBox" style="display:none">
+      <div class="result-status" id="tryitResultStatus"></div>
+      <pre id="tryitResultBody"></pre>
+    </div>
+
+    <div class="curl-label"><span>Equivalent curl</span><button class="btn btn-sm" id="tryitCopyCurl" type="button">Copy</button></div>
+    <pre id="tryitCurl"></pre>
+
+    <button class="overlay-cancel" id="tryitCancelBtn" type="button">Cancel</button>
+  </div>
+</div>
+${musicPlayerHtml()}
 
 <script nonce="__CSP_NONCE__">
 (function(){
@@ -621,7 +618,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     var originalHtml = confirmBtn.innerHTML;
     confirmBtn.disabled = true;
     confirmBtn.innerHTML = '<span class="btn-spinner"></span> Revoking…';
-    fetch('/api/dev/keys/' + encodeURIComponent(btn.getAttribute('data-revoke')), { method: 'DELETE' })
+    fetch('/api/devapi/keys/' + encodeURIComponent(btn.getAttribute('data-revoke')), { method: 'DELETE' })
       .then(function(){
         pendingRevokeBtn = null;
         revokeKeyOverlay.classList.remove('show');
@@ -636,16 +633,20 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   });
 
   var keyCardBody = document.getElementById('keyCardBody');
+  var devApiKeyCount = 0;
 
   function renderLoggedOutKeyCard(){
+    devApiKeyCount = 0;
     keyCardBody.innerHTML =
       '<div class="empty-state">Log in to create and manage an API key for your account.</div>' +
       '<a class="btn btn-primary" href="/login?next=%2Fdevelopers%2Fapi">Log in</a>';
   }
 
   function renderKeys(keys, usage, plan){
+    devApiKeyCount = keys.length;
     var html = '';
     var keyLimit = plan ? plan.apiKeys : 1;
+    var expiresPart = plan && plan.expiresAt ? ' &middot; expires ' + fmtDate(plan.expiresAt) : '';
 
     if(usage && usage.monthlyLimit == null){
       html += '<div class="usage-wrap" style="margin-top:0;margin-bottom:16px">' +
@@ -668,7 +669,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
           '<span class="key-dot"></span>' +
           '<div class="key-info">' +
             '<div class="key-label">' + esc(k.label) + '</div>' +
-            '<div class="key-meta">estv_&bull;&bull;&bull;&bull;' + esc(k.last4) + ' &middot; created ' + fmtDate(k.createdAt) + ' &middot; last used ' + fmtDate(k.lastUsedAt) + '</div>' +
+            '<div class="key-meta">estv_&bull;&bull;&bull;&bull;' + esc(k.last4) + ' &middot; created ' + fmtDate(k.createdAt) + expiresPart + ' &middot; last used ' + fmtDate(k.lastUsedAt) + '</div>' +
           '</div>' +
           '<div class="key-actions"><button type="button" class="icon-btn" data-revoke="' + k.id + '" title="Revoke"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg></button></div>' +
         '</div>';
@@ -682,7 +683,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     '<button class="btn btn-primary" id="createKeyBtn" type="button" disabled style="' + (atMax ? 'display:none' : '') + '">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Create API Key' +
     '</button>' +
-    (atMax ? '<div class="empty-state">Maximum of ' + keyLimit + ' key' + (keyLimit === 1 ? '' : 's') + ' reached for your plan. Revoke one, or upgrade your plan on the <a href="/developers/live-tv">Live Tv Api</a> page.</div>' : '') +
+    (atMax ? '<div class="empty-state">Maximum of ' + keyLimit + ' key' + (keyLimit === 1 ? '' : 's') + ' reached for your Developer Api plan. Revoke one to create a new key.</div>' : '') +
     '<div id="revealBoxWrap">' + revealBoxHtml(lastRevealedKey) + '</div>' +
     '<div class="dcard-msg" id="keyMsg"></div>';
 
@@ -727,7 +728,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
         var originalHtml = createBtn.innerHTML;
         createBtn.disabled = true;
         createBtn.innerHTML = '<span class="btn-spinner"></span> Creating…';
-        fetch('/api/dev/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: label }) })
+        fetch('/api/devapi/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: label }) })
           .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error || 'Could not create key.'); return d; }); })
           .then(function(d){
             lastRevealedKey = d.key;
@@ -742,7 +743,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   }
 
   function loadKeys(){
-    getJSON('/api/dev/keys').then(function(r){
+    getJSON('/api/devapi/keys').then(function(r){
       if(!r.ok){ renderLoggedOutKeyCard(); return; }
       renderKeys(r.data.keys || [], r.data.usage || null, r.data.plan || null);
     }).catch(function(){ renderLoggedOutKeyCard(); });
@@ -771,16 +772,17 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   });
 
   var TRYIT_ENDPOINTS = {
-    ocr: { method: 'GET', path: '/api/v1/dev/ocr', param: 'url', label: 'Image URL', placeholder: 'https://example.com/image.png' },
-    mp3: { method: 'GET', path: '/api/v1/dev/mp3', param: 'query', label: 'Search', placeholder: 'Song title or artist' },
-    mp4: { method: 'GET', path: '/api/v1/dev/mp4', param: 'query', label: 'Search', placeholder: 'Video title' },
-    facebook: { method: 'GET', path: '/api/v1/dev/facebook', param: 'url', label: 'Facebook URL', placeholder: 'https://facebook.com/watch/?v=...' },
-    audiomack: { method: 'GET', path: '/api/v1/dev/audiomack', param: 'query', label: 'Search', placeholder: 'Track title or artist' },
-    ai: { method: 'POST', path: '/api/v1/dev/ai', param: 'prompt', label: 'Prompt', placeholder: 'Ask anything…', body: true },
+    ocr: { title: 'Try it — OCR', method: 'GET', path: '/api/v1/dev/ocr', param: 'url', label: 'Image URL', placeholder: 'https://example.com/image.png' },
+    mp3: { title: 'Try it — MP3 Downloader', method: 'GET', path: '/api/v1/dev/mp3', param: 'query', label: 'Search', placeholder: 'Song title or artist' },
+    mp4: { title: 'Try it — MP4 Downloader', method: 'GET', path: '/api/v1/dev/mp4', param: 'query', label: 'Search', placeholder: 'Video title' },
+    facebook: { title: 'Try it — Facebook Downloader', method: 'GET', path: '/api/v1/dev/facebook', param: 'url', label: 'Facebook URL', placeholder: 'https://facebook.com/watch/?v=...' },
+    audiomack: { title: 'Try it — Audiomack', method: 'GET', path: '/api/v1/dev/audiomack', param: 'query', label: 'Search', placeholder: 'Track title or artist' },
+    ai: { title: 'Try it — AI', method: 'POST', path: '/api/v1/dev/ai', param: 'prompt', label: 'Prompt', placeholder: 'Ask anything…', body: true },
   };
 
-  var tryitTabs = document.querySelectorAll('.tryit-tab');
   var tryitEndpoint = 'ocr';
+  var tryitOverlay = document.getElementById('tryitOverlay');
+  var tryitOverlayTitle = document.getElementById('tryitOverlayTitle');
   var tryitKeyInput = document.getElementById('tryitKeyInput');
   var tryitParamLabel = document.getElementById('tryitParamLabel');
   var tryitParamInput = document.getElementById('tryitParamInput');
@@ -789,15 +791,36 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   var tryitResultStatus = document.getElementById('tryitResultStatus');
   var tryitResultBody = document.getElementById('tryitResultBody');
 
-  function setTryitTab(name){
+  function openTryitOverlay(name){
     tryitEndpoint = name;
-    tryitTabs.forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-endpoint') === name); });
     var ep = TRYIT_ENDPOINTS[name];
+    tryitOverlayTitle.textContent = ep.title;
     tryitParamLabel.textContent = ep.label;
     tryitParamInput.placeholder = ep.placeholder;
+    tryitParamInput.value = '';
+    tryitResultBox.style.display = 'none';
     updateTryitCurl();
+    tryitOverlay.classList.add('show');
   }
-  tryitTabs.forEach(function(t){ t.addEventListener('click', function(){ setTryitTab(t.getAttribute('data-endpoint')); }); });
+
+  var noKeyOverlay = document.getElementById('noKeyOverlay');
+  document.querySelectorAll('.tryit-open-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      if(devApiKeyCount < 1){ noKeyOverlay.classList.add('show'); return; }
+      openTryitOverlay(btn.getAttribute('data-endpoint'));
+    });
+  });
+  document.getElementById('noKeyCancelBtn').addEventListener('click', function(){
+    noKeyOverlay.classList.remove('show');
+  });
+  document.getElementById('noKeyGoBtn').addEventListener('click', function(){
+    noKeyOverlay.classList.remove('show');
+    var target = document.getElementById('keyCard');
+    if(target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  document.getElementById('tryitCancelBtn').addEventListener('click', function(){
+    tryitOverlay.classList.remove('show');
+  });
 
   function updateTryitCurl(){
     var origin = window.location.origin;
@@ -867,8 +890,6 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     }).finally(function(){ btn.disabled = false; btn.innerHTML = originalHtml; });
   });
 
-  setTryitTab('ocr');
-
   var viewDash = document.getElementById('view-dash');
   var viewDocs = document.getElementById('view-docs');
   function showDocs(){ viewDash.style.display = 'none'; viewDocs.style.display = 'block'; window.scrollTo(0,0); }
@@ -880,6 +901,7 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
   document.getElementById('docsToDashLink3').addEventListener('click', function(e){ e.preventDefault(); showDash(); });
 
 })();
+${musicPlayerScript()}
 </script>
 </body>
 </html>`;

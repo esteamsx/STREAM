@@ -1,5 +1,4 @@
 import express from "express";
-import { requireApiKey } from "./api.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { extractTextFromImageUrl } from "../services/ocr.js";
 import { searchYoutubeVideo, getYoutubeDownload } from "../services/youtube.js";
@@ -7,11 +6,114 @@ import { resolveFacebookVideo } from "../services/facebook.js";
 import { searchAudiomackTrack } from "../services/audiomack.js";
 import { askFreeAI } from "../services/ai.js";
 import { signDownloadToken, verifyDownloadToken, streamProxiedFile, mimeToExt, sanitizeFilename } from "../services/download-proxy.js";
+import {
+  requireAuth,
+  createDevApiKey,
+  listDevApiKeysForUser,
+  revokeDevApiKey,
+  findDevApiKeyByRawKey,
+  getAccountDevApiUsage,
+  checkAndIncrementAccountDevApiUsage,
+  getUserProfile,
+  getEffectiveDevApiPlan,
+  getDevApiPlanConfig,
+  DEV_API_PLANS,
+} from "../services/auth.js";
 
 const router = express.Router();
 
 const PUBLIC_BASE = "https://esteamstv.devs.surf";
 const DL_TTL_MS = 6 * 60 * 60 * 1000;
+
+async function requireDevApiKey(req, res, next) {
+  const key = req.headers["x-api-key"] || req.query.key;
+  if (!key) return res.status(401).json({ error: "Missing API key. Pass it in the x-api-key header." });
+  if (req.query.key && !req.headers["x-api-key"]) {
+    res.set("Warning", '299 - "Passing the API key as ?key= is deprecated and less safe than the x-api-key header; it gets logged in more places. Please switch to the header."');
+  }
+  try {
+    const found = await findDevApiKeyByRawKey(String(key));
+    if (!found) return res.status(401).json({ error: "Invalid or revoked API key." });
+    const ownerProfile = await getUserProfile(found.uid).catch(() => null);
+    const monthlyLimit = getDevApiPlanConfig(ownerProfile).monthlyRequests;
+    const usage = await checkAndIncrementAccountDevApiUsage(found.uid, monthlyLimit);
+    if (!usage.allowed) {
+      return res.status(429).json({
+        error: "Monthly request limit reached for this account.",
+        requests_this_month: usage.requestsThisMonth,
+        monthly_limit: usage.monthlyLimit,
+      });
+    }
+    req.apiKeyId = found.id;
+    req.apiKeyUid = found.uid;
+    next();
+  } catch (err) {
+    console.error("dev api key check error:", err.message);
+    res.status(500).json({ error: "Could not verify API key." });
+  }
+}
+
+router.post("/api/devapi/keys", requireAuth, async (req, res) => {
+  try {
+    const label = ((req.body && req.body.label) || "").trim();
+    if (!label) return res.status(400).json({ error: "Give the key a name first." });
+    const plan = getDevApiPlanConfig(req.userProfile);
+    const existing = await listDevApiKeysForUser(req.uid);
+    if (existing.length >= plan.apiKeys) {
+      return res.status(400).json({ error: `Your ${plan.name} plan allows up to ${plan.apiKeys} API key${plan.apiKeys === 1 ? "" : "s"}. Revoke one, or upgrade your plan.` });
+    }
+    const { id, rawKey } = await createDevApiKey(req.uid, label);
+    res.json({ id, key: rawKey });
+  } catch (err) {
+    console.error("create dev api key error:", err.message);
+    res.status(500).json({ error: "Could not create API key." });
+  }
+});
+
+router.get("/api/devapi/keys", requireAuth, async (req, res) => {
+  try {
+    const planKey = getEffectiveDevApiPlan(req.userProfile);
+    const plan = DEV_API_PLANS[planKey];
+    const [keys, usage] = await Promise.all([
+      listDevApiKeysForUser(req.uid),
+      getAccountDevApiUsage(req.uid, plan.monthlyRequests),
+    ]);
+    let planExpiresAt = null;
+    if (planKey !== "free" && planKey !== "starter") planExpiresAt = req.userProfile.devApiPlanExpiresAt || null;
+    else if (planKey === "starter") planExpiresAt = req.userProfile.verifiedExpiresAt || null;
+    res.json({
+      keys: keys.map((k) => ({
+        id: k.id,
+        label: k.label,
+        last4: k.last4,
+        createdAt: k.createdAt,
+        lastUsedAt: k.lastUsedAt,
+      })),
+      usage: {
+        requestsThisMonth: usage.requestsThisMonth,
+        monthlyLimit: Number.isFinite(usage.monthlyLimit) ? usage.monthlyLimit : null,
+      },
+      plan: {
+        key: planKey,
+        name: plan.name,
+        apiKeys: plan.apiKeys,
+        expiresAt: planExpiresAt,
+      },
+    });
+  } catch (err) {
+    console.error("list dev api keys error:", err.message);
+    res.status(500).json({ error: "Could not load API keys." });
+  }
+});
+
+router.delete("/api/devapi/keys/:id", requireAuth, async (req, res) => {
+  try {
+    await revokeDevApiKey(req.uid, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not revoke key." });
+  }
+});
 
 const ocrLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const mp3Limiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
@@ -21,7 +123,7 @@ const audiomackLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKe
 const aiLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const dlLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.ip).middleware();
 
-router.get("/api/v1/dev/ocr", requireApiKey, ocrLimiter, async (req, res) => {
+router.get("/api/v1/dev/ocr", requireDevApiKey, ocrLimiter, async (req, res) => {
   const url = String(req.query.url || "").trim();
   if (!url) return res.status(400).json({ error: "Missing url query parameter." });
 
@@ -33,7 +135,7 @@ router.get("/api/v1/dev/ocr", requireApiKey, ocrLimiter, async (req, res) => {
   }
 });
 
-router.get("/api/v1/dev/mp3", requireApiKey, mp3Limiter, async (req, res) => {
+router.get("/api/v1/dev/mp3", requireDevApiKey, mp3Limiter, async (req, res) => {
   const query = String(req.query.query || "").trim();
   if (!query) return res.status(400).json({ error: "Missing query parameter." });
 
@@ -54,7 +156,7 @@ router.get("/api/v1/dev/mp3", requireApiKey, mp3Limiter, async (req, res) => {
   }
 });
 
-router.get("/api/v1/dev/mp4", requireApiKey, mp4Limiter, async (req, res) => {
+router.get("/api/v1/dev/mp4", requireDevApiKey, mp4Limiter, async (req, res) => {
   const query = String(req.query.query || "").trim();
   if (!query) return res.status(400).json({ error: "Missing query parameter." });
 
@@ -75,7 +177,7 @@ router.get("/api/v1/dev/mp4", requireApiKey, mp4Limiter, async (req, res) => {
   }
 });
 
-router.get("/api/v1/dev/facebook", requireApiKey, facebookLimiter, async (req, res) => {
+router.get("/api/v1/dev/facebook", requireDevApiKey, facebookLimiter, async (req, res) => {
   const url = String(req.query.url || "").trim();
   if (!url) return res.status(400).json({ error: "Missing url query parameter." });
 
@@ -96,7 +198,7 @@ router.get("/api/v1/dev/facebook", requireApiKey, facebookLimiter, async (req, r
   }
 });
 
-router.get("/api/v1/dev/audiomack", requireApiKey, audiomackLimiter, async (req, res) => {
+router.get("/api/v1/dev/audiomack", requireDevApiKey, audiomackLimiter, async (req, res) => {
   const query = String(req.query.query || "").trim();
   if (!query) return res.status(400).json({ error: "Missing query parameter." });
 
@@ -116,7 +218,7 @@ router.get("/api/v1/dev/audiomack", requireApiKey, audiomackLimiter, async (req,
   }
 });
 
-router.post("/api/v1/dev/ai", requireApiKey, aiLimiter, async (req, res) => {
+router.post("/api/v1/dev/ai", requireDevApiKey, aiLimiter, async (req, res) => {
   const prompt = String((req.body && req.body.prompt) || "").trim();
   if (!prompt) return res.status(400).json({ error: "Missing prompt in request body." });
   if (prompt.length > 4000) return res.status(400).json({ error: "Prompt is too long (4000 character limit)." });

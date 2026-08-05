@@ -559,7 +559,6 @@ ${musicPlayerHtml()}
   function renderPlans(){
     var grid = document.getElementById('plansGrid');
     var currentKey = currentProfile && currentProfile.apiPlan ? currentProfile.apiPlan.key : 'free';
-    var currentExpiresAt = currentProfile && currentProfile.apiPlan ? currentProfile.apiPlan.expiresAt : null;
     var loggedIn = !!currentProfile;
 
     grid.innerHTML = PLAN_DEFS.map(function(p){
@@ -573,7 +572,7 @@ ${musicPlayerHtml()}
       if(!loggedIn){
         cta = '<a class="btn btn-primary plan-cta" href="/login?next=%2Fdevelopers">Log in to upgrade</a>';
       } else if(isCurrent){
-        cta = '<div class="plan-current-badge">Current plan' + (currentExpiresAt ? ' · until ' + fmtDate(currentExpiresAt) : '') + '</div>';
+        cta = '<div class="plan-current-badge">Current plan</div>';
       } else if(p.key === 'free'){
         cta = '';
       } else if(p.key === 'starter'){
@@ -797,6 +796,7 @@ ${musicPlayerHtml()}
   function renderKeys(keys, usage, plan){
     var html = '';
     var keyLimit = plan ? plan.apiKeys : 1;
+    var expiresPart = plan && plan.expiresAt ? ' &middot; expires ' + fmtDate(plan.expiresAt) : '';
 
     if(usage && usage.monthlyLimit == null){
       html += '<div class="usage-wrap" style="margin-top:0;margin-bottom:16px">' +
@@ -819,7 +819,7 @@ ${musicPlayerHtml()}
           '<span class="key-dot"></span>' +
           '<div class="key-info">' +
             '<div class="key-label">' + esc(k.label) + '</div>' +
-            '<div class="key-meta">estv_&bull;&bull;&bull;&bull;' + esc(k.last4) + ' &middot; created ' + fmtDate(k.createdAt) + ' &middot; last used ' + fmtDate(k.lastUsedAt) + '</div>' +
+            '<div class="key-meta">estv_&bull;&bull;&bull;&bull;' + esc(k.last4) + ' &middot; created ' + fmtDate(k.createdAt) + expiresPart + ' &middot; last used ' + fmtDate(k.lastUsedAt) + '</div>' +
           '</div>' +
           '<div class="key-actions"><button type="button" class="icon-btn" data-revoke="' + k.id + '" title="Revoke"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg></button></div>' +
         '</div>';
