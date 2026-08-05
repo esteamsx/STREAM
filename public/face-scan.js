@@ -173,7 +173,7 @@ function ensureOverlayStyles() {
 #${OVERLAY_ID}.fs-success .fs-check-path{stroke-dashoffset:0}
 #${OVERLAY_ID} .fs-frame-outline{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
   filter:drop-shadow(0 0 18px rgba(0,224,255,.45))}
-#${OVERLAY_ID} .fs-frame-outline path{fill:none;stroke-width:2.5;vector-effect:non-scaling-stroke}
+#${OVERLAY_ID} .fs-frame-outline path{fill:none;stroke-width:.008}
 #${OVERLAY_ID} .fs-frame-outline-bg{stroke:rgba(0,224,255,.25)}
 #${OVERLAY_ID} .fs-frame-outline-progress{stroke:#00E0FF;transition:stroke-dashoffset .4s ease}
 #${OVERLAY_ID}.fs-success .fs-frame-outline-bg{stroke:rgba(0,224,255,.25)}
