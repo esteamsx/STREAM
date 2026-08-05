@@ -166,7 +166,7 @@ export const ipBlocklist = (req, res, next) => {
 export const permissionsPolicy = (req, res, next) => {
   res.setHeader(
     "Permissions-Policy",
-    "camera=(), microphone=(self), geolocation=(), usb=(), payment=(), interest-cohort=()"
+    "camera=(self), microphone=(self), geolocation=(), usb=(), payment=(), interest-cohort=()"
   );
   next();
 };
