@@ -5,7 +5,9 @@ function nodeJsEvaluator(data, env) {
   const argNames = Object.keys(env || {});
   const argsLiteral = Object.values(env || {}).map((v) => JSON.stringify(v)).join(",");
   const wrapped = `(function(${argNames.join(",")}) {\n${data.output}\n})(${argsLiteral})`;
-  return vm.runInNewContext(wrapped, Object.create(null), { timeout: 5000 });
+  const sandbox = { URL, URLSearchParams, TextEncoder, TextDecoder, atob, btoa };
+  const context = vm.createContext(sandbox);
+  return vm.runInContext(wrapped, context, { timeout: 5000 });
 }
 Platform.shim.eval = nodeJsEvaluator;
 
@@ -74,7 +76,7 @@ export async function getYoutubeDownload(videoId, { audioOnly = false } = {}) {
   try {
     url = await format.decipher(info.actions.session.player);
   } catch (err) {
-    console.error("youtube decipher error:", err.message);
+    console.error("youtube decipher error:", err.stack || err.message);
     throw Object.assign(new Error("Could not resolve a playable link for that video."), { status: 502 });
   }
   if (!url) {
