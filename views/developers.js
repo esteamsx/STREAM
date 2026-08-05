@@ -63,21 +63,13 @@ a{color:var(--accent);text-decoration:none}
 .hero h1{font-family:var(--font-display);font-size:1.9rem;margin-bottom:8px}
 .hero p{color:var(--muted);line-height:1.6;font-size:.94rem;max-width:56ch}
 
-.tile-scroll{
-  display:flex;gap:16px;overflow-x:auto;padding-bottom:6px;margin:0 -20px;padding-left:20px;padding-right:20px;
-  scrollbar-width:thin;
-}
-.tile-scroll::-webkit-scrollbar{height:6px}
-.tile-scroll::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:6px}
+.tile-list{display:flex;flex-direction:column;gap:16px}
 
 .tile{
   background:var(--card);border:1px solid var(--border);border-radius:20px;
   padding:26px 24px;display:flex;flex-direction:column;gap:16px;position:relative;
-  flex:0 0 auto;width:280px;scroll-snap-align:start;
   transition:border-color .2s var(--ease),transform .2s var(--ease);
 }
-@media(min-width:700px){ .tile{width:320px} }
-.tile-scroll{scroll-snap-type:x proximity}
 .tile:hover{border-color:var(--border-strong);transform:translateY(-2px)}
 .tile-icon{
   width:52px;height:52px;border-radius:15px;background:var(--card2);
@@ -124,7 +116,7 @@ a{color:var(--accent);text-decoration:none}
     <p>Build with ES TEAMS TV. Pick what you need below.</p>
   </div>
 
-  <div class="tile-scroll">
+  <div class="tile-list">
 
     <a href="/developers/live-tv" class="tile">
       <span class="tile-badge" id="liveTvBadge"></span>

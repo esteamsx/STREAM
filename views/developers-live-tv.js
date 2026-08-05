@@ -137,19 +137,16 @@ body:has(.page-overlay.show){overflow:hidden}
 .dcard-title{font-family:var(--font-display);font-size:.95rem;font-weight:700}
 .dcard-sub{font-size:.72rem;color:var(--muted);margin-top:1px}
 
-.dcard-collapsible .dcard-head{cursor:pointer;user-select:none}
-.dcard-chevron{width:16px;height:16px;color:var(--muted);transition:transform .25s var(--ease);flex-shrink:0;margin-left:auto}
-.dcard-collapsible.open .dcard-chevron{transform:rotate(180deg)}
-.dcard-collapse-body{max-height:0;overflow:hidden;transition:max-height .35s var(--ease)}
-.dcard-collapsible.open .dcard-collapse-body{max-height:2400px}
-
-.plans-grid{display:grid;grid-template-columns:1fr;gap:12px}
-@media(min-width:600px){ .plans-grid{grid-template-columns:repeat(2,1fr)} }
-@media(min-width:1080px){ .plans-grid{grid-template-columns:repeat(5,1fr)} }
+.plans-grid{
+  display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity;
+  -webkit-overflow-scrolling:touch;
+}
 .plan-card{
   background:var(--card2);border:1px solid var(--border-strong);border-radius:14px;padding:16px;
   display:flex;flex-direction:column;gap:12px;position:relative;
+  flex:0 0 auto;width:200px;scroll-snap-align:start;
 }
+@media(min-width:600px){ .plan-card{width:220px} }
 .plan-card.current{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .plan-card.highlight{border-color:var(--accent2);background:linear-gradient(160deg,rgba(124,92,255,.1),var(--card2))}
 .plan-name{font-family:var(--font-display);font-weight:700;font-size:1rem}
@@ -297,25 +294,22 @@ ${musicPlayerStyle()}
 
     <div class="dash-grid">
 
-      <div class="dcard span2 dcard-collapsible" id="plansCard">
-        <div class="dcard-head" id="plansHead">
+      <div class="dcard span2" id="plansCard">
+        <div class="dcard-head">
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/></svg></span>
           <div>
             <div class="dcard-title">Plans &amp; Pricing</div>
             <div class="dcard-sub">More API keys, longer-lived links, no watermark on the higher tiers</div>
           </div>
-          <svg class="dcard-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
         </div>
-        <div class="dcard-collapse-body" id="plansCollapseBody">
-          <div class="plans-grid" id="plansGrid" style="margin-top:16px"><div class="ch-loading">Loading…</div></div>
-          <div id="customVisitWrap" style="display:none;margin-top:16px">
-            <div class="field">
-              <label>Custom Visit Page URL <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(Max plan, shown on expired stream links)</span></label>
-              <input type="text" id="customVisitInput" placeholder="https://yoursite.com">
-            </div>
-            <button class="btn btn-primary btn-sm" id="customVisitSaveBtn" type="button">Save Link</button>
-            <div class="dcard-msg" id="customVisitMsg"></div>
+        <div class="plans-grid" id="plansGrid" style="margin-top:16px"><div class="ch-loading">Loading…</div></div>
+        <div id="customVisitWrap" style="display:none;margin-top:16px">
+          <div class="field">
+            <label>Custom Visit Page URL <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(Max plan, shown on expired stream links)</span></label>
+            <input type="text" id="customVisitInput" placeholder="https://yoursite.com">
           </div>
+          <button class="btn btn-primary btn-sm" id="customVisitSaveBtn" type="button">Save Link</button>
+          <div class="dcard-msg" id="customVisitMsg"></div>
         </div>
       </div>
 
@@ -702,10 +696,6 @@ ${musicPlayerHtml()}
       if(r.ok){ currentProfile = r.data; renderPlans(); loadKeys(); }
     });
   }
-
-  document.getElementById('plansHead').addEventListener('click', function(){
-    document.getElementById('plansCard').classList.toggle('open');
-  });
 
   document.getElementById('customVisitSaveBtn').addEventListener('click', function(){
     var btn = this;
