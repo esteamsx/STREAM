@@ -16,6 +16,7 @@ import { renderDmca } from "./views/dmca.js";
 import { renderPrivacy } from "./views/privacy.js";
 import { renderDevelopers } from "./views/developers.js";
 import { renderAdmin } from "./views/admin.js";
+import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
 import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
@@ -263,6 +264,8 @@ app.use(requestId);
 
 app.use(responseWatchdog({ timeoutMs: 30000, exemptPrefixes: ["/api/v1/hls/"] }));
 
+app.use(domainLock);
+
 app.use(compression());
 
 app.use(cspNonce);
@@ -338,6 +341,13 @@ app.use(apiRouter);
 app.use(toolsRouter);
 app.use(paymentsRouter);
 
+function domainLockHash(str) {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
 const DOMAIN_LOCK_HOSTS = String(process.env.ALLOWED_HOSTS || "esteamstv.devs.surf")
   .split(",")
   .map((h) => h.trim().toLowerCase())
@@ -358,6 +368,26 @@ app.get(["/.well-known/security.txt", "/security.txt"], (req, res) => {
   res.type("text/plain").send(SECURITY_TXT);
 });
 
+const DOMAIN_LOCK_ALLOWED_HASHES = JSON.stringify(
+  Array.from(new Set([...DOMAIN_LOCK_HOSTS, "localhost", "127.0.0.1"])).map(domainLockHash)
+);
+// Runs before any other script on the page. If the page isn't being served from an
+// allowed domain, it blanks the page and bounces to the real site, so a scraped copy
+// of the HTML/CSS/JS renders nothing useful when re-hosted elsewhere.
+const DOMAIN_LOCK_SCRIPT = `<script nonce="__CSP_NONCE__">
+(function(){
+  function _dlh(s){var a=5381;for(var i=0;i<s.length;i++){a=((a<<5)+a+s.charCodeAt(i))|0;}return (a>>>0).toString(36);}
+  var _dla=${DOMAIN_LOCK_ALLOWED_HASHES};
+  var _dlr=${JSON.stringify(DOMAIN_LOCK_PRIMARY_HOST)};
+  var _dlx=String(location.hostname||'').toLowerCase();
+  if (_dla.indexOf(_dlh(_dlx)) === -1) {
+    try { document.write('<style>html,html *{display:none!important;visibility:hidden!important}</style>'); } catch(e){}
+    try { window.stop && window.stop(); } catch(e){}
+    setTimeout(function(){ try { location.replace('https://'+_dlr+location.pathname+location.search); } catch(e){} }, 30);
+  }
+})();
+</script>`;
+
 const authPageConfig = {
   firebaseConfig: {
     apiKey: process.env.FIREBASE_API_KEY,
@@ -371,7 +401,7 @@ const authPageConfig = {
   telegramConfigured: !!(process.env.TELEGRAM_CLIENT_ID && process.env.TELEGRAM_CLIENT_SECRET),
   githubConfigured: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
   paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY || "",
-  devToolsBlock: `<script nonce="__CSP_NONCE__">
+  devToolsBlock: DOMAIN_LOCK_SCRIPT + `<script nonce="__CSP_NONCE__">
 document.addEventListener('contextmenu', function(e){
   if (e.target.closest('a, button, img, [role="button"]')) e.preventDefault();
 });
@@ -499,7 +529,9 @@ const cachedToolsOcrToolHtml = renderOcrTool(authPageConfig);
 const cachedFootballHtml = (() => {
   try {
     const raw = fs.readFileSync(path.join(__dirname, "views", "football.html"), "utf8");
-    return raw.replace("</title>", `</title>\n${siteHeadFor("football")}`);
+    return raw
+      .replace("</title>", `</title>\n${siteHeadFor("football")}`)
+      .replace('<meta charset="UTF-8">', `<meta charset="UTF-8">\n${DOMAIN_LOCK_SCRIPT}`);
   } catch (err) {
     console.error("Could not load the football page:", err.message);
     return null;
@@ -574,6 +606,7 @@ app.get("/", scrapeGate, requireUser, async (req, res) => {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+${DOMAIN_LOCK_SCRIPT}
 <script nonce="__CSP_NONCE__">document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <script nonce="__CSP_NONCE__">
 document.addEventListener('contextmenu', function(e){
