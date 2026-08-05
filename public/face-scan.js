@@ -8,6 +8,8 @@ const DETECT_INPUT_SIZE = 160;
 const DETECT_SCORE_THRESHOLD = 0.2;
 const WORK_CANVAS_MAX = 480;
 const MIN_FACE_RATIO = 0.12;
+const CAMERA_SETTLE_MS = 280;
+const STABLE_FRAMES_NEEDED = 2;
 
 const FACE_CLIP_PATH_D =
   'M 0.5 0.03 C 0.75 0.03 0.95 0.22 0.95 0.42 C 0.95 0.60 0.85 0.72 0.80 0.80 ' +
@@ -301,6 +303,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         }
         if (cancelled) return;
         video.play().catch(() => {});
+        const videoReadyAt = Date.now();
 
         const faceapi = await modelsPromise;
         if (cancelled) return;
@@ -321,6 +324,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         });
         let blinkDetected = false;
         let wasOpen = false;
+        let stableFrames = 0;
         const startTime = Date.now();
 
         const finishCapture = async (descriptor) => {
@@ -369,7 +373,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             return;
           }
 
-          if (video.readyState < 2) {
+          if (video.readyState < 2 || Date.now() - videoReadyAt < CAMERA_SETTLE_MS) {
             again(tick);
             return;
           }
@@ -384,19 +388,26 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           if (cancelled) return;
 
           if (!result) {
+            stableFrames = 0;
             if (showCamera) setStatus('Position your face in the frame');
             again(tick);
             return;
           }
 
           if (result.detection.box.width < work.width * MIN_FACE_RATIO) {
+            stableFrames = 0;
             if (showCamera) setStatus('Move a little closer');
             again(tick);
             return;
           }
 
           if (!requireLiveness) {
-            finishCapture(Array.from(result.descriptor));
+            stableFrames++;
+            if (stableFrames >= STABLE_FRAMES_NEEDED) {
+              finishCapture(Array.from(result.descriptor));
+              return;
+            }
+            again(tick);
             return;
           }
 
