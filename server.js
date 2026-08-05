@@ -3521,7 +3521,6 @@ app.get("/admin", scrapeGate, async (req, res) => {
   const profile = await getUserProfile(uid);
   if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.redirect("/login");
   if (!isAdminEmail(profile.email)) return res.redirect("/");
-  if (!profile.twoFactorEnabled) return res.redirect("/account?require2fa=admin#tfaCard");
   res.send(cachedAdminHtml);
 });
 
