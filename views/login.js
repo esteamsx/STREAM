@@ -1089,8 +1089,11 @@ document.getElementById('troublePasskeyBtn').addEventListener('click', () => {
 async function signInWithFaceId(){
   clearError();
   let stage = 'load-library';
+  const t0 = performance.now();
+  const lap = (label) => console.log('[faceid-timing] ' + label + ': ' + Math.round(performance.now() - t0) + 'ms since start');
   try {
     const { captureFaceDescriptor } = await import('/face-scan.js');
+    lap('library loaded');
 
     stage = 'capture-and-verify';
     const customToken = await captureFaceDescriptor({
@@ -1098,10 +1101,13 @@ async function signInWithFaceId(){
       showCamera: false,
       voice: false,
       verify: async (descriptor) => {
+        const verifyStart = performance.now();
         const { customToken } = await postJSON('/api/facescan/verify', { descriptor });
+        console.log('[faceid-timing] server verify call: ' + Math.round(performance.now() - verifyStart) + 'ms');
         return customToken;
       },
     });
+    lap('camera scan + server verify done');
 
     const overlay = document.getElementById('pageOverlay');
     document.getElementById('pageOverlayText').textContent = 'Signing in…';
@@ -1109,10 +1115,13 @@ async function signInWithFaceId(){
 
     stage = 'firebase-sign-in';
     const cred = await withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in');
+    lap('firebase sign-in done');
     stage = 'get-id-token';
     const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+    lap('got id token');
     stage = 'establish-session';
     await establishSession(idToken, true);
+    lap('session established, fully logged in');
   } catch (err) {
     console.error('[faceid-signin] failed at stage "' + stage + '":', err);
     document.getElementById('pageOverlay').classList.remove('show');
