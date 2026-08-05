@@ -9,8 +9,8 @@ const WORK_CANVAS_MAX = 480;
 const MIN_FACE_RATIO = 0.12;
 const CAMERA_SETTLE_MS = 280;
 const STABLE_FRAMES_NEEDED = 2;
-const REAL_FACE_THRESHOLD = 0.4;
 const EMBEDDING_LENGTH = 1024;
+const DETECT_TIMEOUT_MS = 3000;
 
 const FACE_CLIP_PATH_D =
   'M 0.5 0.03 C 0.75 0.03 0.95 0.22 0.95 0.42 C 0.95 0.60 0.85 0.72 0.80 0.80 ' +
@@ -43,8 +43,8 @@ async function loadHuman() {
         iris: { enabled: false },
         emotion: { enabled: false },
         description: { enabled: true, modelPath: 'faceres.json', skipFrames: 0, skipTime: 0, minConfidence: 0.1 },
-        antispoof: { enabled: true, modelPath: 'antispoof.json', skipFrames: 0, skipTime: 0 },
-        liveness: { enabled: false, modelPath: 'liveness.json', skipFrames: 0, skipTime: 0 },
+        antispoof: { enabled: false },
+        liveness: { enabled: false },
       },
       body: { enabled: false },
       hand: { enabled: false },
@@ -321,7 +321,6 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
         const human = await humanPromise;
         if (cancelled) return;
-        human.config.face.liveness.enabled = !!requireLiveness;
 
         setStatus(showCamera ? 'Position your face in the frame' : 'Scanning…');
 
@@ -391,8 +390,16 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
           workCtx.drawImage(video, 0, 0, work.width, work.height);
 
-          const result = await human.detect(work);
+          const result = await Promise.race([
+            human.detect(work),
+            new Promise((r) => setTimeout(() => r(null), DETECT_TIMEOUT_MS)),
+          ]);
           if (cancelled) return;
+
+          if (!result) {
+            again(tick);
+            return;
+          }
 
           const face = result.face && result.face[0];
 
@@ -406,12 +413,6 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           if (face.box[2] < work.width * MIN_FACE_RATIO) {
             stableFrames = 0;
             if (showCamera) setStatus('Move a little closer');
-            again(tick);
-            return;
-          }
-
-          if (typeof face.real === 'number' && face.real < REAL_FACE_THRESHOLD) {
-            stableFrames = 0;
             again(tick);
             return;
           }
