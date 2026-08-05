@@ -1,4 +1,13 @@
-import { Innertube } from "youtubei.js";
+import { Innertube, Platform } from "youtubei.js";
+import vm from "node:vm";
+
+function nodeJsEvaluator(data, env) {
+  const argNames = Object.keys(env || {});
+  const argsLiteral = Object.values(env || {}).map((v) => JSON.stringify(v)).join(",");
+  const wrapped = `(function(${argNames.join(",")}) {\n${data.output}\n})(${argsLiteral})`;
+  return vm.runInNewContext(wrapped, Object.create(null), { timeout: 5000 });
+}
+Platform.shim.eval = nodeJsEvaluator;
 
 let clientPromise = null;
 
@@ -6,7 +15,8 @@ function getClient() {
   if (!clientPromise) {
     clientPromise = Innertube.create({ generate_session_locally: true }).catch((err) => {
       clientPromise = null;
-      throw err;
+      console.error("youtube client init error:", err.message);
+      throw Object.assign(new Error("Could not reach YouTube right now."), { status: 502 });
     });
   }
   return clientPromise;
@@ -27,6 +37,7 @@ export async function searchYoutubeVideo(query) {
   try {
     results = await yt.search(query, { type: "video" });
   } catch (err) {
+    console.error("youtube search error:", err.message);
     throw Object.assign(new Error("Could not search YouTube right now."), { status: 502 });
   }
   const video = pickBestVideo(results);
@@ -45,6 +56,7 @@ export async function getYoutubeDownload(videoId, { audioOnly = false } = {}) {
   try {
     info = await yt.getBasicInfo(videoId);
   } catch (err) {
+    console.error("youtube getBasicInfo error:", err.message);
     throw Object.assign(new Error("Could not load that video."), { status: 502 });
   }
 
@@ -62,6 +74,11 @@ export async function getYoutubeDownload(videoId, { audioOnly = false } = {}) {
   try {
     url = await format.decipher(info.actions.session.player);
   } catch (err) {
+    console.error("youtube decipher error:", err.message);
+    throw Object.assign(new Error("Could not resolve a playable link for that video."), { status: 502 });
+  }
+  if (!url) {
+    console.error("youtube decipher error: empty url after decipher");
     throw Object.assign(new Error("Could not resolve a playable link for that video."), { status: 502 });
   }
 
