@@ -77,17 +77,6 @@ export async function streamProxiedFile(payload, req, res) {
   }
 }
 
-const MIME_EXT = {
-  "audio/mp4": "m4a",
-  "audio/webm": "webm",
-  "audio/mpeg": "mp3",
-  "video/mp4": "mp4",
-  "video/webm": "webm",
-};
-export function mimeToExt(mime, fallback) {
-  return MIME_EXT[mime] || fallback;
-}
-
 export function sanitizeFilename(name) {
   return String(name || "download")
     .replace(/[^\w\s.\-]/g, "")

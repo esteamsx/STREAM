@@ -450,8 +450,7 @@ ${musicPlayerStyle()}
   "https://esteamstv.devs.surf/api/v1/dev/mp3?query=your song here"</pre>
     <pre>{
   "title": "Song Title",
-  "artist": "Artist Name",
-  "duration_seconds": 214,
+  "thumbnail": "https://...",
   "download_url": "https://esteamstv.devs.surf/api/v1/dev/dl/eyJ1cmwi...",
   "expires_at": "2026-08-05T20:00:00.000Z"
 }</pre>
@@ -463,8 +462,7 @@ ${musicPlayerStyle()}
   "https://esteamstv.devs.surf/api/v1/dev/mp4?query=your video here"</pre>
     <pre>{
   "title": "Video Title",
-  "channel": "Channel Name",
-  "duration_seconds": 632,
+  "thumbnail": "https://...",
   "download_url": "https://esteamstv.devs.surf/api/v1/dev/dl/eyJ1cmwi...",
   "expires_at": "2026-08-05T20:00:00.000Z"
 }</pre>

@@ -1,11 +1,11 @@
 import express from "express";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { extractTextFromImageUrl } from "../services/ocr.js";
-import { searchYoutubeVideo, getYoutubeDownload } from "../services/youtube.js";
+import { fetchSongByQuery } from "../services/davidcyril.js";
 import { resolveFacebookVideo } from "../services/facebook.js";
 import { searchAudiomackTrack } from "../services/audiomack.js";
 import { askFreeAI } from "../services/ai.js";
-import { signDownloadToken, verifyDownloadToken, streamProxiedFile, mimeToExt, sanitizeFilename } from "../services/download-proxy.js";
+import { signDownloadToken, verifyDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
 import {
   requireAuth,
   createDevApiKey,
@@ -140,14 +140,13 @@ router.get("/api/v1/dev/mp3", requireDevApiKey, mp3Limiter, async (req, res) => 
   if (!query) return res.status(400).json({ error: "Missing query parameter." });
 
   try {
-    const video = await searchYoutubeVideo(query);
-    const dl = await getYoutubeDownload(video.videoId, { audioOnly: true });
-    const filename = `${sanitizeFilename(video.title)}.${mimeToExt(dl.mimeType, "m4a")}`;
-    const token = signDownloadToken({ url: dl.url, mime: dl.mimeType, filename }, DL_TTL_MS);
+    const song = await fetchSongByQuery(query);
+    if (!song.audioUrl) throw Object.assign(new Error("No audio found for that search."), { status: 404 });
+    const filename = `${sanitizeFilename(song.title)}.mp3`;
+    const token = signDownloadToken({ url: song.audioUrl, mime: "audio/mpeg", filename }, DL_TTL_MS);
     res.json({
-      title: video.title,
-      artist: video.author,
-      duration_seconds: video.durationSeconds,
+      title: song.title,
+      thumbnail: song.thumbnail,
       download_url: `${PUBLIC_BASE}/api/v1/dev/dl/${token}`,
       expires_at: new Date(Date.now() + DL_TTL_MS).toISOString(),
     });
@@ -161,14 +160,13 @@ router.get("/api/v1/dev/mp4", requireDevApiKey, mp4Limiter, async (req, res) => 
   if (!query) return res.status(400).json({ error: "Missing query parameter." });
 
   try {
-    const video = await searchYoutubeVideo(query);
-    const dl = await getYoutubeDownload(video.videoId, { audioOnly: false });
-    const filename = `${sanitizeFilename(video.title)}.${mimeToExt(dl.mimeType, "mp4")}`;
-    const token = signDownloadToken({ url: dl.url, mime: dl.mimeType, filename }, DL_TTL_MS);
+    const song = await fetchSongByQuery(query);
+    if (!song.videoUrl) throw Object.assign(new Error("No video found for that search."), { status: 404 });
+    const filename = `${sanitizeFilename(song.title)}.mp4`;
+    const token = signDownloadToken({ url: song.videoUrl, mime: "video/mp4", filename }, DL_TTL_MS);
     res.json({
-      title: video.title,
-      channel: video.author,
-      duration_seconds: video.durationSeconds,
+      title: song.title,
+      thumbnail: song.thumbnail,
       download_url: `${PUBLIC_BASE}/api/v1/dev/dl/${token}`,
       expires_at: new Date(Date.now() + DL_TTL_MS).toISOString(),
     });
