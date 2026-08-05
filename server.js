@@ -530,7 +530,7 @@ const cachedToolsOcrToolHtml = renderOcrTool(authPageConfig);
 
 const cachedFootballHtml = (() => {
   try {
-    const raw = fs.readFileSync(path.join(__dirname, "views", "football.js"), "utf8");
+    const raw = fs.readFileSync(path.join(__dirname, "views", "football.html"), "utf8");
     return raw
       .replace("</title>", `</title>\n${siteHeadFor("football")}`)
       .replace('<meta charset="UTF-8">', `<meta charset="UTF-8">\n${DOMAIN_LOCK_SCRIPT}`);

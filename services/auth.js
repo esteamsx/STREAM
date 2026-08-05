@@ -2270,12 +2270,15 @@ async function adminResetPassword(uid, newPassword) {
   return { ok: true };
 }
 
-async function getMaintenanceMode() {
-  const snap = await db.collection("settings").doc("site").get();
-  return !!(snap.exists && snap.data().maintenanceMode);
-}
+// The maintenance gate runs on every request, so reading Firestore here directly
+// put a document read on the critical path of every page load. Cache the result
+// for a few seconds and collapse concurrent lookups into one read instead.
+const MAINTENANCE_CACHE_TTL_MS = 10 * 1000;
+let maintenanceCache = null;
+let maintenanceCacheExpiry = 0;
+let maintenanceInflight = null;
 
-async function getMaintenanceStatus() {
+async function readMaintenanceStatus() {
   const snap = await db.collection("settings").doc("site").get();
   const data = snap.exists ? snap.data() : null;
   return {
@@ -2284,11 +2287,44 @@ async function getMaintenanceStatus() {
   };
 }
 
+function primeMaintenanceCache(status) {
+  maintenanceCache = status;
+  maintenanceCacheExpiry = Date.now() + MAINTENANCE_CACHE_TTL_MS;
+  return status;
+}
+
+async function getMaintenanceStatus() {
+  if (maintenanceCache && Date.now() < maintenanceCacheExpiry) return maintenanceCache;
+  if (maintenanceInflight) return maintenanceInflight;
+
+  maintenanceInflight = readMaintenanceStatus()
+    .then(primeMaintenanceCache)
+    .catch((err) => {
+      // Serve the last known value through a transient Firestore failure rather
+      // than letting every in-flight request reject at once.
+      if (maintenanceCache) return maintenanceCache;
+      throw err;
+    })
+    .finally(() => {
+      maintenanceInflight = null;
+    });
+
+  return maintenanceInflight;
+}
+
+async function getMaintenanceMode() {
+  const status = await getMaintenanceStatus();
+  return status.maintenanceMode;
+}
+
 async function setMaintenanceMode(enabled) {
+  const updatedAt = Date.now();
   await db.collection("settings").doc("site").set(
-    { maintenanceMode: !!enabled, maintenanceModeUpdatedAt: Date.now() },
+    { maintenanceMode: !!enabled, maintenanceModeUpdatedAt: updatedAt },
     { merge: true }
   );
+  // Reflect an admin toggle immediately instead of waiting out the cache TTL.
+  primeMaintenanceCache({ maintenanceMode: !!enabled, updatedAt });
   return { maintenanceMode: !!enabled };
 }
 
