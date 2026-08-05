@@ -3,6 +3,7 @@ const CLIP_ID = 'faceScanClipPath';
 const CAPTURE_TIMEOUT_MS = 60000;
 const TURN_THRESHOLD = 0.16;
 const CENTER_THRESHOLD = 0.09;
+const NOD_THRESHOLD = 0.12;
 const RESULT_HOLD_MS = 500;
 const DETECT_INPUT_SIZE = 160;
 const DETECT_SCORE_THRESHOLD = 0.2;
@@ -233,6 +234,16 @@ function headTurnRatio(landmarks) {
   return (nose.x - eyeMidX) / eyeDist;
 }
 
+function headPitchRatio(landmarks) {
+  const leftEye = avgPoint(landmarks.getLeftEye());
+  const rightEye = avgPoint(landmarks.getRightEye());
+  const jaw = landmarks.getJawOutline();
+  const chin = jaw[8] || jaw[Math.floor(jaw.length / 2)];
+  const eyeMidY = (leftEye.y + rightEye.y) / 2;
+  const eyeDist = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y) || 1;
+  return (chin.y - eyeMidY) / eyeDist;
+}
+
 export function captureFaceDescriptor({ requireLiveness = true, showCamera = true, verify = null, voice = true } = {}) {
   ensureOverlayStyles();
   const overlay = document.createElement('div');
@@ -348,6 +359,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           scoreThreshold: DETECT_SCORE_THRESHOLD,
         });
         let turnStage = 0;
+        let nodBaseline = null;
         let stableFrames = 0;
         const startTime = Date.now();
         if (requireLiveness && showCamera) setStep(0);
@@ -448,12 +460,20 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           } else if (turnStage === 1) {
             if (turnRatio > TURN_THRESHOLD) {
               turnStage = 2;
+              nodBaseline = null;
               setStep(2);
-              setStatus('Look straight ahead');
+              setStatus('Now nod your head');
             }
           } else if (turnStage === 2) {
-            if (Math.abs(turnRatio) < CENTER_THRESHOLD) {
+            const pitchRatio = headPitchRatio(result.landmarks);
+            if (nodBaseline === null) nodBaseline = pitchRatio;
+            if (Math.abs(pitchRatio - nodBaseline) > NOD_THRESHOLD) {
+              turnStage = 3;
               setStep(3);
+              setStatus('Hold still');
+            }
+          } else if (turnStage === 3) {
+            if (Math.abs(turnRatio) < CENTER_THRESHOLD) {
               finishCapture(Array.from(result.descriptor));
               return;
             }
