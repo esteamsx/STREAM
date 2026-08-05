@@ -1,15 +1,17 @@
 const OVERLAY_ID = 'faceScanOverlay';
 const CLIP_ID = 'faceScanClipPath';
 const CAPTURE_TIMEOUT_MS = 60000;
-const YAW_TURN_THRESHOLD = 0.3;
-const YAW_CENTER_THRESHOLD = 0.15;
-const PITCH_NOD_THRESHOLD = 0.18;
+const TURN_THRESHOLD = 0.16;
+const CENTER_THRESHOLD = 0.09;
+const NOD_THRESHOLD = 0.12;
 const RESULT_HOLD_MS = 500;
+const DETECT_INPUT_SIZE = 160;
+const DETECT_SCORE_THRESHOLD = 0.2;
 const WORK_CANVAS_MAX = 480;
 const MIN_FACE_RATIO = 0.12;
 const CAMERA_SETTLE_MS = 280;
 const STABLE_FRAMES_NEEDED = 2;
-const EMBEDDING_LENGTH = 1024;
+const DESCRIPTOR_LENGTH = 128;
 const DETECT_TIMEOUT_MS = 3000;
 
 const FACE_CLIP_PATH_D =
@@ -22,56 +24,56 @@ const FACE_GLYPH_PATHS =
   '<circle class="fs-eye" cx="9" cy="10" r=".8" fill="currentColor" stroke="none"/><circle class="fs-eye" cx="15" cy="10" r=".8" fill="currentColor" stroke="none"/>' +
   '<path d="M9 15c1 1 5 1 6 0"/>';
 
-let humanInstance = null;
-let humanLoadingPromise = null;
+let modelsLoaded = false;
+let modelsLoadingPromise = null;
+let faceapiModule = null;
 let warmupPromise = null;
 
-async function loadHuman() {
-  if (humanLoadingPromise) return humanLoadingPromise;
-  humanLoadingPromise = (async () => {
-    const { Human } = await import('/vendor/human.esm.js');
-    humanInstance = new Human({
-      modelBasePath: '/vendor/human-models/',
-      backend: 'webgl',
-      cacheSensitivity: 0,
-      filter: { enabled: true, equalization: false },
-      face: {
-        enabled: true,
-        detector: { modelPath: 'blazeface.json', rotation: true, maxDetected: 1, skipFrames: 0, skipTime: 0, minConfidence: 0.2 },
-        mesh: { enabled: true, modelPath: 'facemesh.json' },
-        attention: { enabled: false },
-        iris: { enabled: false },
-        emotion: { enabled: false },
-        description: { enabled: true, modelPath: 'faceres.json', skipFrames: 0, skipTime: 0, minConfidence: 0.1 },
-        antispoof: { enabled: false },
-        liveness: { enabled: false },
-      },
-      body: { enabled: false },
-      hand: { enabled: false },
-      object: { enabled: false },
-      gesture: { enabled: false },
-      segmentation: { enabled: false },
-    });
-    await humanInstance.load();
-    return humanInstance;
+async function loadModels() {
+  if (modelsLoadingPromise) return modelsLoadingPromise;
+  modelsLoadingPromise = (async () => {
+    if (!faceapiModule) faceapiModule = await import('/vendor/face-api.esm.js');
+    try {
+      await faceapiModule.tf.setBackend('webgl');
+      await faceapiModule.tf.ready();
+    } catch (e) {}
+    if (!modelsLoaded) {
+      await Promise.all([
+        faceapiModule.nets.tinyFaceDetector.loadFromUri('/vendor/face-api-models'),
+        faceapiModule.nets.faceLandmark68Net.loadFromUri('/vendor/face-api-models'),
+        faceapiModule.nets.faceRecognitionNet.loadFromUri('/vendor/face-api-models'),
+      ]);
+      modelsLoaded = true;
+    }
+    return faceapiModule;
   })();
-  return humanLoadingPromise;
+  return modelsLoadingPromise;
 }
 
-function warmUpHuman() {
+function warmUpModels() {
   if (warmupPromise) return warmupPromise;
   warmupPromise = (async () => {
-    const human = await loadHuman();
+    const faceapi = await loadModels();
     try {
-      await human.warmup();
+      const canvas = document.createElement('canvas');
+      canvas.width = WORK_CANVAS_MAX;
+      canvas.height = WORK_CANVAS_MAX;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#808080';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const options = new faceapi.TinyFaceDetectorOptions({
+        inputSize: DETECT_INPUT_SIZE,
+        scoreThreshold: DETECT_SCORE_THRESHOLD,
+      });
+      await faceapi.detectSingleFace(canvas, options).withFaceLandmarks().withFaceDescriptor();
     } catch (e) {}
-    return human;
+    return faceapi;
   })();
   return warmupPromise;
 }
 
 export function preloadFaceModels() {
-  warmUpHuman().catch(() => {});
+  warmUpModels().catch(() => {});
 }
 
 let lastSpoken = '';
@@ -218,6 +220,30 @@ function ensureOverlayStyles() {
   document.head.appendChild(style);
 }
 
+function avgPoint(points) {
+  const sum = points.reduce((a, p) => ({ x: a.x + p.x, y: a.y + p.y }), { x: 0, y: 0 });
+  return { x: sum.x / points.length, y: sum.y / points.length };
+}
+
+function headTurnRatio(landmarks) {
+  const leftEye = avgPoint(landmarks.getLeftEye());
+  const rightEye = avgPoint(landmarks.getRightEye());
+  const nose = avgPoint(landmarks.getNose());
+  const eyeMidX = (leftEye.x + rightEye.x) / 2;
+  const eyeDist = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y) || 1;
+  return (nose.x - eyeMidX) / eyeDist;
+}
+
+function headPitchRatio(landmarks) {
+  const leftEye = avgPoint(landmarks.getLeftEye());
+  const rightEye = avgPoint(landmarks.getRightEye());
+  const jaw = landmarks.getJawOutline();
+  const chin = jaw[8] || jaw[Math.floor(jaw.length / 2)];
+  const eyeMidY = (leftEye.y + rightEye.y) / 2;
+  const eyeDist = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y) || 1;
+  return (chin.y - eyeMidY) / eyeDist;
+}
+
 export function captureFaceDescriptor({ requireLiveness = true, showCamera = true, verify = null, voice = true } = {}) {
   ensureOverlayStyles();
   const overlay = document.createElement('div');
@@ -301,7 +327,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
     (async () => {
       try {
-        const humanPromise = warmUpHuman();
+        const modelsPromise = warmUpModels();
         const cameraPromise = navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
         });
@@ -319,7 +345,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         video.play().catch(() => {});
         const videoReadyAt = Date.now();
 
-        const human = await humanPromise;
+        const faceapi = await modelsPromise;
         if (cancelled) return;
 
         setStatus(showCamera ? 'Position your face in the frame' : 'Scanning…');
@@ -331,6 +357,11 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         work.width = Math.round(srcW * scale);
         work.height = Math.round(srcH * scale);
         const workCtx = work.getContext('2d', { willReadFrequently: true });
+
+        const detectOptions = new faceapi.TinyFaceDetectorOptions({
+          inputSize: DETECT_INPUT_SIZE,
+          scoreThreshold: DETECT_SCORE_THRESHOLD,
+        });
 
         let turnStage = 0;
         let nodBaseline = null;
@@ -391,7 +422,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           workCtx.drawImage(video, 0, 0, work.width, work.height);
 
           const result = await Promise.race([
-            human.detect(work),
+            faceapi.detectSingleFace(work, detectOptions).withFaceLandmarks().withFaceDescriptor(),
             new Promise((r) => setTimeout(() => r(null), DETECT_TIMEOUT_MS)),
           ]);
           if (cancelled) return;
@@ -401,16 +432,16 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             return;
           }
 
-          const face = result.face && result.face[0];
+          const descriptor = result.descriptor ? Array.from(result.descriptor) : null;
 
-          if (!face || !Array.isArray(face.embedding) || face.embedding.length !== EMBEDDING_LENGTH) {
+          if (!descriptor || descriptor.length !== DESCRIPTOR_LENGTH) {
             stableFrames = 0;
             if (showCamera) setStatus('Position your face in the frame');
             again(tick);
             return;
           }
 
-          if (face.box[2] < work.width * MIN_FACE_RATIO) {
+          if (result.detection.box.width < work.width * MIN_FACE_RATIO) {
             stableFrames = 0;
             if (showCamera) setStatus('Move a little closer');
             again(tick);
@@ -420,40 +451,40 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           if (!requireLiveness) {
             stableFrames++;
             if (stableFrames >= STABLE_FRAMES_NEEDED) {
-              finishCapture(face.embedding);
+              finishCapture(descriptor);
               return;
             }
             again(tick);
             return;
           }
 
-          const yaw = face.rotation ? face.rotation.angle.yaw : 0;
-          const pitch = face.rotation ? face.rotation.angle.pitch : 0;
+          const turnRatio = headTurnRatio(result.landmarks);
 
           if (turnStage === 0) {
             setStatus('Turn your head to the left');
-            if (yaw < -YAW_TURN_THRESHOLD) {
+            if (turnRatio < -TURN_THRESHOLD) {
               turnStage = 1;
               setStep(1);
               setStatus('Now turn to the right');
             }
           } else if (turnStage === 1) {
-            if (yaw > YAW_TURN_THRESHOLD) {
+            if (turnRatio > TURN_THRESHOLD) {
               turnStage = 2;
               nodBaseline = null;
               setStep(2);
               setStatus('Now nod your head');
             }
           } else if (turnStage === 2) {
-            if (nodBaseline === null) nodBaseline = pitch;
-            if (Math.abs(pitch - nodBaseline) > PITCH_NOD_THRESHOLD) {
+            const pitchRatio = headPitchRatio(result.landmarks);
+            if (nodBaseline === null) nodBaseline = pitchRatio;
+            if (Math.abs(pitchRatio - nodBaseline) > NOD_THRESHOLD) {
               turnStage = 3;
               setStep(3);
               setStatus('Hold still');
             }
           } else if (turnStage === 3) {
-            if (Math.abs(yaw) < YAW_CENTER_THRESHOLD) {
-              finishCapture(face.embedding);
+            if (Math.abs(turnRatio) < CENTER_THRESHOLD) {
+              finishCapture(descriptor);
               return;
             }
           }
