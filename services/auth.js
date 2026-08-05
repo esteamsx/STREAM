@@ -2270,9 +2270,6 @@ async function adminResetPassword(uid, newPassword) {
   return { ok: true };
 }
 
-// The maintenance gate runs on every request, so reading Firestore here directly
-// put a document read on the critical path of every page load. Cache the result
-// for a few seconds and collapse concurrent lookups into one read instead.
 const MAINTENANCE_CACHE_TTL_MS = 10 * 1000;
 let maintenanceCache = null;
 let maintenanceCacheExpiry = 0;
@@ -2300,8 +2297,6 @@ async function getMaintenanceStatus() {
   maintenanceInflight = readMaintenanceStatus()
     .then(primeMaintenanceCache)
     .catch((err) => {
-      // Serve the last known value through a transient Firestore failure rather
-      // than letting every in-flight request reject at once.
       if (maintenanceCache) return maintenanceCache;
       throw err;
     })
@@ -2323,7 +2318,6 @@ async function setMaintenanceMode(enabled) {
     { maintenanceMode: !!enabled, maintenanceModeUpdatedAt: updatedAt },
     { merge: true }
   );
-  // Reflect an admin toggle immediately instead of waiting out the cache TTL.
   primeMaintenanceCache({ maintenanceMode: !!enabled, updatedAt });
   return { maintenanceMode: !!enabled };
 }

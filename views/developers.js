@@ -272,7 +272,6 @@ ${musicPlayerStyle()}
 <body>
 <div class="wrap">
 
-  <!-- ══════════════════════════ DASHBOARD VIEW ══════════════════════════ -->
   <div id="view-dash">
 
     <div class="back-row">
@@ -298,7 +297,6 @@ ${musicPlayerStyle()}
 
     <div class="dash-grid">
 
-      <!-- PLANS -->
       <div class="dcard span2 dcard-collapsible" id="plansCard">
         <div class="dcard-head" id="plansHead">
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/></svg></span>
@@ -321,7 +319,6 @@ ${musicPlayerStyle()}
         </div>
       </div>
 
-      <!-- API KEY -->
       <div class="dcard span2" id="keyCard">
         <div class="dcard-head">
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></span>
@@ -333,7 +330,6 @@ ${musicPlayerStyle()}
         <div id="keyCardBody"><div class="ch-loading">Loading…</div></div>
       </div>
 
-      <!-- CHANNELS -->
       <div class="dcard" id="channelsCard">
         <div class="dcard-head">
           <span class="dcard-icon">
@@ -350,7 +346,6 @@ ${musicPlayerStyle()}
         <div class="ch-list" id="chList"><div class="ch-loading">Loading channels…</div></div>
       </div>
 
-      <!-- TRY IT -->
       <div class="dcard" id="tryitCard">
         <div class="dcard-head">
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></span>
@@ -391,7 +386,6 @@ ${musicPlayerStyle()}
         <pre id="tryitCurl">curl https://esteamstv.devs.surf/api/v1/channels</pre>
       </div>
 
-      <!-- GENERATED LINKS -->
       <div class="dcard span2" id="linksCard">
         <div class="dcard-head">
           <span class="dcard-icon">
@@ -412,7 +406,6 @@ ${musicPlayerStyle()}
 
   </div>
 
-  <!-- ══════════════════════════ DOCUMENTATION VIEW ══════════════════════════ -->
   <div id="view-docs">
 
     <div class="back-row">

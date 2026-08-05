@@ -338,7 +338,6 @@ body:has(.ad-overlay.show){overflow:hidden}
 
 </div>
 
-<!-- Reset password overlay -->
 <div class="ad-overlay" id="resetOverlay">
   <div class="ad-modal">
     <div class="ad-modal-title">
@@ -356,7 +355,6 @@ body:has(.ad-overlay.show){overflow:hidden}
   </div>
 </div>
 
-<!-- Confirm overlay (used for ban + delete) -->
 <div class="ad-overlay" id="confirmOverlay">
   <div class="ad-modal">
     <div class="ad-modal-title" id="confirmTitle">Are you sure?</div>
@@ -368,7 +366,6 @@ body:has(.ad-overlay.show){overflow:hidden}
   </div>
 </div>
 
-<!-- A specific user's bot instances (opened by tapping a row in Bot Deployments) -->
 <div class="ad-overlay" id="botsOverlay">
   <div class="ad-modal ad-modal-wide">
     <div class="ad-modal-title">
