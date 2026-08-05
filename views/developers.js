@@ -63,20 +63,33 @@ a{color:var(--accent);text-decoration:none}
 .hero h1{font-family:var(--font-display);font-size:1.9rem;margin-bottom:8px}
 .hero p{color:var(--muted);line-height:1.6;font-size:.94rem;max-width:56ch}
 
-.tile-grid{display:grid;grid-template-columns:1fr;gap:16px}
-@media(min-width:700px){ .tile-grid{grid-template-columns:1fr 1fr} }
+.tile-scroll{
+  display:flex;gap:16px;overflow-x:auto;padding-bottom:6px;margin:0 -20px;padding-left:20px;padding-right:20px;
+  scrollbar-width:thin;
+}
+.tile-scroll::-webkit-scrollbar{height:6px}
+.tile-scroll::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:6px}
 
 .tile{
   background:var(--card);border:1px solid var(--border);border-radius:20px;
-  padding:26px 24px;display:flex;flex-direction:column;gap:16px;
+  padding:26px 24px;display:flex;flex-direction:column;gap:16px;position:relative;
+  flex:0 0 auto;width:280px;scroll-snap-align:start;
   transition:border-color .2s var(--ease),transform .2s var(--ease);
 }
+@media(min-width:700px){ .tile{width:320px} }
+.tile-scroll{scroll-snap-type:x proximity}
 .tile:hover{border-color:var(--border-strong);transform:translateY(-2px)}
 .tile-icon{
   width:52px;height:52px;border-radius:15px;background:var(--card2);
   display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0;
 }
 .tile-icon svg{width:26px;height:26px}
+.tile-badge{
+  position:absolute;top:16px;right:16px;padding:3px 10px;border-radius:20px;
+  font-size:.68rem;font-weight:700;letter-spacing:.02em;background:var(--card2);color:var(--muted);
+  border:1px solid var(--border-strong);display:none;
+}
+.tile-badge.show{display:inline-flex}
 .tile-title{font-family:var(--font-display);font-size:1.15rem;font-weight:700}
 .tile-desc{color:var(--muted);font-size:.86rem;line-height:1.55;flex:1}
 .tile-cta{
@@ -111,9 +124,10 @@ a{color:var(--accent);text-decoration:none}
     <p>Build with ES TEAMS TV. Pick what you need below.</p>
   </div>
 
-  <div class="tile-grid">
+  <div class="tile-scroll">
 
     <a href="/developers/live-tv" class="tile">
+      <span class="tile-badge" id="liveTvBadge"></span>
       <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 20h8"/><path d="M7 7l3-4M17 7l-3-4"/></svg></div>
       <div class="tile-title">Live Tv Apis</div>
       <div class="tile-desc">Pull live channels into your own site, bot, or app. Signed stream links, embeddable players, and usage you can watch in real time.</div>
@@ -121,6 +135,7 @@ a{color:var(--accent);text-decoration:none}
     </a>
 
     <a href="/developers/api" class="tile">
+      <span class="tile-badge show" id="devApiBadge">Free</span>
       <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></div>
       <div class="tile-title">Developer Api</div>
       <div class="tile-desc">Media and AI tools for your own projects: search &amp; download, downloaders, AI, OCR, and more, all under one key.</div>
@@ -130,6 +145,14 @@ a{color:var(--accent);text-decoration:none}
   </div>
 
 </div>
+<script nonce="__CSP_NONCE__">
+fetch('/api/profile').then(function(r){ return r.ok ? r.json() : null; }).then(function(data){
+  if (!data || !data.apiPlan) return;
+  var badge = document.getElementById('liveTvBadge');
+  badge.textContent = data.apiPlan.name;
+  badge.classList.add('show');
+}).catch(function(){});
+</script>
 </body>
 </html>`;
 }
