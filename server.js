@@ -290,6 +290,8 @@ app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
 
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js"]);
+
 app.use(
   express.static(path.join(__dirname, "public"), {
     maxAge: "7d",
@@ -297,6 +299,11 @@ app.use(
     index: false,
     redirect: false,
     dotfiles: "ignore",
+    setHeaders: (res, filePath) => {
+      if (REVALIDATE_ALWAYS_FILES.has(path.basename(filePath))) {
+        res.setHeader("Cache-Control", "no-cache");
+      }
+    },
   })
 );
 
