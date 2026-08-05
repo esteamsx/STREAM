@@ -10,6 +10,7 @@ ${cfg.devToolsBlock || ""}
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${siteHeadFor("login")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
+<script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -212,17 +213,40 @@ body:has(.page-overlay.show){overflow:hidden}
 .overlay-cancel{background:transparent;border:none;color:var(--muted);font-size:.78rem;text-decoration:underline}
 
 .lg-toast{
-  position:fixed;top:16px;left:50%;transform:translate(-50%,-160%);
-  display:flex;align-items:center;gap:10px;padding:12px 22px;border-radius:999px;
-  background:rgba(28,28,36,.5);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);
+  position:fixed;top:16px;left:50%;transform:translate(-50%,-160%) scale(.92);
+  display:flex;align-items:center;gap:12px;padding:10px 22px 10px 12px;border-radius:999px;
+  background:rgba(28,28,36,.55);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);
   border:1px solid rgba(255,255,255,.16);
   box-shadow:0 10px 40px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.16);
   color:#fff;font-size:.86rem;font-weight:600;letter-spacing:.01em;white-space:nowrap;
   z-index:1000;pointer-events:none;opacity:0;
   transition:transform .6s cubic-bezier(.34,1.56,.64,1),opacity .35s ease;
 }
-.lg-toast.show{transform:translate(-50%,0);opacity:1}
-.lg-toast .lg-dot{width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));flex-shrink:0}
+.lg-toast.show{transform:translate(-50%,0) scale(1);opacity:1}
+.lg-toast .lg-icon{
+  width:28px;height:28px;border-radius:30%;flex-shrink:0;position:relative;
+  background:rgba(255,255,255,.14);transform:scale(.4);opacity:0;
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1) .04s,opacity .2s ease .04s;
+}
+.lg-toast.show .lg-icon{transform:scale(1);opacity:1}
+.lg-toast .lg-icon svg{
+  width:16px;height:16px;overflow:visible;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+}
+.lg-toast .lg-icon.success svg{color:var(--accent)}
+.lg-toast .lg-icon.error svg{color:var(--red)}
+.lg-toast .lg-face{transition:opacity .2s ease .42s,transform .2s ease .42s}
+.lg-toast.show .lg-face{opacity:0;transform:translate(-50%,-50%) scale(.6)}
+.lg-toast .lg-check-wrap{
+  opacity:0;transform:translate(-50%,-50%) scale(.5);
+  transition:opacity .22s ease .48s,transform .22s cubic-bezier(.34,1.56,.64,1) .48s;
+}
+.lg-toast.show .lg-check-wrap{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.lg-toast .lg-icon.error .lg-check-wrap{transition-delay:.04s}
+.lg-toast .lg-icon-path{transition:stroke-dashoffset .28s ease .56s}
+.lg-toast .lg-icon.error .lg-icon-path{transition-delay:.1s}
+.lg-toast .lg-icon-path.check{stroke-dasharray:24;stroke-dashoffset:24}
+.lg-toast .lg-icon-path.cross{stroke-dasharray:36;stroke-dashoffset:36}
+.lg-toast.show .lg-icon-path{stroke-dashoffset:0}
 
 .uname-status{font-size:.72rem;color:var(--muted);display:flex;align-items:center;gap:6px;min-height:14px}
 .uname-status.ok{color:var(--accent)}
@@ -420,10 +444,15 @@ const firebaseConfig = ${JSON.stringify(cfg.firebaseConfig)};
 const app = initializeApp(firebaseConfig);
 const fbAuth = getAuth(app);
 
-function showLiquidToast(message){
+const LG_ICONS = {
+  success: '<svg class="lg-face" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/><circle cx="9" cy="10" r=".65" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".65" fill="currentColor" stroke="none"/><path d="M9 15c1 1 5 1 6 0"/></svg><svg class="lg-check-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path check" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>',
+  error: '<svg class="lg-check-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path cross" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>'
+};
+function showLiquidToast(message, type){
+  const kind = type === 'error' ? 'error' : 'success';
   const toast = document.createElement('div');
   toast.className = 'lg-toast';
-  toast.innerHTML = '<span class="lg-dot"></span><span></span>';
+  toast.innerHTML = '<span class="lg-icon ' + kind + '">' + LG_ICONS[kind] + '</span><span></span>';
   toast.querySelector('span:last-child').textContent = message;
   document.body.appendChild(toast);
   requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
