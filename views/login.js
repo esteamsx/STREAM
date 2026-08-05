@@ -1093,7 +1093,7 @@ async function signInWithFaceId(){
     const { captureFaceDescriptor } = await import('/face-scan.js');
 
     stage = 'capture-face';
-    const descriptor = await captureFaceDescriptor();
+    const descriptor = await captureFaceDescriptor({ requireLiveness: false });
 
     const overlay = document.getElementById('pageOverlay');
     document.getElementById('pageOverlayText').textContent = 'Signing in…';
