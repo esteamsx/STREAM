@@ -316,7 +316,7 @@ router.get("/api/stream-token/:channel", requireAuth, internalTokenLimiter, (req
   res.json({ url: `/api/v1/hls/${channel}/master.m3u8?token=${encodeURIComponent(token)}` });
 });
 
-async function requireApiKey(req, res, next) {
+export async function requireApiKey(req, res, next) {
   const key = req.headers["x-api-key"] || req.query.key;
   if (!key) return res.status(401).json({ error: "Missing API key. Pass it in the x-api-key header." });
   if (req.query.key && !req.headers["x-api-key"]) {

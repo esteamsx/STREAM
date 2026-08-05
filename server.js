@@ -22,6 +22,7 @@ import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
 import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
+import { devApiRouter } from "./routes/dev-api.js";
 import { renderDeployBot } from "./views/deploy-bot.js";
 import { renderToolsIndex } from "./views/tools/index.js";
 import { renderDnsLookup } from "./views/tools/dns-lookup.js";
@@ -352,6 +353,7 @@ app.use(express.json({ limit: "25mb", verify: (req, res, buf) => { req.rawBody =
 app.use(cookieParser());
 app.use(maintenanceGate);
 app.use(apiRouter);
+app.use(devApiRouter);
 app.use(toolsRouter);
 app.use(paymentsRouter);
 

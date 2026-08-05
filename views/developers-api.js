@@ -25,6 +25,8 @@ const FEATURES = [
     title: "OCR",
     desc: "Extract text from an image.",
     icon: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6M7 17h4"/>',
+    live: true,
+    example: "GET /api/v1/dev/ocr?url=https://example.com/image.png",
   },
   {
     title: "Audiomack",
@@ -119,10 +121,16 @@ a{color:var(--accent);text-decoration:none}
 }
 
 .feature-card{opacity:.55}
+.feature-card.is-live{opacity:1}
 .feature-badge{
   display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;
   font-size:.68rem;font-weight:700;letter-spacing:.02em;background:var(--card2);color:var(--muted);
   margin-left:auto;flex-shrink:0;
+}
+.feature-badge.is-live{background:rgba(18,196,139,.14);color:var(--green)}
+.feature-example{
+  margin-top:12px;background:var(--card2);border-radius:8px;padding:9px 11px;
+  font-family:ui-monospace,monospace;font-size:.74rem;color:var(--text);overflow-x:auto;white-space:nowrap;
 }
 </style>
 </head>
@@ -163,15 +171,16 @@ a{color:var(--accent);text-decoration:none}
     </div>
 
     ${FEATURES.map(
-      (f) => `<div class="dcard feature-card">
+      (f) => `<div class="dcard feature-card${f.live ? " is-live" : ""}">
       <div class="dcard-head">
         <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${f.icon}</svg></span>
         <div>
           <div class="dcard-title">${f.title}</div>
           <div class="dcard-sub">${f.desc}</div>
         </div>
-        <span class="feature-badge">SOON</span>
+        <span class="feature-badge${f.live ? " is-live" : ""}">${f.live ? "LIVE" : "SOON"}</span>
       </div>
+      ${f.example ? `<div class="feature-example">${f.example}</div>` : ""}
     </div>`
     ).join("\n    ")}
 
