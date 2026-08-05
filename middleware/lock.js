@@ -1,12 +1,15 @@
 
 import crypto from "crypto";
 
+const ALLOWED_HOSTS_LIST = (process.env.ALLOWED_HOSTS || "esteamstv.devs.surf")
+  .split(",")
+  .map((h) => h.trim().toLowerCase())
+  .filter(Boolean);
+
+const PRIMARY_HOST = ALLOWED_HOSTS_LIST[0] || "esteamstv.devs.surf";
+
 const ALLOWED_HOST_HASHES = new Set(
-  (process.env.ALLOWED_HOSTS || "esteamstv.devs.surf")
-    .split(",")
-    .map((h) => h.trim().toLowerCase())
-    .filter(Boolean)
-    .map((h) => crypto.createHash("sha256").update(h).digest("hex"))
+  ALLOWED_HOSTS_LIST.map((h) => crypto.createHash("sha256").update(h).digest("hex"))
 );
 
 const BYPASS_KEY = process.env.DEVTOOLS_BYPASS_KEY || "";
@@ -63,37 +66,6 @@ function hasValidBypass(req) {
   return supplied ? safeEqual(supplied, BYPASS_KEY) : false;
 }
 
-function blockedPageHtml() {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow">
-<title>ES TEAMS TV</title>
-<style>
-  *{box-sizing:border-box}
-  body{
-    background:#0A0A0F;color:#e8e8f0;font-family:system-ui,-apple-system,sans-serif;
-    display:flex;align-items:center;justify-content:center;min-height:100vh;
-    margin:0;padding:24px;text-align:center;
-  }
-  .box{max-width:440px}
-  h1{font-size:1.05rem;margin:0 0 10px;font-weight:700}
-  p{color:#8a8a9a;font-size:.85rem;line-height:1.6;margin:0 0 8px}
-  code{background:#15151F;padding:2px 6px;border-radius:4px;color:#00E0FF;font-size:.82rem}
-</style>
-</head>
-<body>
-  <div class="box">
-    <h1>This site only runs at esteamstv.devs.surf</h1>
-    <p>This instance isn't being served from an authorized domain.</p>
-    <p>Developer testing from elsewhere? Supply your <code>DEVTOOLS_BYPASS_KEY</code> as a <code>?devtools_key=</code> query parameter or an <code>x-devtools-bypass</code> header.</p>
-  </div>
-</body>
-</html>`;
-}
-
 const HOST_EXEMPT_PATHS = new Set(["/health"]);
 
 export function domainLock(req, res, next) {
@@ -110,5 +82,5 @@ export function domainLock(req, res, next) {
     return next();
   }
 
-  return res.status(403).type("html").send(blockedPageHtml());
+  return res.redirect(302, `https://${PRIMARY_HOST}${req.originalUrl}`);
 }
