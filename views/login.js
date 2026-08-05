@@ -1088,22 +1088,19 @@ document.getElementById('troublePasskeyBtn').addEventListener('click', () => {
 
 async function signInWithFaceId(){
   clearError();
-  const overlay = document.getElementById('pageOverlay');
-  document.getElementById('pageOverlayText').textContent = 'Scanning Face ID…';
-  overlay.classList.add('show');
   let stage = 'load-library';
   try {
-    const { startAuthentication } = await import('/vendor/simplewebauthn-browser.v13.js');
+    const { captureFaceDescriptor } = await import('/face-scan.js');
 
-    stage = 'fetch-options';
-    const { options, token } = await postJSON('/api/faceid/authentication-options', {});
-    if (!options || !options.challenge) throw new Error('Could not start Face ID sign-in. Try again.');
+    stage = 'capture-face';
+    const descriptor = await captureFaceDescriptor();
 
-    stage = 'browser-prompt';
-    const response = await startAuthentication({ optionsJSON: options });
+    const overlay = document.getElementById('pageOverlay');
+    document.getElementById('pageOverlayText').textContent = 'Signing in…';
+    overlay.classList.add('show');
 
     stage = 'verify-with-server';
-    const { customToken } = await postJSON('/api/faceid/authentication-verify', { token, ...response });
+    const { customToken } = await postJSON('/api/facescan/verify', { descriptor });
 
     stage = 'firebase-sign-in';
     const cred = await withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in');
@@ -1113,8 +1110,8 @@ async function signInWithFaceId(){
     await establishSession(idToken, true);
   } catch (err) {
     console.error('[faceid-signin] failed at stage "' + stage + '":', err);
-    overlay.classList.remove('show');
-    showError(err.name === 'NotAllowedError' ? 'Face ID sign-in was cancelled.' : (err.message || 'Could not sign in with Face ID.'));
+    document.getElementById('pageOverlay').classList.remove('show');
+    showError(err.message || 'Could not sign in with Face ID.');
   }
 }
 
@@ -1168,15 +1165,9 @@ async function signInWithFaceId(){
   fab.addEventListener('pointerleave', cancelHold);
   fab.addEventListener('pointercancel', cancelHold);
 
-  (async function checkFaceIdSupport(){
-    try {
-      if (!window.PublicKeyCredential) throw new Error('unsupported');
-      const platformOk = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
-      if (!platformOk) throw new Error('unsupported');
-    } catch {
-      fab.style.display = 'none';
-    }
-  })();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    fab.style.display = 'none';
+  }
 })();
 </script>
 </body>

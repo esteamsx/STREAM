@@ -1151,194 +1151,74 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
   }
 }
 
-async function getFaceIdForUser(uid) {
-  const snap = await db.collection("faceid_credentials").where("uid", "==", uid).limit(1).get();
-  return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+
+const FACE_DESCRIPTOR_LENGTH = 128;
+const FACE_MATCH_THRESHOLD = 0.5;
+
+function isValidFaceDescriptor(descriptor) {
+  return (
+    Array.isArray(descriptor) &&
+    descriptor.length === FACE_DESCRIPTOR_LENGTH &&
+    descriptor.every((n) => typeof n === "number" && Number.isFinite(n))
+  );
 }
 
-async function beginFaceIdRegistration(uid, email, displayName, rpID) {
-  const existing = await getFaceIdForUser(uid);
-  if (existing) {
-    throw new Error("Face ID is already set up for this account. Remove it first to set up a different one.");
+function faceEuclideanDistance(a, b) {
+  let sum = 0;
+  for (let i = 0; i < FACE_DESCRIPTOR_LENGTH; i++) {
+    const d = a[i] - b[i];
+    sum += d * d;
   }
-  const rawOptions = await generateRegistrationOptions({
-    rpName: "ES TEAMS TV",
-    rpID,
-    userID: Buffer.from(uid, "utf8"),
-    userName: email,
-    userDisplayName: displayName || email,
-    attestationType: "none",
-    authenticatorSelection: { residentKey: "required", userVerification: "required", authenticatorAttachment: "platform" },
-  });
-  const options = sanitizePasskeyOptions(rawOptions, { isRegistration: true });
-  await db.collection("webauthn_challenges").doc(`faceid_reg_${uid}`).set({
-    challenge: options.challenge,
-    expiresAt: Date.now() + PASSKEY_CHALLENGE_TTL_MS,
-  });
-  return options;
+  return Math.sqrt(sum);
 }
 
-async function finishFaceIdRegistration(uid, response, rpID, origin, name) {
-  if (!response || typeof response !== "object") {
-    throw new Error("Invalid Face ID response format.");
+async function getFaceScanForUser(uid) {
+  const snap = await db.collection("face_recognition_credentials").doc(uid).get();
+  return snap.exists ? { id: snap.id, ...snap.data() } : null;
+}
+
+async function enrollFaceScan(uid, descriptor) {
+  if (!isValidFaceDescriptor(descriptor)) {
+    throw new Error("Invalid face scan data. Try again.");
   }
-
-  const ref = db.collection("webauthn_challenges").doc(`faceid_reg_${uid}`);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error("Face ID setup session expired. Try again.");
-  const { challenge, expiresAt } = snap.data();
-  await ref.delete();
-  if (Date.now() > expiresAt) throw new Error("Face ID setup session expired. Try again.");
-
-  const existing = await getFaceIdForUser(uid);
+  const existing = await getFaceScanForUser(uid);
   if (existing) {
-    throw new Error("Face ID is already set up for this account. Remove it first to set up a different one.");
+    throw new Error("Face Scan is already set up for this account. Remove it first to set up a different one.");
   }
-
-  let verification;
-  try {
-    verification = await verifyRegistrationResponse({
-      response,
-      expectedChallenge: challenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
-    });
-  } catch (verifyErr) {
-    throw new Error(`Face ID verification failed: ${verifyErr.message}`);
-  }
-
-  if (!verification.verified || !verification.registrationInfo) {
-    throw new Error("Could not verify Face ID. Try again.");
-  }
-
-  const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
-
-  if (!credential || !credential.id || !credential.publicKey) {
-    throw new Error("Invalid credential data from browser.");
-  }
-
-  let credentialIdString;
-  if (typeof credential.id === "string") {
-    credentialIdString = credential.id;
-  } else if (credential.id instanceof Uint8Array || Buffer.isBuffer(credential.id)) {
-    credentialIdString = Buffer.from(credential.id).toString("base64url");
-  } else {
-    throw new Error("Invalid credential ID format.");
-  }
-
-  const existingCred = await db.collection("faceid_credentials").doc(credentialIdString).get();
-  if (existingCred.exists) {
-    throw new Error(existingCred.data().uid === uid
-      ? "This Face ID is already added to your account."
-      : "This Face ID is already registered to another account.");
-  }
-
-  const publicKeyBuffer = Buffer.isBuffer(credential.publicKey)
-    ? credential.publicKey
-    : Buffer.from(credential.publicKey);
-
-  await db.collection("faceid_credentials").doc(credentialIdString).set({
-    uid,
-    name: String((name || "").trim().slice(0, 40)) || "Face ID",
-    publicKey: publicKeyBuffer.toString("base64url"),
-    counter: Number(credential.counter) || 0,
-    transports: Array.isArray(response.response?.transports)
-      ? response.response.transports.filter((t) => typeof t === "string")
-      : [],
-    deviceType: credentialDeviceType || null,
-    backedUp: !!credentialBackedUp,
+  await db.collection("face_recognition_credentials").doc(uid).set({
+    descriptor,
     createdAt: Date.now(),
   });
 }
 
-async function deleteFaceId(uid) {
-  const existing = await getFaceIdForUser(uid);
-  if (!existing) throw new Error("Face ID not found.");
-  await db.collection("faceid_credentials").doc(existing.id).delete();
+async function removeFaceScan(uid) {
+  const existing = await getFaceScanForUser(uid);
+  if (!existing) throw new Error("Face Scan not found.");
+  await db.collection("face_recognition_credentials").doc(uid).delete();
 }
 
-async function beginFaceIdAuthentication(rpID) {
-  const rawOptions = await generateAuthenticationOptions({
-    rpID,
-    userVerification: "required",
-    allowCredentials: [],
+async function matchFaceScan(descriptor) {
+  if (!isValidFaceDescriptor(descriptor)) {
+    throw new Error("Invalid face scan data.");
+  }
+  const snap = await db.collection("face_recognition_credentials").get();
+  let bestUid = null;
+  let bestDistance = Infinity;
+  snap.forEach((doc) => {
+    const data = doc.data();
+    if (!isValidFaceDescriptor(data.descriptor)) return;
+    const distance = faceEuclideanDistance(descriptor, data.descriptor);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestUid = doc.id;
+    }
   });
-  const options = sanitizePasskeyOptions(rawOptions, { isRegistration: false });
-  const token = crypto.randomBytes(16).toString("hex");
-  await db.collection("webauthn_challenges").doc(`faceid_auth_${token}`).set({
-    challenge: options.challenge,
-    expiresAt: Date.now() + PASSKEY_CHALLENGE_TTL_MS,
-  });
-  return { options, token };
-}
-
-async function finishFaceIdAuthentication(token, response, rpID, origin) {
-  if (!response || typeof response !== "object") {
-    throw new Error("Invalid Face ID response format.");
+  if (bestUid && bestDistance <= FACE_MATCH_THRESHOLD) {
+    return bestUid;
   }
-  if (!response.id) {
-    throw new Error("Missing credential ID in Face ID response.");
-  }
-
-  const ref = db.collection("webauthn_challenges").doc(`faceid_auth_${token}`);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error("Face ID session expired. Try again.");
-  const { challenge, expiresAt } = snap.data();
-  await ref.delete();
-  if (Date.now() > expiresAt) throw new Error("Face ID session expired. Try again.");
-
-  let credentialIdString;
-  if (typeof response.id === "string") {
-    credentialIdString = response.id;
-  } else if (response.id instanceof Uint8Array || Buffer.isBuffer(response.id)) {
-    credentialIdString = Buffer.from(response.id).toString("base64url");
-  } else {
-    throw new Error("Invalid credential ID type.");
-  }
-
-  const credDoc = await db.collection("faceid_credentials").doc(credentialIdString).get();
-  if (!credDoc.exists) {
-    const err = new Error("No Face ID set up on this account.");
-    err.code = "faceid/not-found";
-    throw err;
-  }
-
-  const credData = credDoc.data();
-  if (!credData || !credData.publicKey) {
-    throw new Error("Corrupted credential data in database.");
-  }
-
-  const publicKeyBinary = Buffer.from(credData.publicKey, "base64url");
-
-  let verification;
-  try {
-    verification = await verifyAuthenticationResponse({
-      response,
-      expectedChallenge: challenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
-      credential: {
-        id: credentialIdString,
-        publicKey: publicKeyBinary,
-        counter: Number(credData.counter) || 0,
-        transports: Array.isArray(credData.transports) ? credData.transports : [],
-      },
-    });
-  } catch (verifyErr) {
-    throw new Error(`Face ID verification failed: ${verifyErr.message}`);
-  }
-
-  if (!verification.verified) {
-    throw new Error("Could not verify Face ID.");
-  }
-
-  try {
-    await credDoc.ref.update({ counter: verification.authenticationInfo.newCounter });
-  } catch (updateErr) {
-    console.error("Failed to update Face ID counter:", updateErr);
-  }
-
-  return credData.uid;
+  const err = new Error("No matching face found.");
+  err.code = "facescan/not-found";
+  throw err;
 }
 
 function followDocId(followerUid, targetUid) {
@@ -2726,12 +2606,10 @@ export {
   deletePasskey,
   beginPasskeyAuthentication,
   finishPasskeyAuthentication,
-  getFaceIdForUser,
-  beginFaceIdRegistration,
-  finishFaceIdRegistration,
-  deleteFaceId,
-  beginFaceIdAuthentication,
-  finishFaceIdAuthentication,
+  getFaceScanForUser,
+  enrollFaceScan,
+  removeFaceScan,
+  matchFaceScan,
   followUser,
   unfollowUser,
   isFollowing,

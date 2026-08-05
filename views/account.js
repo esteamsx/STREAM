@@ -828,34 +828,34 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
   </div>
 
-  <div class="tfa-card" id="faceIdCard">
-    <div class="tfa-header" id="faceIdHeader">
+  <div class="tfa-card" id="faceScanCard">
+    <div class="tfa-header" id="faceScanHeader">
       <svg class="tfa-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/><circle cx="9" cy="10" r=".65" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".65" fill="currentColor" stroke="none"/><path d="M9 15c1 1 5 1 6 0"/></svg>
-      <div class="tfa-header-title">Face ID</div>
+      <div class="tfa-header-title">Face Scan</div>
       <svg class="tfa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
     </div>
     <div class="tfa-body">
       <div class="tfa-body-inner">
-        <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Unlock the login page by holding the Face ID icon. One Face ID per account, using your device's own biometric.</div>
-        <div id="faceIdStatusRow" style="display:none">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Unlock the login page by holding the Face ID icon and scanning your face with your camera. One face scan per account.</div>
+        <div id="faceScanStatusRow" style="display:none">
           <div class="pk-row">
             <div>
-              <div class="pk-row-name" id="faceIdStatusName">Face ID</div>
-              <div class="pk-row-time" id="faceIdStatusTime"></div>
+              <div class="pk-row-name">Face Scan</div>
+              <div class="pk-row-time" id="faceScanStatusTime"></div>
             </div>
-            <button class="pk-delete-btn" id="removeFaceIdBtn">
+            <button class="pk-delete-btn" id="removeFaceScanBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg>
               Remove
             </button>
           </div>
         </div>
-        <div id="faceIdSetupRow">
-          <button class="tfa-setup-btn" id="setupFaceIdBtn">
+        <div id="faceScanSetupRow">
+          <button class="tfa-setup-btn" id="setupFaceScanBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/><circle cx="9" cy="10" r=".65" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".65" fill="currentColor" stroke="none"/><path d="M9 15c1 1 5 1 6 0"/></svg>
-            Set Up Face ID
+            Set Up Face Scan
           </button>
         </div>
-        <div class="acc-msg" id="faceIdMsg"></div>
+        <div class="acc-msg" id="faceScanMsg"></div>
       </div>
     </div>
   </div>
@@ -1992,8 +1992,8 @@ document.getElementById('passkeyHeader').addEventListener('click', () => {
   document.getElementById('passkeyCard').classList.toggle('open');
 });
 
-document.getElementById('faceIdHeader').addEventListener('click', () => {
-  document.getElementById('faceIdCard').classList.toggle('open');
+document.getElementById('faceScanHeader').addEventListener('click', () => {
+  document.getElementById('faceScanCard').classList.toggle('open');
 });
 
 function timeAgo(ts){
@@ -2052,14 +2052,13 @@ async function deletePasskeyRow(id, btn){
   }
 }
 
-async function loadFaceIdStatus(){
+async function loadFaceScanStatus(){
   try {
-    const { enabled, name, createdAt } = await getJSON('/api/faceid/status');
-    const statusRow = document.getElementById('faceIdStatusRow');
-    const setupRow = document.getElementById('faceIdSetupRow');
+    const { enabled, createdAt } = await getJSON('/api/facescan/status');
+    const statusRow = document.getElementById('faceScanStatusRow');
+    const setupRow = document.getElementById('faceScanSetupRow');
     if (enabled) {
-      document.getElementById('faceIdStatusName').textContent = name || 'Face ID';
-      document.getElementById('faceIdStatusTime').textContent = createdAt ? 'Added ' + timeAgo(createdAt) : '';
+      document.getElementById('faceScanStatusTime').textContent = createdAt ? 'Added ' + timeAgo(createdAt) : '';
       statusRow.style.display = 'block';
       setupRow.style.display = 'none';
     } else {
@@ -2070,43 +2069,39 @@ async function loadFaceIdStatus(){
   }
 }
 
-document.getElementById('setupFaceIdBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('setupFaceIdBtn');
-  const msg = document.getElementById('faceIdMsg');
-  if (!window.PublicKeyCredential) {
-    flashMsg(msg, 'Face ID is not supported on this browser.', false);
+document.getElementById('setupFaceScanBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('setupFaceScanBtn');
+  const msg = document.getElementById('faceScanMsg');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    flashMsg(msg, 'Camera access is not supported on this browser.', false);
     return;
   }
   const originalHTML = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="btn-spinner"></span>Scanning Face ID…';
+  btn.innerHTML = '<span class="btn-spinner"></span>Opening camera…';
   try {
-    const platformOk = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
-    if (!platformOk) throw new Error('This device has no Face ID, Touch ID, or Windows Hello available.');
-    const { startRegistration } = await import('/vendor/simplewebauthn-browser.v13.js');
-    const options = await postJSON('/api/faceid/registration-options', {});
-    if (!options || !options.challenge || !options.user || !options.user.id) throw new Error('Could not start Face ID setup. Try again.');
-    const response = await startRegistration({ optionsJSON: options });
-    await postJSON('/api/faceid/registration-verify', { ...response, name: 'Face ID' });
-    await loadFaceIdStatus();
-    flashMsg(msg, 'Face ID set up.', true);
+    const { captureFaceDescriptor } = await import('/face-scan.js');
+    const descriptor = await captureFaceDescriptor();
+    await postJSON('/api/facescan/enroll', { descriptor });
+    await loadFaceScanStatus();
+    flashMsg(msg, 'Face Scan set up.', true);
   } catch (err) {
-    flashMsg(msg, err.name === 'NotAllowedError' ? 'Face ID setup was cancelled.' : (err.message || 'Could not set up Face ID.'), false);
+    flashMsg(msg, err.message || 'Could not set up Face Scan.', false);
   }
   btn.disabled = false;
   btn.innerHTML = originalHTML;
 });
 
-document.getElementById('removeFaceIdBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('removeFaceIdBtn');
-  const msg = document.getElementById('faceIdMsg');
+document.getElementById('removeFaceScanBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('removeFaceScanBtn');
+  const msg = document.getElementById('faceScanMsg');
   const originalHtml = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner" style="margin-right:0;border-color:rgba(255,59,92,.35);border-top-color:var(--red)"></span>';
   try {
-    await postJSON('/api/faceid/delete', {});
-    await loadFaceIdStatus();
-    flashMsg(msg, 'Face ID removed.', true);
+    await postJSON('/api/facescan/remove', {});
+    await loadFaceScanStatus();
+    flashMsg(msg, 'Face Scan removed.', true);
   } catch (err) {
     flashMsg(msg, err.message, false);
     btn.disabled = false;
@@ -2228,7 +2223,7 @@ document.getElementById('addPasskeyBtn').addEventListener('click', async () => {
   btn.innerHTML = originalHTML;
 });
 loadPasskeys();
-loadFaceIdStatus();
+loadFaceScanStatus();
 loadApiKeys();
 
 document.getElementById('saveProfileBtn').addEventListener('click', async () => {
