@@ -248,6 +248,36 @@ body:has(.page-overlay.show){overflow:hidden}
 .lg-toast .lg-icon-path.cross{stroke-dasharray:36;stroke-dashoffset:36}
 .lg-toast.show .lg-icon-path{stroke-dashoffset:0}
 
+.faceid-fab{
+  position:fixed;right:20px;bottom:24px;z-index:90;width:60px;height:60px;border-radius:50%;
+  background:rgba(28,28,36,.7);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+  border:1px solid rgba(255,255,255,.14);color:var(--accent);padding:0;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;position:fixed;
+  box-shadow:0 10px 30px rgba(0,0,0,.4);animation:faceidGlow 2.6s ease-in-out infinite;
+  transition:transform .15s var(--ease);-webkit-tap-highlight-color:transparent;user-select:none;touch-action:none;
+}
+.faceid-fab:active{transform:scale(.94)}
+.faceid-fab.holding{animation:none}
+@keyframes faceidGlow{
+  0%,100%{box-shadow:0 0 0 0 rgba(0,224,255,.35),0 10px 30px rgba(0,0,0,.4)}
+  50%{box-shadow:0 0 0 10px rgba(0,224,255,0),0 10px 30px rgba(0,0,0,.4)}
+}
+.faceid-fab-icon{width:26px;height:26px;position:relative;z-index:2}
+.faceid-fab-ring{position:absolute;inset:0;width:60px;height:60px;transform:rotate(-90deg);pointer-events:none}
+.faceid-fab-ring-track{fill:none;stroke:rgba(255,255,255,.08);stroke-width:2.5}
+.faceid-fab-ring-progress{
+  fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linecap:round;
+  stroke-dasharray:182.2;stroke-dashoffset:182.2;transition:stroke-dashoffset .05s linear;
+}
+.faceid-fab-hint{
+  position:absolute;right:70px;top:50%;transform:translateY(-50%);white-space:nowrap;
+  font-size:.7rem;font-weight:600;color:var(--muted);background:rgba(28,28,36,.85);
+  padding:5px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);
+  opacity:0;pointer-events:none;transition:opacity .2s ease;
+}
+.faceid-fab:hover .faceid-fab-hint{opacity:1}
+@media (hover:none){.faceid-fab-hint{display:none}}
+
 .uname-status{font-size:.72rem;color:var(--muted);display:flex;align-items:center;gap:6px;min-height:14px}
 .uname-status.ok{color:var(--accent)}
 .uname-status.taken{color:var(--red)}
@@ -364,6 +394,19 @@ body:has(.page-overlay.show){overflow:hidden}
     </form>
   </div>
 </div>
+
+<button type="button" class="faceid-fab" id="faceIdFab" aria-label="Hold to unlock with Face ID">
+  <svg class="faceid-fab-ring" viewBox="0 0 64 64">
+    <circle class="faceid-fab-ring-track" cx="32" cy="32" r="29"/>
+    <circle class="faceid-fab-ring-progress" id="faceIdRingProgress" cx="32" cy="32" r="29"/>
+  </svg>
+  <svg class="faceid-fab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+    <path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/>
+    <circle cx="9" cy="10" r=".65" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".65" fill="currentColor" stroke="none"/>
+    <path d="M9 15c1 1 5 1 6 0"/>
+  </svg>
+  <span class="faceid-fab-hint">Hold for Face ID</span>
+</button>
 
 <div class="page-overlay" id="troubleSigningOverlay">
   <div class="overlay-card" style="max-width:340px">
@@ -1042,6 +1085,99 @@ document.getElementById('troublePasskeyBtn').addEventListener('click', () => {
   troubleSigningOverlay.classList.remove('show');
   signInWithPasskey();
 });
+
+async function signInWithFaceId(){
+  clearError();
+  const overlay = document.getElementById('pageOverlay');
+  document.getElementById('pageOverlayText').textContent = 'Scanning Face ID…';
+  overlay.classList.add('show');
+  let stage = 'load-library';
+  try {
+    const { startAuthentication } = await import('/vendor/simplewebauthn-browser.v13.js');
+
+    stage = 'fetch-options';
+    const { options, token } = await postJSON('/api/faceid/authentication-options', {});
+    if (!options || !options.challenge) throw new Error('Could not start Face ID sign-in. Try again.');
+
+    stage = 'browser-prompt';
+    const response = await startAuthentication({ optionsJSON: options });
+
+    stage = 'verify-with-server';
+    const { customToken } = await postJSON('/api/faceid/authentication-verify', { token, ...response });
+
+    stage = 'firebase-sign-in';
+    const cred = await withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in');
+    stage = 'get-id-token';
+    const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+    stage = 'establish-session';
+    await establishSession(idToken, true);
+  } catch (err) {
+    console.error('[faceid-signin] failed at stage "' + stage + '":', err);
+    overlay.classList.remove('show');
+    showError(err.name === 'NotAllowedError' ? 'Face ID sign-in was cancelled.' : (err.message || 'Could not sign in with Face ID.'));
+  }
+}
+
+(function(){
+  const fab = document.getElementById('faceIdFab');
+  const ringProgress = document.getElementById('faceIdRingProgress');
+  const RING_CIRC = 182.2;
+  const HOLD_MS = 3000;
+  let holdStart = null;
+  let rafId = null;
+  let triggered = false;
+
+  function setProgress(p){
+    ringProgress.style.strokeDashoffset = String(RING_CIRC * (1 - p));
+  }
+
+  function tick(){
+    if (holdStart == null) return;
+    const elapsed = Date.now() - holdStart;
+    const p = Math.min(1, elapsed / HOLD_MS);
+    setProgress(p);
+    if (p >= 1) {
+      if (!triggered) {
+        triggered = true;
+        holdStart = null;
+        fab.classList.remove('holding');
+        signInWithFaceId().finally(() => { triggered = false; setProgress(0); });
+      }
+      return;
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function startHold(){
+    if (fab.disabled || triggered) return;
+    holdStart = Date.now();
+    fab.classList.add('holding');
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function cancelHold(){
+    holdStart = null;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    fab.classList.remove('holding');
+    if (!triggered) setProgress(0);
+  }
+
+  fab.addEventListener('pointerdown', (e) => { e.preventDefault(); startHold(); });
+  fab.addEventListener('pointerup', cancelHold);
+  fab.addEventListener('pointerleave', cancelHold);
+  fab.addEventListener('pointercancel', cancelHold);
+
+  (async function checkFaceIdSupport(){
+    try {
+      if (!window.PublicKeyCredential) throw new Error('unsupported');
+      const platformOk = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
+      if (!platformOk) throw new Error('unsupported');
+    } catch {
+      fab.style.display = 'none';
+    }
+  })();
+})();
 </script>
 </body>
 </html>`;

@@ -142,6 +142,12 @@ import {
   deletePasskey,
   beginPasskeyAuthentication,
   finishPasskeyAuthentication,
+  getFaceIdForUser,
+  beginFaceIdRegistration,
+  finishFaceIdRegistration,
+  deleteFaceId,
+  beginFaceIdAuthentication,
+  finishFaceIdAuthentication,
   updateUserProfile,
   addAltUsername,
   removeAltUsername,
@@ -303,6 +309,8 @@ const passwordLoginLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middlewar
 const twoFactorLoginLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware();
 const passkeyOptionsLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware();
 const passkeyVerifyLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware();
+const faceidOptionsLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware();
+const faceidVerifyLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000).middleware();
 const oauthStartLimiter = new SimpleRateLimiter(15, 15 * 60 * 1000).middleware();
 const oauthCallbackLimiter = new SimpleRateLimiter(15, 15 * 60 * 1000).middleware();
 const identifierLookupLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware();
@@ -5371,6 +5379,75 @@ app.post("/api/passkey/authentication-verify", passkeyVerifyLimiter, async (req,
     console.error("[passkey-auth-verify]", err.stack || err);
     const notFound = err.code === "passkey/not-found";
     res.status(notFound ? 404 : 400).json({ error: notFound ? "No account found with that passkey." : (err.message || "Could not verify passkey.") });
+  }
+});
+
+app.get("/api/faceid/status", requireAuth, async (req, res) => {
+  try {
+    const faceId = await getFaceIdForUser(req.uid);
+    res.json({ enabled: !!faceId, name: faceId?.name || null, createdAt: faceId?.createdAt || null });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not check Face ID status." });
+  }
+});
+
+app.post("/api/faceid/registration-options", requireAuth, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.uid);
+    if (!profile) return res.status(404).json({ error: "Profile not found." });
+    const identifier = profile.email || profile.username || req.uid;
+    const displayName = [profile.firstName, profile.lastName].filter(Boolean).join(" ") || identifier;
+    const options = await beginFaceIdRegistration(req.uid, identifier, displayName, PASSKEY_RP_ID);
+    res.json(options);
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Could not start Face ID setup." });
+  }
+});
+
+app.post("/api/faceid/registration-verify", requireAuth, async (req, res) => {
+  try {
+    const { name, ...response } = req.body || {};
+    await finishFaceIdRegistration(req.uid, response, PASSKEY_RP_ID, PASSKEY_ORIGIN, name || "Face ID");
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Could not set up Face ID." });
+  }
+});
+
+app.post("/api/faceid/delete", requireAuth, async (req, res) => {
+  try {
+    await deleteFaceId(req.uid);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Could not remove Face ID." });
+  }
+});
+
+app.post("/api/faceid/authentication-options", faceidOptionsLimiter, async (req, res) => {
+  try {
+    const { options, token } = await beginFaceIdAuthentication(PASSKEY_RP_ID);
+    res.json({ options, token });
+  } catch (err) {
+    console.error("[faceid-auth-options]", err.stack || err);
+    res.status(400).json({ error: "Could not start Face ID sign-in." });
+  }
+});
+
+app.post("/api/faceid/authentication-verify", faceidVerifyLimiter, async (req, res) => {
+  try {
+    const { token, ...response } = req.body || {};
+    if (!token) return res.status(400).json({ error: "Missing Face ID session token." });
+    const uid = await finishFaceIdAuthentication(token, response, PASSKEY_RP_ID, PASSKEY_ORIGIN);
+    const customToken = await firebaseAuth.createCustomToken(uid);
+    res.json({ customToken });
+  } catch (err) {
+    console.error("[faceid-auth-verify]", err.stack || err);
+    const notFound = err.code === "faceid/not-found";
+    res.status(notFound ? 404 : 400).json({ error: notFound ? "No Face ID set up on this account." : (err.message || "Could not verify Face ID.") });
   }
 });
 
