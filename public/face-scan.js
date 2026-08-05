@@ -1,9 +1,9 @@
 const OVERLAY_ID = 'faceScanOverlay';
 const CLIP_ID = 'faceScanClipPath';
-const CAPTURE_TIMEOUT_MS = 20000;
+const CAPTURE_TIMEOUT_MS = 60000;
 const EAR_BLINK_THRESHOLD = 0.21;
 const EAR_OPEN_THRESHOLD = 0.28;
-const STABLE_FRAMES_NEEDED = 4;
+const STABLE_FRAMES_NEEDED = 2;
 const SUCCESS_HOLD_MS = 700;
 
 const FACE_CLIP_PATH_D =
@@ -12,19 +12,30 @@ const FACE_CLIP_PATH_D =
   'C 0.15 0.72 0.05 0.60 0.05 0.42 C 0.05 0.22 0.25 0.03 0.5 0.03 Z';
 
 let modelsLoaded = false;
+let modelsLoadingPromise = null;
 let faceapiModule = null;
 
 async function loadModels() {
-  if (!faceapiModule) faceapiModule = await import('/vendor/face-api.esm.js');
-  if (!modelsLoaded) {
-    await Promise.all([
-      faceapiModule.nets.tinyFaceDetector.loadFromUri('/vendor/face-api-models'),
-      faceapiModule.nets.faceLandmark68Net.loadFromUri('/vendor/face-api-models'),
-      faceapiModule.nets.faceRecognitionNet.loadFromUri('/vendor/face-api-models'),
-    ]);
-    modelsLoaded = true;
-  }
-  return faceapiModule;
+  if (modelsLoadingPromise) return modelsLoadingPromise;
+  modelsLoadingPromise = (async () => {
+    if (!faceapiModule) faceapiModule = await import('/vendor/face-api.esm.js');
+    if (!modelsLoaded) {
+      await Promise.all([
+        faceapiModule.nets.tinyFaceDetector.loadFromUri('/vendor/face-api-models'),
+        faceapiModule.nets.faceLandmark68Net.loadFromUri('/vendor/face-api-models'),
+        faceapiModule.nets.faceRecognitionNet.loadFromUri('/vendor/face-api-models'),
+      ]);
+      modelsLoaded = true;
+    }
+    return faceapiModule;
+  })();
+  return modelsLoadingPromise;
+}
+
+// Kicks off the model download in the background (e.g. right after page load) so that
+// by the time someone actually holds the Face ID button, loadModels() resolves instantly.
+export function preloadFaceModels() {
+  loadModels().catch(() => {});
 }
 
 let lastSpoken = '';
@@ -48,28 +59,28 @@ function ensureOverlayStyles() {
 #${OVERLAY_ID}{position:fixed;inset:0;z-index:2000;background:rgba(5,5,8,.92);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px}
 #${OVERLAY_ID} .fs-frame{position:relative;width:min(260px,72vw);height:min(340px,94vw);flex-shrink:0}
-#${OVERLAY_ID} .fs-frame-outline{position:absolute;inset:-4px;pointer-events:none;
-  filter:drop-shadow(0 0 18px rgba(0,224,255,.45))}
-#${OVERLAY_ID} .fs-frame-outline path{fill:none;stroke:rgba(0,224,255,.7);stroke-width:2.5}
-#${OVERLAY_ID} .fs-frame-outline.success path{stroke:var(--accent,#00E0FF)}
-#${OVERLAY_ID} video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-  transform:scaleX(-1);background:#000;clip-path:url(#${CLIP_ID})}
-#${OVERLAY_ID} .fs-scanline{position:absolute;left:6%;right:6%;height:3px;top:8%;
+#${OVERLAY_ID} .fs-clip{position:absolute;inset:0;clip-path:url(#${CLIP_ID});overflow:hidden;background:#000}
+#${OVERLAY_ID} .fs-clip video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#${OVERLAY_ID} .fs-scanline{position:absolute;left:0;right:0;height:3px;top:8%;
   background:linear-gradient(90deg,transparent,rgba(0,224,255,.9),transparent);
-  box-shadow:0 0 12px 2px rgba(0,224,255,.6);clip-path:url(#${CLIP_ID});
-  animation:fsScan 2.1s ease-in-out infinite}
+  box-shadow:0 0 12px 2px rgba(0,224,255,.6);animation:fsScan 2.1s ease-in-out infinite}
 @keyframes fsScan{
-  0%{top:6%}
-  50%{top:88%}
-  100%{top:6%}
+  0%{top:4%}
+  50%{top:92%}
+  100%{top:4%}
 }
 #${OVERLAY_ID} .fs-check{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  opacity:0;transform:scale(.5);transition:opacity .25s ease,transform .25s cubic-bezier(.34,1.56,.64,1)}
+  opacity:0;transform:scale(.5);transition:opacity .25s ease,transform .25s cubic-bezier(.34,1.56,.64,1);
+  background:rgba(0,20,26,.55)}
 #${OVERLAY_ID}.fs-success .fs-check{opacity:1;transform:scale(1)}
 #${OVERLAY_ID}.fs-success .fs-scanline{display:none}
 #${OVERLAY_ID} .fs-check svg{width:64px;height:64px}
 #${OVERLAY_ID} .fs-check-path{stroke-dasharray:36;stroke-dashoffset:36;transition:stroke-dashoffset .35s ease .1s}
 #${OVERLAY_ID}.fs-success .fs-check-path{stroke-dashoffset:0}
+#${OVERLAY_ID} .fs-frame-outline{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
+  filter:drop-shadow(0 0 18px rgba(0,224,255,.45))}
+#${OVERLAY_ID} .fs-frame-outline path{fill:none;stroke:rgba(0,224,255,.7);stroke-width:2.5;vector-effect:non-scaling-stroke}
+#${OVERLAY_ID}.fs-success .fs-frame-outline path{stroke:#00E0FF}
 #${OVERLAY_ID} .fs-status{color:#F3F3FA;font-family:system-ui,-apple-system,sans-serif;font-size:.85rem;
   font-weight:600;text-align:center;max-width:280px;min-height:1.2em}
 #${OVERLAY_ID} .fs-cancel{background:transparent;border:1px solid rgba(255,255,255,.2);
@@ -95,10 +106,12 @@ export function captureFaceDescriptor({ requireLiveness = true } = {}) {
       '<clipPath id="' + CLIP_ID + '" clipPathUnits="objectBoundingBox"><path d="' + FACE_CLIP_PATH_D + '"/></clipPath>' +
     '</svg>' +
     '<div class="fs-frame">' +
-      '<video autoplay playsinline muted></video>' +
-      '<div class="fs-scanline"></div>' +
-      '<div class="fs-check"><svg viewBox="0 0 24 24" fill="none" stroke="#00E0FF" stroke-width="2.6"><path class="fs-check-path" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg></div>' +
-      '<svg class="fs-frame-outline" viewBox="0 0 1 1" preserveAspectRatio="none"><path d="' + FACE_CLIP_PATH_D + '" vector-effect="non-scaling-stroke"/></svg>' +
+      '<div class="fs-clip">' +
+        '<video autoplay playsinline muted></video>' +
+        '<div class="fs-scanline"></div>' +
+        '<div class="fs-check"><svg viewBox="0 0 24 24" fill="none" stroke="#00E0FF" stroke-width="2.6"><path class="fs-check-path" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg></div>' +
+      '</div>' +
+      '<svg class="fs-frame-outline" viewBox="0 0 1 1" preserveAspectRatio="none"><path d="' + FACE_CLIP_PATH_D + '"/></svg>' +
     '</div>' +
     '<div class="fs-status">Starting camera…</div>' +
     '<button type="button" class="fs-cancel">Cancel</button>';
@@ -107,7 +120,6 @@ export function captureFaceDescriptor({ requireLiveness = true } = {}) {
   const video = overlay.querySelector('video');
   const statusEl = overlay.querySelector('.fs-status');
   const cancelBtn = overlay.querySelector('.fs-cancel');
-  const frameOutline = overlay.querySelector('.fs-frame-outline');
 
   function setStatus(text) {
     statusEl.textContent = text;
@@ -142,6 +154,7 @@ export function captureFaceDescriptor({ requireLiveness = true } = {}) {
         video.srcObject = stream;
         await new Promise((r) => { video.onloadedmetadata = r; });
         if (cancelled) return;
+        video.play().catch(() => {});
 
         setStatus('Loading…');
         const faceapi = await loadModels();
@@ -149,16 +162,14 @@ export function captureFaceDescriptor({ requireLiveness = true } = {}) {
 
         setStatus('Position your face in the frame');
 
-        const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+        const detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 });
         let blinkDetected = false;
         let wasOpen = false;
         let stableFrames = 0;
-        let capturedDescriptor = null;
         const startTime = Date.now();
 
         const finishWithSuccess = (descriptor) => {
           overlay.classList.add('fs-success');
-          frameOutline.classList.add('success');
           setStatus('Face recognized');
           setTimeout(() => {
             cleanup();
@@ -192,8 +203,7 @@ export function captureFaceDescriptor({ requireLiveness = true } = {}) {
             stableFrames++;
             if (stableFrames === 1) setStatus('Hold still…');
             if (stableFrames >= STABLE_FRAMES_NEEDED) {
-              capturedDescriptor = Array.from(result.descriptor);
-              finishWithSuccess(capturedDescriptor);
+              finishWithSuccess(Array.from(result.descriptor));
               return;
             }
             rafId = requestAnimationFrame(tick);
@@ -214,8 +224,7 @@ export function captureFaceDescriptor({ requireLiveness = true } = {}) {
           }
 
           if (blinkDetected) {
-            capturedDescriptor = Array.from(result.descriptor);
-            finishWithSuccess(capturedDescriptor);
+            finishWithSuccess(Array.from(result.descriptor));
             return;
           }
 

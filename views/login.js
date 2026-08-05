@@ -1167,6 +1167,8 @@ async function signInWithFaceId(){
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     fab.style.display = 'none';
+  } else {
+    import('/face-scan.js').then((m) => m.preloadFaceModels()).catch(() => {});
   }
 })();
 </script>

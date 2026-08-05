@@ -2225,6 +2225,9 @@ document.getElementById('addPasskeyBtn').addEventListener('click', async () => {
 loadPasskeys();
 loadFaceScanStatus();
 loadApiKeys();
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+  import('/face-scan.js').then((m) => m.preloadFaceModels()).catch(() => {});
+}
 
 document.getElementById('saveProfileBtn').addEventListener('click', async () => {
   const btn = document.getElementById('saveProfileBtn');
