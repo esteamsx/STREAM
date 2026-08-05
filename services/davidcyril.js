@@ -34,3 +34,11 @@ export async function fetchSongByQuery(query) {
     videoUrl: extractVideoUrl(result),
   };
 }
+
+export async function analyzeImage(url) {
+  const data = await fetchJson(`${BASE}/imgscan?url=${encodeURIComponent(url)}`);
+  if (!data.success || !data.result) {
+    throw Object.assign(new Error("Could not analyze that image."), { status: 502 });
+  }
+  return { description: data.result };
+}

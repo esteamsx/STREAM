@@ -2,13 +2,23 @@ import express from "express";
 import QRCode from "qrcode";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { extractTextFromImageUrl } from "../services/ocr.js";
-import { fetchSongByQuery } from "../services/davidcyril.js";
+import { fetchSongByQuery, analyzeImage } from "../services/davidcyril.js";
 import { resolveFacebookVideo } from "../services/facebook.js";
 import { searchAudiomackTrack } from "../services/audiomack.js";
 import { askFreeAI } from "../services/ai.js";
 import { createShortLink, resolveShortLink } from "../services/shortener.js";
 import { getWeatherForLocation } from "../services/weather.js";
-import { getLyrics, getBibleVerse, getQuranVerse, getTopTechNews } from "../services/lookup.js";
+import {
+  getLyrics,
+  getBibleVerse,
+  getQuranVerse,
+  getTopTechNews,
+  getCurrencyRate,
+  getDictionaryDefinition,
+  lookupIp,
+  getCountryInfo,
+  getTriviaQuestion,
+} from "../services/lookup.js";
 import { signDownloadToken, verifyDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
 import {
   requireAuth,
@@ -133,6 +143,12 @@ const lyricsLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId
 const bibleLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const quranLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const technewsLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const imgscanLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const currencyLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const dictionaryLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const iplookupLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const countryLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const triviaLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const dlLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.ip).middleware();
 
 router.get("/api/v1/dev/ocr", requireDevApiKey, ocrLimiter, async (req, res) => {
@@ -336,6 +352,80 @@ router.get("/api/v1/dev/technews", requireDevApiKey, technewsLimiter, async (req
     res.json({ stories });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not fetch tech news." });
+  }
+});
+
+router.get("/api/v1/dev/imgscan", requireDevApiKey, imgscanLimiter, async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing url query parameter." });
+
+  try {
+    const result = await analyzeImage(url);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not analyze that image." });
+  }
+});
+
+router.get("/api/v1/dev/currency", requireDevApiKey, currencyLimiter, async (req, res) => {
+  const from = String(req.query.from || "").trim().toUpperCase();
+  const to = String(req.query.to || "").trim().toUpperCase();
+  const amount = Number(req.query.amount) || 1;
+  if (!from || !to) return res.status(400).json({ error: "Missing from and/or to query parameter." });
+
+  try {
+    const result = await getCurrencyRate(from, to, amount);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch that exchange rate." });
+  }
+});
+
+router.get("/api/v1/dev/dictionary", requireDevApiKey, dictionaryLimiter, async (req, res) => {
+  const word = String(req.query.word || "").trim();
+  if (!word) return res.status(400).json({ error: "Missing word query parameter." });
+
+  try {
+    const result = await getDictionaryDefinition(word);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch a definition for that word." });
+  }
+});
+
+router.get("/api/v1/dev/iplookup", requireDevApiKey, iplookupLimiter, async (req, res) => {
+  const ip = String(req.query.ip || "").trim();
+  if (!ip) return res.status(400).json({ error: "Missing ip query parameter." });
+
+  try {
+    const result = await lookupIp(ip);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not look up that IP address." });
+  }
+});
+
+router.get("/api/v1/dev/country", requireDevApiKey, countryLimiter, async (req, res) => {
+  const name = String(req.query.name || "").trim();
+  if (!name) return res.status(400).json({ error: "Missing name query parameter." });
+
+  try {
+    const result = await getCountryInfo(name);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that country." });
+  }
+});
+
+router.get("/api/v1/dev/trivia", requireDevApiKey, triviaLimiter, async (req, res) => {
+  const category = String(req.query.category || "").trim();
+  const difficulty = String(req.query.difficulty || "").trim();
+
+  try {
+    const result = await getTriviaQuestion(category, difficulty);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch a trivia question." });
   }
 });
 

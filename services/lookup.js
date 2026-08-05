@@ -58,3 +58,86 @@ export async function getTopTechNews(limit) {
       author: item.by || null,
     }));
 }
+
+export async function getCurrencyRate(from, to, amount) {
+  const data = await fetchJson(
+    `https://api.frankfurter.app/latest?amount=${encodeURIComponent(amount)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+  );
+  if (!data.rates || data.rates[to] == null) {
+    throw Object.assign(new Error("Could not find a rate for that currency pair."), { status: 404 });
+  }
+  return { from: data.base, to, amount: data.amount, result: data.rates[to], date: data.date };
+}
+
+export async function getDictionaryDefinition(word) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`, { signal: controller.signal });
+  } catch {
+    throw Object.assign(new Error("Could not reach the dictionary service right now."), { status: 502 });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.status === 404) throw Object.assign(new Error("No definition found for that word."), { status: 404 });
+  if (!res.ok) throw Object.assign(new Error(`Dictionary service responded ${res.status}.`), { status: 502 });
+  const data = await res.json();
+  const entry = data[0];
+  if (!entry) throw Object.assign(new Error("No definition found for that word."), { status: 404 });
+  return {
+    word: entry.word,
+    phonetic: entry.phonetic || null,
+    meanings: (entry.meanings || []).map((m) => ({
+      partOfSpeech: m.partOfSpeech,
+      definitions: (m.definitions || []).slice(0, 3).map((d) => d.definition),
+    })),
+  };
+}
+
+export async function lookupIp(ip) {
+  const data = await fetchJson(`https://ipapi.co/${encodeURIComponent(ip)}/json/`);
+  if (data.error) throw Object.assign(new Error(data.reason || "Could not look up that IP address."), { status: 404 });
+  return {
+    ip: data.ip,
+    city: data.city || null,
+    region: data.region || null,
+    country: data.country_name || null,
+    country_code: data.country_code || null,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    timezone: data.timezone || null,
+    org: data.org || null,
+  };
+}
+
+export async function getCountryInfo(name) {
+  const data = await fetchJson(`https://restcountries.com/v3.1/name/${encodeURIComponent(name)}?fields=name,capital,region,subregion,population,flags,currencies`);
+  const country = Array.isArray(data) ? data[0] : null;
+  if (!country) throw Object.assign(new Error("Could not find that country."), { status: 404 });
+  return {
+    name: country.name && country.name.common,
+    capital: (country.capital && country.capital[0]) || null,
+    region: country.region || null,
+    subregion: country.subregion || null,
+    population: country.population || null,
+    flag: country.flags && (country.flags.png || country.flags.svg),
+    currencies: country.currencies ? Object.keys(country.currencies) : [],
+  };
+}
+
+export async function getTriviaQuestion(category, difficulty) {
+  let url = "https://opentdb.com/api.php?amount=1&encode=url3986";
+  if (category) url += `&category=${encodeURIComponent(category)}`;
+  if (difficulty) url += `&difficulty=${encodeURIComponent(difficulty)}`;
+  const data = await fetchJson(url);
+  const q = data.results && data.results[0];
+  if (!q) throw Object.assign(new Error("Could not fetch a trivia question right now."), { status: 502 });
+  return {
+    category: decodeURIComponent(q.category),
+    difficulty: decodeURIComponent(q.difficulty),
+    question: decodeURIComponent(q.question),
+    correct_answer: decodeURIComponent(q.correct_answer),
+    incorrect_answers: q.incorrect_answers.map((a) => decodeURIComponent(a)),
+  };
+}

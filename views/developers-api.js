@@ -63,6 +63,16 @@ const FEATURES = [
     example: "GET /api/v1/dev/ocr?url=https://example.com/image.png",
   },
   {
+    key: "imgscan",
+    title: "Image Analysis",
+    desc: "Get a written description of what's in an image.",
+    icon: '<circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>',
+    category: "AI & Vision",
+    endpoint: "GET /api/v1/dev/imgscan?url=",
+    live: true,
+    example: "GET /api/v1/dev/imgscan?url=https://example.com/image.png",
+  },
+  {
     key: "qrcode",
     title: "QR Code",
     desc: "Generate a QR code image for any text or link.",
@@ -131,6 +141,56 @@ const FEATURES = [
     endpoint: "GET /api/v1/dev/technews?limit=",
     live: true,
     example: "GET /api/v1/dev/technews?limit=5",
+  },
+  {
+    key: "currency",
+    title: "Currency Exchange",
+    desc: "Convert between currencies at the latest rate.",
+    icon: '<circle cx="12" cy="12" r="9"/><path d="M9 8h4a2 2 0 010 4H9m0 0h4a2 2 0 010 4H9m3-10v12"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/currency?from=&to=",
+    live: true,
+    example: "GET /api/v1/dev/currency?from=USD&to=NGN&amount=1",
+  },
+  {
+    key: "dictionary",
+    title: "Dictionary",
+    desc: "Definitions for any English word.",
+    icon: '<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><path d="M9 7h7M9 11h5"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/dictionary?word=",
+    live: true,
+    example: "GET /api/v1/dev/dictionary?word=hello",
+  },
+  {
+    key: "iplookup",
+    title: "IP Lookup",
+    desc: "Location and network info for any IP address.",
+    icon: '<circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 3a15 15 0 010 18 15 15 0 010-18z"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/iplookup?ip=",
+    live: true,
+    example: "GET /api/v1/dev/iplookup?ip=8.8.8.8",
+  },
+  {
+    key: "country",
+    title: "Country Info",
+    desc: "Capital, population, region, and currency for any country.",
+    icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M8 5v14"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/country?name=",
+    live: true,
+    example: "GET /api/v1/dev/country?name=Nigeria",
+  },
+  {
+    key: "trivia",
+    title: "Trivia",
+    desc: "A random trivia question, optionally by category or difficulty.",
+    icon: '<path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-1.5 2-2.25 2.75S12 13 12 14"/><circle cx="12" cy="17.5" r=".5" fill="currentColor"/><circle cx="12" cy="12" r="9"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/trivia?category=&difficulty=",
+    live: true,
+    example: "GET /api/v1/dev/trivia?difficulty=easy",
   },
 ];
 
@@ -584,6 +644,15 @@ ${musicPlayerStyle()}
   "confidence": 96
 }</pre>
 
+    <h2 class="doc-h2">Image Analysis</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/imgscan?url=</code></p>
+    <p class="doc-p">Give it a direct image URL, get back a written description of what's in it.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/imgscan?url=https://example.com/image.png"</pre>
+    <pre>{
+  "description": "A golden retriever sitting in a park."
+}</pre>
+
     <h2 class="doc-h2">QR Code</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/qrcode?text=</code></p>
     <p class="doc-p">Give it any text or link, get back a PNG image directly (not JSON). Optional <code>size</code> param, 100-1000px, defaults to 400.</p>
@@ -655,6 +724,74 @@ ${musicPlayerStyle()}
   "stories": [
     { "title": "...", "url": "https://...", "score": 412, "author": "..." }
   ]
+}</pre>
+
+    <h2 class="doc-h2">Currency Exchange</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/currency?from=&amp;to=</code></p>
+    <p class="doc-p">3-letter currency codes. Optional <code>amount</code> param, defaults to 1.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/currency?from=USD&to=NGN&amount=1"</pre>
+    <pre>{
+  "from": "USD",
+  "to": "NGN",
+  "amount": 1,
+  "result": 1550.23,
+  "date": "2026-08-05"
+}</pre>
+
+    <h2 class="doc-h2">Dictionary</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/dictionary?word=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/dictionary?word=hello"</pre>
+    <pre>{
+  "word": "hello",
+  "phonetic": "həˈləʊ",
+  "meanings": [
+    { "partOfSpeech": "exclamation", "definitions": ["Used as a greeting."] }
+  ]
+}</pre>
+
+    <h2 class="doc-h2">IP Lookup</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/iplookup?ip=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/iplookup?ip=8.8.8.8"</pre>
+    <pre>{
+  "ip": "8.8.8.8",
+  "city": "Mountain View",
+  "region": "California",
+  "country": "United States",
+  "country_code": "US",
+  "latitude": 37.4,
+  "longitude": -122.08,
+  "timezone": "America/Los_Angeles",
+  "org": "GOOGLE"
+}</pre>
+
+    <h2 class="doc-h2">Country Info</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/country?name=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/country?name=Nigeria"</pre>
+    <pre>{
+  "name": "Nigeria",
+  "capital": "Abuja",
+  "region": "Africa",
+  "subregion": "Western Africa",
+  "population": 206139589,
+  "flag": "https://flagcdn.com/w320/ng.png",
+  "currencies": ["NGN"]
+}</pre>
+
+    <h2 class="doc-h2">Trivia</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/trivia?category=&amp;difficulty=</code></p>
+    <p class="doc-p">Both params are optional. <code>difficulty</code> is <code>easy</code>, <code>medium</code>, or <code>hard</code>.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/trivia?difficulty=easy"</pre>
+    <pre>{
+  "category": "Science: Computers",
+  "difficulty": "easy",
+  "question": "What does 'HTTP' stand for?",
+  "correct_answer": "HyperText Transfer Protocol",
+  "incorrect_answers": ["...", "...", "..."]
 }</pre>
 
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
@@ -932,6 +1069,12 @@ ${musicPlayerHtml()}
     bible: { title: 'Try it — Bible', method: 'GET', path: '/api/v1/dev/bible', param: 'reference', label: 'Reference', placeholder: 'John 3:16' },
     quran: { title: 'Try it — Quran', method: 'GET', path: '/api/v1/dev/quran', param: 'reference', label: 'Reference (surah:ayah)', placeholder: '2:255' },
     technews: { title: 'Try it — Tech News', method: 'GET', path: '/api/v1/dev/technews', param: 'limit', label: 'How many (1-20)', placeholder: '5' },
+    imgscan: { title: 'Try it — Image Analysis', method: 'GET', path: '/api/v1/dev/imgscan', param: 'url', label: 'Image URL', placeholder: 'https://example.com/image.png' },
+    currency: { title: 'Try it — Currency Exchange', method: 'GET', path: '/api/v1/dev/currency', label: 'From - To', placeholder: 'USD - NGN', parts: ['from', 'to'], splitOn: ' - ' },
+    dictionary: { title: 'Try it — Dictionary', method: 'GET', path: '/api/v1/dev/dictionary', param: 'word', label: 'Word', placeholder: 'hello' },
+    iplookup: { title: 'Try it — IP Lookup', method: 'GET', path: '/api/v1/dev/iplookup', param: 'ip', label: 'IP address', placeholder: '8.8.8.8' },
+    country: { title: 'Try it — Country Info', method: 'GET', path: '/api/v1/dev/country', param: 'name', label: 'Country name', placeholder: 'Nigeria' },
+    trivia: { title: 'Try it — Trivia', method: 'GET', path: '/api/v1/dev/trivia', param: 'difficulty', label: 'Difficulty (optional)', placeholder: 'easy', optional: true },
   };
 
   function buildQueryParams(ep, val){
@@ -1024,7 +1167,7 @@ ${musicPlayerHtml()}
       tryitResultBody.textContent = 'Paste your API key above first.';
       return;
     }
-    if(!val){
+    if(!val && !ep.optional){
       tryitResultBox.style.display = 'block';
       tryitResultStatus.innerHTML = '<span class="status-pill bad">-</span>';
       tryitResultBody.textContent = 'Fill in ' + ep.label + ' first.';
