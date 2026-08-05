@@ -60,13 +60,18 @@ export async function getTopTechNews(limit) {
 }
 
 export async function getCurrencyRate(from, to, amount) {
-  const data = await fetchJson(
-    `https://api.frankfurter.app/latest?amount=${encodeURIComponent(amount)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
-  );
-  if (!data.rates || data.rates[to] == null) {
+  const data = await fetchJson(`https://open.er-api.com/v6/latest/${encodeURIComponent(from)}`);
+  if (data.result !== "success" || !data.rates || data.rates[to] == null) {
     throw Object.assign(new Error("Could not find a rate for that currency pair."), { status: 404 });
   }
-  return { from: data.base, to, amount: data.amount, result: data.rates[to], date: data.date };
+  const rate = data.rates[to];
+  return {
+    from: data.base_code || from,
+    to,
+    amount,
+    result: Number((rate * amount).toFixed(6)),
+    date: data.time_last_update_utc || null,
+  };
 }
 
 export async function getDictionaryDefinition(word) {
@@ -82,7 +87,12 @@ export async function getDictionaryDefinition(word) {
   }
   if (res.status === 404) throw Object.assign(new Error("No definition found for that word."), { status: 404 });
   if (!res.ok) throw Object.assign(new Error(`Dictionary service responded ${res.status}.`), { status: 502 });
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw Object.assign(new Error("Dictionary service returned an unexpected response."), { status: 502 });
+  }
   const entry = data[0];
   if (!entry) throw Object.assign(new Error("No definition found for that word."), { status: 404 });
   return {
@@ -96,18 +106,18 @@ export async function getDictionaryDefinition(word) {
 }
 
 export async function lookupIp(ip) {
-  const data = await fetchJson(`https://ipapi.co/${encodeURIComponent(ip)}/json/`);
-  if (data.error) throw Object.assign(new Error(data.reason || "Could not look up that IP address."), { status: 404 });
+  const data = await fetchJson(`https://ipwho.is/${encodeURIComponent(ip)}`);
+  if (!data.success) throw Object.assign(new Error(data.message || "Could not look up that IP address."), { status: 404 });
   return {
     ip: data.ip,
     city: data.city || null,
     region: data.region || null,
-    country: data.country_name || null,
+    country: data.country || null,
     country_code: data.country_code || null,
     latitude: data.latitude,
     longitude: data.longitude,
-    timezone: data.timezone || null,
-    org: data.org || null,
+    timezone: (data.timezone && data.timezone.id) || null,
+    org: (data.connection && data.connection.isp) || null,
   };
 }
 
