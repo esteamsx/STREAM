@@ -173,13 +173,11 @@ function ensureOverlayStyles() {
 #${OVERLAY_ID}.fs-success .fs-check-path{stroke-dashoffset:0}
 #${OVERLAY_ID} .fs-frame-outline{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
   filter:drop-shadow(0 0 18px rgba(0,224,255,.45))}
-#${OVERLAY_ID} .fs-frame-outline path{fill:none;stroke:rgba(0,224,255,.7);stroke-width:2.5;vector-effect:non-scaling-stroke}
-#${OVERLAY_ID}.fs-success .fs-frame-outline path{stroke:#00E0FF}
-#${OVERLAY_ID} .fs-steps{display:flex;gap:8px}
-#${OVERLAY_ID} .fs-step{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.18);
-  border:1.5px solid rgba(0,224,255,.4);transition:background .25s ease,transform .25s ease}
-#${OVERLAY_ID} .fs-step.fs-step-active{transform:scale(1.2);border-color:#00E0FF}
-#${OVERLAY_ID} .fs-step.fs-step-done{background:#00E0FF;border-color:#00E0FF}
+#${OVERLAY_ID} .fs-frame-outline path{fill:none;stroke-width:2.5;vector-effect:non-scaling-stroke}
+#${OVERLAY_ID} .fs-frame-outline-bg{stroke:rgba(0,224,255,.25)}
+#${OVERLAY_ID} .fs-frame-outline-progress{stroke:#00E0FF;transition:stroke-dashoffset .4s ease}
+#${OVERLAY_ID}.fs-success .fs-frame-outline-bg{stroke:rgba(0,224,255,.25)}
+#${OVERLAY_ID}.fs-success .fs-frame-outline-progress{stroke:#00E0FF}
 
 #${OVERLAY_ID} .fs-abstract{position:relative;width:120px;height:120px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;color:#00E0FF;border-radius:32%;overflow:hidden}
@@ -191,7 +189,7 @@ function ensureOverlayStyles() {
   0%,100%{transform:scale(1);opacity:.6}
   50%{transform:scale(1.08);opacity:1}
 }
-#${OVERLAY_ID} .fs-abstract-face{width:64px;height:64px;transition:opacity .2s ease,transform .2s ease}
+#${OVERLAY_ID} .fs-abstract-face{position:relative;width:64px;height:64px;transition:opacity .2s ease,transform .2s ease}
 #${OVERLAY_ID} .fs-abstract-face .fs-eye{transform-box:fill-box;transform-origin:center;animation:fsBlink 2.4s ease-in-out infinite}
 @keyframes fsBlink{
   0%,88%,100%{transform:scaleY(1)}
@@ -236,11 +234,11 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           '<div class="fs-scanline"></div>' +
           '<div class="fs-check"><svg viewBox="0 0 24 24" fill="none" stroke="#00E0FF" stroke-width="2.6"><path class="fs-check-path" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg></div>' +
         '</div>' +
-        '<svg class="fs-frame-outline" viewBox="0 0 1 1" preserveAspectRatio="none"><path d="' + FACE_CLIP_PATH_D + '"/></svg>' +
+        '<svg class="fs-frame-outline" viewBox="0 0 1 1" preserveAspectRatio="none">' +
+          '<path class="fs-frame-outline-bg" d="' + FACE_CLIP_PATH_D + '"/>' +
+          '<path class="fs-frame-outline-progress" d="' + FACE_CLIP_PATH_D + '"/>' +
+        '</svg>' +
       '</div>' +
-      (requireLiveness ?
-        '<div class="fs-steps"><span class="fs-step" data-step="0"></span><span class="fs-step" data-step="1"></span><span class="fs-step" data-step="2"></span></div>'
-        : '') +
       '<div class="fs-status">Starting camera…</div>' +
       '<button type="button" class="fs-cancel">Cancel</button>';
   } else {
@@ -263,7 +261,13 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
   const statusEl = overlay.querySelector('.fs-status');
   const cancelBtn = overlay.querySelector('.fs-cancel');
   const abstractEl = overlay.querySelector('.fs-abstract');
-  const stepEls = overlay.querySelectorAll('.fs-step');
+  const outlineProgressPath = overlay.querySelector('.fs-frame-outline-progress');
+  let outlineLen = 0;
+  if (outlineProgressPath) {
+    outlineLen = outlineProgressPath.getTotalLength();
+    outlineProgressPath.style.strokeDasharray = String(outlineLen);
+    outlineProgressPath.style.strokeDashoffset = requireLiveness ? String(outlineLen) : '0';
+  }
 
   function setStatus(text) {
     statusEl.textContent = text;
@@ -271,10 +275,8 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
   }
 
   function setStep(index) {
-    stepEls.forEach((el, i) => {
-      el.classList.toggle('fs-step-done', i < index);
-      el.classList.toggle('fs-step-active', i === index);
-    });
+    if (!outlineProgressPath) return;
+    outlineProgressPath.style.strokeDashoffset = String(outlineLen * (1 - index / 3));
   }
 
   let stream = null;
@@ -334,7 +336,6 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         let nodBaseline = null;
         let stableFrames = 0;
         const startTime = Date.now();
-        if (requireLiveness && showCamera) setStep(0);
 
         const finishCapture = async (descriptor) => {
           if (!verify) {
