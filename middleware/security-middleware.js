@@ -17,43 +17,7 @@ export const cspNonce = (req, res, next) => {
 };
 
 export const helmetMiddleware = helmet({
-  contentSecurityPolicy: {
-    useDefaults: false,
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: [
-        "'self'",
-        (req, res) => `'nonce-${res.locals.nonce}'`,
-        "https://cdn.jsdelivr.net",
-        "https://js.paystack.co",
-        "https://accounts.google.com",
-        "https://www.gstatic.com",
-      ],
-      scriptSrcAttr: ["'none'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      imgSrc: ["'self'", "data:", "https:"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      connectSrc: [
-        "'self'",
-        "https://identitytoolkit.googleapis.com",
-        "https://securetoken.googleapis.com",
-        (req, res) => (req.path === "/football" ? "https://sportstreamer.live" : "'self'"),
-        (req, res) => (req.path === "/tools/ws-tester" ? "ws: wss:" : "'self'"),
-      ],
-      mediaSrc: [
-        "'self'",
-        "blob:",
-        (req, res) => (req.path === "/football" ? "https:" : "'self'"),
-      ],
-      workerSrc: ["'self'", "blob:"],
-      frameSrc: ["https://accounts.google.com", "https://js.paystack.co", "https://checkout.paystack.com"],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-      frameAncestors: ["'none'"],
-      upgradeInsecureRequests: [],
-    },
-  },
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
 });
@@ -66,32 +30,6 @@ export const securityHeaders = (req, res, next) => {
   next();
 };
 
-const BLOCKED_UA_PATTERNS = [
-  /curl/i, /wget/i, /python-requests/i, /python-urllib/i, /scrapy/i,
-  /httpclient/i, /go-http-client/i, /node-fetch/i, /axios\//i,
-  /okhttp/i, /libwww-perl/i, /^java\//i, /^ruby/i, /php\//i,
-  /httrack/i, /wput/i, /crawler/i, /spider/i, /^$/,
-  /headlesschrome/i, /phantomjs/i, /puppeteer/i, /playwright/i,
-  /selenium/i, /^scrapy\//i, /aiohttp/i, /^postmanruntime/i,
-  /^guzzlehttp/i, /^dart[:-]?http/i, /^got \(/i, /^undici/i,
-];
-
-const UA_ALLOWLIST_PATHS = ["/favicon.ico", "/health"];
-const UA_ALLOWLIST_PREFIXES = ["/api/v1/", "/embed/"];
-
-export const botBlocker = (req, res, next) => {
-  if (UA_ALLOWLIST_PATHS.includes(req.path)) return next();
-  if (UA_ALLOWLIST_PREFIXES.some((p) => req.path.startsWith(p))) return next();
-
-  const ua = req.get("user-agent") || "";
-  const isBlocked = BLOCKED_UA_PATTERNS.some((pattern) => pattern.test(ua));
-
-  if (isBlocked) {
-    console.warn(`⚠️ Blocked scraper UA: ${req.ip} - "${ua}" - ${req.path}`);
-    return res.status(403).send("Forbidden");
-  }
-  next();
-};
 
 export class SimpleRateLimiter {
   constructor(maxRequests = 100, windowMs = 60000, keyFn = (req) => req.ip, message = "Too many requests. Please slow down.") {
