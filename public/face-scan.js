@@ -3,8 +3,11 @@ const CLIP_ID = 'faceScanClipPath';
 const CAPTURE_TIMEOUT_MS = 60000;
 const EAR_BLINK_THRESHOLD = 0.21;
 const EAR_OPEN_THRESHOLD = 0.28;
-const STABLE_FRAMES_NEEDED = 2;
-const RESULT_HOLD_MS = 650;
+const RESULT_HOLD_MS = 500;
+const DETECT_INPUT_SIZE = 160;
+const DETECT_SCORE_THRESHOLD = 0.2;
+const WORK_CANVAS_MAX = 480;
+const MIN_FACE_RATIO = 0.12;
 
 const FACE_CLIP_PATH_D =
   'M 0.5 0.03 C 0.75 0.03 0.95 0.22 0.95 0.42 C 0.95 0.60 0.85 0.72 0.80 0.80 ' +
@@ -19,6 +22,7 @@ const FACE_GLYPH_PATHS =
 let modelsLoaded = false;
 let modelsLoadingPromise = null;
 let faceapiModule = null;
+let warmupPromise = null;
 
 async function loadModels() {
   if (modelsLoadingPromise) return modelsLoadingPromise;
@@ -41,8 +45,30 @@ async function loadModels() {
   return modelsLoadingPromise;
 }
 
+function warmUpModels() {
+  if (warmupPromise) return warmupPromise;
+  warmupPromise = (async () => {
+    const faceapi = await loadModels();
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = WORK_CANVAS_MAX;
+      canvas.height = WORK_CANVAS_MAX;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#808080';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const options = new faceapi.TinyFaceDetectorOptions({
+        inputSize: DETECT_INPUT_SIZE,
+        scoreThreshold: DETECT_SCORE_THRESHOLD,
+      });
+      await faceapi.detectSingleFace(canvas, options).withFaceLandmarks().withFaceDescriptor();
+    } catch (e) {}
+    return faceapi;
+  })();
+  return warmupPromise;
+}
+
 export function preloadFaceModels() {
-  loadModels().catch(() => {});
+  warmUpModels().catch(() => {});
 }
 
 let lastSpoken = '';
@@ -192,7 +218,7 @@ function eyeAspectRatio(eye) {
   return vertical / horizontal;
 }
 
-export function captureFaceDescriptor({ requireLiveness = true, showCamera = true, verify = null } = {}) {
+export function captureFaceDescriptor({ requireLiveness = true, showCamera = true, verify = null, voice = true } = {}) {
   ensureOverlayStyles();
   const overlay = document.createElement('div');
   overlay.id = OVERLAY_ID;
@@ -235,15 +261,15 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
   function setStatus(text) {
     statusEl.textContent = text;
-    speak(text);
+    if (voice) speak(text);
   }
 
   let stream = null;
   let cancelled = false;
-  let rafId = null;
+  let loopTimer = null;
 
   function cleanup() {
-    if (rafId) cancelAnimationFrame(rafId);
+    if (loopTimer) clearTimeout(loopTimer);
     if (stream) stream.getTracks().forEach((t) => t.stop());
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     lastSpoken = '';
@@ -259,26 +285,42 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
     (async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: 320, height: 320 },
+        const modelsPromise = warmUpModels();
+        const cameraPromise = navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
         });
-        if (cancelled) return;
+
+        stream = await cameraPromise;
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         video.srcObject = stream;
-        await new Promise((r) => { video.onloadedmetadata = r; });
+        if (video.readyState < 2) {
+          await new Promise((r) => {
+            video.onloadeddata = r;
+            video.onloadedmetadata = r;
+          });
+        }
         if (cancelled) return;
         video.play().catch(() => {});
 
-        setStatus('Loading…');
-        const faceapi = await loadModels();
+        const faceapi = await modelsPromise;
         if (cancelled) return;
 
         setStatus(showCamera ? 'Position your face in the frame' : 'Scanning…');
 
-        const lightOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.3 });
-        const fullOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 });
+        const srcW = video.videoWidth || 480;
+        const srcH = video.videoHeight || 480;
+        const scale = Math.min(1, WORK_CANVAS_MAX / Math.max(srcW, srcH));
+        const work = document.createElement('canvas');
+        work.width = Math.round(srcW * scale);
+        work.height = Math.round(srcH * scale);
+        const workCtx = work.getContext('2d', { willReadFrequently: true });
+
+        const detectOptions = new faceapi.TinyFaceDetectorOptions({
+          inputSize: DETECT_INPUT_SIZE,
+          scoreThreshold: DETECT_SCORE_THRESHOLD,
+        });
         let blinkDetected = false;
         let wasOpen = false;
-        let stableFrames = 0;
         const startTime = Date.now();
 
         const finishCapture = async (descriptor) => {
@@ -317,6 +359,8 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           }
         };
 
+        const again = (fn) => { loopTimer = setTimeout(fn, 0); };
+
         const tick = async () => {
           if (cancelled) return;
           if (Date.now() - startTime > CAPTURE_TIMEOUT_MS) {
@@ -325,35 +369,34 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             return;
           }
 
-          const presence = await faceapi.detectSingleFace(video, lightOptions);
-          if (cancelled) return;
-
-          if (!presence) {
-            stableFrames = 0;
-            if (showCamera) setStatus('Position your face in the frame');
-            rafId = requestAnimationFrame(tick);
+          if (video.readyState < 2) {
+            again(tick);
             return;
           }
 
+          workCtx.drawImage(video, 0, 0, work.width, work.height);
+
           const result = await faceapi
-            .detectSingleFace(video, fullOptions)
+            .detectSingleFace(work, detectOptions)
             .withFaceLandmarks()
             .withFaceDescriptor();
 
           if (cancelled) return;
 
           if (!result) {
-            rafId = requestAnimationFrame(tick);
+            if (showCamera) setStatus('Position your face in the frame');
+            again(tick);
+            return;
+          }
+
+          if (result.detection.box.width < work.width * MIN_FACE_RATIO) {
+            if (showCamera) setStatus('Move a little closer');
+            again(tick);
             return;
           }
 
           if (!requireLiveness) {
-            stableFrames++;
-            if (stableFrames >= STABLE_FRAMES_NEEDED) {
-              finishCapture(Array.from(result.descriptor));
-              return;
-            }
-            rafId = requestAnimationFrame(tick);
+            finishCapture(Array.from(result.descriptor));
             return;
           }
 
@@ -375,10 +418,10 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             return;
           }
 
-          rafId = requestAnimationFrame(tick);
+          again(tick);
         };
 
-        rafId = requestAnimationFrame(tick);
+        again(tick);
       } catch (err) {
         cleanup();
         reject(err);

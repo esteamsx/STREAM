@@ -1096,6 +1096,7 @@ async function signInWithFaceId(){
     const customToken = await captureFaceDescriptor({
       requireLiveness: false,
       showCamera: false,
+      voice: false,
       verify: async (descriptor) => {
         const { customToken } = await postJSON('/api/facescan/verify', { descriptor });
         return customToken;
