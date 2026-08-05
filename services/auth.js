@@ -1152,8 +1152,8 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
 }
 
 
-const FACE_DESCRIPTOR_LENGTH = 128;
-const FACE_MATCH_THRESHOLD = 0.5;
+const FACE_DESCRIPTOR_LENGTH = 1024;
+const FACE_MATCH_SIMILARITY_THRESHOLD = 0.5;
 
 function isValidFaceDescriptor(descriptor) {
   return (
@@ -1163,13 +1163,17 @@ function isValidFaceDescriptor(descriptor) {
   );
 }
 
-function faceEuclideanDistance(a, b) {
+function faceSimilarity(a, b) {
   let sum = 0;
   for (let i = 0; i < FACE_DESCRIPTOR_LENGTH; i++) {
     const d = a[i] - b[i];
     sum += d * d;
   }
-  return Math.sqrt(sum);
+  const dist = Math.round(100 * 25 * sum) / 100;
+  if (dist === 0) return 1;
+  const root = Math.sqrt(dist);
+  const norm = (1 - root / 100 - 0.2) / 0.6;
+  return Math.round(100 * Math.max(Math.min(norm, 1), 0)) / 100;
 }
 
 async function getFaceScanForUser(uid) {
@@ -1203,17 +1207,17 @@ async function matchFaceScan(descriptor) {
   }
   const snap = await db.collection("face_recognition_credentials").get();
   let bestUid = null;
-  let bestDistance = Infinity;
+  let bestSimilarity = -Infinity;
   snap.forEach((doc) => {
     const data = doc.data();
     if (!isValidFaceDescriptor(data.descriptor)) return;
-    const distance = faceEuclideanDistance(descriptor, data.descriptor);
-    if (distance < bestDistance) {
-      bestDistance = distance;
+    const sim = faceSimilarity(descriptor, data.descriptor);
+    if (sim > bestSimilarity) {
+      bestSimilarity = sim;
       bestUid = doc.id;
     }
   });
-  if (bestUid && bestDistance <= FACE_MATCH_THRESHOLD) {
+  if (bestUid && bestSimilarity >= FACE_MATCH_SIMILARITY_THRESHOLD) {
     return bestUid;
   }
   const err = new Error("No matching face found.");
