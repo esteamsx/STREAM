@@ -24,6 +24,10 @@ async function loadModels() {
   if (modelsLoadingPromise) return modelsLoadingPromise;
   modelsLoadingPromise = (async () => {
     if (!faceapiModule) faceapiModule = await import('/vendor/face-api.esm.js');
+    try {
+      await faceapiModule.tf.setBackend('webgl');
+      await faceapiModule.tf.ready();
+    } catch (e) {}
     if (!modelsLoaded) {
       await Promise.all([
         faceapiModule.nets.tinyFaceDetector.loadFromUri('/vendor/face-api-models'),
@@ -37,8 +41,6 @@ async function loadModels() {
   return modelsLoadingPromise;
 }
 
-// Kicks off the model download in the background (e.g. right after page load) so that
-// by the time someone actually holds the Face ID button, loadModels() resolves instantly.
 export function preloadFaceModels() {
   loadModels().catch(() => {});
 }
@@ -111,6 +113,16 @@ function ensureOverlayStyles() {
   style.textContent = `
 #${OVERLAY_ID}{position:fixed;inset:0;z-index:2000;background:rgba(5,5,8,.92);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px}
+#${OVERLAY_ID}.fs-top-mode{background:transparent;justify-content:flex-start;pointer-events:none;
+  padding-top:max(28px,env(safe-area-inset-top));gap:10px}
+#${OVERLAY_ID}.fs-top-mode .fs-abstract,#${OVERLAY_ID}.fs-top-mode .fs-status,#${OVERLAY_ID}.fs-top-mode .fs-cancel{
+  pointer-events:auto}
+#${OVERLAY_ID}.fs-top-mode .fs-abstract{width:74px;height:74px}
+#${OVERLAY_ID}.fs-top-mode .fs-abstract-face{width:38px;height:38px}
+#${OVERLAY_ID}.fs-top-mode .fs-abstract-check,#${OVERLAY_ID}.fs-top-mode .fs-abstract-cross{width:34px;height:34px}
+#${OVERLAY_ID}.fs-top-mode .fs-status{background:rgba(20,20,28,.75);backdrop-filter:blur(12px);
+  padding:6px 14px;border-radius:14px;font-size:.76rem}
+#${OVERLAY_ID}.fs-top-mode .fs-cancel{padding:5px 16px;font-size:.72rem}
 #${OVERLAY_ID} .fs-frame{position:relative;width:min(260px,72vw);height:min(340px,94vw);flex-shrink:0}
 #${OVERLAY_ID} .fs-clip{position:absolute;inset:0;clip-path:url(#${CLIP_ID});overflow:hidden;background:#000}
 #${OVERLAY_ID} .fs-clip video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
@@ -184,6 +196,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
   ensureOverlayStyles();
   const overlay = document.createElement('div');
   overlay.id = OVERLAY_ID;
+  if (!showCamera) overlay.classList.add('fs-top-mode');
 
   if (showCamera) {
     overlay.innerHTML =
@@ -312,8 +325,6 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             return;
           }
 
-          // Cheap presence check first; only run the heavier landmark+descriptor
-          // pipeline once a face is actually in frame.
           const presence = await faceapi.detectSingleFace(video, lightOptions);
           if (cancelled) return;
 
