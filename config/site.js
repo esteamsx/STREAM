@@ -58,7 +58,17 @@ export const PAGES = {
   },
   developers: {
     path: "/developers",
-    description: "Build with the ES TEAMS TV API: live channel data and embeddable players.",
+    description: "Build with the ES TEAMS TV APIs: live channel data, embeddable players, and more.",
+    auth: "public",
+  },
+  developersLiveTv: {
+    path: "/developers/live-tv",
+    description: "Build with the ES TEAMS TV Live TV API: channel data and embeddable players.",
+    auth: "public",
+  },
+  developersApi: {
+    path: "/developers/api",
+    description: "The ES TEAMS TV Developer API: media and AI tools for your own site or bot.",
     auth: "public",
   },
   deployBot: {

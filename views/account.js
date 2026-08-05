@@ -961,12 +961,12 @@ body:has(.page-overlay.show){overflow:hidden}
   <div class="tfa-card" id="apiCard">
     <div class="tfa-header" id="apiHeader">
       <svg class="tfa-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>
-      <div class="tfa-header-title">Developer API</div>
+      <div class="tfa-header-title">Live Tv Api</div>
       <svg class="tfa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
     </div>
     <div class="tfa-body">
       <div class="tfa-body-inner">
-        <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;line-height:1.5">Use an API key to pull ES TEAMS TV channels into your own site or bot. <span id="apiKeyLimitText">Up to 1 key per account.</span> <a href="/developers" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">Open the API Dashboard</a> to test requests, see usage, upgrade your plan, and read the docs.</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;line-height:1.5">Use an API key to pull ES TEAMS TV channels into your own site or bot. <span id="apiKeyLimitText">Up to 1 key per account.</span> <a href="/developers/live-tv" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">Open the API Dashboard</a> to test requests, see usage, upgrade your plan, and read the docs.</div>
         <div id="apiPlanBadgeRow" style="display:none;margin-bottom:12px"><span class="cert-status-chip" id="apiPlanBadge">Free</span></div>
         <div id="apiKeyList"></div>
         <div id="apiKeyAddRow">
@@ -979,7 +979,7 @@ body:has(.page-overlay.show){overflow:hidden}
             Create API Key
           </button>
         </div>
-        <div id="apiKeyMaxMsg" style="display:none;font-size:.76rem;color:var(--muted);text-align:center;padding:8px 0">Maximum API keys reached for your plan. Revoke one, or <a href="/developers" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">upgrade your plan</a>.</div>
+        <div id="apiKeyMaxMsg" style="display:none;font-size:.76rem;color:var(--muted);text-align:center;padding:8px 0">Maximum API keys reached for your plan. Revoke one, or <a href="/developers/live-tv" target="_blank" rel="noopener" class="acc-inline-link" style="display:inline">upgrade your plan</a>.</div>
         <div id="apiKeyRevealBox" style="display:none;margin-top:12px;padding:12px;border-radius:10px;background:rgba(0,224,255,.08);border:1px solid rgba(0,224,255,.25)">
           <div style="font-size:.76rem;color:var(--muted);margin-bottom:8px">Copy this now. You won't be able to see it again.</div>
           <div style="display:flex;gap:8px;align-items:center">

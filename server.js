@@ -15,6 +15,8 @@ import { renderReset } from "./views/reset.js";
 import { renderDmca } from "./views/dmca.js";
 import { renderPrivacy } from "./views/privacy.js";
 import { renderDevelopers } from "./views/developers.js";
+import { renderDevelopersLiveTv } from "./views/developers-live-tv.js";
+import { renderDevelopersApi } from "./views/developers-api.js";
 import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
@@ -459,6 +461,8 @@ const cachedResetHtml = renderReset(authPageConfig);
 const cachedDmcaHtml = renderDmca(authPageConfig);
 const cachedPrivacyHtml = renderPrivacy(authPageConfig);
 const cachedDevelopersHtml = renderDevelopers(authPageConfig);
+const cachedDevelopersLiveTvHtml = renderDevelopersLiveTv(authPageConfig);
+const cachedDevelopersApiHtml = renderDevelopersApi(authPageConfig);
 const cachedDeployBotHtml = renderDeployBot(authPageConfig);
 const cachedToolsIndexHtml = renderToolsIndex(authPageConfig);
 const cachedToolsDnsLookupHtml = renderDnsLookup(authPageConfig);
@@ -3797,6 +3801,14 @@ app.get("/privacy", scrapeGate, (req, res) => {
 
 app.get("/developers", scrapeGate, (req, res) => {
   res.send(cachedDevelopersHtml);
+});
+
+app.get("/developers/live-tv", scrapeGate, (req, res) => {
+  res.send(cachedDevelopersLiveTvHtml);
+});
+
+app.get("/developers/api", scrapeGate, (req, res) => {
+  res.send(cachedDevelopersApiHtml);
 });
 
 app.get("/deploy-bot", scrapeGate, requireUser, (req, res) => {
