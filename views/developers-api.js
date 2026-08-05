@@ -71,15 +71,17 @@ FEATURES.forEach((f) => {
 
 function featureCardHtml(f) {
   return `<div class="dcard feature-card${f.live ? " is-live" : ""}" data-search="${(f.title + " " + f.desc).toLowerCase().replace(/"/g, "&quot;")}">
-      <div class="dcard-head">
-        <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${f.icon}</svg></span>
-        <div>
-          <div class="dcard-title">${f.title}</div>
-          <div class="dcard-sub">${f.desc}</div>
+      <div class="feature-top">
+        <div class="dcard-head">
+          <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${f.icon}</svg></span>
+          <div>
+            <div class="dcard-title">${f.title}</div>
+            <div class="dcard-sub">${f.desc}</div>
+          </div>
+          <span class="feature-badge${f.live ? " is-live" : ""}">${f.live ? "LIVE" : "SOON"}</span>
         </div>
-        <span class="feature-badge${f.live ? " is-live" : ""}">${f.live ? "LIVE" : "SOON"}</span>
+        ${f.example ? `<div class="feature-example">${f.example}</div>` : ""}
       </div>
-      ${f.example ? `<div class="feature-example">${f.example}</div>` : ""}
       ${f.live ? `<button class="btn btn-sm tryit-open-btn" type="button" data-endpoint="${f.key}" style="width:100%;justify-content:center;margin-top:12px">Try it</button>` : ""}
     </div>`;
 }
@@ -293,7 +295,9 @@ body:has(.page-overlay.show){overflow:hidden}
 
 .feature-card{
   opacity:.55;flex:0 0 auto;width:230px;scroll-snap-align:start;
+  display:flex;flex-direction:column;
 }
+.feature-top{flex:1}
 .feature-card.is-live{opacity:1}
 .feature-card.hide{display:none}
 .feature-badge{
