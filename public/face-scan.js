@@ -1,8 +1,8 @@
 const OVERLAY_ID = 'faceScanOverlay';
 const CLIP_ID = 'faceScanClipPath';
 const CAPTURE_TIMEOUT_MS = 60000;
-const EAR_BLINK_THRESHOLD = 0.21;
-const EAR_OPEN_THRESHOLD = 0.28;
+const TURN_THRESHOLD = 0.16;
+const CENTER_THRESHOLD = 0.09;
 const RESULT_HOLD_MS = 500;
 const DETECT_INPUT_SIZE = 160;
 const DETECT_SCORE_THRESHOLD = 0.2;
@@ -175,9 +175,16 @@ function ensureOverlayStyles() {
   filter:drop-shadow(0 0 18px rgba(0,224,255,.45))}
 #${OVERLAY_ID} .fs-frame-outline path{fill:none;stroke:rgba(0,224,255,.7);stroke-width:2.5;vector-effect:non-scaling-stroke}
 #${OVERLAY_ID}.fs-success .fs-frame-outline path{stroke:#00E0FF}
+#${OVERLAY_ID} .fs-steps{display:flex;gap:8px}
+#${OVERLAY_ID} .fs-step{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.18);
+  border:1.5px solid rgba(0,224,255,.4);transition:background .25s ease,transform .25s ease}
+#${OVERLAY_ID} .fs-step.fs-step-active{transform:scale(1.2);border-color:#00E0FF}
+#${OVERLAY_ID} .fs-step.fs-step-done{background:#00E0FF;border-color:#00E0FF}
 
 #${OVERLAY_ID} .fs-abstract{position:relative;width:120px;height:120px;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;color:#00E0FF}
+  display:flex;align-items:center;justify-content:center;color:#00E0FF;border-radius:32%;overflow:hidden}
+#${OVERLAY_ID} .fs-scan-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1}
+#${OVERLAY_ID} .fs-abstract-backdrop{position:absolute;inset:0;background:rgba(10,10,16,.94)}
 #${OVERLAY_ID} .fs-abstract-ring{position:absolute;inset:0;border-radius:32%;border:2px solid rgba(0,224,255,.35);
   animation:fsPulse 1.6s ease-in-out infinite}
 @keyframes fsPulse{
@@ -202,7 +209,6 @@ function ensureOverlayStyles() {
 #${OVERLAY_ID} .fs-abstract.failed .fs-abstract-cross{opacity:1;transform:scale(1)}
 #${OVERLAY_ID} .fs-abstract.failed .fs-abstract-cross-path{stroke-dashoffset:0}
 #${OVERLAY_ID} .fs-abstract.failed .fs-abstract-ring{animation:none;border-color:#FF3B5C}
-#${OVERLAY_ID} .fs-hidden-video{position:fixed;width:4px;height:4px;opacity:0;pointer-events:none;overflow:hidden}
 
 #${OVERLAY_ID} .fs-status{color:#F3F3FA;font-family:system-ui,-apple-system,sans-serif;font-size:.85rem;
   font-weight:600;text-align:center;max-width:280px;min-height:1.2em}
@@ -213,11 +219,18 @@ function ensureOverlayStyles() {
   document.head.appendChild(style);
 }
 
-function eyeAspectRatio(eye) {
-  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  const vertical = (dist(eye[1], eye[5]) + dist(eye[2], eye[4])) / 2;
-  const horizontal = dist(eye[0], eye[3]);
-  return vertical / horizontal;
+function avgPoint(points) {
+  const sum = points.reduce((a, p) => ({ x: a.x + p.x, y: a.y + p.y }), { x: 0, y: 0 });
+  return { x: sum.x / points.length, y: sum.y / points.length };
+}
+
+function headTurnRatio(landmarks) {
+  const leftEye = avgPoint(landmarks.getLeftEye());
+  const rightEye = avgPoint(landmarks.getRightEye());
+  const nose = avgPoint(landmarks.getNose());
+  const eyeMidX = (leftEye.x + rightEye.x) / 2;
+  const eyeDist = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y) || 1;
+  return (nose.x - eyeMidX) / eyeDist;
 }
 
 export function captureFaceDescriptor({ requireLiveness = true, showCamera = true, verify = null, voice = true } = {}) {
@@ -239,17 +252,21 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         '</div>' +
         '<svg class="fs-frame-outline" viewBox="0 0 1 1" preserveAspectRatio="none"><path d="' + FACE_CLIP_PATH_D + '"/></svg>' +
       '</div>' +
+      (requireLiveness ?
+        '<div class="fs-steps"><span class="fs-step" data-step="0"></span><span class="fs-step" data-step="1"></span><span class="fs-step" data-step="2"></span></div>'
+        : '') +
       '<div class="fs-status">Starting camera…</div>' +
       '<button type="button" class="fs-cancel">Cancel</button>';
   } else {
     overlay.innerHTML =
       '<div class="fs-abstract" id="fsAbstract">' +
+        '<video class="fs-scan-video" autoplay playsinline muted></video>' +
+        '<div class="fs-abstract-backdrop"></div>' +
         '<div class="fs-abstract-ring"></div>' +
         '<svg class="fs-abstract-face" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">' + FACE_GLYPH_PATHS + '</svg>' +
         '<svg class="fs-abstract-check" viewBox="0 0 24 24" fill="none" stroke="#00E0FF" stroke-width="2.6"><path class="fs-abstract-check-path" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>' +
         '<svg class="fs-abstract-cross" viewBox="0 0 24 24" fill="none" stroke="#FF3B5C" stroke-width="2.6"><path class="fs-abstract-cross-path" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>' +
       '</div>' +
-      '<video class="fs-hidden-video" autoplay playsinline muted></video>' +
       '<div class="fs-status">Starting camera…</div>' +
       '<button type="button" class="fs-cancel">Cancel</button>';
   }
@@ -260,10 +277,18 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
   const statusEl = overlay.querySelector('.fs-status');
   const cancelBtn = overlay.querySelector('.fs-cancel');
   const abstractEl = overlay.querySelector('.fs-abstract');
+  const stepEls = overlay.querySelectorAll('.fs-step');
 
   function setStatus(text) {
     statusEl.textContent = text;
     if (voice) speak(text);
+  }
+
+  function setStep(index) {
+    stepEls.forEach((el, i) => {
+      el.classList.toggle('fs-step-done', i < index);
+      el.classList.toggle('fs-step-active', i === index);
+    });
   }
 
   let stream = null;
@@ -322,10 +347,10 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           inputSize: DETECT_INPUT_SIZE,
           scoreThreshold: DETECT_SCORE_THRESHOLD,
         });
-        let blinkDetected = false;
-        let wasOpen = false;
+        let turnStage = 0;
         let stableFrames = 0;
         const startTime = Date.now();
+        if (requireLiveness && showCamera) setStep(0);
 
         const finishCapture = async (descriptor) => {
           if (!verify) {
@@ -411,22 +436,27 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             return;
           }
 
-          const leftEAR = eyeAspectRatio(result.landmarks.getLeftEye());
-          const rightEAR = eyeAspectRatio(result.landmarks.getRightEye());
-          const avgEAR = (leftEAR + rightEAR) / 2;
+          const turnRatio = headTurnRatio(result.landmarks);
 
-          if (!blinkDetected) {
-            if (avgEAR > EAR_OPEN_THRESHOLD) {
-              wasOpen = true;
-              if (showCamera) setStatus('Now blink for us');
-            } else if (wasOpen && avgEAR < EAR_BLINK_THRESHOLD) {
-              blinkDetected = true;
+          if (turnStage === 0) {
+            setStatus('Turn your head to the left');
+            if (turnRatio < -TURN_THRESHOLD) {
+              turnStage = 1;
+              setStep(1);
+              setStatus('Now turn to the right');
             }
-          }
-
-          if (blinkDetected) {
-            finishCapture(Array.from(result.descriptor));
-            return;
+          } else if (turnStage === 1) {
+            if (turnRatio > TURN_THRESHOLD) {
+              turnStage = 2;
+              setStep(2);
+              setStatus('Look straight ahead');
+            }
+          } else if (turnStage === 2) {
+            if (Math.abs(turnRatio) < CENTER_THRESHOLD) {
+              setStep(3);
+              finishCapture(Array.from(result.descriptor));
+              return;
+            }
           }
 
           again(tick);
