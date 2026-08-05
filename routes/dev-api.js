@@ -1,10 +1,14 @@
 import express from "express";
+import QRCode from "qrcode";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { extractTextFromImageUrl } from "../services/ocr.js";
 import { fetchSongByQuery } from "../services/davidcyril.js";
 import { resolveFacebookVideo } from "../services/facebook.js";
 import { searchAudiomackTrack } from "../services/audiomack.js";
 import { askFreeAI } from "../services/ai.js";
+import { createShortLink, resolveShortLink } from "../services/shortener.js";
+import { getWeatherForLocation } from "../services/weather.js";
+import { getLyrics, getBibleVerse, getQuranVerse, getTopTechNews } from "../services/lookup.js";
 import { signDownloadToken, verifyDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
 import {
   requireAuth,
@@ -121,6 +125,14 @@ const mp4Limiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId ||
 const facebookLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const audiomackLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const aiLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const qrcodeLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const shortenLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const redirectLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.ip).middleware();
+const weatherLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const lyricsLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const bibleLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const quranLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const technewsLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const dlLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.ip).middleware();
 
 router.get("/api/v1/dev/ocr", requireDevApiKey, ocrLimiter, async (req, res) => {
@@ -226,6 +238,104 @@ router.post("/api/v1/dev/ai", requireDevApiKey, aiLimiter, async (req, res) => {
     res.json({ response });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not get a response right now." });
+  }
+});
+
+router.get("/api/v1/dev/qrcode", requireDevApiKey, qrcodeLimiter, async (req, res) => {
+  const text = String(req.query.text || "").trim();
+  if (!text) return res.status(400).json({ error: "Missing text query parameter." });
+  if (text.length > 2000) return res.status(400).json({ error: "Text is too long (2000 character limit)." });
+  const size = Math.min(1000, Math.max(100, parseInt(req.query.size, 10) || 400));
+
+  try {
+    const buffer = await QRCode.toBuffer(text, { errorCorrectionLevel: "M", margin: 2, width: size });
+    res.set("Content-Type", "image/png");
+    res.set("Cache-Control", "no-store");
+    res.send(buffer);
+  } catch (err) {
+    res.status(400).json({ error: "Could not generate a QR code for that input." });
+  }
+});
+
+router.post("/api/v1/dev/shorten", requireDevApiKey, shortenLimiter, async (req, res) => {
+  const url = String((req.body && req.body.url) || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing url in request body." });
+
+  try {
+    const code = await createShortLink(req.apiKeyUid, url);
+    res.json({ short_url: `${PUBLIC_BASE}/s/${code}`, original_url: url });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || "Could not shorten that URL." });
+  }
+});
+
+router.get("/s/:code", redirectLimiter, async (req, res) => {
+  try {
+    const url = await resolveShortLink(req.params.code);
+    if (!url) return res.status(404).type("text/plain").send("Short link not found.");
+    res.redirect(302, url);
+  } catch (err) {
+    res.status(500).type("text/plain").send("Could not resolve that link.");
+  }
+});
+
+router.get("/api/v1/dev/weather", requireDevApiKey, weatherLimiter, async (req, res) => {
+  const location = String(req.query.location || "").trim();
+  if (!location) return res.status(400).json({ error: "Missing location query parameter." });
+
+  try {
+    const weather = await getWeatherForLocation(location);
+    res.json(weather);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch weather for that location." });
+  }
+});
+
+router.get("/api/v1/dev/lyrics", requireDevApiKey, lyricsLimiter, async (req, res) => {
+  const artist = String(req.query.artist || "").trim();
+  const title = String(req.query.title || "").trim();
+  if (!artist || !title) return res.status(400).json({ error: "Missing artist and/or title query parameter." });
+
+  try {
+    const result = await getLyrics(artist, title);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch lyrics." });
+  }
+});
+
+router.get("/api/v1/dev/bible", requireDevApiKey, bibleLimiter, async (req, res) => {
+  const reference = String(req.query.reference || "").trim();
+  if (!reference) return res.status(400).json({ error: "Missing reference query parameter." });
+
+  try {
+    const result = await getBibleVerse(reference);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch that Bible reference." });
+  }
+});
+
+router.get("/api/v1/dev/quran", requireDevApiKey, quranLimiter, async (req, res) => {
+  const reference = String(req.query.reference || "").trim();
+  if (!reference) return res.status(400).json({ error: "Missing reference query parameter." });
+
+  try {
+    const result = await getQuranVerse(reference);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch that Quran reference." });
+  }
+});
+
+router.get("/api/v1/dev/technews", requireDevApiKey, technewsLimiter, async (req, res) => {
+  const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 10));
+
+  try {
+    const stories = await getTopTechNews(limit);
+    res.json({ stories });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch tech news." });
   }
 });
 

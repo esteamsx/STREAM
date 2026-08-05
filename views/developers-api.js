@@ -62,6 +62,76 @@ const FEATURES = [
     live: true,
     example: "GET /api/v1/dev/ocr?url=https://example.com/image.png",
   },
+  {
+    key: "qrcode",
+    title: "QR Code",
+    desc: "Generate a QR code image for any text or link.",
+    icon: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM19 14v3M14 19h3M19 19h2"/>',
+    category: "Tools",
+    endpoint: "GET /api/v1/dev/qrcode?text=",
+    live: true,
+    example: "GET /api/v1/dev/qrcode?text=https://esteamstv.devs.surf",
+  },
+  {
+    key: "shorten",
+    title: "URL Shortener",
+    desc: "Turn a long link into a short esteamstv.devs.surf/s/ link.",
+    icon: '<path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 00-7.07 0l-2.83 2.83a5 5 0 007.07 7.07l1.5-1.5"/>',
+    category: "Tools",
+    endpoint: "POST /api/v1/dev/shorten",
+    live: true,
+    example: 'POST /api/v1/dev/shorten  { "url": "..." }',
+  },
+  {
+    key: "weather",
+    title: "Weather",
+    desc: "Current weather for any city.",
+    icon: '<path d="M17.5 19a4.5 4.5 0 000-9 6 6 0 00-11.5 2.5A4 4 0 007 20h10.5z"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/weather?location=",
+    live: true,
+    example: "GET /api/v1/dev/weather?location=Lagos",
+  },
+  {
+    key: "lyrics",
+    title: "Lyrics",
+    desc: "Song lyrics by artist and title.",
+    icon: '<path d="M7 7h4v4a4 4 0 01-4 4H6v-2h1a2 2 0 002-2H7V7z"/><path d="M15 7h4v4a4 4 0 01-4 4h-1v-2h1a2 2 0 002-2h-2V7z"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/lyrics?artist=&title=",
+    live: true,
+    example: "GET /api/v1/dev/lyrics?artist=Alan Walker&title=Faded",
+  },
+  {
+    key: "bible",
+    title: "Bible",
+    desc: "Look up a Bible verse by reference.",
+    icon: '<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/bible?reference=",
+    live: true,
+    example: "GET /api/v1/dev/bible?reference=John 3:16",
+  },
+  {
+    key: "quran",
+    title: "Quran",
+    desc: "Look up a Quran verse by reference.",
+    icon: '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/quran?reference=",
+    live: true,
+    example: "GET /api/v1/dev/quran?reference=2:255",
+  },
+  {
+    key: "technews",
+    title: "Tech News",
+    desc: "Top tech stories right now.",
+    icon: '<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/technews?limit=",
+    live: true,
+    example: "GET /api/v1/dev/technews?limit=5",
+  },
 ];
 
 const CATEGORIES = [];
@@ -514,6 +584,79 @@ ${musicPlayerStyle()}
   "confidence": 96
 }</pre>
 
+    <h2 class="doc-h2">QR Code</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/qrcode?text=</code></p>
+    <p class="doc-p">Give it any text or link, get back a PNG image directly (not JSON). Optional <code>size</code> param, 100-1000px, defaults to 400.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/qrcode?text=https://esteamstv.devs.surf" \\
+  --output qrcode.png</pre>
+
+    <h2 class="doc-h2">URL Shortener</h2>
+    <p class="doc-p"><span class="badge badge-post">POST</span> <code>/api/v1/dev/shorten</code></p>
+    <p class="doc-p">Give it a URL, get back a short <code>esteamstv.devs.surf/s/</code> link that 302-redirects to it.</p>
+    <pre>curl -X POST -H "x-api-key: estv_your_key_here" -H "Content-Type: application/json" \\
+  -d '{"url":"https://example.com/a/very/long/path"}' \\
+  "https://esteamstv.devs.surf/api/v1/dev/shorten"</pre>
+    <pre>{
+  "short_url": "https://esteamstv.devs.surf/s/aB3xY9",
+  "original_url": "https://example.com/a/very/long/path"
+}</pre>
+
+    <h2 class="doc-h2">Weather</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/weather?location=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/weather?location=Lagos"</pre>
+    <pre>{
+  "location": "Lagos, Lagos, Nigeria",
+  "temperature_c": 29.5,
+  "windspeed_kmh": 12,
+  "condition": "Mainly clear",
+  "observed_at": "2026-08-06T10:00"
+}</pre>
+
+    <h2 class="doc-h2">Lyrics</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/lyrics?artist=&amp;title=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/lyrics?artist=Alan Walker&title=Faded"</pre>
+    <pre>{
+  "artist": "Alan Walker",
+  "title": "Faded",
+  "lyrics": "You were the shadow to my light..."
+}</pre>
+
+    <h2 class="doc-h2">Bible</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/bible?reference=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/bible?reference=John 3:16"</pre>
+    <pre>{
+  "reference": "John 3:16",
+  "text": "For God so loved the world...",
+  "translation": "World English Bible"
+}</pre>
+
+    <h2 class="doc-h2">Quran</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/quran?reference=</code></p>
+    <p class="doc-p">Reference is <code>surah:ayah</code>, e.g. <code>2:255</code> for Ayat al-Kursi.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/quran?reference=2:255"</pre>
+    <pre>{
+  "reference": "2:255",
+  "text": "Allah - there is no deity except Him...",
+  "surah": "Al-Baqarah",
+  "numberInSurah": 255
+}</pre>
+
+    <h2 class="doc-h2">Tech News</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/technews?limit=</code></p>
+    <p class="doc-p">Top stories, ranked by score. Optional <code>limit</code> param, 1-20, defaults to 10.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/technews?limit=3"</pre>
+    <pre>{
+  "stories": [
+    { "title": "...", "url": "https://...", "score": 412, "author": "..." }
+  ]
+}</pre>
+
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
     <p class="doc-p">20 requests per minute per API key on each endpoint (15 for AI). On top of that, every account has a monthly allowance shared across <strong>all</strong> your Developer Api keys, separate from the Live Tv Api's own allowance. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
 
@@ -782,7 +925,26 @@ ${musicPlayerHtml()}
     facebook: { title: 'Try it — Facebook Downloader', method: 'GET', path: '/api/v1/dev/facebook', param: 'url', label: 'Facebook URL', placeholder: 'https://facebook.com/watch/?v=...' },
     audiomack: { title: 'Try it — Audiomack', method: 'GET', path: '/api/v1/dev/audiomack', param: 'query', label: 'Search', placeholder: 'Track title or artist' },
     ai: { title: 'Try it — AI', method: 'POST', path: '/api/v1/dev/ai', param: 'prompt', label: 'Prompt', placeholder: 'Ask anything…', body: true },
+    qrcode: { title: 'Try it — QR Code', method: 'GET', path: '/api/v1/dev/qrcode', param: 'text', label: 'Text or link', placeholder: 'https://esteamstv.devs.surf', isImage: true },
+    shorten: { title: 'Try it — URL Shortener', method: 'POST', path: '/api/v1/dev/shorten', param: 'url', label: 'URL to shorten', placeholder: 'https://example.com/a/very/long/path', body: true },
+    weather: { title: 'Try it — Weather', method: 'GET', path: '/api/v1/dev/weather', param: 'location', label: 'City', placeholder: 'Lagos' },
+    lyrics: { title: 'Try it — Lyrics', method: 'GET', path: '/api/v1/dev/lyrics', label: 'Artist - Title', placeholder: 'Alan Walker - Faded', parts: ['artist', 'title'], splitOn: ' - ' },
+    bible: { title: 'Try it — Bible', method: 'GET', path: '/api/v1/dev/bible', param: 'reference', label: 'Reference', placeholder: 'John 3:16' },
+    quran: { title: 'Try it — Quran', method: 'GET', path: '/api/v1/dev/quran', param: 'reference', label: 'Reference (surah:ayah)', placeholder: '2:255' },
+    technews: { title: 'Try it — Tech News', method: 'GET', path: '/api/v1/dev/technews', param: 'limit', label: 'How many (1-20)', placeholder: '5' },
   };
+
+  function buildQueryParams(ep, val){
+    if(ep.parts){
+      var pieces = val.split(ep.splitOn);
+      var out = {};
+      ep.parts.forEach(function(name, i){ out[name] = (pieces[i] || '').trim(); });
+      return out;
+    }
+    var single = {};
+    single[ep.param] = val;
+    return single;
+  }
 
   var tryitEndpoint = 'ocr';
   var tryitOverlay = document.getElementById('tryitOverlay');
@@ -836,7 +998,9 @@ ${musicPlayerHtml()}
       var bodyJson = JSON.stringify(bodyObj);
       tryitCurlEl.textContent = 'curl -X POST -H "x-api-key: ' + key + '" -H "Content-Type: application/json" \\\\\\n  -d \\'' + bodyJson + '\\' \\\\\\n  "' + origin + ep.path + '"';
     } else {
-      tryitCurlEl.textContent = 'curl -H "x-api-key: ' + key + '" \\\\\\n  "' + origin + ep.path + '?' + ep.param + '=' + encodeURIComponent(val) + '"';
+      var params = buildQueryParams(ep, val);
+      var qs = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
+      tryitCurlEl.textContent = 'curl -H "x-api-key: ' + key + '" \\\\\\n  "' + origin + ep.path + '?' + qs + '"';
     }
   }
   tryitKeyInput.addEventListener('input', updateTryitCurl);
@@ -874,7 +1038,9 @@ ${musicPlayerHtml()}
       var b = {}; b[ep.param] = val;
       opts.body = JSON.stringify(b);
     } else {
-      url = ep.path + '?' + ep.param + '=' + encodeURIComponent(val);
+      var params = buildQueryParams(ep, val);
+      var qs = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
+      url = ep.path + '?' + qs;
     }
     var start = performance.now();
     var originalHtml = btn.innerHTML;
@@ -882,9 +1048,18 @@ ${musicPlayerHtml()}
     btn.innerHTML = '<span class="btn-spinner"></span> Sending…';
     fetch(url, opts).then(function(res){
       var ms = Math.round(performance.now() - start);
+      var statusHtml = '<span class="status-pill ' + (res.ok ? 'ok' : 'bad') + '">' + res.status + '</span><span class="result-time">' + ms + 'ms</span>';
+      if(ep.isImage && res.ok){
+        return res.blob().then(function(blob){
+          var objUrl = URL.createObjectURL(blob);
+          tryitResultBox.style.display = 'block';
+          tryitResultStatus.innerHTML = statusHtml;
+          tryitResultBody.innerHTML = '<img src="' + objUrl + '" style="max-width:100%;border-radius:8px;display:block">';
+        });
+      }
       return res.json().catch(function(){ return {}; }).then(function(data){
         tryitResultBox.style.display = 'block';
-        tryitResultStatus.innerHTML = '<span class="status-pill ' + (res.ok ? 'ok' : 'bad') + '">' + res.status + '</span><span class="result-time">' + ms + 'ms</span>';
+        tryitResultStatus.innerHTML = statusHtml;
         tryitResultBody.textContent = JSON.stringify(data, null, 2);
       });
     }).catch(function(){
