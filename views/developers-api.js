@@ -7,6 +7,8 @@ const FEATURES = [
     icon: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
     category: "Downloaders",
     endpoint: "GET /api/v1/dev/mp3?query=",
+    live: true,
+    example: "GET /api/v1/dev/mp3?query=your song here",
   },
   {
     title: "MP4 Downloader",
@@ -14,6 +16,8 @@ const FEATURES = [
     icon: '<path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
     category: "Downloaders",
     endpoint: "GET /api/v1/dev/mp4?query=",
+    live: true,
+    example: "GET /api/v1/dev/mp4?query=your video here",
   },
   {
     title: "Facebook Downloader",
@@ -21,6 +25,8 @@ const FEATURES = [
     icon: '<path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/>',
     category: "Downloaders",
     endpoint: "GET /api/v1/dev/facebook?url=",
+    live: true,
+    example: "GET /api/v1/dev/facebook?url=https://facebook.com/watch/?v=...",
   },
   {
     title: "Audiomack",
@@ -28,6 +34,8 @@ const FEATURES = [
     icon: '<circle cx="12" cy="12" r="9"/><path d="M9 9v6l6-3-6-3z"/>',
     category: "Downloaders",
     endpoint: "GET /api/v1/dev/audiomack?query=",
+    live: true,
+    example: "GET /api/v1/dev/audiomack?query=your track here",
   },
   {
     title: "AI",
@@ -35,6 +43,8 @@ const FEATURES = [
     icon: '<path d="M12 2a5 5 0 015 5v1a5 5 0 01-10 0V7a5 5 0 015-5z"/><path d="M8 14v2a4 4 0 004 4 4 4 0 004-4v-2"/><path d="M12 20v2"/>',
     category: "AI & Vision",
     endpoint: "POST /api/v1/dev/ai",
+    live: true,
+    example: 'POST /api/v1/dev/ai  { "prompt": "..." }',
   },
   {
     title: "OCR",
@@ -294,12 +304,30 @@ th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
 th{color:var(--muted);font-weight:600}
 .badge{display:inline-block;padding:3px 9px;border-radius:6px;font-size:.72rem;font-weight:700;font-family:var(--font-mono)}
 .badge-get{background:rgba(0,224,255,.12);color:var(--accent)}
+.badge-post{background:rgba(124,92,255,.15);color:var(--accent2)}
 .note{
   background:rgba(0,224,255,.06);border:1px solid rgba(0,224,255,.2);border-radius:10px;
   padding:12px 14px;font-size:.85rem;color:var(--text);margin:14px 0;
 }
 h2.doc-h2{font-family:var(--font-display);font-size:1.15rem;margin:34px 0 10px;padding-top:14px;border-top:1px solid var(--border)}
 p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
+
+.tryit-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tryit-tab{
+  padding:7px 12px;border-radius:8px;font-size:.74rem;font-weight:600;cursor:pointer;
+  border:1px solid var(--border-strong);background:var(--card2);color:var(--muted);font-family:var(--font-mono);
+}
+.tryit-tab.active{background:rgba(0,224,255,.12);border-color:rgba(0,224,255,.3);color:var(--accent)}
+.tryit-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
+.tryit-row .field{flex:1;min-width:160px;margin-bottom:0}
+.result-box{margin-top:4px}
+.result-status{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.76rem;font-family:var(--font-mono)}
+.status-pill{padding:3px 9px;border-radius:6px;font-weight:700;font-size:.72rem}
+.status-pill.ok{background:rgba(18,196,139,.14);color:var(--green)}
+.status-pill.bad{background:rgba(255,59,92,.14);color:var(--red)}
+.result-time{color:var(--muted)}
+.curl-label{display:flex;align-items:center;justify-content:space-between;margin-top:14px;margin-bottom:6px}
+.curl-label span{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
 </style>
 </head>
 <body>
@@ -350,6 +378,51 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
           </div>
         </div>
         <div id="keyCardBody"><div class="empty-state">Loading…</div></div>
+      </div>
+
+      <div class="dcard span2" id="tryitCard">
+        <div class="dcard-head">
+          <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></span>
+          <div>
+            <div class="dcard-title">Try it</div>
+            <div class="dcard-sub">Send a real request from your browser</div>
+          </div>
+        </div>
+
+        <div class="tryit-tabs">
+          <div class="tryit-tab active" data-endpoint="ocr">OCR</div>
+          <div class="tryit-tab" data-endpoint="mp3">MP3 Downloader</div>
+          <div class="tryit-tab" data-endpoint="mp4">MP4 Downloader</div>
+          <div class="tryit-tab" data-endpoint="facebook">Facebook Downloader</div>
+          <div class="tryit-tab" data-endpoint="audiomack">Audiomack</div>
+          <div class="tryit-tab" data-endpoint="ai">AI</div>
+        </div>
+
+        <div class="field">
+          <label>Your API key</label>
+          <input type="text" id="tryitKeyInput" placeholder="estv_… (pasted, never stored)" autocomplete="off">
+        </div>
+
+        <div class="tryit-row">
+          <div class="field">
+            <label id="tryitParamLabel">Image URL</label>
+            <input type="text" id="tryitParamInput" placeholder="https://example.com/image.png">
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="tryitSendBtn" type="button" style="width:100%;justify-content:center;margin-bottom:4px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+          Send test request
+        </button>
+
+        <div class="result-box" id="tryitResultBox" style="display:none">
+          <div class="result-status" id="tryitResultStatus"></div>
+          <pre id="tryitResultBody"></pre>
+        </div>
+
+        <div class="curl-label"><span>Equivalent curl</span><button class="btn btn-sm" id="tryitCopyCurl" type="button">Copy</button></div>
+        <pre id="tryitCurl">curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/ocr?url=https://example.com/image.png"</pre>
       </div>
 
     </div>
@@ -407,6 +480,70 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
       ${docsEndpointRows()}
     </table>
 
+    <h2 class="doc-h2">Downloaded files &amp; links</h2>
+    <p class="doc-p">MP3, MP4, Facebook Downloader, and Audiomack don't hand back a raw source URL. Instead they return a <code>download_url</code> (or <code>hd_download_url</code> / <code>sd_download_url</code> for Facebook) hosted on <code>esteamstv.devs.surf</code>, the same way the <a href="/developers/live-tv" target="_blank" rel="noopener">Live Tv Api</a>'s <code>embed_url</code> never exposes the real stream source. Each link is signed and expires after 6 hours; fetch a fresh one by calling the endpoint again.</p>
+
+    <h2 class="doc-h2">MP3 Downloader</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/mp3?query=</code></p>
+    <p class="doc-p">Search by song title or artist. Returns the best match's audio as a branded download link.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/mp3?query=your song here"</pre>
+    <pre>{
+  "title": "Song Title",
+  "artist": "Artist Name",
+  "duration_seconds": 214,
+  "download_url": "https://esteamstv.devs.surf/api/v1/dev/dl/eyJ1cmwi...",
+  "expires_at": "2026-08-05T20:00:00.000Z"
+}</pre>
+
+    <h2 class="doc-h2">MP4 Downloader</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/mp4?query=</code></p>
+    <p class="doc-p">Search by video title. Returns the best match's video (with audio) as a branded download link.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/mp4?query=your video here"</pre>
+    <pre>{
+  "title": "Video Title",
+  "channel": "Channel Name",
+  "duration_seconds": 632,
+  "download_url": "https://esteamstv.devs.surf/api/v1/dev/dl/eyJ1cmwi...",
+  "expires_at": "2026-08-05T20:00:00.000Z"
+}</pre>
+
+    <h2 class="doc-h2">Facebook Downloader</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/facebook?url=</code></p>
+    <p class="doc-p">Give it a public facebook.com or fb.watch video link. Returns HD and/or SD branded download links, whichever the video has.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/facebook?url=https://facebook.com/watch/?v=..."</pre>
+    <pre>{
+  "title": "Video Title",
+  "hd_download_url": "https://esteamstv.devs.surf/api/v1/dev/dl/eyJ1cmwi...",
+  "sd_download_url": "https://esteamstv.devs.surf/api/v1/dev/dl/eyJ1cmwi...",
+  "expires_at": "2026-08-05T20:00:00.000Z"
+}</pre>
+
+    <h2 class="doc-h2">Audiomack</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/audiomack?query=</code></p>
+    <p class="doc-p">Search by track title or artist. Returns the best match as a branded download link.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/audiomack?query=your track here"</pre>
+    <pre>{
+  "title": "Track Title",
+  "artist": "Artist Name",
+  "duration_seconds": 180,
+  "download_url": "https://esteamstv.devs.surf/api/v1/dev/dl/eyJ1cmwi...",
+  "expires_at": "2026-08-05T20:00:00.000Z"
+}</pre>
+
+    <h2 class="doc-h2">AI</h2>
+    <p class="doc-p"><span class="badge badge-post">POST</span> <code>/api/v1/dev/ai</code></p>
+    <p class="doc-p">Send a prompt (4000 character limit), get a real AI response back.</p>
+    <pre>curl -X POST -H "x-api-key: estv_your_key_here" -H "Content-Type: application/json" \\
+  -d '{"prompt":"Give me 3 dinner ideas"}' \\
+  "https://esteamstv.devs.surf/api/v1/dev/ai"</pre>
+    <pre>{
+  "response": "1. ...\n2. ...\n3. ..."
+}</pre>
+
     <h2 class="doc-h2">OCR</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/ocr?url=</code></p>
     <p class="doc-p">Give it a direct image URL (jpeg, png, bmp, webp, or gif, up to 10MB) and get the text found in it back.</p>
@@ -418,17 +555,18 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
 }</pre>
 
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
-    <p class="doc-p">20 requests per minute per API key on the OCR endpoint. On top of that, every account has a monthly allowance shared across <strong>all</strong> your keys and across both the Developer Api and the Live Tv Api, since it's tied to your account, not any one product. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
+    <p class="doc-p">20 requests per minute per API key on each endpoint (15 for AI). On top of that, every account has a monthly allowance shared across <strong>all</strong> your keys and across both the Developer Api and the Live Tv Api, since it's tied to your account, not any one product. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
 
     <h2 class="doc-h2">Errors</h2>
     <table>
       <tr><th>Status</th><th>Meaning</th></tr>
       <tr><td>400</td><td>Missing or invalid parameter</td></tr>
       <tr><td>401</td><td>Missing, invalid, or revoked API key</td></tr>
+      <tr><td>404</td><td>No results found for that search, or the download link expired</td></tr>
       <tr><td>413</td><td>Image too large (10MB limit)</td></tr>
       <tr><td>415</td><td>URL did not return a supported file type</td></tr>
       <tr><td>429</td><td>Per-minute rate limit hit, or the account's monthly request limit is reached</td></tr>
-      <tr><td>502</td><td>Could not reach the given URL, try again shortly</td></tr>
+      <tr><td>502</td><td>Could not reach the given URL or source, try again shortly</td></tr>
     </table>
 
     <div class="note">This is an early version of the API. Endpoints and limits may change, nothing here is guaranteed stable yet.</div>
@@ -631,6 +769,105 @@ p.doc-p{color:var(--muted);line-height:1.65;margin-bottom:10px;font-size:.92rem}
     });
     noResults.classList.toggle('show', !anyVisible);
   });
+
+  var TRYIT_ENDPOINTS = {
+    ocr: { method: 'GET', path: '/api/v1/dev/ocr', param: 'url', label: 'Image URL', placeholder: 'https://example.com/image.png' },
+    mp3: { method: 'GET', path: '/api/v1/dev/mp3', param: 'query', label: 'Search', placeholder: 'Song title or artist' },
+    mp4: { method: 'GET', path: '/api/v1/dev/mp4', param: 'query', label: 'Search', placeholder: 'Video title' },
+    facebook: { method: 'GET', path: '/api/v1/dev/facebook', param: 'url', label: 'Facebook URL', placeholder: 'https://facebook.com/watch/?v=...' },
+    audiomack: { method: 'GET', path: '/api/v1/dev/audiomack', param: 'query', label: 'Search', placeholder: 'Track title or artist' },
+    ai: { method: 'POST', path: '/api/v1/dev/ai', param: 'prompt', label: 'Prompt', placeholder: 'Ask anything…', body: true },
+  };
+
+  var tryitTabs = document.querySelectorAll('.tryit-tab');
+  var tryitEndpoint = 'ocr';
+  var tryitKeyInput = document.getElementById('tryitKeyInput');
+  var tryitParamLabel = document.getElementById('tryitParamLabel');
+  var tryitParamInput = document.getElementById('tryitParamInput');
+  var tryitCurlEl = document.getElementById('tryitCurl');
+  var tryitResultBox = document.getElementById('tryitResultBox');
+  var tryitResultStatus = document.getElementById('tryitResultStatus');
+  var tryitResultBody = document.getElementById('tryitResultBody');
+
+  function setTryitTab(name){
+    tryitEndpoint = name;
+    tryitTabs.forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-endpoint') === name); });
+    var ep = TRYIT_ENDPOINTS[name];
+    tryitParamLabel.textContent = ep.label;
+    tryitParamInput.placeholder = ep.placeholder;
+    updateTryitCurl();
+  }
+  tryitTabs.forEach(function(t){ t.addEventListener('click', function(){ setTryitTab(t.getAttribute('data-endpoint')); }); });
+
+  function updateTryitCurl(){
+    var origin = window.location.origin;
+    var ep = TRYIT_ENDPOINTS[tryitEndpoint];
+    var key = tryitKeyInput.value.trim() || 'estv_your_key_here';
+    var val = tryitParamInput.value.trim() || ep.placeholder;
+    if(ep.body){
+      var bodyObj = {}; bodyObj[ep.param] = val;
+      var bodyJson = JSON.stringify(bodyObj);
+      tryitCurlEl.textContent = 'curl -X POST -H "x-api-key: ' + key + '" -H "Content-Type: application/json" \\\\\\n  -d \\'' + bodyJson + '\\' \\\\\\n  "' + origin + ep.path + '"';
+    } else {
+      tryitCurlEl.textContent = 'curl -H "x-api-key: ' + key + '" \\\\\\n  "' + origin + ep.path + '?' + ep.param + '=' + encodeURIComponent(val) + '"';
+    }
+  }
+  tryitKeyInput.addEventListener('input', updateTryitCurl);
+  tryitParamInput.addEventListener('input', updateTryitCurl);
+
+  document.getElementById('tryitCopyCurl').addEventListener('click', function(){
+    navigator.clipboard.writeText(tryitCurlEl.textContent).catch(function(){});
+    this.textContent = 'Copied!';
+    var self = this;
+    setTimeout(function(){ self.textContent = 'Copy'; }, 1400);
+  });
+
+  document.getElementById('tryitSendBtn').addEventListener('click', function(){
+    var btn = this;
+    var ep = TRYIT_ENDPOINTS[tryitEndpoint];
+    var key = tryitKeyInput.value.trim();
+    var val = tryitParamInput.value.trim();
+    if(!key){
+      tryitResultBox.style.display = 'block';
+      tryitResultStatus.innerHTML = '<span class="status-pill bad">-</span>';
+      tryitResultBody.textContent = 'Paste your API key above first.';
+      return;
+    }
+    if(!val){
+      tryitResultBox.style.display = 'block';
+      tryitResultStatus.innerHTML = '<span class="status-pill bad">-</span>';
+      tryitResultBody.textContent = 'Fill in ' + ep.label + ' first.';
+      return;
+    }
+    var url, opts = { headers: { 'x-api-key': key } };
+    if(ep.body){
+      url = ep.path;
+      opts.method = 'POST';
+      opts.headers['Content-Type'] = 'application/json';
+      var b = {}; b[ep.param] = val;
+      opts.body = JSON.stringify(b);
+    } else {
+      url = ep.path + '?' + ep.param + '=' + encodeURIComponent(val);
+    }
+    var start = performance.now();
+    var originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span> Sending…';
+    fetch(url, opts).then(function(res){
+      var ms = Math.round(performance.now() - start);
+      return res.json().catch(function(){ return {}; }).then(function(data){
+        tryitResultBox.style.display = 'block';
+        tryitResultStatus.innerHTML = '<span class="status-pill ' + (res.ok ? 'ok' : 'bad') + '">' + res.status + '</span><span class="result-time">' + ms + 'ms</span>';
+        tryitResultBody.textContent = JSON.stringify(data, null, 2);
+      });
+    }).catch(function(){
+      tryitResultBox.style.display = 'block';
+      tryitResultStatus.innerHTML = '<span class="status-pill bad">-</span>';
+      tryitResultBody.textContent = 'Request failed. Check your connection and try again.';
+    }).finally(function(){ btn.disabled = false; btn.innerHTML = originalHtml; });
+  });
+
+  setTryitTab('ocr');
 
   var viewDash = document.getElementById('view-dash');
   var viewDocs = document.getElementById('view-docs');
