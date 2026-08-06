@@ -364,7 +364,8 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   const onOutput = (buf, type) => {
     const clean = stripAnsi(buf.toString());
     clean.split(/\r?\n/).filter(Boolean).forEach((line) => {
-      pushLog(entry, line, type);
+      const displayLine = /IS PINGING/i.test(line) ? line.replace(/IS PINGING\s+\S+/i, "IS PINGING") : line;
+      pushLog(entry, displayLine, type);
 
       const codeMatch = line.match(/Pairing Code\s*:\s*([A-Za-z0-9-]{4,20})/i);
       if (codeMatch) {
