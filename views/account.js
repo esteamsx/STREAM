@@ -244,6 +244,10 @@ input{font-family:inherit}
 .notif-dot.show{display:block}
 
 .acc-wrap{max-width:520px;margin:0 auto;padding:28px 18px 60px}
+.acc-views-clip{overflow:hidden}
+.acc-views-track{display:flex;width:200%;transition:transform .4s cubic-bezier(.22,.61,.36,1)}
+.acc-views-track.show-rewards{transform:translateX(-50%)}
+.acc-view-panel{width:50%;flex-shrink:0;min-width:0}
 
 .acc-hero{display:flex;align-items:center;gap:16px;margin-bottom:28px}
 .acc-avatar{
@@ -330,11 +334,21 @@ input{font-family:inherit}
 .acc-back-to-account svg{width:18px;height:18px}
 .acc-back-to-account:hover{color:var(--accent)}
 
-.rw-balance-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
-.rw-balance-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
-.rw-balance-label{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
-.rw-balance-label svg{width:14px;height:14px;color:var(--accent)}
-.rw-balance-val{font-family:var(--font-display);font-weight:700;font-size:1.5rem;margin-top:6px}
+.rw-balance-grid{margin-bottom:16px}
+.rw-wallet-card{background:linear-gradient(160deg,var(--card),var(--card2));border:1px solid var(--border);border-radius:18px;padding:20px}
+.rw-wallet-top{display:flex;align-items:center;justify-content:space-between}
+.rw-wallet-label{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.rw-wallet-label svg{width:14px;height:14px;color:var(--accent)}
+.rw-wallet-eye{background:transparent;border:none;padding:4px;color:var(--muted);display:flex;border-radius:6px}
+.rw-wallet-eye:hover{color:var(--accent)}
+.rw-wallet-eye svg{width:16px;height:16px}
+.rw-wallet-eye .eye-off{display:none}
+.rw-wallet-eye.shown .eye{display:none}
+.rw-wallet-eye.shown .eye-off{display:block}
+.rw-wallet-val{font-family:var(--font-display);font-weight:700;font-size:2rem;margin-top:10px;letter-spacing:.02em}
+.rw-wallet-sub{font-size:.82rem;color:var(--muted);margin-top:4px;font-weight:600}
+.rw-wallet-actions{display:flex;gap:10px;margin-top:18px}
+.rw-wallet-actions .acc-btn{flex:1;margin-top:0}
 
 .rw-ref-link-row{display:flex;gap:8px}
 .rw-ref-link-row input{
@@ -368,6 +382,26 @@ input{font-family:inherit}
 .rw-wd-row .status-pill.pending{background:rgba(245,166,35,.15);color:#FFB020}
 .rw-wd-row .status-pill.completed{background:rgba(18,196,139,.15);color:var(--green)}
 .rw-wd-cert-link{font-size:.7rem;color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:none;padding:0;margin-top:4px}
+
+.bank-picker{position:relative}
+.bank-picker input[type="text"]{
+  width:100%;background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
+  padding:11px 13px;color:var(--text);font-size:.9rem;font-family:inherit;transition:border-color .2s var(--ease);
+}
+.bank-picker input[type="text"]:focus{border-color:var(--accent)}
+.bank-picker-list{
+  display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:5;max-height:220px;overflow-y:auto;
+  background:var(--card);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.35);
+  padding:6px;
+}
+.bank-picker.open .bank-picker-list{display:block}
+.bank-picker-item{
+  width:100%;text-align:left;background:transparent;border:none;color:var(--text);font-family:inherit;
+  font-size:.85rem;padding:9px 10px;border-radius:8px;cursor:pointer;
+}
+.bank-picker-item:hover,.bank-picker-item.active{background:var(--card2);color:var(--accent)}
+.bank-picker-empty{font-size:.8rem;color:var(--muted);text-align:center;padding:12px 4px}
+
 .legal-links{display:flex;align-items:center;justify-content:center;gap:22px;margin-top:16px}
 .legal-links a{color:var(--muted);text-decoration:underline;font-weight:500;font-size:.72rem;transition:color .2s var(--ease)}
 .legal-links a:hover{color:var(--text)}
@@ -717,17 +751,15 @@ body:has(.page-overlay.show){overflow:hidden}
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
       Get Verified
     </button>
-    <button type="button" class="acc-verify-link" id="openRewardsBtn" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-color:transparent">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5a2 2 0 013-1.7M15.5 14.5a2 2 0 01-3 1.7"/></svg>
-      Rewards
-    </button>
     <button class="acc-settings-icon" id="themeToggle" aria-label="Toggle theme">
       <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
     </button>
   </div>
 
-  <div id="view-account">
+  <div class="acc-views-clip">
+  <div class="acc-views-track" id="accViewsTrack">
+  <div id="view-account" class="acc-view-panel">
 
   <div class="acc-card">
     <div class="acc-card-title">
@@ -1050,23 +1082,28 @@ body:has(.page-overlay.show){overflow:hidden}
 
   </div>
 
-  <div id="view-rewards" style="display:none">
+  <div id="view-rewards" class="acc-view-panel">
     <button type="button" class="acc-back-to-account" id="backToAccountBtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
       Back to Account
     </button>
 
     <div class="rw-balance-grid">
-      <div class="rw-balance-card">
-        <div class="rw-balance-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5a2 2 0 013-1.7M15.5 14.5a2 2 0 01-3 1.7"/></svg> Coins</div>
-        <div class="rw-balance-val" id="rwCoinBalance">0</div>
-        <button type="button" class="acc-btn" id="rwDailyClaimBtn" style="width:100%;margin-top:10px">Claim Daily Coins (+2)</button>
+      <div class="rw-wallet-card">
+        <div class="rw-wallet-top">
+          <div class="rw-wallet-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Wallet Balance</div>
+          <button type="button" class="rw-wallet-eye" id="rwBalanceEyeBtn" aria-label="Show balance">
+            <svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.6 21.6 0 015.06-6.06M9.9 4.24A10.4 10.4 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+          </button>
+        </div>
+        <div class="rw-wallet-val" id="rwNairaBalance">&#8358;0</div>
+        <div class="rw-wallet-sub" id="rwCoinBalanceSub">0 coins</div>
+        <div class="rw-wallet-actions">
+          <button type="button" class="acc-btn" id="rwDailyClaimBtn">Claim</button>
+          <button type="button" class="acc-btn acc-btn-ghost" id="rwWithdrawBtn">Withdraw</button>
+        </div>
         <div class="acc-msg" id="rwDailyClaimMsg"></div>
-      </div>
-      <div class="rw-balance-card">
-        <div class="rw-balance-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Naira Balance</div>
-        <div class="rw-balance-val" id="rwNairaBalance">&#8358;0</div>
-        <button type="button" class="acc-btn" id="rwWithdrawBtn" style="width:100%;margin-top:10px">Withdraw</button>
       </div>
     </div>
 
@@ -1116,7 +1153,11 @@ body:has(.page-overlay.show){overflow:hidden}
       </div>
       <div class="field">
         <label>Bank Name</label>
-        <input type="text" id="rwBankName" placeholder="e.g. GTBank">
+        <div class="bank-picker" id="rwBankPicker">
+          <input type="text" id="rwBankSearch" placeholder="Search for your bank…" autocomplete="off">
+          <input type="hidden" id="rwBankName">
+          <div class="bank-picker-list" id="rwBankList"></div>
+        </div>
       </div>
       <div class="field">
         <label>Account Number</label>
@@ -1138,6 +1179,8 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="rw-withdrawal-list" id="rwWithdrawalList"><div class="rw-empty">No withdrawals yet.</div></div>
     </div>
   </div>
+  </div>
+  </div>
 
 </div>
 
@@ -1150,7 +1193,7 @@ body:has(.page-overlay.show){overflow:hidden}
       <input type="number" id="rwWithdrawAmount" placeholder="5000" min="5000" step="100">
     </div>
     <div class="acc-msg" id="rwWithdrawMsg"></div>
-    <button class="btn btn-primary" id="rwWithdrawConfirmBtn" type="button" style="width:100%;justify-content:center">Submit Request</button>
+    <button class="acc-btn" id="rwWithdrawConfirmBtn" type="button" style="width:100%;justify-content:center">Submit Request</button>
     <button class="overlay-cancel" id="rwWithdrawCancelBtn" type="button">Cancel</button>
   </div>
 </div>
@@ -3492,20 +3535,71 @@ async function confirmVerificationPayment(reference){
 let rewardsSummary = null;
 
 function showAccount(){
-  document.getElementById('view-rewards').style.display = 'none';
-  document.getElementById('view-account').style.display = 'block';
+  document.getElementById('accViewsTrack').classList.remove('show-rewards');
   window.scrollTo(0, 0);
 }
 function showRewards(){
-  document.getElementById('view-account').style.display = 'none';
-  document.getElementById('view-rewards').style.display = 'block';
+  document.getElementById('accViewsTrack').classList.add('show-rewards');
   window.scrollTo(0, 0);
 }
-document.getElementById('openRewardsBtn').addEventListener('click', () => { showRewards(); loadRewardsSummary(); });
 document.getElementById('backToAccountBtn').addEventListener('click', showAccount);
+
+(function(){
+  const clip = document.querySelector('.acc-views-clip');
+  const track = document.getElementById('accViewsTrack');
+  let startX = 0, startY = 0, dragging = false, moved = false;
+  function onStart(x, y){
+    startX = x; startY = y; dragging = true; moved = false;
+  }
+  function onMove(x, y, evt){
+    if (!dragging) return;
+    const dx = x - startX, dy = y - startY;
+    if (!moved && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) moved = true;
+    if (moved && evt && evt.cancelable) evt.preventDefault();
+  }
+  function onEnd(x){
+    if (!dragging) return;
+    dragging = false;
+    const dx = x - startX;
+    if (moved && Math.abs(dx) > 50) {
+      if (track.classList.contains('show-rewards')) {
+        showAccount();
+      } else {
+        showRewards();
+        loadRewardsSummary();
+      }
+    }
+  }
+  clip.addEventListener('touchstart', (e) => onStart(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  clip.addEventListener('touchmove', (e) => onMove(e.touches[0].clientX, e.touches[0].clientY, e), { passive: false });
+  clip.addEventListener('touchend', (e) => onEnd(e.changedTouches[0].clientX));
+  clip.addEventListener('mousedown', (e) => onStart(e.clientX, e.clientY));
+  clip.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY, e));
+  window.addEventListener('mouseup', (e) => onEnd(e.clientX));
+})();
 
 function fmtNgn(n){ return '₦' + Number(n || 0).toLocaleString('en-NG'); }
 function fmtDateShort(ms){ if (!ms) return ''; return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
+
+let balanceVisible = false;
+function renderWalletBalance(){
+  const nairaEl = document.getElementById('rwNairaBalance');
+  const coinEl = document.getElementById('rwCoinBalanceSub');
+  const coinBalance = rewardsSummary ? (rewardsSummary.coinBalance || 0) : 0;
+  const nairaBalance = rewardsSummary ? (rewardsSummary.nairaBalance || 0) : 0;
+  if (balanceVisible) {
+    nairaEl.textContent = fmtNgn(nairaBalance);
+    coinEl.textContent = coinBalance + ' coins';
+  } else {
+    nairaEl.textContent = '₦••••••';
+    coinEl.textContent = '•••• coins';
+  }
+}
+document.getElementById('rwBalanceEyeBtn').addEventListener('click', () => {
+  balanceVisible = !balanceVisible;
+  document.getElementById('rwBalanceEyeBtn').classList.toggle('shown', balanceVisible);
+  renderWalletBalance();
+});
 
 async function loadRewardsSummary(){
   try {
@@ -3514,8 +3608,7 @@ async function loadRewardsSummary(){
     return;
   }
 
-  document.getElementById('rwCoinBalance').textContent = rewardsSummary.coinBalance;
-  document.getElementById('rwNairaBalance').textContent = fmtNgn(rewardsSummary.nairaBalance);
+  renderWalletBalance();
   document.getElementById('rwReferralLinkInput').value = rewardsSummary.referralLink || '';
 
   const today = new Date().toISOString().slice(0, 10);
@@ -3525,7 +3618,7 @@ async function loadRewardsSummary(){
     claimBtn.textContent = 'Claimed Today';
   } else {
     claimBtn.disabled = false;
-    claimBtn.textContent = 'Claim Daily Coins (+2)';
+    claimBtn.textContent = 'Claim';
   }
 
   const refList = document.getElementById('rwReferralList');
@@ -3563,6 +3656,7 @@ async function loadRewardsSummary(){
 
   if (rewardsSummary.bankDetails) {
     document.getElementById('rwBankName').value = rewardsSummary.bankDetails.bankName || '';
+    document.getElementById('rwBankSearch').value = rewardsSummary.bankDetails.bankName || '';
     document.getElementById('rwAccountNumber').value = rewardsSummary.bankDetails.accountNumber || '';
     document.getElementById('rwAccountName').value = rewardsSummary.bankDetails.accountName || '';
   }
@@ -3655,6 +3749,53 @@ async function confirmCoinPurchase(reference){
   }
 }
 
+const NIGERIA_BANKS = [
+  'Access Bank', 'Carbon', 'Citibank Nigeria', 'Ecobank Nigeria', 'FairMoney MFB', 'Fidelity Bank',
+  'First Bank of Nigeria', 'First City Monument Bank (FCMB)', 'Globus Bank', 'Guaranty Trust Bank (GTBank)',
+  'Jaiz Bank', 'Keystone Bank', 'Kuda Bank', 'Moniepoint MFB', 'OPay', 'Optimus Bank', 'PalmPay',
+  'Parallex Bank', 'Polaris Bank', 'Premium Trust Bank', 'Providus Bank', 'Rubies MFB', 'Signature Bank',
+  'Sparkle Microfinance Bank', 'Stanbic IBTC Bank', 'Standard Chartered Bank', 'Sterling Bank',
+  'SunTrust Bank', 'Titan Trust Bank', 'Union Bank of Nigeria', 'United Bank for Africa (UBA)',
+  'Unity Bank', 'VFD Microfinance Bank', 'Wema Bank', 'Zenith Bank',
+];
+
+const rwBankPicker = document.getElementById('rwBankPicker');
+const rwBankSearch = document.getElementById('rwBankSearch');
+const rwBankNameField = document.getElementById('rwBankName');
+const rwBankList = document.getElementById('rwBankList');
+
+function renderBankList(query){
+  const q = query.trim().toLowerCase();
+  const matches = q ? NIGERIA_BANKS.filter((b) => b.toLowerCase().includes(q)) : NIGERIA_BANKS;
+  if (!matches.length) {
+    rwBankList.innerHTML = '<div class="bank-picker-empty">No matching bank found.</div>';
+    return;
+  }
+  rwBankList.innerHTML = matches.map((b) =>
+    '<button type="button" class="bank-picker-item' + (b === rwBankNameField.value ? ' active' : '') + '" data-bank="' + esc(b) + '">' + esc(b) + '</button>'
+  ).join('');
+  rwBankList.querySelectorAll('.bank-picker-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const bank = item.getAttribute('data-bank');
+      rwBankNameField.value = bank;
+      rwBankSearch.value = bank;
+      rwBankPicker.classList.remove('open');
+    });
+  });
+}
+
+rwBankSearch.addEventListener('focus', () => {
+  rwBankPicker.classList.add('open');
+  renderBankList(rwBankSearch.value);
+});
+rwBankSearch.addEventListener('input', () => {
+  rwBankNameField.value = '';
+  renderBankList(rwBankSearch.value);
+});
+rwBankSearch.addEventListener('blur', () => {
+  setTimeout(() => rwBankPicker.classList.remove('open'), 150);
+});
+
 document.getElementById('rwCopyReferralBtn').addEventListener('click', () => {
   const input = document.getElementById('rwReferralLinkInput');
   navigator.clipboard.writeText(input.value).catch(() => {});
@@ -3670,6 +3811,10 @@ document.getElementById('rwSaveBankBtn').addEventListener('click', async () => {
   const bankName = document.getElementById('rwBankName').value.trim();
   const accountNumber = document.getElementById('rwAccountNumber').value.trim();
   const accountName = document.getElementById('rwAccountName').value.trim();
+  if (!bankName) {
+    flashMsg(msg, 'Search and select your bank from the list first.', false);
+    return;
+  }
   btn.disabled = true;
   try {
     await postJSON('/api/rewards/bank-details', { bankName, accountNumber, accountName });

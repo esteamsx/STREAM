@@ -2523,6 +2523,7 @@ const COIN_PACKAGES = {
   pack150: { coins: 150, priceNgn: 500 },
   pack350: { coins: 350, priceNgn: 900 },
   pack500: { coins: 500, priceNgn: 1200 },
+  pack1000: { coins: 1000, priceNgn: 2000 },
 };
 
 async function generateReferralCode() {
@@ -2534,6 +2535,13 @@ async function generateReferralCode() {
     if (existing.empty) return code;
   }
   return "R" + crypto.randomBytes(6).toString("hex").toUpperCase();
+}
+
+async function ensureReferralCode(uid, profile) {
+  if (profile && profile.referralCode) return profile.referralCode;
+  const code = await generateReferralCode();
+  await db.collection("users").doc(uid).update({ referralCode: code });
+  return code;
 }
 
 async function findUserByReferralCode(code) {
@@ -3110,6 +3118,7 @@ export {
   COIN_STORE_ITEMS,
   COIN_PACKAGES,
   applyReferral,
+  ensureReferralCode,
   findUserByReferralCode,
   getReferralsForUser,
   claimDailyCoins,

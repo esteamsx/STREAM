@@ -73,11 +73,11 @@ async function requireDevApiKey(req, res, next) {
 
     const originalJson = res.json.bind(res);
     res.json = (body) => {
-      if (res.statusCode >= 400 && body && typeof body === "object" && !Array.isArray(body)) {
+      if (res.statusCode >= 400 && body && typeof body === "object" && !Array.isArray(body) && typeof body.error === "string") {
         if (!plan.noAds) {
-          body = { ...body, notice: DEFAULT_PROMO_NOTICE };
+          body = { ...body, error: `${body.error} ${DEFAULT_PROMO_NOTICE}` };
         } else if (ownerProfile && ownerProfile.devApiCustomAdsUrl) {
-          body = { ...body, notice: ownerProfile.devApiCustomAdsUrl };
+          body = { ...body, error: `${body.error} ${ownerProfile.devApiCustomAdsUrl}` };
         }
       }
       return originalJson(body);

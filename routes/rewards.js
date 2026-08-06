@@ -9,6 +9,7 @@ import {
   setBankDetails,
   requestWithdrawal,
   listWithdrawalRequestsForUser,
+  ensureReferralCode,
   COIN_STORE_ITEMS,
   COIN_PACKAGES,
 } from "../services/auth.js";
@@ -27,13 +28,14 @@ const withdrawLimiter = new SimpleRateLimiter(10, 60 * 60 * 1000, (req) => req.u
 router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res) => {
   try {
     const profile = req.userProfile;
-    const [referrals, withdrawals] = await Promise.all([
+    const [referralCode, referrals, withdrawals] = await Promise.all([
+      ensureReferralCode(req.uid, profile),
       getReferralsForUser(req.uid),
       listWithdrawalRequestsForUser(req.uid),
     ]);
     res.json({
-      referralCode: profile.referralCode || null,
-      referralLink: profile.referralCode ? `${PUBLIC_BASE}/?ref=${profile.referralCode}` : null,
+      referralCode,
+      referralLink: `${PUBLIC_BASE}/?ref=${referralCode}`,
       coinBalance: profile.coinBalance || 0,
       nairaBalance: profile.nairaBalance || 0,
       lastDailyCoinClaimDay: profile.lastDailyCoinClaimDay || null,
