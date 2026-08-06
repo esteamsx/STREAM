@@ -41,16 +41,26 @@ html,body{min-height:100%}
 body{
   background:var(--dark);color:var(--text);font-family:var(--font-body);
   min-height:100vh;padding:40px 20px;
-  display:flex;justify-content:center;overflow-y:auto;
-  background-image:
-    radial-gradient(900px 500px at 15% -10%,rgba(0,224,255,.06),transparent 60%),
-    radial-gradient(700px 400px at 100% 0%,rgba(124,92,255,.04),transparent 55%);
+  display:flex;justify-content:center;overflow-y:auto;overflow-x:hidden;position:relative;
 }
+.aurora{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+.blob{position:absolute;border-radius:50%;filter:blur(65px);mix-blend-mode:screen}
+.blob-1{width:560px;height:560px;background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.65;top:-160px;left:-140px;animation:blobDrift1 22s ease-in-out infinite}
+.blob-2{width:500px;height:500px;background:radial-gradient(circle,var(--accent2),transparent 70%);opacity:.6;bottom:-180px;right:-120px;animation:blobDrift2 26s ease-in-out infinite}
+.blob-3{width:420px;height:420px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.45;top:38%;left:50%;animation:blobDrift3 30s ease-in-out infinite}
+:root[data-theme="light"] .blob{filter:blur(70px);mix-blend-mode:normal}
+:root[data-theme="light"] .blob-1{background:radial-gradient(circle,rgba(0,224,255,.6),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-2{background:radial-gradient(circle,rgba(124,92,255,.55),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-3{background:radial-gradient(circle,rgba(255,92,184,.45),transparent 70%);opacity:1}
+@keyframes blobDrift1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(70px,50px) scale(1.12)}}
+@keyframes blobDrift2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-60px,-40px) scale(1.1)}}
+@keyframes blobDrift3{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) translate(-50px,60px) scale(1.18)}}
+@media (prefers-reduced-motion: reduce){.blob{animation:none}}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
-.auth-wrap{width:100%;max-width:380px;margin:auto 0}
+.auth-wrap{position:relative;z-index:1;width:100%;max-width:380px;margin:auto 0}
 .auth-logo{
   display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:24px;
   font-family:var(--font-display);font-size:1.3rem;font-weight:700;letter-spacing:-.02em;
@@ -58,8 +68,17 @@ input{font-family:inherit}
   -webkit-background-clip:text;background-clip:text;color:transparent;
 }
 .auth-card{
-  background:var(--card);border:1px solid var(--border);border-radius:16px;
-  padding:28px 24px;box-shadow:0 20px 60px rgba(0,0,0,.4);
+  position:relative;
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
+  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
+  border:1px solid rgba(255,255,255,.25);border-radius:24px;
+  padding:28px 24px;
+  box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.35),inset 0 0 40px rgba(255,255,255,.03);
+}
+:root[data-theme="light"] .auth-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.55),rgba(255,255,255,.18) 40%,rgba(255,255,255,.28) 100%);
+  border:1px solid rgba(255,255,255,.6);
+  box-shadow:0 30px 80px rgba(20,20,28,.18),inset 0 1px 0 rgba(255,255,255,.7),inset 0 0 40px rgba(255,255,255,.15);
 }
 @media(max-width:380px){
   body{padding:28px 14px}
@@ -67,12 +86,14 @@ input{font-family:inherit}
   .auth-logo{font-size:1.12rem;gap:8px}
   .field-row{gap:8px}
 }
-.auth-tabs{display:flex;gap:4px;background:var(--dark3);border-radius:10px;padding:4px;margin-bottom:22px}
+.auth-tabs{display:flex;gap:4px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:4px;margin-bottom:22px}
 .auth-tab{
   flex:1;text-align:center;padding:9px 0;border:none;background:transparent;color:var(--muted);
   font-size:.85rem;font-weight:600;border-radius:8px;transition:all .2s var(--ease);
 }
-.auth-tab.active{background:var(--card2);color:var(--text);box-shadow:0 1px 0 rgba(255,255,255,.05) inset}
+.auth-tab.active{background:rgba(255,255,255,.12);color:var(--text);box-shadow:0 1px 0 rgba(255,255,255,.05) inset}
+:root[data-theme="light"] .auth-tabs{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.5)}
+:root[data-theme="light"] .auth-tab.active{background:rgba(255,255,255,.85);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 
 .auth-form{display:none;flex-direction:column;gap:14px}
 .auth-form.active{display:flex}
@@ -83,10 +104,11 @@ input{font-family:inherit}
 .field-row .field{flex:1}
 .input-wrap{position:relative}
 .field input{
-  width:100%;background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
+  width:100%;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.14);border-radius:10px;
   padding:11px 13px;color:var(--text);font-size:.9rem;transition:border-color .2s var(--ease);
 }
 .field input::placeholder{color:var(--muted2)}
+:root[data-theme="light"] .field input{background:rgba(255,255,255,.45);border-color:rgba(255,255,255,.7)}
 .field input:focus{border-color:var(--accent)}
 .pw-toggle{
   position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;border:none;
@@ -287,6 +309,12 @@ body:has(.page-overlay.show){overflow:hidden}
 </style>
 </head>
 <body>
+
+<div class="aurora">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
 
 <div class="auth-wrap">
   <div class="auth-logo"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" style="width:24px;height:24px;flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>ES TEAMS TV</div>
