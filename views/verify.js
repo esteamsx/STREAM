@@ -38,15 +38,22 @@ html,body{height:100%}
 body{
   background:var(--dark);color:var(--text);font-family:var(--font-body);
   display:flex;align-items:center;justify-content:center;min-height:100%;padding:24px;
-  background-image:
-    radial-gradient(900px 500px at 15% -10%,rgba(0,224,255,.06),transparent 60%),
-    radial-gradient(700px 400px at 100% 0%,rgba(124,92,255,.04),transparent 55%);
+  overflow-x:hidden;position:relative;
 }
+.aurora{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+.blob{position:absolute;border-radius:50%;filter:blur(65px);mix-blend-mode:screen}
+.blob-1{width:560px;height:560px;background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.5;top:-160px;left:-140px}
+.blob-2{width:500px;height:500px;background:radial-gradient(circle,var(--accent2),transparent 70%);opacity:.45;bottom:-180px;right:-120px}
+.blob-3{width:420px;height:420px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.32;top:38%;left:50%;transform:translate(-50%,-50%)}
+:root[data-theme="light"] .blob{filter:blur(70px);mix-blend-mode:normal}
+:root[data-theme="light"] .blob-1{background:radial-gradient(circle,rgba(0,224,255,.5),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-2{background:radial-gradient(circle,rgba(124,92,255,.45),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-3{background:radial-gradient(circle,rgba(255,92,184,.35),transparent 70%);opacity:1}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
-.v-wrap{width:100%;max-width:380px;text-align:center}
+.v-wrap{width:100%;max-width:380px;text-align:center;position:relative;z-index:1}
 .v-logo{
   display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:24px;
   font-family:var(--font-display);font-size:1.3rem;font-weight:700;letter-spacing:-.02em;
@@ -54,8 +61,15 @@ input{font-family:inherit}
   -webkit-background-clip:text;background-clip:text;color:transparent;
 }
 .v-card{
-  background:var(--card);border:1px solid var(--border);border-radius:16px;
-  padding:32px 24px;box-shadow:0 20px 60px rgba(0,0,0,.4);
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
+  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
+  border:1px solid rgba(255,255,255,.22);border-radius:16px;
+  padding:32px 24px;box-shadow:0 20px 60px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.3);
+}
+:root[data-theme="light"] .v-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);
+  border:1px solid rgba(255,255,255,.65);
+  box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
 }
 .v-icon{
   width:52px;height:52px;border-radius:50%;background:rgba(0,224,255,.1);
@@ -99,6 +113,12 @@ input{font-family:inherit}
 </style>
 </head>
 <body>
+
+<div class="aurora">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
 
 <div class="v-wrap">
   <div class="v-logo">ES TEAMS TV</div>
