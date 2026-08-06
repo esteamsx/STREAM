@@ -442,11 +442,17 @@ ${cfg.protectionCSS || ""}
 html,body{height:100%}
 body{
   background:var(--dark);color:var(--text);font-family:var(--font-body);
-  min-height:100%;
-  background-image:
-    radial-gradient(900px 500px at 15% -10%,rgba(0,224,255,.06),transparent 60%),
-    radial-gradient(700px 400px at 100% 0%,rgba(124,92,255,.04),transparent 55%);
+  min-height:100%;overflow-x:hidden;position:relative;
 }
+.aurora{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+.blob{position:absolute;border-radius:50%;filter:blur(65px);mix-blend-mode:screen}
+.blob-1{width:560px;height:560px;background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.5;top:-160px;left:-140px}
+.blob-2{width:500px;height:500px;background:radial-gradient(circle,var(--accent2),transparent 70%);opacity:.45;bottom:-180px;right:-120px}
+.blob-3{width:420px;height:420px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.32;top:38%;left:50%;transform:translate(-50%,-50%)}
+:root[data-theme="light"] .blob{filter:blur(70px);mix-blend-mode:normal}
+:root[data-theme="light"] .blob-1{background:radial-gradient(circle,rgba(0,224,255,.5),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-2{background:radial-gradient(circle,rgba(124,92,255,.45),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-3{background:radial-gradient(circle,rgba(255,92,184,.35),transparent 70%);opacity:1}
 a{color:var(--accent);text-decoration:none}
 code,pre{font-family:var(--font-mono)}
 code{background:var(--card2);padding:2px 6px;border-radius:5px;font-size:.85em}
@@ -455,7 +461,7 @@ pre{
   padding:14px 16px;overflow-x:auto;font-size:.82rem;line-height:1.6;margin:10px 0 18px;
   white-space:pre-wrap;word-break:break-all;
 }
-.wrap{max-width:920px;margin:0 auto;padding:22px 20px 80px}
+.wrap{max-width:920px;margin:0 auto;padding:22px 20px 80px;position:relative;z-index:1}
 
 #view-docs{display:none}
 
@@ -512,9 +518,16 @@ pre{
 body:has(.page-overlay.show){overflow:hidden}
 .overlay-card{
   width:100%;max-width:360px;max-height:calc(100vh - 48px);overflow-y:auto;
-  background:var(--card);border:1px solid var(--border-strong);border-radius:16px;
-  padding:26px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
+  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
+  border:1px solid rgba(255,255,255,.22);border-radius:16px;
+  padding:26px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);
   animation:overlayCardIn .22s var(--ease);
+}
+:root[data-theme="light"] .overlay-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);
+  border:1px solid rgba(255,255,255,.65);
+  box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
 }
 .overlay-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem}
 .overlay-sub{font-size:.82rem;color:var(--muted);line-height:1.5}
@@ -529,13 +542,21 @@ body:has(.page-overlay.show){overflow:hidden}
   -webkit-overflow-scrolling:touch;
 }
 .plan-card{
-  background:var(--card2);border:1px solid var(--border-strong);border-radius:14px;padding:16px;
+  background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+  border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:16px;
+  box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
   display:flex;flex-direction:column;gap:12px;position:relative;
   flex:0 0 auto;width:200px;scroll-snap-align:start;
 }
+:root[data-theme="light"] .plan-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.6);
+}
 @media(min-width:600px){ .plan-card{width:220px} }
 .plan-card.current{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.plan-card.highlight{border-color:var(--accent2);background:linear-gradient(160deg,rgba(124,92,255,.1),var(--card2))}
+.plan-card.highlight{border-color:var(--accent2);background:linear-gradient(160deg,rgba(124,92,255,.16),rgba(255,255,255,.045)),linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%)}
 .plan-name{font-family:var(--font-display);font-weight:700;font-size:1rem}
 .plan-price{font-family:var(--font-display);font-weight:700;font-size:1.4rem}
 .plan-price span{font-size:.68rem;font-weight:500;color:var(--muted)}
@@ -558,8 +579,16 @@ body:has(.page-overlay.show){overflow:hidden}
 .dash-grid{display:grid;grid-template-columns:1fr;gap:16px}
 @media(min-width:760px){ .dash-grid{grid-template-columns:1fr 1fr} .dash-grid .span2{grid-column:1/-1} }
 .dcard{
-  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+  border:1px solid rgba(255,255,255,.16);border-radius:16px;
+  box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
   padding:18px;position:relative;overflow:hidden;
+}
+:root[data-theme="light"] .dcard{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.6);
 }
 .dcard-head{display:flex;align-items:center;gap:9px;margin-bottom:14px}
 .dcard-icon{width:28px;height:28px;border-radius:9px;background:var(--card2);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0}
@@ -677,6 +706,11 @@ ${musicPlayerStyle()}
 </style>
 </head>
 <body>
+<div class="aurora">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
 <div class="wrap">
 
   <div id="view-dash">
