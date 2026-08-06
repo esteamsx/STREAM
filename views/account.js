@@ -327,12 +327,16 @@ input{font-family:inherit}
 }
 .field select:focus{border-color:var(--accent)}
 
-.acc-back-to-account{
-  display:flex;align-items:center;gap:6px;background:transparent;border:none;color:var(--muted);
-  font-size:.85rem;font-weight:600;margin-bottom:16px;cursor:pointer;padding:0;
+.acc-swipe-hint{
+  background:transparent;border:none;padding:6px;color:var(--muted);display:flex;align-items:center;
+  border-radius:8px;flex-shrink:0;cursor:pointer;
 }
-.acc-back-to-account svg{width:18px;height:18px}
-.acc-back-to-account:hover{color:var(--accent)}
+.acc-swipe-hint:hover{color:var(--accent)}
+.swipe-hint-icon{width:18px;height:18px;animation:swipeHintPulse 1.8s ease-in-out infinite}
+@keyframes swipeHintPulse{
+  0%,100%{transform:translateX(0);opacity:.5}
+  50%{transform:translateX(3px);opacity:1}
+}
 
 .rw-balance-grid{margin-bottom:16px}
 .rw-wallet-card{background:linear-gradient(160deg,var(--card),var(--card2));border:1px solid var(--border);border-radius:18px;padding:20px}
@@ -356,6 +360,7 @@ input{font-family:inherit}
   padding:11px 13px;color:var(--text);font-size:.82rem;font-family:var(--font-mono,monospace);
 }
 .rw-hint{font-size:.74rem;color:var(--muted);line-height:1.5;margin-top:10px}
+.rw-withdraw-payout{font-size:.8rem;color:var(--accent);font-weight:600;margin-top:8px;min-height:16px}
 .rw-empty{font-size:.8rem;color:var(--muted);text-align:center;padding:16px 4px}
 
 .rw-referral-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:260px;overflow-y:auto}
@@ -401,6 +406,28 @@ input{font-family:inherit}
 }
 .bank-picker-item:hover,.bank-picker-item.active{background:var(--card2);color:var(--accent)}
 .bank-picker-empty{font-size:.8rem;color:var(--muted);text-align:center;padding:12px 4px}
+
+.custom-select{position:relative}
+.custom-select-btn{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
+  padding:11px 13px;color:var(--text);font-size:.9rem;font-family:inherit;cursor:pointer;
+  transition:border-color .2s var(--ease);
+}
+.custom-select-btn:hover,.custom-select.open .custom-select-btn{border-color:var(--accent)}
+.custom-select-chevron{width:16px;height:16px;color:var(--muted);flex-shrink:0;transition:transform .2s var(--ease)}
+.custom-select.open .custom-select-chevron{transform:rotate(180deg)}
+.custom-select-list{
+  display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:5;max-height:220px;overflow-y:auto;
+  background:var(--card);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.35);
+  padding:6px;
+}
+.custom-select.open .custom-select-list{display:block}
+.custom-select-option{
+  width:100%;text-align:left;background:transparent;border:none;color:var(--text);font-family:inherit;
+  font-size:.85rem;padding:9px 10px;border-radius:8px;cursor:pointer;
+}
+.custom-select-option:hover,.custom-select-option.active{background:var(--card2);color:var(--accent)}
 
 .legal-links{display:flex;align-items:center;justify-content:center;gap:22px;margin-top:16px}
 .legal-links a{color:var(--muted);text-decoration:underline;font-weight:500;font-size:.72rem;transition:color .2s var(--ease)}
@@ -747,6 +774,9 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="acc-hero-name" id="heroName">Hi, –</div>
       <div class="acc-hero-email" id="heroEmail">–</div>
     </div>
+    <button type="button" class="acc-swipe-hint" id="accSwipeHint" aria-label="Swipe for Rewards" title="Swipe for Rewards">
+      <svg class="swipe-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>
+    </button>
     <button type="button" class="acc-verify-link" id="getVerifiedLink" style="display:none">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
       Get Verified
@@ -1083,10 +1113,6 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 
   <div id="view-rewards" class="acc-view-panel">
-    <button type="button" class="acc-back-to-account" id="backToAccountBtn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
-      Back to Account
-    </button>
 
     <div class="rw-balance-grid">
       <div class="rw-wallet-card">
@@ -1101,7 +1127,10 @@ body:has(.page-overlay.show){overflow:hidden}
         <div class="rw-wallet-sub" id="rwCoinBalanceSub">0 coins</div>
         <div class="rw-wallet-actions">
           <button type="button" class="acc-btn" id="rwDailyClaimBtn">Claim</button>
-          <button type="button" class="acc-btn acc-btn-ghost" id="rwWithdrawBtn">Withdraw</button>
+          <button type="button" class="acc-btn acc-btn-ghost" id="rwWithdrawBtn">
+            <svg class="rw-withdraw-lock" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="display:none;margin-right:5px"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M7 10V7a5 5 0 0110 0v3"/></svg>
+            <span>Withdraw</span>
+          </button>
         </div>
         <div class="acc-msg" id="rwDailyClaimMsg"></div>
       </div>
@@ -1128,10 +1157,17 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="rw-hint" style="margin-bottom:10px">Spend coins on request-limit boosts or free verification. Boosts apply to the API you pick below.</div>
       <div class="field">
         <label>Apply boost to</label>
-        <select id="rwRedeemProduct">
-          <option value="livetv">Live TV API</option>
-          <option value="devapi">Developer API</option>
-        </select>
+        <div class="custom-select" id="rwRedeemProductWrap">
+          <button type="button" class="custom-select-btn">
+            <span>Live TV API</span>
+            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <input type="hidden" id="rwRedeemProduct" value="livetv">
+          <div class="custom-select-list">
+            <div class="custom-select-option active" data-value="livetv">Live TV API</div>
+            <div class="custom-select-option" data-value="devapi">Developer API</div>
+          </div>
+        </div>
       </div>
       <div class="rw-store-grid" id="rwCoinStoreGrid"></div>
       <div class="acc-msg" id="rwRedeemMsg"></div>
@@ -1187,14 +1223,26 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="rwWithdrawOverlay">
   <div class="overlay-card" style="max-width:360px">
     <div class="overlay-title">Withdraw to your bank</div>
-    <div class="overlay-sub">Minimum withdrawal is &#8358;5,000. Save your bank details first if you haven't.</div>
+    <div class="overlay-sub">Minimum withdrawal is &#8358;3,000. Save your bank details first if you haven't.</div>
     <div class="field">
       <label>Amount (&#8358;)</label>
-      <input type="number" id="rwWithdrawAmount" placeholder="5000" min="5000" step="100">
+      <input type="number" id="rwWithdrawAmount" placeholder="3000" min="3000" step="100">
     </div>
+    <div class="rw-withdraw-payout" id="rwWithdrawPayoutNote"></div>
+    <div class="rw-hint">A 15% service fee applies to every withdrawal &mdash; it's taken out of what you receive, not added to what's debited. Only verified accounts can withdraw; this helps prevent fraud and fake account farming.</div>
+    <div style="margin:12px 0"><altcha-widget id="rwWithdrawAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>
     <div class="acc-msg" id="rwWithdrawMsg"></div>
-    <button class="acc-btn" id="rwWithdrawConfirmBtn" type="button" style="width:100%;justify-content:center">Submit Request</button>
+    <button class="acc-btn" id="rwWithdrawConfirmBtn" type="button" style="width:100%;justify-content:center" disabled>Submit Request</button>
     <button class="overlay-cancel" id="rwWithdrawCancelBtn" type="button">Cancel</button>
+  </div>
+</div>
+
+<div class="page-overlay" id="notVerifiedOverlay">
+  <div class="overlay-card" style="max-width:320px;text-align:center">
+    <div class="overlay-title">You're not verified</div>
+    <div class="overlay-sub">Only verified accounts can withdraw &mdash; this helps prevent fraud and fake account farming. Get verified to unlock withdrawals.</div>
+    <button class="acc-btn" id="notVerifiedGoBtn" type="button" style="width:100%;justify-content:center;margin-top:6px">Get Verified</button>
+    <button class="overlay-cancel" id="notVerifiedCancelBtn" type="button">Cancel</button>
   </div>
 </div>
 
@@ -2381,6 +2429,31 @@ document.querySelectorAll('.pw-toggle').forEach(btn => {
   });
 });
 
+document.querySelectorAll('.custom-select').forEach((wrap) => {
+  const btn = wrap.querySelector('.custom-select-btn');
+  const label = btn.querySelector('span');
+  const hidden = wrap.querySelector('input[type="hidden"]');
+  const list = wrap.querySelector('.custom-select-list');
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.custom-select.open').forEach((w) => { if (w !== wrap) w.classList.remove('open'); });
+    wrap.classList.toggle('open');
+  });
+  list.addEventListener('click', (e) => {
+    const opt = e.target.closest('.custom-select-option');
+    if (!opt) return;
+    hidden.value = opt.getAttribute('data-value');
+    label.textContent = opt.textContent;
+    list.querySelectorAll('.custom-select-option').forEach((o) => o.classList.remove('active'));
+    opt.classList.add('active');
+    wrap.classList.remove('open');
+    hidden.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+});
+document.addEventListener('click', () => {
+  document.querySelectorAll('.custom-select.open').forEach((w) => w.classList.remove('open'));
+});
+
 if (resetToken) {
   document.getElementById('pwDefaultView').style.display = 'none';
   document.getElementById('pwResetView').style.display = 'block';
@@ -3542,7 +3615,14 @@ function showRewards(){
   document.getElementById('accViewsTrack').classList.add('show-rewards');
   window.scrollTo(0, 0);
 }
-document.getElementById('backToAccountBtn').addEventListener('click', showAccount);
+document.getElementById('accSwipeHint').addEventListener('click', () => {
+  if (document.getElementById('accViewsTrack').classList.contains('show-rewards')) {
+    showAccount();
+  } else {
+    showRewards();
+    loadRewardsSummary();
+  }
+});
 
 (function(){
   const clip = document.querySelector('.acc-views-clip');
@@ -3594,6 +3674,8 @@ function renderWalletBalance(){
     nairaEl.textContent = '₦••••••';
     coinEl.textContent = '•••• coins';
   }
+  const lockIcon = document.querySelector('#rwWithdrawBtn .rw-withdraw-lock');
+  if (lockIcon) lockIcon.style.display = (rewardsSummary && rewardsSummary.verified) ? 'none' : 'inline';
 }
 document.getElementById('rwBalanceEyeBtn').addEventListener('click', () => {
   balanceVisible = !balanceVisible;
@@ -3671,7 +3753,7 @@ async function loadRewardsSummary(){
         ? '<button type="button" class="rw-wd-cert-link" data-cert-wd="' + w.id + '">View Certificate</button>'
         : '';
       return '<div class="rw-wd-row"><div><div class="rw-wd-row-amount">' + fmtNgn(w.amountNgn) + '</div>' +
-        '<div class="rw-wd-row-meta">Requested ' + fmtDateShort(w.requestedAt) + '</div>' + certLink + '</div>' + pill + '</div>';
+        '<div class="rw-wd-row-meta">Requested ' + fmtDateShort(w.requestedAt) + ' &middot; you receive ' + fmtNgn(w.payoutAmountNgn) + ' after the 15% fee</div>' + certLink + '</div>' + pill + '</div>';
     }).join('');
     wdList.querySelectorAll('[data-cert-wd]').forEach((btn) => {
       btn.addEventListener('click', () => openWithdrawalCertificate(btn.getAttribute('data-cert-wd')));
@@ -3826,9 +3908,44 @@ document.getElementById('rwSaveBankBtn').addEventListener('click', async () => {
   }
 });
 
+const notVerifiedOverlay = document.getElementById('notVerifiedOverlay');
+document.getElementById('notVerifiedCancelBtn').addEventListener('click', () => notVerifiedOverlay.classList.remove('show'));
+notVerifiedOverlay.addEventListener('click', (e) => { if (e.target === notVerifiedOverlay) notVerifiedOverlay.classList.remove('show'); });
+document.getElementById('notVerifiedGoBtn').addEventListener('click', () => {
+  notVerifiedOverlay.classList.remove('show');
+  openVerifyOverlay();
+});
+
+let withdrawCaptchaPassed = false;
+let withdrawCaptchaValue = '';
+const withdrawAltcha = document.getElementById('rwWithdrawAltcha');
+withdrawAltcha.addEventListener('statechange', (ev) => {
+  const state = ev.detail.state;
+  withdrawCaptchaPassed = state === 'verified';
+  withdrawCaptchaValue = withdrawCaptchaPassed ? ev.detail.payload : '';
+  document.getElementById('rwWithdrawConfirmBtn').disabled = !withdrawCaptchaPassed;
+});
+
+function updateWithdrawPayoutNote(){
+  const amountNgn = Number(document.getElementById('rwWithdrawAmount').value) || 0;
+  const note = document.getElementById('rwWithdrawPayoutNote');
+  const taxRate = (rewardsSummary && rewardsSummary.withdrawalTaxRate) || 0.15;
+  if (amountNgn > 0) {
+    note.textContent = "You'll receive " + fmtNgn(Math.round(amountNgn * (1 - taxRate))) + ' after the 15% fee.';
+  } else {
+    note.textContent = '';
+  }
+}
+document.getElementById('rwWithdrawAmount').addEventListener('input', updateWithdrawPayoutNote);
+
 const rwWithdrawOverlay = document.getElementById('rwWithdrawOverlay');
 document.getElementById('rwWithdrawBtn').addEventListener('click', () => {
+  if (rewardsSummary && !rewardsSummary.verified) {
+    notVerifiedOverlay.classList.add('show');
+    return;
+  }
   document.getElementById('rwWithdrawAmount').value = '';
+  updateWithdrawPayoutNote();
   const msg = document.getElementById('rwWithdrawMsg');
   msg.textContent = '';
   msg.className = 'acc-msg';
@@ -3845,11 +3962,15 @@ document.getElementById('rwWithdrawConfirmBtn').addEventListener('click', async 
     flashMsg(msg, 'Enter an amount.', false);
     return;
   }
+  if (!withdrawCaptchaPassed) {
+    flashMsg(msg, 'Complete the captcha first.', false);
+    return;
+  }
   const originalHtml = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner"></span>Submitting…';
   try {
-    await postJSON('/api/rewards/withdraw', { amountNgn });
+    await postJSON('/api/rewards/withdraw', { amountNgn, altcha: withdrawCaptchaValue });
     rwWithdrawOverlay.classList.remove('show');
     loadRewardsSummary();
   } catch (err) {

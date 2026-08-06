@@ -230,6 +230,28 @@ body:has(.ad-overlay.show){overflow:hidden}
   background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;
 }
 .bonus-form button:disabled{opacity:.55}
+.bonus-form .custom-select{flex:1;min-width:110px}
+.custom-select{position:relative}
+.custom-select-btn{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
+  padding:10px 12px;color:var(--text);font-size:.82rem;font-family:inherit;cursor:pointer;
+  transition:border-color .2s var(--ease);
+}
+.custom-select-btn:hover,.custom-select.open .custom-select-btn{border-color:var(--accent)}
+.custom-select-chevron{width:15px;height:15px;color:var(--muted);flex-shrink:0;transition:transform .2s var(--ease)}
+.custom-select.open .custom-select-chevron{transform:rotate(180deg)}
+.custom-select-list{
+  display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:5;max-height:220px;overflow-y:auto;
+  background:var(--card);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.35);
+  padding:6px;
+}
+.custom-select.open .custom-select-list{display:block}
+.custom-select-option{
+  width:100%;text-align:left;background:transparent;border:none;color:var(--text);font-family:inherit;
+  font-size:.8rem;padding:9px 10px;border-radius:8px;cursor:pointer;
+}
+.custom-select-option:hover,.custom-select-option.active{background:var(--card2);color:var(--accent)}
 .bonus-msg{font-size:.76rem;min-height:16px;margin-bottom:10px}
 .bonus-msg.err{color:var(--red)}
 .bonus-msg.ok{color:#3DDC84}
@@ -314,13 +336,20 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div>
     <div class="ad-card-body"><div class="ad-card-body-inner">
       <div class="bonus-form">
-        <select id="bonusAmountSelect">
-          <option value="5">+5 requests</option>
-          <option value="10">+10 requests</option>
-          <option value="25">+25 requests</option>
-          <option value="50">+50 requests</option>
-          <option value="100">+100 requests</option>
-        </select>
+        <div class="custom-select" id="bonusAmountSelectWrap">
+          <button type="button" class="custom-select-btn">
+            <span>+5 requests</span>
+            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <input type="hidden" id="bonusAmountSelect" value="5">
+          <div class="custom-select-list">
+            <div class="custom-select-option active" data-value="5">+5 requests</div>
+            <div class="custom-select-option" data-value="10">+10 requests</div>
+            <div class="custom-select-option" data-value="25">+25 requests</div>
+            <div class="custom-select-option" data-value="50">+50 requests</div>
+            <div class="custom-select-option" data-value="100">+100 requests</div>
+          </div>
+        </div>
         <input type="number" id="bonusMaxRedemptions" placeholder="Max users" min="1" step="1" value="1">
         <button type="button" id="bonusGenerateBtn">Generate</button>
       </div>
@@ -495,6 +524,31 @@ document.getElementById('adBackBtn').addEventListener('click', () => {
   else window.location.href = '/';
 });
 
+document.querySelectorAll('.custom-select').forEach((wrap) => {
+  const btn = wrap.querySelector('.custom-select-btn');
+  const label = btn.querySelector('span');
+  const hidden = wrap.querySelector('input[type="hidden"]');
+  const list = wrap.querySelector('.custom-select-list');
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.custom-select.open').forEach((w) => { if (w !== wrap) w.classList.remove('open'); });
+    wrap.classList.toggle('open');
+  });
+  list.addEventListener('click', (e) => {
+    const opt = e.target.closest('.custom-select-option');
+    if (!opt) return;
+    hidden.value = opt.getAttribute('data-value');
+    label.textContent = opt.textContent;
+    list.querySelectorAll('.custom-select-option').forEach((o) => o.classList.remove('active'));
+    opt.classList.add('active');
+    wrap.classList.remove('open');
+    hidden.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+});
+document.addEventListener('click', () => {
+  document.querySelectorAll('.custom-select.open').forEach((w) => w.classList.remove('open'));
+});
+
 document.getElementById('bonusHeader').addEventListener('click', () => {
   document.getElementById('bonusCard').classList.toggle('open');
 });
@@ -570,6 +624,7 @@ const withdrawalsCount = document.getElementById('withdrawalsCount');
 function fmtNgnAdmin(n){ return '₦' + Number(n || 0).toLocaleString('en-NG'); }
 
 function withdrawalItemHtml(w){
+  const payout = w.payoutAmountNgn != null ? w.payoutAmountNgn : Math.round(w.amountNgn * 0.85);
   return '<div class="withdrawal-item" data-wd-id="' + esc(w.id) + '">' +
     '<div class="withdrawal-item-head">' +
       '<div class="withdrawal-item-amount">' + fmtNgnAdmin(w.amountNgn) + '</div>' +
@@ -579,7 +634,8 @@ function withdrawalItemHtml(w){
       '@' + esc(w.username || 'user') + (w.email ? ' &middot; ' + esc(w.email) : '') + '<br>' +
       esc((w.bankDetails && w.bankDetails.bankName) || '') + ' &middot; ' +
       esc((w.bankDetails && w.bankDetails.accountNumber) || '') + ' &middot; ' +
-      esc((w.bankDetails && w.bankDetails.accountName) || '') +
+      esc((w.bankDetails && w.bankDetails.accountName) || '') + '<br>' +
+      'Pay out <strong>' + fmtNgnAdmin(payout) + '</strong> (after 15% fee, requested ' + fmtNgnAdmin(w.amountNgn) + ')' +
     '</div>' +
     '<button type="button" class="withdrawal-confirm-btn" data-confirm-wd="' + esc(w.id) + '">Confirm Paid</button>' +
   '</div>';
@@ -592,7 +648,7 @@ function renderWithdrawalsList(list){
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-confirm-wd');
       btn.disabled = true;
-      btn.textContent = 'Confirming…';
+      btn.innerHTML = '<span class="ad-spinner"></span> Confirming…';
       try {
         await postJSON('/api/admin/withdrawals/' + encodeURIComponent(id) + '/confirm', {});
         showToast('Marked as paid.');
@@ -627,6 +683,7 @@ document.getElementById('bonusGenerateBtn').addEventListener('click', () => {
     return;
   }
   btn.disabled = true;
+  btn.innerHTML = '<span class="ad-spinner"></span> Generating…';
   postJSON('/api/admin/bonus-codes', { amount, maxRedemptions }).then((data) => {
     bonusMsg.className = 'bonus-msg ok';
     bonusMsg.textContent = 'Generated code: ' + data.code.code;
@@ -634,7 +691,7 @@ document.getElementById('bonusGenerateBtn').addEventListener('click', () => {
   }).catch((err) => {
     bonusMsg.className = 'bonus-msg err';
     bonusMsg.textContent = err.message || 'Could not generate bonus code.';
-  }).finally(() => { btn.disabled = false; });
+  }).finally(() => { btn.disabled = false; btn.textContent = 'Generate'; });
 });
 const PROFILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/></svg>';
 const PROFILE_VERIFIED_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/><g transform="translate(13.5,12.5) scale(0.6)"><path fill="currentColor" stroke="none" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke="var(--card2)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></g></svg>';
@@ -1198,7 +1255,7 @@ document.getElementById('tplCheckBtn').addEventListener('click', async () => {
   const btn = document.getElementById('tplCheckBtn');
   btn.disabled = true;
   const original = btn.textContent;
-  btn.textContent = 'Checking…';
+  btn.innerHTML = '<span class="ad-spinner"></span> Checking…';
   try {
     const result = await postJSON('/api/admin/bots/check-updates');
     if (!result.checked) {
@@ -1317,6 +1374,8 @@ async function runBotAction(botId, targetUid, act, btn){
   const ok = await askConfirm(confirmText[0], confirmText[1]);
   if (!ok) return;
   btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="ad-spinner"></span>';
   try {
     if (act === 'stop') await postJSON('/api/admin/bots/' + botId + '/stop');
     else if (act === 'restart') await postJSON('/api/admin/bots/' + botId + '/restart');
@@ -1326,6 +1385,7 @@ async function runBotAction(botId, targetUid, act, btn){
   } catch (err) {
     showToast(err.message || 'Could not do that.');
     btn.disabled = false;
+    btn.innerHTML = original;
   }
 }
 

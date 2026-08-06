@@ -1,4 +1,5 @@
 import express from "express";
+import { verifySolution } from "altcha-lib";
 import {
   requireAuth,
   getUserProfile,
@@ -10,14 +11,28 @@ import {
   requestWithdrawal,
   listWithdrawalRequestsForUser,
   ensureReferralCode,
+  isAdminEmail,
+  isVerificationActive,
   COIN_STORE_ITEMS,
   COIN_PACKAGES,
+  MIN_WITHDRAWAL_NGN,
+  WITHDRAWAL_TAX_RATE,
 } from "../services/auth.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 
 const router = express.Router();
 
 const PUBLIC_BASE = "https://esteamstv.devs.surf";
+const ALTCHA_HMAC_KEY = process.env.ALTCHA_SECRET;
+
+async function verifyCaptcha(payload) {
+  if (!payload) return false;
+  try {
+    return !!(await verifySolution(payload, ALTCHA_HMAC_KEY));
+  } catch {
+    return false;
+  }
+}
 
 const summaryLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
 const claimLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000, (req) => req.uid).middleware();
@@ -40,6 +55,9 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
       nairaBalance: profile.nairaBalance || 0,
       lastDailyCoinClaimDay: profile.lastDailyCoinClaimDay || null,
       bankDetails: profile.bankDetails || null,
+      verified: isAdminEmail(profile.email) || isVerificationActive(profile),
+      minWithdrawalNgn: MIN_WITHDRAWAL_NGN,
+      withdrawalTaxRate: WITHDRAWAL_TAX_RATE,
       referrals: referrals.map((r) => ({
         referredUsername: r.referredUsername,
         referredAt: r.referredAt,
@@ -48,6 +66,7 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
       withdrawals: withdrawals.map((w) => ({
         id: w.id,
         amountNgn: w.amountNgn,
+        payoutAmountNgn: w.payoutAmountNgn || Math.round(w.amountNgn * (1 - WITHDRAWAL_TAX_RATE)),
         status: w.status,
         requestedAt: w.requestedAt,
         completedAt: w.completedAt || null,
@@ -101,6 +120,9 @@ router.post("/api/rewards/bank-details", requireAuth, bankLimiter, async (req, r
 
 router.post("/api/rewards/withdraw", requireAuth, withdrawLimiter, async (req, res) => {
   try {
+    if (!(await verifyCaptcha(req.body?.altcha))) {
+      return res.status(400).json({ error: "Captcha not completed." });
+    }
     const result = await requestWithdrawal(req.uid, req.body?.amountNgn);
     res.json({ ok: true, id: result.id });
   } catch (err) {

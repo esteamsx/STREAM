@@ -2508,7 +2508,8 @@ const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const REFERRAL_SIGNUP_COINS = 5;
 const DAILY_COIN_CLAIM_AMOUNT = 2;
 const REFERRAL_COMMISSION_RATE = 0.15;
-const MIN_WITHDRAWAL_NGN = 5000;
+const MIN_WITHDRAWAL_NGN = 3000;
+const WITHDRAWAL_TAX_RATE = 0.15;
 
 const COIN_STORE_ITEMS = {
   boost30: { label: "+30 request limit", coinCost: 40, bonusAmount: 30 },
@@ -2717,6 +2718,9 @@ async function requestWithdrawal(uid, amountNgn) {
     const snap = await tx.get(userRef);
     if (!snap.exists) throw new Error("Account not found.");
     const data = snap.data();
+    if (!isAdminEmail(data.email) && !isVerificationActive(data)) {
+      throw Object.assign(new Error("You must be a verified account to withdraw."), { status: 403 });
+    }
     if (!data.bankDetails || !data.bankDetails.accountNumber) {
       throw Object.assign(new Error("Add your bank details before requesting a withdrawal."), { status: 400 });
     }
@@ -2724,8 +2728,9 @@ async function requestWithdrawal(uid, amountNgn) {
     if (balance < amount) {
       throw Object.assign(new Error("You don't have enough balance for that withdrawal."), { status: 400 });
     }
+    const payoutAmountNgn = Math.round(amount * (1 - WITHDRAWAL_TAX_RATE));
     tx.update(userRef, { nairaBalance: admin.firestore.FieldValue.increment(-amount) });
-    tx.set(withdrawalRef, { uid, amountNgn: amount, bankDetails: data.bankDetails, status: "pending", requestedAt: Date.now() });
+    tx.set(withdrawalRef, { uid, amountNgn: amount, payoutAmountNgn, bankDetails: data.bankDetails, status: "pending", requestedAt: Date.now() });
     return { id: withdrawalRef.id, bankDetails: data.bankDetails };
   }).then(async (result) => {
     notifyAdminOfWithdrawalRequest(uid, amount, result.bankDetails, result.id).catch((err) => {
@@ -3117,6 +3122,8 @@ export {
   checkAndIncrementDailyLimit,
   COIN_STORE_ITEMS,
   COIN_PACKAGES,
+  MIN_WITHDRAWAL_NGN,
+  WITHDRAWAL_TAX_RATE,
   applyReferral,
   ensureReferralCode,
   findUserByReferralCode,

@@ -203,6 +203,24 @@ body:has(.page-overlay.show){overflow:hidden}
   background:var(--card2);color:var(--text);font-family:var(--font-body);font-size:.83rem;outline:none;
 }
 .field input:focus,.field select:focus{border-color:var(--accent)}
+.custom-select{position:relative}
+.custom-select input[type="text"]{
+  width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--border-strong);
+  background:var(--card2);color:var(--text);font-family:var(--font-body);font-size:.83rem;outline:none;
+}
+.custom-select input[type="text"]:focus{border-color:var(--accent)}
+.custom-select-list{
+  display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:5;max-height:220px;overflow-y:auto;
+  background:var(--card);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.35);
+  padding:6px;
+}
+.custom-select.open .custom-select-list{display:block}
+.custom-select-option{
+  width:100%;text-align:left;background:transparent;border:none;color:var(--text);font-family:inherit;
+  font-size:.83rem;padding:9px 10px;border-radius:8px;cursor:pointer;
+}
+.custom-select-option:hover,.custom-select-option.active{background:var(--card2);color:var(--accent)}
+.custom-select-empty{font-size:.8rem;color:var(--muted);text-align:center;padding:12px 4px}
 .dcard-msg{font-size:.74rem;margin-top:8px;min-height:1em}
 .dcard-msg.ok{color:var(--green)}
 .dcard-msg.err{color:var(--red)}
@@ -363,7 +381,11 @@ ${musicPlayerStyle()}
         <div class="tryit-row" id="tryitChannelRow" style="display:none">
           <div class="field">
             <label>Channel</label>
-            <select id="tryitChannelSelect"></select>
+            <div class="custom-select" id="tryitChannelSelectWrap">
+              <input type="text" id="tryitChannelSearch" placeholder="Search channel…" autocomplete="off">
+              <input type="hidden" id="tryitChannelSelect">
+              <div class="custom-select-list" id="tryitChannelSelectList"></div>
+            </div>
           </div>
         </div>
 
@@ -1057,7 +1079,41 @@ ${musicPlayerHtml()}
   var chSearchInput = document.getElementById('chSearchInput');
   var chCountSub = document.getElementById('chCountSub');
   var tryitSelect = document.getElementById('tryitChannelSelect');
+  var tryitSearch = document.getElementById('tryitChannelSearch');
+  var tryitList = document.getElementById('tryitChannelSelectList');
+  var tryitWrap = document.getElementById('tryitChannelSelectWrap');
   var allChannels = [];
+
+  function setTryitChannel(id, name){
+    if(!tryitSelect) return;
+    tryitSelect.value = id;
+    if(tryitSearch) tryitSearch.value = name || id;
+    tryitWrap.classList.remove('open');
+    tryitSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function renderTryitOptions(filter){
+    if(!tryitList) return;
+    var f = (filter || '').trim().toLowerCase();
+    var matches = allChannels.filter(function(c){ return !f || c.name.toLowerCase().indexOf(f) !== -1; });
+    if(!matches.length){ tryitList.innerHTML = '<div class="custom-select-empty">No channels match.</div>'; return; }
+    tryitList.innerHTML = matches.map(function(c){
+      return '<div class="custom-select-option' + (c.id === tryitSelect.value ? ' active' : '') + '" data-value="' + esc(c.id) + '">' + esc(c.name) + '</div>';
+    }).join('');
+    tryitList.querySelectorAll('.custom-select-option').forEach(function(opt){
+      opt.addEventListener('click', function(){
+        setTryitChannel(opt.getAttribute('data-value'), opt.textContent);
+      });
+    });
+  }
+
+  if(tryitSearch){
+    tryitSearch.addEventListener('focus', function(){ tryitWrap.classList.add('open'); renderTryitOptions(''); });
+    tryitSearch.addEventListener('input', function(){ tryitWrap.classList.add('open'); renderTryitOptions(tryitSearch.value); });
+    document.addEventListener('click', function(e){
+      if(!tryitWrap.contains(e.target)) tryitWrap.classList.remove('open');
+    });
+  }
 
   function renderChannelList(filter){
     var f = (filter || '').trim().toLowerCase();
@@ -1078,7 +1134,7 @@ ${musicPlayerHtml()}
     chList.innerHTML = html;
     chList.querySelectorAll('.ch-item').forEach(function(item){
       item.addEventListener('click', function(){
-        if(tryitSelect) tryitSelect.value = item.getAttribute('data-id');
+        setTryitChannel(item.getAttribute('data-id'), item.querySelector('span').textContent);
         setEndpointTab('stream');
         document.getElementById('tryitCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
@@ -1090,9 +1146,11 @@ ${musicPlayerHtml()}
     allChannels = r.data.channels || [];
     chCountSub.textContent = allChannels.length + ' channels available';
     renderChannelList('');
-    if(tryitSelect){
-      tryitSelect.innerHTML = allChannels.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; }).join('');
+    if(tryitSelect && allChannels.length){
+      tryitSelect.value = allChannels[0].id;
+      if(tryitSearch) tryitSearch.value = allChannels[0].name;
     }
+    renderTryitOptions('');
     updateCurl();
   }).catch(function(){ chList.innerHTML = '<div class="ch-loading">Could not load channels.</div>'; });
 
