@@ -812,6 +812,15 @@ ${musicPlayerHtml()}
       '</div>';
     }
 
+    html += '<div class="field" style="margin-top:0;margin-bottom:16px">' +
+      '<label>Redeem Bonus Code</label>' +
+      '<div style="display:flex;gap:8px">' +
+        '<input type="text" id="bonusRedeemInput" placeholder="Enter code" style="flex:1" maxlength="16">' +
+        '<button class="btn btn-ghost" id="bonusRedeemBtn" type="button" style="flex-shrink:0">Redeem</button>' +
+      '</div>' +
+      '<div class="dcard-msg" id="bonusRedeemMsg"></div>' +
+    '</div>';
+
     if(!keys.length){
       html += '<div class="empty-state" id="noKeysMsg">You don\\'t have an API key yet. Create one to start making requests.</div>';
     } else {
@@ -853,6 +862,37 @@ ${musicPlayerHtml()}
         bar.style.width = bar.getAttribute('data-pct') + '%';
       });
     });
+
+    var bonusRedeemBtn = document.getElementById('bonusRedeemBtn');
+    var bonusRedeemInput = document.getElementById('bonusRedeemInput');
+    if(bonusRedeemBtn && bonusRedeemInput){
+      bonusRedeemBtn.addEventListener('click', function(){
+        var code = bonusRedeemInput.value.trim();
+        var msg = document.getElementById('bonusRedeemMsg');
+        if(!code){
+          msg.className = 'dcard-msg err';
+          msg.textContent = 'Enter a bonus code first.';
+          bonusRedeemInput.focus();
+          return;
+        }
+        var originalHtml = bonusRedeemBtn.innerHTML;
+        bonusRedeemBtn.disabled = true;
+        bonusRedeemBtn.innerHTML = '<span class="btn-spinner"></span> Redeeming…';
+        fetch('/api/dev/bonus-redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code }) })
+          .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error || 'Could not redeem that code.'); return d; }); })
+          .then(function(d){
+            loadKeys();
+            requestAnimationFrame(function(){
+              var newMsg = document.getElementById('bonusRedeemMsg');
+              if(newMsg){ newMsg.className = 'dcard-msg ok'; newMsg.textContent = '+' + d.amount + ' requests added to your monthly limit.'; }
+            });
+          })
+          .catch(function(err){
+            msg.className = 'dcard-msg err'; msg.textContent = err.message;
+            bonusRedeemBtn.disabled = false; bonusRedeemBtn.innerHTML = originalHtml;
+          });
+      });
+    }
 
     keyCardBody.querySelectorAll('[data-revoke]').forEach(function(btn){
       btn.addEventListener('click', function(){

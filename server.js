@@ -237,6 +237,8 @@ import {
   getEffectiveApiPlan,
   API_PLANS,
   SESSION_TTL_MS,
+  createBonusCode,
+  listBonusCodes,
 } from "./services/auth.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { auth as firebaseAuth } from "./config/firebase.js";
@@ -3681,6 +3683,26 @@ app.post("/api/admin/maintenance", requireAuth, requireAdmin, async (req, res) =
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: err.message || "Could not update maintenance status." });
+  }
+});
+
+app.get("/api/admin/bonus-codes", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ codes: await listBonusCodes() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load bonus codes." });
+  }
+});
+
+app.post("/api/admin/bonus-codes", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const amount = Number(req.body && req.body.amount);
+    const maxRedemptions = Number(req.body && req.body.maxRedemptions);
+    const code = await createBonusCode(req.uid, amount, maxRedemptions);
+    res.json({ ok: true, code });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not create bonus code." });
   }
 });
 

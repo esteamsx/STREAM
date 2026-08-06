@@ -20,6 +20,7 @@ import {
   getEffectiveApiPlan,
   getApiPlanConfig,
   API_PLANS,
+  redeemBonusCode,
 } from "../services/auth.js";
 
 const router = express.Router();
@@ -326,7 +327,7 @@ export async function requireApiKey(req, res, next) {
     const found = await findApiKeyByRawKey(String(key));
     if (!found) return res.status(401).json({ error: "Invalid or revoked API key." });
     const ownerProfile = await getUserProfile(found.uid).catch(() => null);
-    const monthlyLimit = getApiPlanConfig(ownerProfile).monthlyRequests;
+    const monthlyLimit = getApiPlanConfig(ownerProfile).monthlyRequests + ((ownerProfile && ownerProfile.bonusApiRequests) || 0);
     const usage = await checkAndIncrementAccountApiUsage(found.uid, monthlyLimit);
     if (!usage.allowed) {
       return res.status(429).json({
@@ -558,9 +559,11 @@ router.get("/api/dev/keys", requireAuth, async (req, res) => {
   try {
     const planKey = getEffectiveApiPlan(req.userProfile);
     const plan = API_PLANS[planKey];
+    const bonusRequests = (req.userProfile && req.userProfile.bonusApiRequests) || 0;
+    const monthlyLimit = plan.monthlyRequests + bonusRequests;
     const [keys, usage] = await Promise.all([
       listApiKeysForUser(req.uid),
-      getAccountApiUsage(req.uid, plan.monthlyRequests),
+      getAccountApiUsage(req.uid, monthlyLimit),
     ]);
     let planExpiresAt = null;
     if (planKey !== "free" && planKey !== "starter") planExpiresAt = req.userProfile.apiPlanExpiresAt || null;
@@ -576,6 +579,7 @@ router.get("/api/dev/keys", requireAuth, async (req, res) => {
       usage: {
         requestsThisMonth: usage.requestsThisMonth,
         monthlyLimit: Number.isFinite(usage.monthlyLimit) ? usage.monthlyLimit : null,
+        bonusRequests,
       },
       plan: {
         key: planKey,
@@ -590,6 +594,18 @@ router.get("/api/dev/keys", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("list api keys error:", err.message);
     res.status(500).json({ error: "Could not load API keys." });
+  }
+});
+
+const bonusRedeemLimiter = new SimpleRateLimiter(10, 60 * 1000, (req) => req.uid).middleware();
+
+router.post("/api/dev/bonus-redeem", requireAuth, bonusRedeemLimiter, async (req, res) => {
+  try {
+    const code = String((req.body && req.body.code) || "").trim();
+    const result = await redeemBonusCode(req.uid, code, "livetv");
+    res.json({ ok: true, amount: result.amount });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not redeem that code." });
   }
 });
 

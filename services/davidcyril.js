@@ -35,30 +35,42 @@ export async function fetchSongByQuery(query) {
   };
 }
 
+const CATBOX_USER_AGENT = "Mozilla/5.0 (compatible; ESTeamsTV/1.0; +https://esteamstv.devs.surf)";
+
 async function uploadToCatbox(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let hostedUrl;
   try {
-    const imgRes = await fetch(url, { signal: controller.signal });
-    if (!imgRes.ok) throw Object.assign(new Error("Could not fetch that image URL."), { status: 400 });
+    const imgRes = await fetch(url, { signal: controller.signal, headers: { "User-Agent": CATBOX_USER_AGENT } });
+    if (!imgRes.ok) {
+      throw Object.assign(new Error(`Could not fetch that image URL (source responded ${imgRes.status}).`), { status: 400 });
+    }
     const contentType = imgRes.headers.get("content-type") || "image/jpeg";
     const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : contentType.includes("gif") ? "gif" : "jpg";
     const buffer = Buffer.from(await imgRes.arrayBuffer());
     const form = new FormData();
     form.append("reqtype", "fileupload");
     form.append("fileToUpload", new Blob([buffer], { type: contentType }), `image.${ext}`);
-    const uploadRes = await fetch("https://catbox.moe/user/api.php", { method: "POST", body: form, signal: controller.signal });
-    if (!uploadRes.ok) throw Object.assign(new Error("Could not host that image for analysis."), { status: 502 });
-    hostedUrl = (await uploadRes.text()).trim();
+    const uploadRes = await fetch("https://catbox.moe/user/api.php", {
+      method: "POST",
+      body: form,
+      signal: controller.signal,
+      headers: { "User-Agent": CATBOX_USER_AGENT },
+    });
+    const uploadText = (await uploadRes.text()).trim();
+    if (!uploadRes.ok) {
+      throw Object.assign(new Error(`Could not host that image for analysis (catbox responded ${uploadRes.status}: ${uploadText.slice(0, 150)}).`), { status: 502 });
+    }
+    hostedUrl = uploadText;
+    if (!hostedUrl.startsWith("http")) {
+      throw Object.assign(new Error(`Could not host that image for analysis (catbox said: ${hostedUrl.slice(0, 150)}).`), { status: 502 });
+    }
   } catch (err) {
     if (err.status) throw err;
-    throw Object.assign(new Error("Could not host that image for analysis."), { status: 502 });
+    throw Object.assign(new Error(`Could not host that image for analysis (${err.message}).`), { status: 502 });
   } finally {
     clearTimeout(timer);
-  }
-  if (!hostedUrl.startsWith("http")) {
-    throw Object.assign(new Error("Could not host that image for analysis."), { status: 502 });
   }
   return hostedUrl;
 }
@@ -67,7 +79,8 @@ export async function analyzeImage(url) {
   const hostedUrl = await uploadToCatbox(url);
   const data = await fetchJson(`${BASE}/imgscan?url=${encodeURIComponent(hostedUrl)}`);
   if (!data.success || !data.result) {
-    throw Object.assign(new Error("Could not analyze that image."), { status: 502 });
+    const detail = (data && (data.message || data.error)) || JSON.stringify(data).slice(0, 150);
+    throw Object.assign(new Error(`Could not analyze that image (${detail}).`), { status: 502 });
   }
   return { description: data.result };
 }

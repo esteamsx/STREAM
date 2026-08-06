@@ -32,6 +32,7 @@ import {
   getEffectiveDevApiPlan,
   getDevApiPlanConfig,
   DEV_API_PLANS,
+  redeemBonusCode,
 } from "../services/auth.js";
 
 const router = express.Router();
@@ -49,7 +50,7 @@ async function requireDevApiKey(req, res, next) {
     const found = await findDevApiKeyByRawKey(String(key));
     if (!found) return res.status(401).json({ error: "Invalid or revoked API key." });
     const ownerProfile = await getUserProfile(found.uid).catch(() => null);
-    const monthlyLimit = getDevApiPlanConfig(ownerProfile).monthlyRequests;
+    const monthlyLimit = getDevApiPlanConfig(ownerProfile).monthlyRequests + ((ownerProfile && ownerProfile.bonusDevApiRequests) || 0);
     const usage = await checkAndIncrementAccountDevApiUsage(found.uid, monthlyLimit);
     if (!usage.allowed) {
       return res.status(429).json({
@@ -88,9 +89,11 @@ router.get("/api/devapi/keys", requireAuth, async (req, res) => {
   try {
     const planKey = getEffectiveDevApiPlan(req.userProfile);
     const plan = DEV_API_PLANS[planKey];
+    const bonusRequests = (req.userProfile && req.userProfile.bonusDevApiRequests) || 0;
+    const monthlyLimit = plan.monthlyRequests + bonusRequests;
     const [keys, usage] = await Promise.all([
       listDevApiKeysForUser(req.uid),
-      getAccountDevApiUsage(req.uid, plan.monthlyRequests),
+      getAccountDevApiUsage(req.uid, monthlyLimit),
     ]);
     let planExpiresAt = null;
     if (planKey !== "free" && planKey !== "starter") planExpiresAt = req.userProfile.devApiPlanExpiresAt || null;
@@ -106,6 +109,7 @@ router.get("/api/devapi/keys", requireAuth, async (req, res) => {
       usage: {
         requestsThisMonth: usage.requestsThisMonth,
         monthlyLimit: Number.isFinite(usage.monthlyLimit) ? usage.monthlyLimit : null,
+        bonusRequests,
       },
       plan: {
         key: planKey,
@@ -117,6 +121,18 @@ router.get("/api/devapi/keys", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("list dev api keys error:", err.message);
     res.status(500).json({ error: "Could not load API keys." });
+  }
+});
+
+const devApiBonusRedeemLimiter = new SimpleRateLimiter(10, 60 * 1000, (req) => req.uid).middleware();
+
+router.post("/api/devapi/bonus-redeem", requireAuth, devApiBonusRedeemLimiter, async (req, res) => {
+  try {
+    const code = String((req.body && req.body.code) || "").trim();
+    const result = await redeemBonusCode(req.uid, code, "devapi");
+    res.json({ ok: true, amount: result.amount });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not redeem that code." });
   }
 });
 

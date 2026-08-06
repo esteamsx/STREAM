@@ -218,6 +218,36 @@ body:has(.ad-overlay.show){overflow:hidden}
 }
 .ad-tpl-check-btn:disabled{opacity:.5}
 
+.bonus-form{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.bonus-form select,.bonus-form input{
+  background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
+  padding:10px 12px;color:var(--text);font-size:.82rem;outline:none;transition:border-color .2s var(--ease);
+  flex:1;min-width:110px;font-family:inherit;
+}
+.bonus-form select:focus,.bonus-form input:focus{border-color:var(--accent)}
+.bonus-form button{
+  flex-shrink:0;padding:10px 16px;border-radius:10px;border:none;font-weight:700;font-size:.82rem;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;
+}
+.bonus-form button:disabled{opacity:.55}
+.bonus-msg{font-size:.76rem;min-height:16px;margin-bottom:10px}
+.bonus-msg.err{color:var(--red)}
+.bonus-msg.ok{color:#3DDC84}
+.bonus-list{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto}
+.bonus-code-card{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card2)}
+.bonus-code-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.bonus-code-text{font-family:monospace;font-weight:700;font-size:.92rem;flex:1;letter-spacing:.03em}
+.bonus-copy-btn{
+  flex-shrink:0;width:28px;height:28px;border-radius:8px;border:1px solid var(--border-strong);background:var(--dark3);
+  color:var(--muted);display:flex;align-items:center;justify-content:center;
+}
+.bonus-copy-btn svg{width:13px;height:13px}
+.bonus-copy-btn:hover{color:var(--accent);border-color:var(--accent)}
+.status-pill{font-size:.64rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:20px;flex-shrink:0;white-space:nowrap}
+.status-pill.ok{background:rgba(61,220,132,.15);color:#3DDC84}
+.status-pill.bad{background:rgba(255,59,92,.15);color:var(--red)}
+.bonus-code-meta{font-size:.72rem;color:var(--muted)}
+
 .ad-toast{
   position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card2);
   border:1px solid var(--border-strong);color:var(--text);padding:11px 18px;border-radius:12px;font-size:.82rem;
@@ -263,6 +293,30 @@ body:has(.ad-overlay.show){overflow:hidden}
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="ad-card" id="bonusCard">
+    <div class="ad-card-header" id="bonusHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
+      <div class="ad-card-header-title">Bonus Codes</div>
+      <div class="ad-card-count" id="bonusCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="bonus-form">
+        <select id="bonusAmountSelect">
+          <option value="5">+5 requests</option>
+          <option value="10">+10 requests</option>
+          <option value="25">+25 requests</option>
+          <option value="50">+50 requests</option>
+          <option value="100">+100 requests</option>
+        </select>
+        <input type="number" id="bonusMaxRedemptions" placeholder="Max users" min="1" step="1" value="1">
+        <button type="button" id="bonusGenerateBtn">Generate</button>
+      </div>
+      <div class="bonus-msg" id="bonusMsg"></div>
+      <div class="bonus-list" id="bonusList"><div class="ad-empty">Loading…</div></div>
+    </div></div>
   </div>
 
   <div class="ad-card" id="usersCard">
@@ -419,6 +473,9 @@ document.getElementById('adBackBtn').addEventListener('click', () => {
   else window.location.href = '/';
 });
 
+document.getElementById('bonusHeader').addEventListener('click', () => {
+  document.getElementById('bonusCard').classList.toggle('open');
+});
 document.getElementById('usersHeader').addEventListener('click', () => {
   document.getElementById('usersCard').classList.toggle('open');
 });
@@ -435,6 +492,7 @@ document.getElementById('storageHeader').addEventListener('click', () => {
   document.getElementById('storageCard').classList.toggle('open');
 });
 
+const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
 const RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>';
 const BAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2" stroke-linecap="round"/></svg>';
 const DELETE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>';
@@ -442,6 +500,66 @@ const UNBAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
 const VERIFIED_BADGE = '<svg width="15" height="15" viewBox="0 0 24 24" aria-label="Admin"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+
+const bonusList = document.getElementById('bonusList');
+const bonusCount = document.getElementById('bonusCount');
+const bonusMsg = document.getElementById('bonusMsg');
+
+function bonusCodeCardHtml(c){
+  const used = c.redemptionsCount || 0;
+  const max = c.maxRedemptions || 0;
+  const active = used < max;
+  const created = c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '';
+  return '<div class="bonus-code-card">' +
+    '<div class="bonus-code-head">' +
+      '<div class="bonus-code-text">' + esc(c.code) + '</div>' +
+      '<button type="button" class="bonus-copy-btn" data-code="' + esc(c.code) + '" aria-label="Copy code">' + COPY_ICON + '</button>' +
+      '<span class="status-pill ' + (active ? 'ok' : 'bad') + '">' + (active ? 'Active' : 'Expired') + '</span>' +
+    '</div>' +
+    '<div class="bonus-code-meta">+' + c.amount + ' requests · ' + used + '/' + max + ' used' + (created ? ' · ' + created : '') + '</div>' +
+  '</div>';
+}
+
+function renderBonusList(codes){
+  if(!codes.length){ bonusList.innerHTML = '<div class="ad-empty">No bonus codes generated yet.</div>'; return; }
+  bonusList.innerHTML = codes.map(bonusCodeCardHtml).join('');
+  bonusList.querySelectorAll('.bonus-copy-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.getAttribute('data-code')).then(() => showToast('Code copied.')).catch(() => {});
+    });
+  });
+}
+
+function loadBonusCodes(){
+  getJSON('/api/admin/bonus-codes').then((data) => {
+    const codes = data.codes || [];
+    bonusCount.style.display = codes.length ? '' : 'none';
+    bonusCount.textContent = String(codes.length);
+    renderBonusList(codes);
+  }).catch(() => { bonusList.innerHTML = '<div class="ad-empty">Could not load bonus codes.</div>'; });
+}
+
+document.getElementById('bonusGenerateBtn').addEventListener('click', () => {
+  const btn = document.getElementById('bonusGenerateBtn');
+  const amount = Number(document.getElementById('bonusAmountSelect').value);
+  const maxRedemptions = Number(document.getElementById('bonusMaxRedemptions').value);
+  bonusMsg.className = 'bonus-msg';
+  bonusMsg.textContent = '';
+  if (!maxRedemptions || maxRedemptions < 1) {
+    bonusMsg.className = 'bonus-msg err';
+    bonusMsg.textContent = 'Enter how many users can use this code.';
+    return;
+  }
+  btn.disabled = true;
+  postJSON('/api/admin/bonus-codes', { amount, maxRedemptions }).then((data) => {
+    bonusMsg.className = 'bonus-msg ok';
+    bonusMsg.textContent = 'Generated code: ' + data.code.code;
+    loadBonusCodes();
+  }).catch((err) => {
+    bonusMsg.className = 'bonus-msg err';
+    bonusMsg.textContent = err.message || 'Could not generate bonus code.';
+  }).finally(() => { btn.disabled = false; });
+});
 const PROFILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/></svg>';
 const PROFILE_VERIFIED_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/><g transform="translate(13.5,12.5) scale(0.6)"><path fill="currentColor" stroke="none" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke="var(--card2)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></g></svg>';
 
@@ -1211,6 +1329,7 @@ document.getElementById('maintenanceSwitch').addEventListener('click', async () 
 });
 
 loadMaintenanceStatus();
+loadBonusCodes();
 loadUsersPage(true);
 loadBannedUsers();
 loadVerifyPage(true);

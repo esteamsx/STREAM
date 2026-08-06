@@ -2355,6 +2355,71 @@ function getApiPlanConfig(data) {
   return API_PLANS[getEffectiveApiPlan(data)];
 }
 
+const BONUS_CODE_AMOUNTS = [5, 10, 25, 50, 100];
+const BONUS_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function generateBonusCodeString() {
+  const bytes = crypto.randomBytes(8);
+  let out = "";
+  for (let i = 0; i < 8; i++) out += BONUS_CODE_ALPHABET[bytes[i] % BONUS_CODE_ALPHABET.length];
+  return out;
+}
+
+async function createBonusCode(adminUid, amount, maxRedemptions) {
+  const parsedAmount = Number(amount);
+  if (!BONUS_CODE_AMOUNTS.includes(parsedAmount)) {
+    throw new Error(`Bonus amount must be one of: ${BONUS_CODE_AMOUNTS.join(", ")}.`);
+  }
+  const limit = Number(maxRedemptions);
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new Error("Max redemptions must be a positive whole number.");
+  }
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const code = generateBonusCodeString();
+    const ref = db.collection("bonusCodes").doc(code);
+    const snap = await ref.get();
+    if (snap.exists) continue;
+    const entry = {
+      code,
+      amount: parsedAmount,
+      maxRedemptions: limit,
+      redemptionsCount: 0,
+      createdAt: Date.now(),
+      createdBy: adminUid,
+    };
+    await ref.set(entry);
+    return entry;
+  }
+  throw new Error("Could not generate a unique bonus code. Try again.");
+}
+
+async function listBonusCodes() {
+  const snap = await db.collection("bonusCodes").orderBy("createdAt", "desc").limit(200).get();
+  return snap.docs.map((d) => d.data());
+}
+
+async function redeemBonusCode(uid, rawCode, product) {
+  const code = String(rawCode || "").trim().toUpperCase();
+  if (!code) throw Object.assign(new Error("Enter a bonus code."), { status: 400 });
+  const field = product === "devapi" ? "bonusDevApiRequests" : "bonusApiRequests";
+  const codeRef = db.collection("bonusCodes").doc(code);
+  const redemptionRef = codeRef.collection("redemptions").doc(uid);
+  const userRef = db.collection("users").doc(uid);
+  return db.runTransaction(async (tx) => {
+    const [codeSnap, redemptionSnap] = await Promise.all([tx.get(codeRef), tx.get(redemptionRef)]);
+    if (!codeSnap.exists) throw Object.assign(new Error("That bonus code doesn't exist."), { status: 404 });
+    const data = codeSnap.data();
+    if (redemptionSnap.exists) throw Object.assign(new Error("You've already used this bonus code."), { status: 400 });
+    if (data.redemptionsCount >= data.maxRedemptions) {
+      throw Object.assign(new Error("This bonus code has expired."), { status: 400 });
+    }
+    tx.set(redemptionRef, { uid, product, redeemedAt: Date.now() });
+    tx.update(codeRef, { redemptionsCount: data.redemptionsCount + 1 });
+    tx.set(userRef, { [field]: admin.firestore.FieldValue.increment(data.amount) }, { merge: true });
+    return { amount: data.amount, product };
+  });
+}
+
 async function createApiPlanPayment(uid, reference, amountKobo, plan) {
   await db.collection("apiPlanPayments").doc(reference).set({
     uid,
@@ -2742,4 +2807,8 @@ export {
   getEffectiveApiPlan,
   getApiPlanConfig,
   SESSION_TTL_MS,
+  BONUS_CODE_AMOUNTS,
+  createBonusCode,
+  listBonusCodes,
+  redeemBonusCode,
 };

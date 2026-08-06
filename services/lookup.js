@@ -74,34 +74,30 @@ export async function getCurrencyRate(from, to, amount) {
   };
 }
 
+const PART_OF_SPEECH_NAMES = { n: "noun", v: "verb", adj: "adjective", adv: "adverb", u: "other" };
+
 export async function getDictionaryDefinition(word) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  let res;
-  try {
-    res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`, { signal: controller.signal });
-  } catch {
-    throw Object.assign(new Error("Could not reach the dictionary service right now."), { status: 502 });
-  } finally {
-    clearTimeout(timer);
+  const data = await fetchJson(`https://api.datamuse.com/words?sp=${encodeURIComponent(word)}&md=d&max=1`);
+  const entry = Array.isArray(data) ? data[0] : null;
+  if (!entry || !Array.isArray(entry.defs) || !entry.defs.length) {
+    throw Object.assign(new Error("No definition found for that word."), { status: 404 });
   }
-  if (res.status === 404) throw Object.assign(new Error("No definition found for that word."), { status: 404 });
-  if (!res.ok) throw Object.assign(new Error(`Dictionary service responded ${res.status}.`), { status: 502 });
-  let data;
-  try {
-    data = await res.json();
-  } catch {
-    throw Object.assign(new Error("Dictionary service returned an unexpected response."), { status: 502 });
+  const grouped = {};
+  const order = [];
+  for (const raw of entry.defs) {
+    const [tag, ...rest] = raw.split("\t");
+    const partOfSpeech = PART_OF_SPEECH_NAMES[tag] || "other";
+    const definition = rest.join("\t");
+    if (!grouped[partOfSpeech]) {
+      grouped[partOfSpeech] = [];
+      order.push(partOfSpeech);
+    }
+    if (grouped[partOfSpeech].length < 3) grouped[partOfSpeech].push(definition);
   }
-  const entry = data[0];
-  if (!entry) throw Object.assign(new Error("No definition found for that word."), { status: 404 });
   return {
     word: entry.word,
-    phonetic: entry.phonetic || null,
-    meanings: (entry.meanings || []).map((m) => ({
-      partOfSpeech: m.partOfSpeech,
-      definitions: (m.definitions || []).slice(0, 3).map((d) => d.definition),
-    })),
+    phonetic: null,
+    meanings: order.map((partOfSpeech) => ({ partOfSpeech, definitions: grouped[partOfSpeech] })),
   };
 }
 

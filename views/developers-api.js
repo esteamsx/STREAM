@@ -745,9 +745,9 @@ ${musicPlayerStyle()}
   "https://esteamstv.devs.surf/api/v1/dev/dictionary?word=hello"</pre>
     <pre>{
   "word": "hello",
-  "phonetic": "həˈləʊ",
+  "phonetic": null,
   "meanings": [
-    { "partOfSpeech": "exclamation", "definitions": ["Used as a greeting."] }
+    { "partOfSpeech": "noun", "definitions": ["An expression of greeting."] }
   ]
 }</pre>
 
@@ -945,6 +945,15 @@ ${musicPlayerHtml()}
       '</div>';
     }
 
+    html += '<div class="field" style="margin-top:0;margin-bottom:16px">' +
+      '<label>Redeem Bonus Code</label>' +
+      '<div style="display:flex;gap:8px">' +
+        '<input type="text" id="bonusRedeemInput" placeholder="Enter code" style="flex:1" maxlength="16">' +
+        '<button class="btn" id="bonusRedeemBtn" type="button" style="flex-shrink:0">Redeem</button>' +
+      '</div>' +
+      '<div class="dcard-msg" id="bonusRedeemMsg"></div>' +
+    '</div>';
+
     if(!keys.length){
       html += '<div class="empty-state" id="noKeysMsg">You don\\'t have an API key yet. Create one to start making requests.</div>';
     } else {
@@ -986,6 +995,37 @@ ${musicPlayerHtml()}
         bar.style.width = bar.getAttribute('data-pct') + '%';
       });
     });
+
+    var bonusRedeemBtn = document.getElementById('bonusRedeemBtn');
+    var bonusRedeemInput = document.getElementById('bonusRedeemInput');
+    if(bonusRedeemBtn && bonusRedeemInput){
+      bonusRedeemBtn.addEventListener('click', function(){
+        var code = bonusRedeemInput.value.trim();
+        var msg = document.getElementById('bonusRedeemMsg');
+        if(!code){
+          msg.className = 'dcard-msg err';
+          msg.textContent = 'Enter a bonus code first.';
+          bonusRedeemInput.focus();
+          return;
+        }
+        var originalHtml = bonusRedeemBtn.innerHTML;
+        bonusRedeemBtn.disabled = true;
+        bonusRedeemBtn.innerHTML = '<span class="btn-spinner"></span> Redeeming…';
+        fetch('/api/devapi/bonus-redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code }) })
+          .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error || 'Could not redeem that code.'); return d; }); })
+          .then(function(d){
+            loadKeys();
+            requestAnimationFrame(function(){
+              var newMsg = document.getElementById('bonusRedeemMsg');
+              if(newMsg){ newMsg.className = 'dcard-msg ok'; newMsg.textContent = '+' + d.amount + ' requests added to your monthly limit.'; }
+            });
+          })
+          .catch(function(err){
+            msg.className = 'dcard-msg err'; msg.textContent = err.message;
+            bonusRedeemBtn.disabled = false; bonusRedeemBtn.innerHTML = originalHtml;
+          });
+      });
+    }
 
     keyCardBody.querySelectorAll('[data-revoke]').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -1070,7 +1110,7 @@ ${musicPlayerHtml()}
     quran: { title: 'Try it — Quran', method: 'GET', path: '/api/v1/dev/quran', param: 'reference', label: 'Reference (surah:ayah)', placeholder: '2:255' },
     technews: { title: 'Try it — Tech News', method: 'GET', path: '/api/v1/dev/technews', param: 'limit', label: 'How many (1-20)', placeholder: '5' },
     imgscan: { title: 'Try it — Image Analysis', method: 'GET', path: '/api/v1/dev/imgscan', param: 'url', label: 'Image URL', placeholder: 'https://example.com/image.png' },
-    currency: { title: 'Try it — Currency Exchange', method: 'GET', path: '/api/v1/dev/currency', label: 'From - To', placeholder: 'USD - NGN', parts: ['from', 'to'], splitOn: ' - ' },
+    currency: { title: 'Try it — Currency Exchange', method: 'GET', path: '/api/v1/dev/currency', label: 'From currency - To currency (e.g. USD - NGN)', placeholder: 'USD - NGN', parts: ['from', 'to'], splitOn: ' - ' },
     dictionary: { title: 'Try it — Dictionary', method: 'GET', path: '/api/v1/dev/dictionary', param: 'word', label: 'Word', placeholder: 'hello' },
     iplookup: { title: 'Try it — IP Lookup', method: 'GET', path: '/api/v1/dev/iplookup', param: 'ip', label: 'IP address', placeholder: '8.8.8.8' },
     country: { title: 'Try it — Country Info', method: 'GET', path: '/api/v1/dev/country', param: 'name', label: 'Country name', placeholder: 'Nigeria' },
