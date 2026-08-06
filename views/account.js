@@ -423,7 +423,13 @@ input{font-family:inherit}
 }
 .rw-bank-card-delete:hover{background:rgba(255,59,92,.55)}
 .rw-bank-card-delete svg{width:14px;height:14px}
-.rw-bank-card-brand{position:relative;font-family:var(--font-display);font-weight:800;font-size:.85rem;letter-spacing:.08em;opacity:.9;margin-bottom:26px;text-transform:uppercase}
+.rw-bank-card-brand{position:relative;display:flex;align-items:center;gap:9px;margin-bottom:26px}
+.rw-bank-card-logo{
+  width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-weight:800;font-size:.65rem;color:#fff;letter-spacing:.01em;
+  box-shadow:0 2px 6px rgba(0,0,0,.3),inset 0 0 0 1px rgba(255,255,255,.25);
+}
+.rw-bank-card-brand-text{font-family:var(--font-display);font-weight:800;font-size:.85rem;letter-spacing:.08em;opacity:.92;text-transform:uppercase}
 .rw-bank-card-number-row{position:relative;display:flex;align-items:center;gap:10px;margin-bottom:22px}
 .rw-bank-card-number{font-family:var(--font-mono);font-size:1.15rem;letter-spacing:.1em;font-weight:600}
 .rw-bank-card-eye{background:transparent;border:none;color:rgba(255,255,255,.8);padding:4px;display:flex;cursor:pointer}
@@ -1235,9 +1241,9 @@ body:has(.page-overlay.show){overflow:hidden}
         </div>
         <div class="field">
           <label>Account Name</label>
-          <input type="text" id="rwAccountName" placeholder="Name on the account">
+          <input type="text" id="rwAccountName" placeholder="Will appear after verification" disabled>
         </div>
-        <button type="button" class="acc-btn" id="rwSaveBankBtn" style="width:100%">Save Bank Details</button>
+        <button type="button" class="acc-btn" id="rwSaveBankBtn" style="width:100%" disabled>Save Bank Details</button>
         <div class="acc-msg" id="rwBankMsg"></div>
       </div>
 
@@ -3943,6 +3949,45 @@ const NIGERIA_BANKS = [
   'Unity Bank', 'VFD Microfinance Bank', 'Wema Bank', 'Zenith Bank',
 ];
 
+const BANK_BRANDS = {
+  'Access Bank': { mono: 'AB', color: '#F26522' },
+  'Carbon': { mono: 'CB', color: '#101820' },
+  'Citibank Nigeria': { mono: 'C', color: '#003882' },
+  'Ecobank Nigeria': { mono: 'EB', color: '#00335E' },
+  'FairMoney MFB': { mono: 'FM', color: '#6C2EB9' },
+  'Fidelity Bank': { mono: 'FB', color: '#00447C' },
+  'First Bank of Nigeria': { mono: 'FBN', color: '#00447B' },
+  'First City Monument Bank (FCMB)': { mono: 'FC', color: '#00338D' },
+  'Globus Bank': { mono: 'GB', color: '#00A99D' },
+  'Guaranty Trust Bank (GTBank)': { mono: 'GT', color: '#EE6C0F' },
+  'Jaiz Bank': { mono: 'JB', color: '#00693E' },
+  'Keystone Bank': { mono: 'KB', color: '#EE7623' },
+  'Kuda Bank': { mono: 'KU', color: '#3D1E6D' },
+  'Moniepoint MFB': { mono: 'MP', color: '#052D5D' },
+  'OPay': { mono: 'OP', color: '#00A860' },
+  'Optimus Bank': { mono: 'OB', color: '#0B6E5C' },
+  'PalmPay': { mono: 'PP', color: '#6A2EE0' },
+  'Parallex Bank': { mono: 'PX', color: '#1B4F9C' },
+  'Polaris Bank': { mono: 'PB', color: '#ED1C24' },
+  'Premium Trust Bank': { mono: 'PT', color: '#1C8A4B' },
+  'Providus Bank': { mono: 'PV', color: '#1B2A4A' },
+  'Rubies MFB': { mono: 'RB', color: '#E4287C' },
+  'Signature Bank': { mono: 'SB', color: '#1A1A1A' },
+  'Sparkle Microfinance Bank': { mono: 'SP', color: '#F7A600' },
+  'Stanbic IBTC Bank': { mono: 'SI', color: '#0033A1' },
+  'Standard Chartered Bank': { mono: 'SC', color: '#006A4D' },
+  'Sterling Bank': { mono: 'ST', color: '#A6192E' },
+  'SunTrust Bank': { mono: 'SU', color: '#F7941D' },
+  'Titan Trust Bank': { mono: 'TT', color: '#12294B' },
+  'Union Bank of Nigeria': { mono: 'UB', color: '#F58220' },
+  'United Bank for Africa (UBA)': { mono: 'UBA', color: '#D71921' },
+  'Unity Bank': { mono: 'UN', color: '#00A651' },
+  'VFD Microfinance Bank': { mono: 'VF', color: '#0F3D3E' },
+  'Wema Bank': { mono: 'WB', color: '#6E2585' },
+  'Zenith Bank': { mono: 'ZB', color: '#E4002B' },
+};
+const DEFAULT_BANK_BRAND = { mono: 'BK', color: '#5a4fcf' };
+
 const rwBankPicker = document.getElementById('rwBankPicker');
 const rwBankSearch = document.getElementById('rwBankSearch');
 const rwBankNameField = document.getElementById('rwBankName');
@@ -3985,10 +4030,12 @@ let bankVerifyCheckSeq = 0;
 function triggerAccountVerify(){
   const status = document.getElementById('rwAccountVerifyStatus');
   const accountNameField = document.getElementById('rwAccountName');
+  const saveBtn = document.getElementById('rwSaveBankBtn');
   const bankName = rwBankNameField.value.trim();
   const accountNumber = document.getElementById('rwAccountNumber').value.trim();
   const seq = ++bankVerifyCheckSeq;
-  accountNameField.readOnly = false;
+  accountNameField.value = '';
+  saveBtn.disabled = true;
   if (!bankName || !/^\d{10}$/.test(accountNumber)) {
     status.className = 'uname-status';
     status.innerHTML = '';
@@ -4004,17 +4051,17 @@ function triggerAccountVerify(){
       if (seq !== bankVerifyCheckSeq) return;
       if (res.ok && data.accountName) {
         accountNameField.value = data.accountName;
-        accountNameField.readOnly = true;
+        saveBtn.disabled = false;
         status.className = 'uname-status ok';
         status.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified: ' + esc(data.accountName);
       } else {
         status.className = 'uname-status';
-        status.textContent = 'Could not auto-verify this account. Enter the name manually.';
+        status.textContent = data.error || 'Could not verify this account. Check the number and bank, then try again.';
       }
     } catch {
       if (seq !== bankVerifyCheckSeq) return;
       status.className = 'uname-status';
-      status.textContent = 'Could not auto-verify this account. Enter the name manually.';
+      status.textContent = 'Could not verify this account. Check the number and bank, then try again.';
     }
   }, 500);
 }
@@ -4035,8 +4082,8 @@ document.getElementById('rwSaveBankBtn').addEventListener('click', async () => {
   const bankName = document.getElementById('rwBankName').value.trim();
   const accountNumber = document.getElementById('rwAccountNumber').value.trim();
   const accountName = document.getElementById('rwAccountName').value.trim();
-  if (!bankName) {
-    flashMsg(msg, 'Search and select your bank from the list first.', false);
+  if (!bankName || !accountName) {
+    flashMsg(msg, 'Verify your account number first.', false);
     return;
   }
   const originalHtml = btn.innerHTML;
@@ -4071,7 +4118,10 @@ function renderBankCard(){
   if (bd) {
     addForm.style.display = 'none';
     cardDisplay.style.display = 'block';
-    document.getElementById('rwBankCardBrand').textContent = bd.bankName;
+    const brand = BANK_BRANDS[bd.bankName] || DEFAULT_BANK_BRAND;
+    document.getElementById('rwBankCardBrand').innerHTML =
+      '<span class="rw-bank-card-logo" style="background:' + brand.color + '">' + esc(brand.mono) + '</span>' +
+      '<span class="rw-bank-card-brand-text">' + esc(bd.bankName) + '</span>';
     document.getElementById('rwBankCardBankName').textContent = bd.bankName;
     document.getElementById('rwBankCardName').textContent = bd.accountName;
     bankCardNumberVisible = false;
@@ -4084,7 +4134,8 @@ function renderBankCard(){
     document.getElementById('rwBankSearch').value = '';
     document.getElementById('rwAccountNumber').value = '';
     document.getElementById('rwAccountName').value = '';
-    document.getElementById('rwAccountName').readOnly = false;
+    document.getElementById('rwAccountVerifyStatus').innerHTML = '';
+    document.getElementById('rwSaveBankBtn').disabled = true;
   }
   syncPanelHeight();
 }
