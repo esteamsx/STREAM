@@ -1245,6 +1245,7 @@ body:has(.page-overlay.show){overflow:hidden}
           <label>Account Name</label>
           <input type="text" id="rwAccountName" placeholder="Will appear after verification" disabled>
         </div>
+        <div style="margin:12px 0"><altcha-widget id="rwBankAddAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>
         <button type="button" class="acc-btn" id="rwSaveBankBtn" style="width:100%" disabled>Save Bank Details</button>
         <div class="acc-msg" id="rwBankMsg"></div>
       </div>
@@ -4025,22 +4026,50 @@ rwBankSearch.addEventListener('input', () => {
   renderBankList(rwBankSearch.value);
 });
 rwBankSearch.addEventListener('blur', () => {
-  setTimeout(() => rwBankPicker.classList.remove('open'), 150);
+  setTimeout(() => {
+    rwBankPicker.classList.remove('open');
+    if (!rwBankNameField.value) {
+      const typed = rwBankSearch.value.trim().toLowerCase();
+      const exact = NIGERIA_BANKS.find((b) => b.toLowerCase() === typed);
+      if (exact) {
+        rwBankNameField.value = exact;
+        rwBankSearch.value = exact;
+      }
+    }
+    triggerAccountVerify();
+  }, 150);
+});
+
+let bankAddCaptchaPassed = false;
+let bankAddCaptchaValue = '';
+function updateSaveBankBtnState(){
+  const accountNameField = document.getElementById('rwAccountName');
+  document.getElementById('rwSaveBankBtn').disabled = !(accountNameField.value && bankAddCaptchaPassed);
+}
+document.getElementById('rwBankAddAltcha').addEventListener('statechange', (ev) => {
+  const state = ev.detail.state;
+  bankAddCaptchaPassed = state === 'verified';
+  bankAddCaptchaValue = bankAddCaptchaPassed ? ev.detail.payload : '';
+  updateSaveBankBtnState();
 });
 
 let bankVerifyCheckSeq = 0;
 function triggerAccountVerify(){
   const status = document.getElementById('rwAccountVerifyStatus');
   const accountNameField = document.getElementById('rwAccountName');
-  const saveBtn = document.getElementById('rwSaveBankBtn');
   const bankName = rwBankNameField.value.trim();
   const accountNumber = document.getElementById('rwAccountNumber').value.trim();
   const seq = ++bankVerifyCheckSeq;
   accountNameField.value = '';
-  saveBtn.disabled = true;
-  if (!bankName || !/^\d{10}$/.test(accountNumber)) {
+  updateSaveBankBtnState();
+  if (!/^\d{10}$/.test(accountNumber)) {
     status.className = 'uname-status';
     status.innerHTML = '';
+    return;
+  }
+  if (!bankName) {
+    status.className = 'uname-status';
+    status.textContent = 'Select your bank from the list above to verify.';
     return;
   }
   status.className = 'uname-status';
@@ -4053,7 +4082,7 @@ function triggerAccountVerify(){
       if (seq !== bankVerifyCheckSeq) return;
       if (res.ok && data.accountName) {
         accountNameField.value = data.accountName;
-        saveBtn.disabled = false;
+        updateSaveBankBtnState();
         status.className = 'uname-status ok';
         status.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified: ' + esc(data.accountName);
       } else {
@@ -4088,18 +4117,21 @@ document.getElementById('rwSaveBankBtn').addEventListener('click', async () => {
     flashMsg(msg, 'Verify your account number first.', false);
     return;
   }
+  if (!bankAddCaptchaPassed) {
+    flashMsg(msg, 'Complete the captcha first.', false);
+    return;
+  }
   const originalHtml = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner"></span>Saving…';
   try {
-    await postJSON('/api/rewards/bank-details', { bankName, accountNumber, accountName });
+    await postJSON('/api/rewards/bank-details', { bankName, accountNumber, accountName, altcha: bankAddCaptchaValue });
     flashMsg(msg, 'Bank details saved.', true);
     loadRewardsSummary();
   } catch (err) {
     flashMsg(msg, err.message, false);
-  } finally {
-    btn.disabled = false;
     btn.innerHTML = originalHtml;
+    updateSaveBankBtnState();
   }
 });
 

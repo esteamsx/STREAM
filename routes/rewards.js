@@ -113,6 +113,9 @@ router.post("/api/rewards/redeem", requireAuth, redeemLimiter, async (req, res) 
 
 router.post("/api/rewards/bank-details", requireAuth, bankLimiter, async (req, res) => {
   try {
+    if (!(await verifyCaptcha(req.body?.altcha))) {
+      return res.status(400).json({ error: "Captcha not completed." });
+    }
     const result = await setBankDetails(req.uid, {
       bankName: req.body?.bankName,
       accountNumber: req.body?.accountNumber,

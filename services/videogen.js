@@ -40,7 +40,7 @@ export async function generateVideoFromPrompt(prompt) {
     res = await fetch(ROUTER_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ inputs: prompt }),
+      body: JSON.stringify({ prompt }),
       signal: controller.signal,
     });
   } catch (err) {
