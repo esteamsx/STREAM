@@ -5,6 +5,7 @@ import { spawn, exec } from "child_process";
 import { db } from "./bot-firebase.js";
 import admin from "firebase-admin";
 
+const PUBLIC_BASE = "https://esteamstv.devs.surf";
 const REPO_TARBALL_URL = "https://github.com/paskito002/ES_TEAMS-V1/archive/refs/heads/main.tar.gz";
 const REPO_LATEST_COMMIT_API = "https://api.github.com/repos/paskito002/ES_TEAMS-V1/commits/main";
 const BOTS_ROOT = path.join(process.cwd(), ".bot-deployments");
@@ -351,6 +352,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   await setStatus("starting");
 
   const childEnv = { ...process.env, PHONE_NUMBER: phoneNumber };
+  if (!childEnv.SELF_URL) childEnv.SELF_URL = `${PUBLIC_BASE}/health`;
   delete childEnv.PORT;
 
   const proc = spawn("node", ["index.js"], {
