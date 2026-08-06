@@ -72,7 +72,6 @@ input{font-family:inherit}
 
 .db-card{
   background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
-  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
   border:1px solid rgba(255,255,255,.16);
   box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
   border-radius:16px;padding:18px;margin-bottom:18px;
@@ -189,7 +188,6 @@ input{font-family:inherit}
 .db-overlay.show{opacity:1;pointer-events:auto}
 .db-overlay-card{
   background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
-  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
   border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:22px;
   max-width:340px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);
 }

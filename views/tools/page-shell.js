@@ -72,7 +72,6 @@ h1 svg{width:22px;height:22px;color:var(--accent);flex-shrink:0}
 .tool-card{
   position:relative;
   background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
-  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
   border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:22px;margin-bottom:16px;
   box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
 }

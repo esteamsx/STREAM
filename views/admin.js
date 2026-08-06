@@ -63,7 +63,6 @@ input{font-family:inherit}
 .ad-hero{
   display:flex;align-items:center;gap:14px;
   background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
-  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
   border:1px solid rgba(255,255,255,.16);
   box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
   border-radius:18px;padding:18px;margin-bottom:20px;
@@ -84,7 +83,6 @@ input{font-family:inherit}
 
 .ad-card{
   background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
-  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
   border:1px solid rgba(255,255,255,.16);
   box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
   border-radius:16px;margin-bottom:18px;overflow:hidden;
@@ -191,7 +189,6 @@ body:has(.ad-overlay.show){overflow:hidden}
 .ad-modal{
   width:100%;max-width:340px;
   background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
-  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
   border:1px solid rgba(255,255,255,.22);border-radius:18px;
   box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);
   padding:24px 22px;transform:translateY(10px) scale(.97);transition:transform .25s var(--ease);

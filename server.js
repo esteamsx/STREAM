@@ -1756,7 +1756,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .page-overlay.show{display:flex}
 .overlay-card{
   background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
-  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
   border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:28px 26px;
   display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);max-width:320px;width:90%;
 }
@@ -1807,7 +1806,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .mpv-card{
   width:100%;max-width:340px;
   background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
-  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
   border:1px solid rgba(255,255,255,.22);
   border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);padding:26px 22px;text-align:center;
 }
