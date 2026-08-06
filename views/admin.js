@@ -35,7 +35,16 @@ ${cfg.protectionCSS || ""}
 }
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
-body{background:var(--dark);color:var(--text);font-family:var(--font-body);min-height:100%}
+body{background:var(--dark);color:var(--text);font-family:var(--font-body);min-height:100%;overflow-x:hidden;position:relative}
+.aurora{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+.blob{position:absolute;border-radius:50%;filter:blur(65px);mix-blend-mode:screen}
+.blob-1{width:560px;height:560px;background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.5;top:-160px;left:-140px}
+.blob-2{width:500px;height:500px;background:radial-gradient(circle,var(--accent2),transparent 70%);opacity:.45;bottom:-180px;right:-120px}
+.blob-3{width:420px;height:420px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.32;top:38%;left:50%;transform:translate(-50%,-50%)}
+:root[data-theme="light"] .blob{filter:blur(70px);mix-blend-mode:normal}
+:root[data-theme="light"] .blob-1{background:radial-gradient(circle,rgba(0,224,255,.5),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-2{background:radial-gradient(circle,rgba(124,92,255,.45),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-3{background:radial-gradient(circle,rgba(255,92,184,.35),transparent 70%);opacity:1}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
@@ -49,11 +58,20 @@ input{font-family:inherit}
 .ad-back svg{width:18px;height:18px}
 .ad-nav-title{font-family:var(--font-display);font-weight:700;font-size:.95rem}
 
-.ad-wrap{max-width:560px;margin:0 auto;padding:24px 18px 60px}
+.ad-wrap{max-width:560px;margin:0 auto;padding:24px 18px 60px;position:relative;z-index:1}
 
 .ad-hero{
-  display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);
+  display:flex;align-items:center;gap:14px;
+  background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
   border-radius:18px;padding:18px;margin-bottom:20px;
+}
+:root[data-theme="light"] .ad-hero{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.6);
 }
 .ad-avatar{
   width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));
@@ -64,7 +82,18 @@ input{font-family:inherit}
 .ad-hero-sub{font-size:.8rem;color:var(--muted);margin-top:2px}
 .ad-verified{display:inline-flex}
 
-.ad-card{background:var(--card);border:1px solid var(--border);border-radius:16px;margin-bottom:18px;overflow:hidden}
+.ad-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
+  border-radius:16px;margin-bottom:18px;overflow:hidden;
+}
+:root[data-theme="light"] .ad-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.6);
+}
 .ad-card-header{
   display:flex;align-items:center;gap:10px;padding:16px 18px;cursor:pointer;user-select:none;
 }
@@ -160,8 +189,17 @@ body:has(.ad-overlay.show){overflow:hidden}
 .ad-storage-fill.warn{background:var(--red)}
 .ad-storage-err{font-size:.78rem;color:var(--muted)}
 .ad-modal{
-  width:100%;max-width:340px;background:var(--card);border:1px solid var(--border-strong);border-radius:18px;
+  width:100%;max-width:340px;
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
+  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
+  border:1px solid rgba(255,255,255,.22);border-radius:18px;
+  box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);
   padding:24px 22px;transform:translateY(10px) scale(.97);transition:transform .25s var(--ease);
+}
+:root[data-theme="light"] .ad-modal{
+  background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);
+  border:1px solid rgba(255,255,255,.65);
+  box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
 }
 .ad-overlay.show .ad-modal{transform:translateY(0) scale(1)}
 .ad-modal-title{font-family:var(--font-display);font-weight:700;font-size:1rem;margin-bottom:4px;display:flex;align-items:center;gap:8px}
@@ -290,6 +328,12 @@ body:has(.ad-overlay.show){overflow:hidden}
 </style>
 </head>
 <body>
+
+<div class="aurora">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
 
 <div class="ad-nav">
   <button type="button" class="ad-back" id="adBackBtn">
