@@ -591,13 +591,17 @@ async function getApiKeyOwnerUid(keyId) {
   return snap.exists ? snap.data().uid : null;
 }
 
+const DEV_API_PLAN_DAYS = 30;
+
 const DEV_API_PLANS = {
-  free: { name: "Free", apiKeys: 1, priceNgn: 0, monthlyRequests: 50 },
-  starter: { name: "Starter", apiKeys: 3, priceNgn: 0, monthlyRequests: 50 },
-  standard: { name: "Standard", apiKeys: 5, priceNgn: 3000, monthlyRequests: 150 },
-  pro: { name: "Pro", apiKeys: 10, priceNgn: 5000, monthlyRequests: 400 },
-  max: { name: "Max", apiKeys: 15, priceNgn: 10000, monthlyRequests: Infinity },
+  free: { name: "Free", apiKeys: 1, requestsPerSecond: 3, monthlyRequests: 100, noAds: false, customAdsLink: false, priceNgn: 0 },
+  starter: { name: "Starter", apiKeys: 3, requestsPerSecond: 10, monthlyRequests: 200, noAds: false, customAdsLink: false, priceNgn: 0 },
+  standard: { name: "Standard", apiKeys: 5, requestsPerSecond: 20, monthlyRequests: 350, noAds: false, customAdsLink: false, priceNgn: 3000 },
+  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: true, priceNgn: 5000 },
+  max: { name: "Max", apiKeys: 15, requestsPerSecond: 50, monthlyRequests: 1000, noAds: true, customAdsLink: true, priceNgn: 10000 },
 };
+
+const PURCHASABLE_DEV_API_PLANS = ["standard", "pro", "max"];
 
 function getEffectiveDevApiPlan(data) {
   if (!data) return "free";
@@ -610,6 +614,60 @@ function getEffectiveDevApiPlan(data) {
 
 function getDevApiPlanConfig(data) {
   return DEV_API_PLANS[getEffectiveDevApiPlan(data)];
+}
+
+async function createDevApiPlanPayment(uid, reference, amountKobo, plan) {
+  await db.collection("devApiPlanPayments").doc(reference).set({
+    uid,
+    plan,
+    amountKobo,
+    status: "pending",
+    createdAt: Date.now(),
+  });
+}
+
+async function getDevApiPlanPayment(reference) {
+  const snap = await db.collection("devApiPlanPayments").doc(reference).get();
+  return snap.exists ? snap.data() : null;
+}
+
+async function finalizeDevApiPlanPayment(reference, paystackData) {
+  const ref = db.collection("devApiPlanPayments").doc(reference);
+  const snap = await ref.get();
+  if (!snap.exists) return { notOurs: true };
+  const record = snap.data();
+  if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
+
+  if (paystackData.status !== "success" || paystackData.amount < record.amountKobo) {
+    await ref.update({ status: "failed", failedAt: Date.now() });
+    throw new Error("Payment was not successful.");
+  }
+
+  const expiresAt = Date.now() + DEV_API_PLAN_DAYS * 24 * 60 * 60 * 1000;
+  await db.collection("users").doc(record.uid).update({
+    devApiPlanPaid: record.plan,
+    devApiPlanPurchasedAt: Date.now(),
+    devApiPlanExpiresAt: expiresAt,
+  });
+  await ref.update({ status: "success", confirmedAt: Date.now() });
+  const planName = DEV_API_PLANS[record.plan]?.name || record.plan;
+  await addNotification(record.uid, "dev_api_plan", `Your ${planName} Developer API plan is now active`, { plan: record.plan, expiresAt });
+
+  return { alreadyProcessed: false, uid: record.uid, plan: record.plan, expiresAt };
+}
+
+async function setDevApiCustomAdsUrl(uid, url) {
+  const profile = await getUserProfile(uid);
+  if (!profile) throw new Error("Account not found.");
+  if (!getDevApiPlanConfig(profile).customAdsLink) throw new Error("The custom ads link is a Pro/Max plan feature.");
+  const trimmed = String(url || "").trim();
+  if (!trimmed) {
+    await db.collection("users").doc(uid).update({ devApiCustomAdsUrl: admin.firestore.FieldValue.delete() });
+    return { devApiCustomAdsUrl: null };
+  }
+  if (!/^https:\/\/[^\s"'<>]{3,300}$/i.test(trimmed)) throw new Error("Enter a valid https:// URL, without spaces or quote characters.");
+  await db.collection("users").doc(uid).update({ devApiCustomAdsUrl: trimmed });
+  return { devApiCustomAdsUrl: trimmed };
 }
 
 async function createDevApiKey(uid, label) {
@@ -2401,11 +2459,14 @@ async function listBonusCodes() {
 async function redeemBonusCode(uid, rawCode, product) {
   const code = String(rawCode || "").trim().toUpperCase();
   if (!code) throw Object.assign(new Error("Enter a bonus code."), { status: 400 });
+  if (!/^[A-Z0-9]{1,32}$/.test(code)) {
+    throw Object.assign(new Error("That bonus code doesn't exist."), { status: 404 });
+  }
   const field = product === "devapi" ? "bonusDevApiRequests" : "bonusApiRequests";
   const codeRef = db.collection("bonusCodes").doc(code);
   const redemptionRef = codeRef.collection("redemptions").doc(uid);
   const userRef = db.collection("users").doc(uid);
-  return db.runTransaction(async (tx) => {
+  const result = await db.runTransaction(async (tx) => {
     const [codeSnap, redemptionSnap] = await Promise.all([tx.get(codeRef), tx.get(redemptionRef)]);
     if (!codeSnap.exists) throw Object.assign(new Error("That bonus code doesn't exist."), { status: 404 });
     const data = codeSnap.data();
@@ -2418,6 +2479,9 @@ async function redeemBonusCode(uid, rawCode, product) {
     tx.set(userRef, { [field]: admin.firestore.FieldValue.increment(data.amount) }, { merge: true });
     return { amount: data.amount, product };
   });
+  const productLabel = product === "devapi" ? "Developer API" : "Live TV API";
+  await addNotification(uid, "bonus_code", `You've received +${result.amount} request limit on your ${productLabel}`, { amount: result.amount, product });
+  return result;
 }
 
 async function createApiPlanPayment(uid, reference, amountKobo, plan) {
@@ -2726,8 +2790,13 @@ export {
   getAccountApiUsage,
   checkAndIncrementAccountApiUsage,
   DEV_API_PLANS,
+  PURCHASABLE_DEV_API_PLANS,
   getEffectiveDevApiPlan,
   getDevApiPlanConfig,
+  createDevApiPlanPayment,
+  getDevApiPlanPayment,
+  finalizeDevApiPlanPayment,
+  setDevApiCustomAdsUrl,
   createDevApiKey,
   listDevApiKeysForUser,
   revokeDevApiKey,

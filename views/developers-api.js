@@ -234,6 +234,7 @@ ${cfg.devToolsBlock || ""}
 ${siteHeadFor("developersApi")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
+<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v1/inline.js"></script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -339,6 +340,36 @@ body:has(.page-overlay.show){overflow:hidden}
 .overlay-sub{font-size:.82rem;color:var(--muted);line-height:1.5}
 .overlay-sub b{color:var(--text)}
 .overlay-cancel{background:transparent;border:none;color:var(--muted);font-size:.78rem;align-self:center;text-decoration:underline;cursor:pointer}
+.overlay-step{display:none;flex-direction:column;gap:14px}
+.overlay-step.active{display:flex}
+.ch-loading{padding:20px;text-align:center;font-size:.8rem;color:var(--muted)}
+
+.plans-grid{
+  display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity;
+  -webkit-overflow-scrolling:touch;
+}
+.plan-card{
+  background:var(--card2);border:1px solid var(--border-strong);border-radius:14px;padding:16px;
+  display:flex;flex-direction:column;gap:12px;position:relative;
+  flex:0 0 auto;width:200px;scroll-snap-align:start;
+}
+@media(min-width:600px){ .plan-card{width:220px} }
+.plan-card.current{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.plan-card.highlight{border-color:var(--accent2);background:linear-gradient(160deg,rgba(124,92,255,.1),var(--card2))}
+.plan-name{font-family:var(--font-display);font-weight:700;font-size:1rem}
+.plan-price{font-family:var(--font-display);font-weight:700;font-size:1.4rem}
+.plan-price span{font-size:.68rem;font-weight:500;color:var(--muted)}
+.plan-note{font-size:.68rem;color:var(--muted);min-height:14px}
+.plan-features{display:flex;flex-direction:column;gap:7px;flex:1}
+.plan-feature{display:flex;align-items:center;gap:7px;font-size:.76rem;color:var(--text)}
+.plan-feature svg{width:13px;height:13px;color:var(--green);flex-shrink:0}
+.plan-feature.off{color:var(--muted2)}
+.plan-feature.off svg{color:var(--muted2)}
+.plan-cta{width:100%;justify-content:center;font-size:.78rem;padding:9px 10px}
+.plan-current-badge{
+  align-self:flex-start;font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:3px 9px;border-radius:20px;background:rgba(0,224,255,.14);color:var(--accent);border:1px solid rgba(0,224,255,.3);
+}
 
 .hero{margin-bottom:26px}
 .hero h1{font-family:var(--font-display);font-size:1.7rem;margin-bottom:6px}
@@ -358,11 +389,6 @@ body:has(.page-overlay.show){overflow:hidden}
 .dcard-msg{font-size:.74rem;margin-top:8px;min-height:1em}
 .dcard-msg.ok{color:var(--green)}
 .dcard-msg.err{color:var(--red)}
-
-.pricing-placeholder{
-  padding:16px;border-radius:12px;background:var(--card2);
-  color:var(--muted);font-size:.84rem;line-height:1.6;text-align:center;
-}
 
 .field{margin-bottom:10px}
 .field label{display:block;font-size:.72rem;color:var(--muted);margin-bottom:6px;font-weight:600}
@@ -500,10 +526,18 @@ ${musicPlayerStyle()}
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/></svg></span>
           <div>
             <div class="dcard-title">Plans &amp; Pricing</div>
-            <div class="dcard-sub">Coming once the APIs below are live</div>
+            <div class="dcard-sub">More API keys, higher rate limits, no ads on the higher tiers</div>
           </div>
         </div>
-        <div class="pricing-placeholder">Pricing will be posted here once these APIs are ready.</div>
+        <div class="plans-grid" id="plansGrid" style="margin-top:16px"><div class="ch-loading">Loading…</div></div>
+        <div id="customAdsWrap" style="display:none;margin-top:16px">
+          <div class="field">
+            <label>Custom Ads Link <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(Pro/Max plan, shown on error responses instead of our default promo)</span></label>
+            <input type="text" id="customAdsInput" placeholder="https://yoursite.com">
+          </div>
+          <button class="btn btn-primary btn-sm" id="customAdsSaveBtn" type="button">Save Link</button>
+          <div class="dcard-msg" id="customAdsMsg"></div>
+        </div>
       </div>
 
       <div class="dcard span2" id="keyCard">
@@ -815,6 +849,26 @@ ${musicPlayerStyle()}
 
 </div>
 
+<div class="page-overlay" id="planPayOverlay">
+  <div class="overlay-card">
+    <div class="overlay-step active" id="planPayStepIntro">
+      <div class="overlay-title" id="planPayTitle">Upgrade plan</div>
+      <div class="overlay-sub" id="planPaySub"></div>
+      <div class="dcard-msg err" id="planPayMsg"></div>
+      <button class="btn btn-primary" id="planPayBtn" type="button" style="width:100%;justify-content:center">Pay &amp; Upgrade</button>
+      <button class="overlay-cancel" id="planPayCancel1" type="button">Cancel</button>
+    </div>
+    <div class="overlay-step" id="planPayStepProcessing">
+      <div class="ch-loading">Confirming your payment…</div>
+    </div>
+    <div class="overlay-step" id="planPayStepSuccess">
+      <div class="overlay-title">Plan upgraded</div>
+      <div class="overlay-sub" id="planPaySuccessSub"></div>
+      <button class="btn btn-primary" id="planPayCancel2" type="button" style="width:100%;justify-content:center">Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="page-overlay" id="revokeKeyOverlay">
   <div class="overlay-card">
     <div class="overlay-title">Revoke this API key?</div>
@@ -888,6 +942,197 @@ ${musicPlayerHtml()}
     if(pct >= 65) return 'lvl-warn';
     return '';
   }
+
+  var PAYSTACK_PUBLIC_KEY = ${JSON.stringify(cfg.paystackPublicKey || "")};
+
+  var PLAN_DEFS = [
+    { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, requestsPerSecond: 3, monthlyRequests: 100, noAds: false, customAdsLink: false, note: 'Default plan' },
+    { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, requestsPerSecond: 10, monthlyRequests: 200, noAds: false, customAdsLink: false, note: 'Auto with account verification' },
+    { key: 'standard', name: 'Standard', priceNgn: 3000, apiKeys: 5, requestsPerSecond: 20, monthlyRequests: 350, noAds: false, customAdsLink: false, note: '30 days' },
+    { key: 'pro', name: 'Pro', priceNgn: 5000, apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: true, note: '30 days', highlight: true },
+    { key: 'max', name: 'Max', priceNgn: 10000, apiKeys: 15, requestsPerSecond: 50, monthlyRequests: 1000, noAds: true, customAdsLink: true, note: '30 days' },
+  ];
+
+  function fmtNgn(n){ return '₦' + n.toLocaleString('en-NG'); }
+
+  function planFeatureRow(included, label){
+    return '<div class="plan-feature' + (included ? '' : ' off') + '">' +
+      (included
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>'
+      ) + label + '</div>';
+  }
+
+  var currentPlanKey = null;
+  var currentDevApiCustomAdsUrl = '';
+  var loggedInForPlans = false;
+
+  function renderPlans(planData, customAdsUrl, loggedIn){
+    var grid = document.getElementById('plansGrid');
+    currentPlanKey = planData ? planData.key : 'free';
+    currentDevApiCustomAdsUrl = customAdsUrl || '';
+    loggedInForPlans = !!loggedIn;
+
+    grid.innerHTML = PLAN_DEFS.map(function(p){
+      var isCurrent = loggedIn && p.key === currentPlanKey;
+      var cls = 'plan-card' + (isCurrent ? ' current' : '') + (p.highlight ? ' highlight' : '');
+      var priceHtml = p.priceNgn === 0
+        ? (p.key === 'starter' ? '<div class="plan-price">Free<span> · with verification</span></div>' : '<div class="plan-price">Free</div>')
+        : '<div class="plan-price">' + fmtNgn(p.priceNgn) + '<span> / 30 days</span></div>';
+
+      var cta;
+      if(!loggedIn){
+        cta = '<a class="btn btn-primary plan-cta" href="/login?next=%2Fdevelopers%2Fapi">Log in to upgrade</a>';
+      } else if(isCurrent){
+        cta = '<div class="plan-current-badge">Current plan</div>';
+      } else if(p.key === 'free'){
+        cta = '';
+      } else if(p.key === 'starter'){
+        cta = '<a class="btn plan-cta" href="/account" target="_blank" rel="noopener">Get Verified</a>';
+      } else {
+        cta = '<button class="btn btn-primary plan-cta" type="button" data-upgrade="' + p.key + '">Upgrade</button>';
+      }
+
+      return '<div class="' + cls + '">' +
+        '<div class="plan-name">' + p.name + '</div>' +
+        priceHtml +
+        '<div class="plan-note">' + (isCurrent ? '' : p.note) + '</div>' +
+        '<div class="plan-features">' +
+          planFeatureRow(true, p.apiKeys + ' API key' + (p.apiKeys === 1 ? '' : 's')) +
+          planFeatureRow(true, p.requestsPerSecond + ' req/sec') +
+          planFeatureRow(true, p.monthlyRequests + ' req/month') +
+          planFeatureRow(p.noAds, 'No ads') +
+          planFeatureRow(p.customAdsLink, 'Custom ads link') +
+        '</div>' +
+        cta +
+      '</div>';
+    }).join('');
+
+    grid.querySelectorAll('[data-upgrade]').forEach(function(btn){
+      btn.addEventListener('click', function(){ openPlanPay(btn.getAttribute('data-upgrade')); });
+    });
+
+    var customWrap = document.getElementById('customAdsWrap');
+    var planDef = PLAN_DEFS.filter(function(p){ return p.key === currentPlanKey; })[0];
+    if(loggedIn && planDef && planDef.customAdsLink){
+      customWrap.style.display = 'block';
+      document.getElementById('customAdsInput').value = currentDevApiCustomAdsUrl;
+    } else {
+      customWrap.style.display = 'none';
+    }
+  }
+
+  var planPayOverlay = document.getElementById('planPayOverlay');
+  function showPlanPayStep(id){
+    planPayOverlay.querySelectorAll('.overlay-step').forEach(function(el){ el.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+  function openPlanPay(planKey){
+    var matches = PLAN_DEFS.filter(function(p){ return p.key === planKey; });
+    var def = matches[0];
+    if(!def) return;
+    document.getElementById('planPayTitle').textContent = 'Upgrade to ' + def.name;
+    document.getElementById('planPaySub').textContent = fmtNgn(def.priceNgn) + ' for 30 days: ' + def.apiKeys + ' API keys, ' + def.requestsPerSecond + ' req/sec, ' + def.monthlyRequests + ' req/month' + (def.noAds ? ', no ads' : '') + (def.customAdsLink ? ', custom ads link' : '') + '.';
+    var payBtn = document.getElementById('planPayBtn');
+    payBtn.setAttribute('data-plan', planKey);
+    payBtn.disabled = false;
+    payBtn.textContent = 'Pay & Upgrade';
+    document.getElementById('planPayMsg').textContent = '';
+    showPlanPayStep('planPayStepIntro');
+    planPayOverlay.classList.add('show');
+  }
+  document.getElementById('planPayCancel1').addEventListener('click', function(){ planPayOverlay.classList.remove('show'); });
+  document.getElementById('planPayCancel2').addEventListener('click', function(){ planPayOverlay.classList.remove('show'); loadKeys(); });
+  planPayOverlay.addEventListener('click', function(e){ if(e.target === planPayOverlay) planPayOverlay.classList.remove('show'); });
+
+  document.getElementById('planPayBtn').addEventListener('click', function(){
+    var btn = this;
+    var plan = btn.getAttribute('data-plan');
+    var msg = document.getElementById('planPayMsg');
+    msg.textContent = '';
+    if(!PAYSTACK_PUBLIC_KEY || typeof PaystackPop === 'undefined'){
+      msg.textContent = 'Payments are temporarily unavailable. Please try again later.';
+      return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span>Starting…';
+    fetch('/api/devplan/initialize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: plan }) })
+      .then(function(r){ return r.json().then(function(data){ return { ok: r.ok, data: data }; }); })
+      .then(function(res){
+        btn.disabled = false;
+        btn.textContent = 'Pay & Upgrade';
+        if(!res.ok){ msg.textContent = res.data.error || 'Could not start payment.'; return; }
+        var handler = PaystackPop.setup({
+          key: res.data.publicKey,
+          email: res.data.email,
+          amount: res.data.amountKobo,
+          ref: res.data.reference,
+          currency: 'NGN',
+          onClose: function(){},
+          callback: function(response){
+            showPlanPayStep('planPayStepProcessing');
+            confirmPlanPayment(response.reference);
+          },
+        });
+        handler.openIframe();
+      })
+      .catch(function(){
+        btn.disabled = false;
+        btn.textContent = 'Pay & Upgrade';
+        msg.textContent = 'Could not start payment.';
+      });
+  });
+
+  function confirmPlanPayment(reference){
+    fetch('/api/devplan/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reference: reference }) })
+      .then(function(r){ return r.json().then(function(data){ return { ok: r.ok, data: data }; }); })
+      .then(function(res){
+        if(!res.ok){
+          showPlanPayStep('planPayStepIntro');
+          document.getElementById('planPayMsg').textContent = res.data.error || 'Could not confirm payment.';
+          return;
+        }
+        var matches = PLAN_DEFS.filter(function(p){ return p.key === res.data.plan; });
+        var def = matches[0];
+        document.getElementById('planPaySuccessSub').textContent = 'You are now on the ' + (def ? def.name : res.data.plan) + ' plan.';
+        showPlanPayStep('planPayStepSuccess');
+      })
+      .catch(function(){
+        showPlanPayStep('planPayStepIntro');
+        document.getElementById('planPayMsg').textContent = 'Could not confirm payment.';
+      });
+  }
+
+  document.getElementById('customAdsSaveBtn').addEventListener('click', function(){
+    var btn = this;
+    var input = document.getElementById('customAdsInput');
+    var msg = document.getElementById('customAdsMsg');
+    var value = input.value.trim();
+    if (!value) {
+      msg.textContent = 'Enter a link first.';
+      msg.className = 'dcard-msg err';
+      input.focus();
+      return;
+    }
+    btn.disabled = true;
+    var originalHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="btn-spinner"></span>Saving…';
+    fetch('/api/devplan/custom-ads-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: value }) })
+      .then(function(r){ return r.json().then(function(data){ return { ok: r.ok, data: data }; }); })
+      .then(function(res){
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        if(!res.ok){ msg.textContent = res.data.error || 'Could not save that link.'; msg.className = 'dcard-msg err'; return; }
+        msg.textContent = 'Saved.';
+        msg.className = 'dcard-msg ok';
+      })
+      .catch(function(){
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        msg.textContent = 'Could not save that link.';
+        msg.className = 'dcard-msg err';
+      });
+  });
 
   var pendingRevokeBtn = null;
   var revokeKeyOverlay = document.getElementById('revokeKeyOverlay');
@@ -1068,9 +1313,10 @@ ${musicPlayerHtml()}
 
   function loadKeys(){
     getJSON('/api/devapi/keys').then(function(r){
-      if(!r.ok){ renderLoggedOutKeyCard(); return; }
+      if(!r.ok){ renderLoggedOutKeyCard(); renderPlans(null, null, false); return; }
       renderKeys(r.data.keys || [], r.data.usage || null, r.data.plan || null);
-    }).catch(function(){ renderLoggedOutKeyCard(); });
+      renderPlans(r.data.plan || null, r.data.devApiCustomAdsUrl || null, true);
+    }).catch(function(){ renderLoggedOutKeyCard(); renderPlans(null, null, false); });
   }
 
   loadKeys();

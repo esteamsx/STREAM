@@ -1,6 +1,7 @@
 import { createWorker } from "tesseract.js";
 import { createRequire } from "module";
 import path from "path";
+import { assertPublicHttpUrl } from "./url-safety.js";
 
 const require = createRequire(import.meta.url);
 const LANG_PATH = path.join(path.dirname(require.resolve("@tesseract.js-data/eng/package.json")), "4.0.0_best_int");
@@ -22,21 +23,13 @@ function getWorker() {
 }
 
 async function fetchImageBuffer(url) {
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw Object.assign(new Error("Invalid image URL."), { status: 400 });
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw Object.assign(new Error("Image URL must be http or https."), { status: 400 });
-  }
+  const parsed = await assertPublicHttpUrl(url);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let res;
   try {
-    res = await fetch(parsed, { signal: controller.signal, redirect: "follow" });
+    res = await fetch(parsed, { signal: controller.signal, redirect: "error" });
   } catch {
     throw Object.assign(new Error("Could not reach that image URL."), { status: 502 });
   } finally {

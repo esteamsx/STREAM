@@ -40,6 +40,16 @@ const router = express.Router();
 const PUBLIC_BASE = "https://esteamstv.devs.surf";
 const DL_TTL_MS = 6 * 60 * 60 * 1000;
 
+const DEFAULT_PROMO_NOTICE = "Visit our Channel: https://whatsapp.com/channel/0029VatAyCwFy72JdZXFPm29";
+
+const rpsLimitersByRate = new Map();
+function getRpsLimiter(requestsPerSecond) {
+  if (!rpsLimitersByRate.has(requestsPerSecond)) {
+    rpsLimitersByRate.set(requestsPerSecond, new SimpleRateLimiter(requestsPerSecond, 1000));
+  }
+  return rpsLimitersByRate.get(requestsPerSecond);
+}
+
 async function requireDevApiKey(req, res, next) {
   const key = req.headers["x-api-key"] || req.query.key;
   if (!key) return res.status(401).json({ error: "Missing API key. Pass it in the x-api-key header." });
@@ -49,8 +59,29 @@ async function requireDevApiKey(req, res, next) {
   try {
     const found = await findDevApiKeyByRawKey(String(key));
     if (!found) return res.status(401).json({ error: "Invalid or revoked API key." });
+    req.apiKeyId = found.id;
+    req.apiKeyUid = found.uid;
+
     const ownerProfile = await getUserProfile(found.uid).catch(() => null);
-    const monthlyLimit = getDevApiPlanConfig(ownerProfile).monthlyRequests + ((ownerProfile && ownerProfile.bonusDevApiRequests) || 0);
+    const plan = getDevApiPlanConfig(ownerProfile);
+
+    const originalJson = res.json.bind(res);
+    res.json = (body) => {
+      if (res.statusCode >= 400 && body && typeof body === "object" && !Array.isArray(body)) {
+        if (!plan.noAds) {
+          body = { ...body, notice: DEFAULT_PROMO_NOTICE };
+        } else if (ownerProfile && ownerProfile.devApiCustomAdsUrl) {
+          body = { ...body, notice: ownerProfile.devApiCustomAdsUrl };
+        }
+      }
+      return originalJson(body);
+    };
+
+    if (!getRpsLimiter(plan.requestsPerSecond).check(found.id)) {
+      return res.status(429).json({ error: "Too many requests per second for your plan." });
+    }
+
+    const monthlyLimit = plan.monthlyRequests + ((ownerProfile && ownerProfile.bonusDevApiRequests) || 0);
     const usage = await checkAndIncrementAccountDevApiUsage(found.uid, monthlyLimit);
     if (!usage.allowed) {
       return res.status(429).json({
@@ -59,8 +90,6 @@ async function requireDevApiKey(req, res, next) {
         monthly_limit: usage.monthlyLimit,
       });
     }
-    req.apiKeyId = found.id;
-    req.apiKeyUid = found.uid;
     next();
   } catch (err) {
     console.error("dev api key check error:", err.message);
@@ -115,8 +144,13 @@ router.get("/api/devapi/keys", requireAuth, async (req, res) => {
         key: planKey,
         name: plan.name,
         apiKeys: plan.apiKeys,
+        requestsPerSecond: plan.requestsPerSecond,
+        monthlyRequests: Number.isFinite(plan.monthlyRequests) ? plan.monthlyRequests : null,
+        noAds: plan.noAds,
+        customAdsLink: plan.customAdsLink,
         expiresAt: planExpiresAt,
       },
+      devApiCustomAdsUrl: req.userProfile.devApiCustomAdsUrl || null,
     });
   } catch (err) {
     console.error("list dev api keys error:", err.message);

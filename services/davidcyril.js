@@ -1,3 +1,5 @@
+import { assertPublicHttpUrl } from "./url-safety.js";
+
 const FETCH_TIMEOUT_MS = 60000;
 const BASE = "https://apis.davidcyril.name.ng";
 
@@ -38,11 +40,12 @@ export async function fetchSongByQuery(query) {
 const CATBOX_USER_AGENT = "Mozilla/5.0 (compatible; ESTeamsTV/1.0; +https://esteamstv.devs.surf)";
 
 async function uploadToCatbox(url) {
+  const safeUrl = await assertPublicHttpUrl(url);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let hostedUrl;
   try {
-    const imgRes = await fetch(url, { signal: controller.signal, headers: { "User-Agent": CATBOX_USER_AGENT } });
+    const imgRes = await fetch(safeUrl, { signal: controller.signal, headers: { "User-Agent": CATBOX_USER_AGENT }, redirect: "error" });
     if (!imgRes.ok) {
       throw Object.assign(new Error(`Could not fetch that image URL (source responded ${imgRes.status}).`), { status: 400 });
     }

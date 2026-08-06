@@ -48,19 +48,23 @@ export class SimpleRateLimiter {
     }, Math.max(this.windowMs, 60000)).unref();
   }
 
+  check(key) {
+    const now = Date.now();
+    const k = key || "unknown";
+    const timestamps = (this.hits.get(k) || []).filter((t) => now - t < this.windowMs);
+    if (timestamps.length >= this.maxRequests) return false;
+    timestamps.push(now);
+    this.hits.set(k, timestamps);
+    return true;
+  }
+
   middleware() {
     return (req, res, next) => {
-      const now = Date.now();
       const key = this.keyFn(req) || req.ip;
-      const timestamps = (this.hits.get(key) || []).filter((t) => now - t < this.windowMs);
-
-      if (timestamps.length >= this.maxRequests) {
+      if (!this.check(key)) {
         console.warn(`⚠️ Rate limit exceeded: ${key} on ${req.path}`);
         return res.status(429).json({ error: this.message });
       }
-
-      timestamps.push(now);
-      this.hits.set(key, timestamps);
       next();
     };
   }

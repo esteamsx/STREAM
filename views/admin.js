@@ -233,7 +233,7 @@ body:has(.ad-overlay.show){overflow:hidden}
 .bonus-msg{font-size:.76rem;min-height:16px;margin-bottom:10px}
 .bonus-msg.err{color:var(--red)}
 .bonus-msg.ok{color:#3DDC84}
-.bonus-list{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto}
+.bonus-list{display:flex;flex-direction:column;gap:8px;max-height:264px;overflow-y:auto}
 .bonus-code-card{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card2)}
 .bonus-code-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .bonus-code-text{font-family:monospace;font-weight:700;font-size:.92rem;flex:1;letter-spacing:.03em}
