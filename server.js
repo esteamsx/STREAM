@@ -165,6 +165,7 @@ import {
   createOrGetGithubUser,
   saveGithubOAuthState,
   consumeGithubOAuthState,
+  applyReferral,
   issueResetToken,
   consumeResetToken,
   createSession,
@@ -239,8 +240,11 @@ import {
   SESSION_TTL_MS,
   createBonusCode,
   listBonusCodes,
+  adminListWithdrawalRequests,
+  adminConfirmWithdrawalPaid,
 } from "./services/auth.js";
 import { paymentsRouter } from "./routes/payments.js";
+import { rewardsRouter } from "./routes/rewards.js";
 import { auth as firebaseAuth } from "./config/firebase.js";
 import { sendDmcaReportEmail } from "./services/mailer.js";
 import { createChallenge, verifySolution } from "altcha-lib";
@@ -358,6 +362,7 @@ app.use(apiRouter);
 app.use(devApiRouter);
 app.use(toolsRouter);
 app.use(paymentsRouter);
+app.use(rewardsRouter);
 
 function domainLockHash(str) {
   let hash = 5381;
@@ -3706,6 +3711,24 @@ app.post("/api/admin/bonus-codes", requireAuth, requireAdmin, async (req, res) =
   }
 });
 
+app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ withdrawals: await adminListWithdrawalRequests() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load withdrawal requests." });
+  }
+});
+
+app.post("/api/admin/withdrawals/:id/confirm", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await adminConfirmWithdrawalPaid(req.params.id);
+    res.json({ ok: true, certificateSerial: result.certificateSerial || null });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not confirm this withdrawal." });
+  }
+});
+
 app.get("/api/admin/support/threads", requireAuth, requireAdmin, async (req, res) => {
   try {
     res.json({ threads: await getSupportThreadsForAdmin() });
@@ -4350,7 +4373,7 @@ app.post("/api/signup", signupLimiter, async (req, res) => {
     if (!(await usernameFullyAvailable(username, { excludeEmail: email }))) {
       return res.status(400).json({ error: "Username has already been used." });
     }
-    await issuePendingSignup({ firstName, lastName, email, username, password });
+    await issuePendingSignup({ firstName, lastName, email, username, password, referredByCode: req.cookies?.ref_code });
     res.json({ pendingVerification: true, email });
   } catch (err) {
     console.error(err);
@@ -4403,9 +4426,11 @@ app.post("/api/verify-email", signupLimiter, async (req, res) => {
         newUid = existingUser.uid;
       } else {
         newUid = await createUserAccount({ firstName, lastName, email, password, username });
+        await applyReferral(newUid, result.data.referredByCode);
       }
       await markEmailVerified(newUid);
       const customToken = await firebaseAuth.createCustomToken(newUid);
+      res.clearCookie("ref_code");
       return res.json({ customToken });
     }
 
@@ -4491,14 +4516,16 @@ app.get("/api/telegram-auth/callback", oauthCallbackLimiter, async (req, res) =>
     const claims = await verifyTelegramIdToken(tokenData.id_token, TELEGRAM_CLIENT_ID);
     if (!claims) return res.redirect("/login?tg_error=" + encodeURIComponent("Could not verify Telegram login."));
 
-    const uid = await createOrGetTelegramUser({
+    const { uid, isNew } = await createOrGetTelegramUser({
       id: claims.id,
       first_name: claims.given_name || (claims.name || "").split(" ")[0] || "",
       last_name: claims.family_name || (claims.name || "").split(" ").slice(1).join(" "),
       username: claims.preferred_username || "",
       photo_url: claims.picture || null,
     });
+    if (isNew) await applyReferral(uid, req.cookies?.ref_code);
     const customToken = await firebaseAuth.createCustomToken(uid);
+    res.clearCookie("ref_code");
     res.redirect("/login?tg_token=" + encodeURIComponent(customToken));
   } catch (err) {
     console.error(err);
@@ -4577,14 +4604,16 @@ app.get("/api/github-auth/callback", oauthCallbackLimiter, async (req, res) => {
       }
     }
 
-    const uid = await createOrGetGithubUser({
+    const { uid, isNew } = await createOrGetGithubUser({
       id: ghUser.id,
       login: ghUser.login,
       name: ghUser.name,
       email,
       avatar_url: ghUser.avatar_url,
     });
+    if (isNew) await applyReferral(uid, req.cookies?.ref_code);
     const customToken = await firebaseAuth.createCustomToken(uid);
+    res.clearCookie("ref_code");
     res.redirect("/login?gh_token=" + encodeURIComponent(customToken));
   } catch (err) {
     console.error(err);
@@ -4628,7 +4657,11 @@ app.post("/api/session", passwordLoginLimiter, async (req, res) => {
     const { idToken, remember, altcha } = req.body;
     const decoded = await withDeadline(firebaseAuth.verifyIdToken(idToken), "firebaseAuth.verifyIdToken");
     if (decoded.firebase.sign_in_provider === "google.com") {
-      await withDeadline(ensureGoogleUserProfile(decoded), "ensureGoogleUserProfile");
+      const googleResult = await withDeadline(ensureGoogleUserProfile(decoded), "ensureGoogleUserProfile");
+      if (googleResult.isNew) {
+        await applyReferral(decoded.uid, req.cookies?.ref_code);
+        res.clearCookie("ref_code");
+      }
     } else if (decoded.firebase.sign_in_provider === "password" && !(await verifyCaptcha(altcha))) {
       return res.status(400).json({ error: "Captcha not completed." });
     }

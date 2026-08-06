@@ -1,4 +1,13 @@
 (function () {
+  try {
+    var refParam = new URLSearchParams(location.search).get('ref');
+    if (refParam && /^[A-Za-z0-9]{4,16}$/.test(refParam)) {
+      document.cookie = 'ref_code=' + encodeURIComponent(refParam.toUpperCase()) + ';path=/;max-age=' + (30 * 24 * 3600) + ';samesite=lax';
+    }
+  } catch (e) {}
+})();
+
+(function () {
   var SELECTOR = 'button,[role="button"],.btn,a.btn';
   var audioCtx = null;
 

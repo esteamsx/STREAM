@@ -248,6 +248,16 @@ body:has(.ad-overlay.show){overflow:hidden}
 .status-pill.bad{background:rgba(255,59,92,.15);color:var(--red)}
 .bonus-code-meta{font-size:.72rem;color:var(--muted)}
 
+.withdrawal-item{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card2)}
+.withdrawal-item-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.withdrawal-item-amount{font-family:var(--font-display);font-weight:700;font-size:1rem}
+.withdrawal-item-meta{font-size:.72rem;color:var(--muted);line-height:1.6;margin-bottom:10px}
+.withdrawal-confirm-btn{
+  width:100%;padding:9px;border-radius:10px;border:none;font-weight:700;font-size:.8rem;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;
+}
+.withdrawal-confirm-btn:disabled{opacity:.55}
+
 .ad-toast{
   position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card2);
   border:1px solid var(--border-strong);color:var(--text);padding:11px 18px;border-radius:12px;font-size:.82rem;
@@ -316,6 +326,18 @@ body:has(.ad-overlay.show){overflow:hidden}
       </div>
       <div class="bonus-msg" id="bonusMsg"></div>
       <div class="bonus-list" id="bonusList"><div class="ad-empty">Loading…</div></div>
+    </div></div>
+  </div>
+
+  <div class="ad-card" id="withdrawalsCard">
+    <div class="ad-card-header" id="withdrawalsHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      <div class="ad-card-header-title">Withdrawal Requests</div>
+      <div class="ad-card-count" id="withdrawalsCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="bonus-list" id="withdrawalsList"><div class="ad-empty">Loading…</div></div>
     </div></div>
   </div>
 
@@ -476,6 +498,9 @@ document.getElementById('adBackBtn').addEventListener('click', () => {
 document.getElementById('bonusHeader').addEventListener('click', () => {
   document.getElementById('bonusCard').classList.toggle('open');
 });
+document.getElementById('withdrawalsHeader').addEventListener('click', () => {
+  document.getElementById('withdrawalsCard').classList.toggle('open');
+});
 document.getElementById('usersHeader').addEventListener('click', () => {
   document.getElementById('usersCard').classList.toggle('open');
 });
@@ -537,6 +562,57 @@ function loadBonusCodes(){
     bonusCount.textContent = String(codes.length);
     renderBonusList(codes);
   }).catch(() => { bonusList.innerHTML = '<div class="ad-empty">Could not load bonus codes.</div>'; });
+}
+
+const withdrawalsList = document.getElementById('withdrawalsList');
+const withdrawalsCount = document.getElementById('withdrawalsCount');
+
+function fmtNgnAdmin(n){ return '₦' + Number(n || 0).toLocaleString('en-NG'); }
+
+function withdrawalItemHtml(w){
+  return '<div class="withdrawal-item" data-wd-id="' + esc(w.id) + '">' +
+    '<div class="withdrawal-item-head">' +
+      '<div class="withdrawal-item-amount">' + fmtNgnAdmin(w.amountNgn) + '</div>' +
+      '<span class="status-pill bad">Pending</span>' +
+    '</div>' +
+    '<div class="withdrawal-item-meta">' +
+      '@' + esc(w.username || 'user') + (w.email ? ' &middot; ' + esc(w.email) : '') + '<br>' +
+      esc((w.bankDetails && w.bankDetails.bankName) || '') + ' &middot; ' +
+      esc((w.bankDetails && w.bankDetails.accountNumber) || '') + ' &middot; ' +
+      esc((w.bankDetails && w.bankDetails.accountName) || '') +
+    '</div>' +
+    '<button type="button" class="withdrawal-confirm-btn" data-confirm-wd="' + esc(w.id) + '">Confirm Paid</button>' +
+  '</div>';
+}
+
+function renderWithdrawalsList(list){
+  if(!list.length){ withdrawalsList.innerHTML = '<div class="ad-empty">No pending withdrawal requests.</div>'; return; }
+  withdrawalsList.innerHTML = list.map(withdrawalItemHtml).join('');
+  withdrawalsList.querySelectorAll('[data-confirm-wd]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-confirm-wd');
+      btn.disabled = true;
+      btn.textContent = 'Confirming…';
+      try {
+        await postJSON('/api/admin/withdrawals/' + encodeURIComponent(id) + '/confirm', {});
+        showToast('Marked as paid.');
+        loadWithdrawals();
+      } catch (err) {
+        showToast(err.message || 'Could not confirm this withdrawal.');
+        btn.disabled = false;
+        btn.textContent = 'Confirm Paid';
+      }
+    });
+  });
+}
+
+function loadWithdrawals(){
+  getJSON('/api/admin/withdrawals').then((data) => {
+    const list = data.withdrawals || [];
+    withdrawalsCount.style.display = list.length ? '' : 'none';
+    withdrawalsCount.textContent = String(list.length);
+    renderWithdrawalsList(list);
+  }).catch(() => { withdrawalsList.innerHTML = '<div class="ad-empty">Could not load withdrawal requests.</div>'; });
 }
 
 document.getElementById('bonusGenerateBtn').addEventListener('click', () => {
@@ -1330,6 +1406,7 @@ document.getElementById('maintenanceSwitch').addEventListener('click', async () 
 
 loadMaintenanceStatus();
 loadBonusCodes();
+loadWithdrawals();
 loadUsersPage(true);
 loadBannedUsers();
 loadVerifyPage(true);

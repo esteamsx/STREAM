@@ -98,6 +98,7 @@ async function createUserAccount({ firstName, lastName, email, password, usernam
     displayName: `${firstName} ${lastName}`,
     emailVerified: false,
   });
+  const referralCode = await generateReferralCode();
   await db.collection("users").doc(userRecord.uid).set({
     firstName,
     lastName,
@@ -109,6 +110,7 @@ async function createUserAccount({ firstName, lastName, email, password, usernam
     followingCount: 0,
     likesCount: 0,
     createdAt: Date.now(),
+    referralCode,
   });
   await autoFollowAdmin(userRecord.uid, email);
   return userRecord.uid;
@@ -172,10 +174,10 @@ async function upsertUserProfile(uid, data) {
   else await ref.set({ ...data, createdAt: Date.now() });
 }
 
-async function issuePendingSignup({ firstName, lastName, email, username, password }) {
+async function issuePendingSignup({ firstName, lastName, email, username, password, referredByCode }) {
   const code = generateCode();
   const expiresAt = Date.now() + CODE_TTL_MS;
-  await db.collection("pending_signups").doc(email).set({ firstName, lastName, email, username, password, code, expiresAt });
+  await db.collection("pending_signups").doc(email).set({ firstName, lastName, email, username, password, referredByCode: referredByCode || null, code, expiresAt });
   await sendVerificationCode(email, code, "signup");
 }
 
@@ -294,9 +296,10 @@ async function markEmailVerified(uid) {
 async function ensureGoogleUserProfile(decodedToken) {
   const uid = decodedToken.uid;
   const existing = await getUserProfile(uid);
-  if (existing) return existing;
+  if (existing) return { ...existing, isNew: false };
   const [firstName, ...rest] = (decodedToken.name || decodedToken.email).split(" ");
   const username = await generateUniqueUsername(firstName || decodedToken.email.split("@")[0]);
+  const referralCode = await generateReferralCode();
   const profile = {
     firstName: firstName || "",
     lastName: rest.join(" ") || "",
@@ -309,10 +312,11 @@ async function ensureGoogleUserProfile(decodedToken) {
     followingCount: 0,
     likesCount: 0,
     createdAt: Date.now(),
+    referralCode,
   };
   await db.collection("users").doc(uid).set(profile);
   await autoFollowAdmin(uid, profile.email);
-  return profile;
+  return { ...profile, isNew: true };
 }
 
 function verifyTelegramLoginPayload(data, botToken) {
@@ -393,7 +397,7 @@ async function findUserByTelegramId(telegramId) {
 async function createOrGetTelegramUser({ id, first_name, last_name, username, photo_url }) {
   const telegramId = String(id);
   const existing = await findUserByTelegramId(telegramId);
-  if (existing) return existing.uid;
+  if (existing) return { uid: existing.uid, isNew: false };
 
   const uid = `tg_${telegramId}`;
   const displayName = [first_name, last_name].filter(Boolean).join(" ") || username || "Telegram User";
@@ -404,6 +408,7 @@ async function createOrGetTelegramUser({ id, first_name, last_name, username, ph
   }
 
   const uniqueUsername = await generateUniqueUsername(username || first_name || "user");
+  const referralCode = await generateReferralCode();
   const profile = {
     firstName: first_name || "",
     lastName: last_name || "",
@@ -417,10 +422,11 @@ async function createOrGetTelegramUser({ id, first_name, last_name, username, ph
     followingCount: 0,
     likesCount: 0,
     createdAt: Date.now(),
+    referralCode,
   };
   await db.collection("users").doc(uid).set(profile, { merge: true });
   await autoFollowAdmin(uid, null);
-  return uid;
+  return { uid, isNew: true };
 }
 
 async function saveTelegramOAuthState(state, codeVerifier) {
@@ -464,7 +470,7 @@ async function findUserByGithubId(githubId) {
 async function createOrGetGithubUser({ id, login, name, email, avatar_url }) {
   const githubId = String(id);
   const existing = await findUserByGithubId(githubId);
-  if (existing) return existing.uid;
+  if (existing) return { uid: existing.uid, isNew: false };
 
   const uid = `gh_${githubId}`;
   const displayName = name || login || "GitHub User";
@@ -475,6 +481,7 @@ async function createOrGetGithubUser({ id, login, name, email, avatar_url }) {
   }
 
   const uniqueUsername = await generateUniqueUsername(login || name || "user");
+  const referralCode = await generateReferralCode();
   const profile = {
     firstName: name || login || "",
     lastName: "",
@@ -490,10 +497,11 @@ async function createOrGetGithubUser({ id, login, name, email, avatar_url }) {
     followingCount: 0,
     likesCount: 0,
     createdAt: Date.now(),
+    referralCode,
   };
   await db.collection("users").doc(uid).set(profile, { merge: true });
   await autoFollowAdmin(uid, email || null);
-  return uid;
+  return { uid, isNew: true };
 }
 
 function hashApiKey(rawKey) {
@@ -652,6 +660,7 @@ async function finalizeDevApiPlanPayment(reference, paystackData) {
   await ref.update({ status: "success", confirmedAt: Date.now() });
   const planName = DEV_API_PLANS[record.plan]?.name || record.plan;
   await addNotification(record.uid, "dev_api_plan", `Your ${planName} Developer API plan is now active`, { plan: record.plan, expiresAt });
+  await creditReferralCommission(record.uid, record.amountKobo / 100, "Developer API plan purchase");
 
   return { alreadyProcessed: false, uid: record.uid, plan: record.plan, expiresAt };
 }
@@ -2381,6 +2390,7 @@ async function finalizeVerificationPayment(reference, paystackData) {
   });
   await ref.update({ status: "success", confirmedAt: Date.now() });
   await addNotification(record.uid, "verified", "You are now Verified", { expiresAt });
+  await creditReferralCommission(record.uid, record.amountKobo / 100, "account verification");
 
   return { alreadyProcessed: false, uid: record.uid, expiresAt };
 }
@@ -2484,6 +2494,260 @@ async function redeemBonusCode(uid, rawCode, product) {
   return result;
 }
 
+const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const REFERRAL_SIGNUP_COINS = 5;
+const DAILY_COIN_CLAIM_AMOUNT = 2;
+const REFERRAL_COMMISSION_RATE = 0.15;
+const MIN_WITHDRAWAL_NGN = 5000;
+
+const COIN_STORE_ITEMS = {
+  boost30: { label: "+30 request limit", coinCost: 40, bonusAmount: 30 },
+  boost50: { label: "+50 request limit", coinCost: 80, bonusAmount: 50 },
+  boost100: { label: "+100 request limit", coinCost: 160, bonusAmount: 100 },
+  verify3d: { label: "3-day account verification", coinCost: 220 },
+};
+
+const COIN_PACKAGES = {
+  pack25: { coins: 25, priceNgn: 100 },
+  pack50: { coins: 50, priceNgn: 200 },
+  pack150: { coins: 150, priceNgn: 500 },
+  pack350: { coins: 350, priceNgn: 900 },
+  pack500: { coins: 500, priceNgn: 1200 },
+};
+
+async function generateReferralCode() {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const bytes = crypto.randomBytes(7);
+    let code = "";
+    for (let i = 0; i < 7; i++) code += REFERRAL_CODE_ALPHABET[bytes[i] % REFERRAL_CODE_ALPHABET.length];
+    const existing = await db.collection("users").where("referralCode", "==", code).limit(1).get();
+    if (existing.empty) return code;
+  }
+  return "R" + crypto.randomBytes(6).toString("hex").toUpperCase();
+}
+
+async function findUserByReferralCode(code) {
+  if (!code) return null;
+  const snap = await db.collection("users").where("referralCode", "==", code).limit(1).get();
+  if (snap.empty) return null;
+  return { uid: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+async function applyReferral(newUid, rawReferredByCode) {
+  const code = String(rawReferredByCode || "").trim().toUpperCase();
+  if (!code || !/^[A-Z0-9]{4,16}$/.test(code)) return;
+  const referrer = await findUserByReferralCode(code);
+  if (!referrer || referrer.uid === newUid) return;
+  const referralRef = db.collection("referrals").doc(newUid);
+  const existing = await referralRef.get();
+  if (existing.exists) return;
+  const newProfile = await getUserProfile(newUid);
+  await referralRef.set({
+    referrerUid: referrer.uid,
+    referredUid: newUid,
+    referredUsername: (newProfile && newProfile.username) || "",
+    referredAt: Date.now(),
+    totalCommissionNgn: 0,
+  });
+  await db.collection("users").doc(newUid).update({ referredBy: referrer.uid });
+  await db.collection("users").doc(referrer.uid).set(
+    { coinBalance: admin.firestore.FieldValue.increment(REFERRAL_SIGNUP_COINS) },
+    { merge: true }
+  );
+  await addNotification(
+    referrer.uid,
+    "referral_signup",
+    `You earned +${REFERRAL_SIGNUP_COINS} coins - someone joined using your referral link`,
+    { amount: REFERRAL_SIGNUP_COINS }
+  );
+}
+
+async function getReferralsForUser(uid) {
+  const snap = await db.collection("referrals").where("referrerUid", "==", uid).get();
+  return snap.docs.map((d) => d.data()).sort((a, b) => b.referredAt - a.referredAt);
+}
+
+async function claimDailyCoins(uid) {
+  const today = currentUsageDay();
+  const ref = db.collection("users").doc(uid);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("Account not found.");
+  const data = snap.data();
+  if (data.lastDailyCoinClaimDay === today) {
+    throw Object.assign(new Error("You've already claimed today's coins. Come back tomorrow."), { status: 400 });
+  }
+  await ref.set(
+    { coinBalance: admin.firestore.FieldValue.increment(DAILY_COIN_CLAIM_AMOUNT), lastDailyCoinClaimDay: today },
+    { merge: true }
+  );
+  return { amount: DAILY_COIN_CLAIM_AMOUNT };
+}
+
+async function redeemCoinsForLimit(uid, itemKey, product) {
+  const item = COIN_STORE_ITEMS[itemKey];
+  if (!item || !item.bonusAmount) throw Object.assign(new Error("Unknown reward."), { status: 400 });
+  const field = product === "devapi" ? "bonusDevApiRequests" : "bonusApiRequests";
+  const userRef = db.collection("users").doc(uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) throw new Error("Account not found.");
+    const balance = snap.data().coinBalance || 0;
+    if (balance < item.coinCost) throw Object.assign(new Error("Not enough coins for that reward."), { status: 400 });
+    tx.update(userRef, {
+      coinBalance: admin.firestore.FieldValue.increment(-item.coinCost),
+      [field]: admin.firestore.FieldValue.increment(item.bonusAmount),
+    });
+  });
+  const productLabel = product === "devapi" ? "Developer API" : "Live TV API";
+  await addNotification(uid, "coin_redeem", `Redeemed ${item.coinCost} coins for ${item.label} on your ${productLabel}`, { itemKey, product });
+  return { amount: item.bonusAmount, coinCost: item.coinCost };
+}
+
+async function redeemCoinsForVerification(uid) {
+  const item = COIN_STORE_ITEMS.verify3d;
+  const userRef = db.collection("users").doc(uid);
+  const result = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) throw new Error("Account not found.");
+    const data = snap.data();
+    const balance = data.coinBalance || 0;
+    if (balance < item.coinCost) throw Object.assign(new Error("Not enough coins for that reward."), { status: 400 });
+    const base = Math.max(Date.now(), data.verifiedExpiresAt || 0);
+    const expiresAt = base + 3 * 24 * 60 * 60 * 1000;
+    tx.update(userRef, {
+      coinBalance: admin.firestore.FieldValue.increment(-item.coinCost),
+      verified: true,
+      verifiedAt: data.verified ? data.verifiedAt || Date.now() : Date.now(),
+      verifiedExpiresAt: expiresAt,
+      verifiedVia: "coins",
+    });
+    return { expiresAt };
+  });
+  await addNotification(uid, "coin_redeem", `Redeemed ${item.coinCost} coins for 3-day account verification`, { itemKey: "verify3d" });
+  return { expiresAt: result.expiresAt };
+}
+
+async function createCoinPurchasePayment(uid, reference, amountKobo, packageKey) {
+  await db.collection("coinPurchasePayments").doc(reference).set({ uid, packageKey, amountKobo, status: "pending", createdAt: Date.now() });
+}
+
+async function getCoinPurchasePayment(reference) {
+  const snap = await db.collection("coinPurchasePayments").doc(reference).get();
+  return snap.exists ? snap.data() : null;
+}
+
+async function finalizeCoinPurchasePayment(reference, paystackData) {
+  const ref = db.collection("coinPurchasePayments").doc(reference);
+  const snap = await ref.get();
+  if (!snap.exists) return { notOurs: true };
+  const record = snap.data();
+  if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
+  if (paystackData.status !== "success" || paystackData.amount < record.amountKobo) {
+    await ref.update({ status: "failed", failedAt: Date.now() });
+    throw new Error("Payment was not successful.");
+  }
+  const pkg = COIN_PACKAGES[record.packageKey];
+  const coins = pkg ? pkg.coins : 0;
+  await db.collection("users").doc(record.uid).set({ coinBalance: admin.firestore.FieldValue.increment(coins) }, { merge: true });
+  await ref.update({ status: "success", confirmedAt: Date.now() });
+  await addNotification(record.uid, "coin_purchase", `+${coins} coins added to your balance`, { coins });
+  return { alreadyProcessed: false, uid: record.uid, coins };
+}
+
+async function creditReferralCommission(uid, amountNgn, sourceLabel) {
+  if (!amountNgn || amountNgn <= 0) return;
+  const profile = await getUserProfile(uid);
+  if (!profile || !profile.referredBy) return;
+  const referrerUid = profile.referredBy;
+  const commission = Math.round(amountNgn * REFERRAL_COMMISSION_RATE);
+  if (commission <= 0) return;
+  await db.collection("users").doc(referrerUid).set({ nairaBalance: admin.firestore.FieldValue.increment(commission) }, { merge: true });
+  db.collection("referrals").doc(uid).set({ totalCommissionNgn: admin.firestore.FieldValue.increment(commission) }, { merge: true }).catch(() => {});
+  await addNotification(
+    referrerUid,
+    "referral_commission",
+    `You earned ₦${commission.toLocaleString("en-NG")} commission from a referral's ${sourceLabel}`,
+    { amount: commission, sourceLabel }
+  );
+}
+
+function isValidBankAccountNumber(v) {
+  return /^[0-9]{10}$/.test(String(v || "").trim());
+}
+
+async function setBankDetails(uid, { bankName, accountNumber, accountName }) {
+  const cleanBankName = String(bankName || "").trim().slice(0, 80);
+  const cleanAccountName = String(accountName || "").trim().slice(0, 80);
+  const cleanAccountNumber = String(accountNumber || "").trim();
+  if (!cleanBankName) throw new Error("Enter your bank name.");
+  if (!cleanAccountName) throw new Error("Enter the account name.");
+  if (!isValidBankAccountNumber(cleanAccountNumber)) throw new Error("Enter a valid 10-digit account number.");
+  const bankDetails = { bankName: cleanBankName, accountName: cleanAccountName, accountNumber: cleanAccountNumber };
+  await db.collection("users").doc(uid).update({ bankDetails });
+  return bankDetails;
+}
+
+async function requestWithdrawal(uid, amountNgn) {
+  const amount = Math.floor(Number(amountNgn) || 0);
+  if (amount < MIN_WITHDRAWAL_NGN) {
+    throw Object.assign(new Error(`Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN.toLocaleString("en-NG")}.`), { status: 400 });
+  }
+  const userRef = db.collection("users").doc(uid);
+  const withdrawalRef = db.collection("withdrawalRequests").doc();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) throw new Error("Account not found.");
+    const data = snap.data();
+    if (!data.bankDetails || !data.bankDetails.accountNumber) {
+      throw Object.assign(new Error("Add your bank details before requesting a withdrawal."), { status: 400 });
+    }
+    const balance = data.nairaBalance || 0;
+    if (balance < amount) {
+      throw Object.assign(new Error("You don't have enough balance for that withdrawal."), { status: 400 });
+    }
+    tx.update(userRef, { nairaBalance: admin.firestore.FieldValue.increment(-amount) });
+    tx.set(withdrawalRef, { uid, amountNgn: amount, bankDetails: data.bankDetails, status: "pending", requestedAt: Date.now() });
+    return { id: withdrawalRef.id };
+  });
+}
+
+async function listWithdrawalRequestsForUser(uid) {
+  const snap = await db.collection("withdrawalRequests").where("uid", "==", uid).get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => b.requestedAt - a.requestedAt);
+}
+
+async function adminListWithdrawalRequests() {
+  const snap = await db.collection("withdrawalRequests").where("status", "==", "pending").get();
+  const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.requestedAt - b.requestedAt);
+  return Promise.all(
+    list.map(async (w) => {
+      const profile = await getUserProfile(w.uid).catch(() => null);
+      return { ...w, username: (profile && profile.username) || "", email: (profile && profile.email) || "" };
+    })
+  );
+}
+
+function generateCertificateSerial() {
+  return "WD-" + crypto.randomBytes(6).toString("hex").toUpperCase();
+}
+
+async function adminConfirmWithdrawalPaid(withdrawalId) {
+  const ref = db.collection("withdrawalRequests").doc(withdrawalId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("Withdrawal request not found.");
+  const data = snap.data();
+  if (data.status === "completed") return { alreadyProcessed: true };
+  const certificateSerial = generateCertificateSerial();
+  await ref.update({ status: "completed", completedAt: Date.now(), certificateSerial });
+  await addNotification(
+    data.uid,
+    "withdrawal_paid",
+    `Your ₦${data.amountNgn.toLocaleString("en-NG")} withdrawal has been paid`,
+    { amountNgn: data.amountNgn, withdrawalId, certificateSerial }
+  );
+  return { ok: true, certificateSerial };
+}
+
 async function createApiPlanPayment(uid, reference, amountKobo, plan) {
   await db.collection("apiPlanPayments").doc(reference).set({
     uid,
@@ -2520,6 +2784,7 @@ async function finalizeApiPlanPayment(reference, paystackData) {
   await ref.update({ status: "success", confirmedAt: Date.now() });
   const planName = API_PLANS[record.plan]?.name || record.plan;
   await addNotification(record.uid, "api_plan", `Your ${planName} API plan is now active`, { plan: record.plan, expiresAt });
+  await creditReferralCommission(record.uid, record.amountKobo / 100, "Live TV API plan purchase");
 
   return { alreadyProcessed: false, uid: record.uid, plan: record.plan, expiresAt };
 }
@@ -2804,6 +3069,23 @@ export {
   getAccountDevApiUsage,
   checkAndIncrementAccountDevApiUsage,
   checkAndIncrementDailyLimit,
+  COIN_STORE_ITEMS,
+  COIN_PACKAGES,
+  applyReferral,
+  findUserByReferralCode,
+  getReferralsForUser,
+  claimDailyCoins,
+  redeemCoinsForLimit,
+  redeemCoinsForVerification,
+  createCoinPurchasePayment,
+  getCoinPurchasePayment,
+  finalizeCoinPurchasePayment,
+  creditReferralCommission,
+  setBankDetails,
+  requestWithdrawal,
+  listWithdrawalRequestsForUser,
+  adminListWithdrawalRequests,
+  adminConfirmWithdrawalPaid,
   recordIssuedStreamLink,
   getIssuedStreamLinks,
   issueResetToken,

@@ -20,6 +20,10 @@ import {
   DEV_API_PLANS,
   PURCHASABLE_DEV_API_PLANS,
   setDevApiCustomAdsUrl,
+  COIN_PACKAGES,
+  createCoinPurchasePayment,
+  getCoinPurchasePayment,
+  finalizeCoinPurchasePayment,
 } from "../services/auth.js";
 import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
@@ -227,6 +231,62 @@ router.post("/api/devplan/custom-ads-url", requireAuth, visitUrlLimiter, async (
   }
 });
 
+router.post("/api/coins/initialize", requireAuth, initLimiter, async (req, res) => {
+  try {
+    const packageKey = String(req.body?.packageKey || "").trim();
+    const pkg = COIN_PACKAGES[packageKey];
+    if (!pkg) return res.status(400).json({ error: "Unknown coin package." });
+
+    const profile = await getUserProfile(req.uid);
+    if (!profile) return res.status(404).json({ error: "Account not found." });
+    if (!profile.email) return res.status(400).json({ error: "Add an email to your account before buying coins." });
+
+    const amountKobo = pkg.priceNgn * 100;
+    const data = await initializeTransaction({
+      email: profile.email,
+      amountKobo,
+      metadata: { uid: req.uid, purpose: "coin_purchase", packageKey },
+    });
+    await createCoinPurchasePayment(req.uid, data.reference, amountKobo, packageKey);
+
+    res.json({
+      reference: data.reference,
+      accessCode: data.access_code,
+      publicKey: PAYSTACK_PUBLIC_KEY,
+      email: profile.email,
+      amountKobo,
+      priceNgn: pkg.priceNgn,
+      coins: pkg.coins,
+      packageKey,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 400).json({ error: err.message || "Could not start coin purchase." });
+  }
+});
+
+router.post("/api/coins/confirm", requireAuth, confirmLimiter, async (req, res) => {
+  try {
+    const reference = String(req.body?.reference || "").trim();
+    if (!reference) return res.status(400).json({ error: "Missing payment reference." });
+
+    const record = await getCoinPurchasePayment(reference);
+    if (!record || record.uid !== req.uid) return res.status(404).json({ error: "Payment not found." });
+
+    if (record.status === "success") {
+      const pkg = COIN_PACKAGES[record.packageKey];
+      return res.json({ coins: pkg ? pkg.coins : 0 });
+    }
+
+    const paystackData = await verifyTransaction(reference);
+    const result = await finalizeCoinPurchasePayment(reference, paystackData);
+    res.json({ coins: result.coins || 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Could not confirm payment." });
+  }
+});
+
 router.post("/api/paystack/webhook", webhookLimiter, async (req, res) => {
   try {
     const signature = req.get("x-paystack-signature");
@@ -238,6 +298,7 @@ router.post("/api/paystack/webhook", webhookLimiter, async (req, res) => {
       await finalizeVerificationPayment(event.data.reference, paystackData);
       await finalizeApiPlanPayment(event.data.reference, paystackData);
       await finalizeDevApiPlanPayment(event.data.reference, paystackData);
+      await finalizeCoinPurchasePayment(event.data.reference, paystackData);
     }
     res.status(200).json({ received: true });
   } catch (err) {

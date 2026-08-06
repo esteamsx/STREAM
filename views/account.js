@@ -317,6 +317,57 @@ input{font-family:inherit}
 .acc-btn-ghost:hover{border-color:var(--accent);box-shadow:none;transform:none}
 .acc-btn-danger{background:transparent;color:var(--red);border:1px solid rgba(255,59,92,.3)}
 .acc-btn-danger:hover{background:rgba(255,59,92,.1);box-shadow:none;transform:none}
+.field select{
+  width:100%;background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
+  padding:11px 13px;color:var(--text);font-size:.9rem;font-family:inherit;transition:border-color .2s var(--ease);
+}
+.field select:focus{border-color:var(--accent)}
+
+.acc-back-to-account{
+  display:flex;align-items:center;gap:6px;background:transparent;border:none;color:var(--muted);
+  font-size:.85rem;font-weight:600;margin-bottom:16px;cursor:pointer;padding:0;
+}
+.acc-back-to-account svg{width:18px;height:18px}
+.acc-back-to-account:hover{color:var(--accent)}
+
+.rw-balance-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.rw-balance-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+.rw-balance-label{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.rw-balance-label svg{width:14px;height:14px;color:var(--accent)}
+.rw-balance-val{font-family:var(--font-display);font-weight:700;font-size:1.5rem;margin-top:6px}
+
+.rw-ref-link-row{display:flex;gap:8px}
+.rw-ref-link-row input{
+  flex:1;background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
+  padding:11px 13px;color:var(--text);font-size:.82rem;font-family:var(--font-mono,monospace);
+}
+.rw-hint{font-size:.74rem;color:var(--muted);line-height:1.5;margin-top:10px}
+.rw-empty{font-size:.8rem;color:var(--muted);text-align:center;padding:16px 4px}
+
+.rw-referral-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:260px;overflow-y:auto}
+.rw-ref-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;background:var(--card2);border:1px solid var(--border)}
+.rw-ref-row-name{font-size:.82rem;font-weight:600}
+.rw-ref-row-meta{font-size:.7rem;color:var(--muted);margin-top:2px}
+.rw-ref-row-commission{font-size:.78rem;font-weight:700;color:var(--green)}
+
+.rw-store-grid,.rw-buy-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(min-width:520px){ .rw-buy-grid{grid-template-columns:repeat(3,1fr)} }
+.rw-store-item,.rw-buy-item{
+  background:var(--card2);border:1px solid var(--border-strong);border-radius:12px;padding:12px;
+  display:flex;flex-direction:column;gap:8px;align-items:flex-start;
+}
+.rw-store-item-label,.rw-buy-item-label{font-size:.8rem;font-weight:700}
+.rw-store-item-cost,.rw-buy-item-cost{font-size:.72rem;color:var(--muted)}
+.rw-store-item button,.rw-buy-item button{width:100%;margin-top:auto}
+
+.rw-withdrawal-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto}
+.rw-wd-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;background:var(--card2);border:1px solid var(--border)}
+.rw-wd-row-amount{font-size:.85rem;font-weight:700}
+.rw-wd-row-meta{font-size:.7rem;color:var(--muted);margin-top:2px}
+.rw-wd-row .status-pill{font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:20px;flex-shrink:0}
+.rw-wd-row .status-pill.pending{background:rgba(245,166,35,.15);color:#FFB020}
+.rw-wd-row .status-pill.completed{background:rgba(18,196,139,.15);color:var(--green)}
+.rw-wd-cert-link{font-size:.7rem;color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:none;padding:0;margin-top:4px}
 .legal-links{display:flex;align-items:center;justify-content:center;gap:22px;margin-top:16px}
 .legal-links a{color:var(--muted);text-decoration:underline;font-weight:500;font-size:.72rem;transition:color .2s var(--ease)}
 .legal-links a:hover{color:var(--text)}
@@ -666,11 +717,17 @@ body:has(.page-overlay.show){overflow:hidden}
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
       Get Verified
     </button>
+    <button type="button" class="acc-verify-link" id="openRewardsBtn" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-color:transparent">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5a2 2 0 013-1.7M15.5 14.5a2 2 0 01-3 1.7"/></svg>
+      Rewards
+    </button>
     <button class="acc-settings-icon" id="themeToggle" aria-label="Toggle theme">
       <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
     </button>
   </div>
+
+  <div id="view-account">
 
   <div class="acc-card">
     <div class="acc-card-title">
@@ -989,6 +1046,112 @@ body:has(.page-overlay.show){overflow:hidden}
   <div class="legal-links">
     <a href="/privacy">Privacy</a>
     <a href="/dmca">DMCA</a>
+  </div>
+
+  </div>
+
+  <div id="view-rewards" style="display:none">
+    <button type="button" class="acc-back-to-account" id="backToAccountBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+      Back to Account
+    </button>
+
+    <div class="rw-balance-grid">
+      <div class="rw-balance-card">
+        <div class="rw-balance-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5a2 2 0 013-1.7M15.5 14.5a2 2 0 01-3 1.7"/></svg> Coins</div>
+        <div class="rw-balance-val" id="rwCoinBalance">0</div>
+        <button type="button" class="acc-btn" id="rwDailyClaimBtn" style="width:100%;margin-top:10px">Claim Daily Coins (+2)</button>
+        <div class="acc-msg" id="rwDailyClaimMsg"></div>
+      </div>
+      <div class="rw-balance-card">
+        <div class="rw-balance-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Naira Balance</div>
+        <div class="rw-balance-val" id="rwNairaBalance">&#8358;0</div>
+        <button type="button" class="acc-btn" id="rwWithdrawBtn" style="width:100%;margin-top:10px">Withdraw</button>
+      </div>
+    </div>
+
+    <div class="acc-card">
+      <div class="acc-card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-3.9M8.6 13.5l6.8 3.9"/></svg>
+        Your Referral Link
+      </div>
+      <div class="rw-ref-link-row">
+        <input type="text" id="rwReferralLinkInput" readonly>
+        <button type="button" class="acc-btn" id="rwCopyReferralBtn">Copy</button>
+      </div>
+      <div class="rw-hint">Share this link — you get +5 coins for every person who joins with it, and 15% commission on anything they later pay for (except buying coins).</div>
+      <div class="rw-referral-list" id="rwReferralList"><div class="rw-empty">No referrals yet.</div></div>
+    </div>
+
+    <div class="acc-card">
+      <div class="acc-card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5a2 2 0 013-1.7M15.5 14.5a2 2 0 01-3 1.7"/></svg>
+        Coin Store
+      </div>
+      <div class="rw-hint" style="margin-bottom:10px">Spend coins on request-limit boosts or free verification. Boosts apply to the API you pick below.</div>
+      <div class="field">
+        <label>Apply boost to</label>
+        <select id="rwRedeemProduct">
+          <option value="livetv">Live TV API</option>
+          <option value="devapi">Developer API</option>
+        </select>
+      </div>
+      <div class="rw-store-grid" id="rwCoinStoreGrid"></div>
+      <div class="acc-msg" id="rwRedeemMsg"></div>
+    </div>
+
+    <div class="acc-card">
+      <div class="acc-card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5a2 2 0 013-1.7M15.5 14.5a2 2 0 01-3 1.7"/></svg>
+        Buy Coins
+      </div>
+      <div class="rw-buy-grid" id="rwBuyCoinsGrid"></div>
+      <div class="acc-msg" id="rwBuyMsg"></div>
+    </div>
+
+    <div class="acc-card">
+      <div class="acc-card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 10h20"/></svg>
+        Bank Details
+      </div>
+      <div class="field">
+        <label>Bank Name</label>
+        <input type="text" id="rwBankName" placeholder="e.g. GTBank">
+      </div>
+      <div class="field">
+        <label>Account Number</label>
+        <input type="text" id="rwAccountNumber" placeholder="10-digit account number" maxlength="10">
+      </div>
+      <div class="field">
+        <label>Account Name</label>
+        <input type="text" id="rwAccountName" placeholder="Name on the account">
+      </div>
+      <button type="button" class="acc-btn" id="rwSaveBankBtn" style="width:100%">Save Bank Details</button>
+      <div class="acc-msg" id="rwBankMsg"></div>
+    </div>
+
+    <div class="acc-card">
+      <div class="acc-card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Withdrawal History
+      </div>
+      <div class="rw-withdrawal-list" id="rwWithdrawalList"><div class="rw-empty">No withdrawals yet.</div></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="page-overlay" id="rwWithdrawOverlay">
+  <div class="overlay-card" style="max-width:360px">
+    <div class="overlay-title">Withdraw to your bank</div>
+    <div class="overlay-sub">Minimum withdrawal is &#8358;5,000. Save your bank details first if you haven't.</div>
+    <div class="field">
+      <label>Amount (&#8358;)</label>
+      <input type="number" id="rwWithdrawAmount" placeholder="5000" min="5000" step="100">
+    </div>
+    <div class="acc-msg" id="rwWithdrawMsg"></div>
+    <button class="btn btn-primary" id="rwWithdrawConfirmBtn" type="button" style="width:100%;justify-content:center">Submit Request</button>
+    <button class="overlay-cancel" id="rwWithdrawCancelBtn" type="button">Cancel</button>
   </div>
 </div>
 
@@ -1866,6 +2029,31 @@ function notifRender(list){
       viewBtn.addEventListener('click', () => {
         document.getElementById('notifOverlay').classList.remove('show');
         openCertOverlay();
+      });
+      top.appendChild(viewBtn);
+    }
+    if (n.type === 'withdrawal_paid') {
+      const viewBtn = document.createElement('button');
+      viewBtn.type = 'button';
+      viewBtn.className = 'notif-view-post-btn';
+      viewBtn.textContent = 'View Certificate';
+      viewBtn.addEventListener('click', () => {
+        document.getElementById('notifOverlay').classList.remove('show');
+        showRewards();
+        loadRewardsSummary().then(() => {
+          if (n.meta && n.meta.withdrawalId) openWithdrawalCertificate(n.meta.withdrawalId);
+        });
+      });
+      top.appendChild(viewBtn);
+    }
+    if (n.type === 'referral_signup' || n.type === 'referral_commission' || n.type === 'coin_redeem' || n.type === 'coin_purchase') {
+      const viewBtn = document.createElement('button');
+      viewBtn.type = 'button';
+      viewBtn.className = 'notif-view-post-btn';
+      viewBtn.textContent = 'View';
+      viewBtn.addEventListener('click', () => {
+        document.getElementById('notifOverlay').classList.remove('show');
+        showRewards();
       });
       top.appendChild(viewBtn);
     }
@@ -3300,6 +3488,245 @@ async function confirmVerificationPayment(reference){
     flashMsg(document.getElementById('verifyIntroMsg'), err.message || 'Could not confirm your payment. If you were charged, please contact support.', false);
   }
 }
+
+let rewardsSummary = null;
+
+function showAccount(){
+  document.getElementById('view-rewards').style.display = 'none';
+  document.getElementById('view-account').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+function showRewards(){
+  document.getElementById('view-account').style.display = 'none';
+  document.getElementById('view-rewards').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+document.getElementById('openRewardsBtn').addEventListener('click', () => { showRewards(); loadRewardsSummary(); });
+document.getElementById('backToAccountBtn').addEventListener('click', showAccount);
+
+function fmtNgn(n){ return '₦' + Number(n || 0).toLocaleString('en-NG'); }
+function fmtDateShort(ms){ if (!ms) return ''; return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
+
+async function loadRewardsSummary(){
+  try {
+    rewardsSummary = await getJSON('/api/rewards/summary');
+  } catch (err) {
+    return;
+  }
+
+  document.getElementById('rwCoinBalance').textContent = rewardsSummary.coinBalance;
+  document.getElementById('rwNairaBalance').textContent = fmtNgn(rewardsSummary.nairaBalance);
+  document.getElementById('rwReferralLinkInput').value = rewardsSummary.referralLink || '';
+
+  const today = new Date().toISOString().slice(0, 10);
+  const claimBtn = document.getElementById('rwDailyClaimBtn');
+  if (rewardsSummary.lastDailyCoinClaimDay === today) {
+    claimBtn.disabled = true;
+    claimBtn.textContent = 'Claimed Today';
+  } else {
+    claimBtn.disabled = false;
+    claimBtn.textContent = 'Claim Daily Coins (+2)';
+  }
+
+  const refList = document.getElementById('rwReferralList');
+  if (!rewardsSummary.referrals.length) {
+    refList.innerHTML = '<div class="rw-empty">No referrals yet.</div>';
+  } else {
+    refList.innerHTML = rewardsSummary.referrals.map((r) =>
+      '<div class="rw-ref-row"><div><div class="rw-ref-row-name">@' + esc(r.referredUsername || 'user') + '</div>' +
+      '<div class="rw-ref-row-meta">Joined ' + fmtDateShort(r.referredAt) + '</div></div>' +
+      '<div class="rw-ref-row-commission">' + (r.totalCommissionNgn ? fmtNgn(r.totalCommissionNgn) + ' earned' : '') + '</div></div>'
+    ).join('');
+  }
+
+  const storeGrid = document.getElementById('rwCoinStoreGrid');
+  storeGrid.innerHTML = Object.keys(rewardsSummary.coinStoreItems).map((key) => {
+    const item = rewardsSummary.coinStoreItems[key];
+    return '<div class="rw-store-item"><div class="rw-store-item-label">' + esc(item.label) + '</div>' +
+      '<div class="rw-store-item-cost">' + item.coinCost + ' coins</div>' +
+      '<button type="button" class="acc-btn acc-btn-ghost" data-redeem-item="' + key + '">Redeem</button></div>';
+  }).join('');
+  storeGrid.querySelectorAll('[data-redeem-item]').forEach((btn) => {
+    btn.addEventListener('click', () => redeemCoinItem(btn.getAttribute('data-redeem-item'), btn));
+  });
+
+  const buyGrid = document.getElementById('rwBuyCoinsGrid');
+  buyGrid.innerHTML = Object.keys(rewardsSummary.coinPackages).map((key) => {
+    const pkg = rewardsSummary.coinPackages[key];
+    return '<div class="rw-buy-item"><div class="rw-buy-item-label">' + pkg.coins + ' coins</div>' +
+      '<div class="rw-buy-item-cost">' + fmtNgn(pkg.priceNgn) + '</div>' +
+      '<button type="button" class="acc-btn acc-btn-ghost" data-buy-pkg="' + key + '">Buy</button></div>';
+  }).join('');
+  buyGrid.querySelectorAll('[data-buy-pkg]').forEach((btn) => {
+    btn.addEventListener('click', () => buyCoinPackage(btn.getAttribute('data-buy-pkg'), btn));
+  });
+
+  if (rewardsSummary.bankDetails) {
+    document.getElementById('rwBankName').value = rewardsSummary.bankDetails.bankName || '';
+    document.getElementById('rwAccountNumber').value = rewardsSummary.bankDetails.accountNumber || '';
+    document.getElementById('rwAccountName').value = rewardsSummary.bankDetails.accountName || '';
+  }
+
+  const wdList = document.getElementById('rwWithdrawalList');
+  if (!rewardsSummary.withdrawals.length) {
+    wdList.innerHTML = '<div class="rw-empty">No withdrawals yet.</div>';
+  } else {
+    wdList.innerHTML = rewardsSummary.withdrawals.map((w) => {
+      const pill = '<span class="status-pill ' + w.status + '">' + (w.status === 'completed' ? 'Paid' : 'Pending') + '</span>';
+      const certLink = (w.status === 'completed' && w.certificateSerial)
+        ? '<button type="button" class="rw-wd-cert-link" data-cert-wd="' + w.id + '">View Certificate</button>'
+        : '';
+      return '<div class="rw-wd-row"><div><div class="rw-wd-row-amount">' + fmtNgn(w.amountNgn) + '</div>' +
+        '<div class="rw-wd-row-meta">Requested ' + fmtDateShort(w.requestedAt) + '</div>' + certLink + '</div>' + pill + '</div>';
+    }).join('');
+    wdList.querySelectorAll('[data-cert-wd]').forEach((btn) => {
+      btn.addEventListener('click', () => openWithdrawalCertificate(btn.getAttribute('data-cert-wd')));
+    });
+  }
+}
+
+document.getElementById('rwDailyClaimBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('rwDailyClaimBtn');
+  const msg = document.getElementById('rwDailyClaimMsg');
+  btn.disabled = true;
+  try {
+    const result = await postJSON('/api/rewards/daily-claim', {});
+    flashMsg(msg, '+' + result.amount + ' coins claimed!', true);
+    loadRewardsSummary();
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+    btn.disabled = false;
+  }
+});
+
+async function redeemCoinItem(itemKey, btn){
+  const msg = document.getElementById('rwRedeemMsg');
+  const product = document.getElementById('rwRedeemProduct').value;
+  btn.disabled = true;
+  try {
+    const result = await postJSON('/api/rewards/redeem', { itemKey, product });
+    flashMsg(msg, itemKey === 'verify3d' ? 'Account verified for 3 days!' : ('+' + result.amount + ' limit added.'), true);
+    loadRewardsSummary();
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function buyCoinPackage(packageKey, btn){
+  const msg = document.getElementById('rwBuyMsg');
+  if (!PAYSTACK_PUBLIC_KEY || typeof PaystackPop === 'undefined') {
+    flashMsg(msg, 'Payments are temporarily unavailable. Please try again later.', false);
+    return;
+  }
+  btn.disabled = true;
+  let data;
+  try {
+    data = await postJSON('/api/coins/initialize', { packageKey });
+  } catch (err) {
+    btn.disabled = false;
+    flashMsg(msg, err.message || 'Could not start payment.', false);
+    return;
+  }
+  btn.disabled = false;
+  const handler = PaystackPop.setup({
+    key: data.publicKey,
+    email: data.email,
+    amount: data.amountKobo,
+    ref: data.reference,
+    currency: 'NGN',
+    onClose: function(){},
+    callback: function(response){
+      confirmCoinPurchase(response.reference);
+    },
+  });
+  handler.openIframe();
+}
+
+async function confirmCoinPurchase(reference){
+  const msg = document.getElementById('rwBuyMsg');
+  try {
+    const result = await postJSON('/api/coins/confirm', { reference });
+    flashMsg(msg, '+' + result.coins + ' coins added!', true);
+    loadRewardsSummary();
+  } catch (err) {
+    flashMsg(msg, err.message || 'Could not confirm your payment. If you were charged, please contact support.', false);
+  }
+}
+
+document.getElementById('rwCopyReferralBtn').addEventListener('click', () => {
+  const input = document.getElementById('rwReferralLinkInput');
+  navigator.clipboard.writeText(input.value).catch(() => {});
+  const btn = document.getElementById('rwCopyReferralBtn');
+  const original = btn.textContent;
+  btn.textContent = 'Copied!';
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+
+document.getElementById('rwSaveBankBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('rwSaveBankBtn');
+  const msg = document.getElementById('rwBankMsg');
+  const bankName = document.getElementById('rwBankName').value.trim();
+  const accountNumber = document.getElementById('rwAccountNumber').value.trim();
+  const accountName = document.getElementById('rwAccountName').value.trim();
+  btn.disabled = true;
+  try {
+    await postJSON('/api/rewards/bank-details', { bankName, accountNumber, accountName });
+    flashMsg(msg, 'Bank details saved.', true);
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+const rwWithdrawOverlay = document.getElementById('rwWithdrawOverlay');
+document.getElementById('rwWithdrawBtn').addEventListener('click', () => {
+  document.getElementById('rwWithdrawAmount').value = '';
+  const msg = document.getElementById('rwWithdrawMsg');
+  msg.textContent = '';
+  msg.className = 'acc-msg';
+  rwWithdrawOverlay.classList.add('show');
+});
+document.getElementById('rwWithdrawCancelBtn').addEventListener('click', () => rwWithdrawOverlay.classList.remove('show'));
+rwWithdrawOverlay.addEventListener('click', (e) => { if (e.target === rwWithdrawOverlay) rwWithdrawOverlay.classList.remove('show'); });
+
+document.getElementById('rwWithdrawConfirmBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('rwWithdrawConfirmBtn');
+  const msg = document.getElementById('rwWithdrawMsg');
+  const amountNgn = Number(document.getElementById('rwWithdrawAmount').value);
+  if (!amountNgn) {
+    flashMsg(msg, 'Enter an amount.', false);
+    return;
+  }
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span>Submitting…';
+  try {
+    await postJSON('/api/rewards/withdraw', { amountNgn });
+    rwWithdrawOverlay.classList.remove('show');
+    loadRewardsSummary();
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+});
+
+function openWithdrawalCertificate(withdrawalId){
+  const w = rewardsSummary && rewardsSummary.withdrawals.find((x) => x.id === withdrawalId);
+  if (!w) return;
+  drawWithdrawalCertificateCanvas({
+    fullName: ((profile.firstName || '') + ' ' + (profile.lastName || '')).trim() || ('@' + profile.username),
+    username: '@' + profile.username,
+    amount: fmtNgn(w.amountNgn),
+    serial: w.certificateSerial,
+    paidDate: fmtDateShort(w.completedAt),
+    theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark',
+  });
+}
 document.getElementById('verifyViewCertBtn').addEventListener('click', () => {
   closeVerifyOverlay();
   openCertOverlay();
@@ -3483,6 +3910,138 @@ async function drawCertificateCanvas(data){
   const a = document.createElement('a');
   a.href = url;
   a.download = 'VERIFIED.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+async function drawWithdrawalCertificateCanvas(data){
+  if (document.fonts && document.fonts.load) {
+    await Promise.all([
+      document.fonts.load('700 42px "Space Grotesk"'),
+      document.fonts.load('700 46px "Dancing Script"'),
+      document.fonts.load('600 18px "Inter"'),
+      document.fonts.load('600 17px "JetBrains Mono"'),
+    ]).catch(() => {});
+  }
+  const W = 1000, H = 640;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const isLight = data.theme === 'light';
+  const bg = isLight ? '#F5F6FA' : '#0A0A0F';
+  const card = isLight ? '#FFFFFF' : '#15151F';
+  const text = isLight ? '#14141C' : '#F3F3FA';
+  const muted = isLight ? 'rgba(20,20,28,.55)' : 'rgba(255,255,255,.5)';
+  const accent = '#00E0FF';
+  const accent2 = '#7c5cff';
+  const green = '#12C48B';
+  const pad = 30;
+
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = card;
+  roundRect(ctx, pad, pad, W - pad * 2, H - pad * 2, 22);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(0,224,255,.25)';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, pad + 16, pad + 16, W - (pad + 16) * 2, H - (pad + 16) * 2, 16);
+  ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.font = '700 26px "Space Grotesk", sans-serif';
+  const grad = ctx.createLinearGradient(pad + 50, 0, pad + 300, 0);
+  grad.addColorStop(0, accent);
+  grad.addColorStop(1, accent2);
+  ctx.fillStyle = grad;
+  ctx.fillText('ES TEAMS TV', pad + 50, pad + 70);
+
+  const chipText = 'PAID';
+  ctx.font = '700 14px "Inter", sans-serif';
+  const chipW = ctx.measureText(chipText).width + 36;
+  const chipX = W - pad - 50 - chipW;
+  const chipY = pad + 46;
+  ctx.fillStyle = 'rgba(18,196,139,.12)';
+  roundRect(ctx, chipX, chipY - 24, chipW, 34, 17);
+  ctx.fill();
+  ctx.strokeStyle = green;
+  ctx.lineWidth = 1;
+  roundRect(ctx, chipX, chipY - 24, chipW, 34, 17);
+  ctx.stroke();
+  ctx.fillStyle = green;
+  ctx.textAlign = 'center';
+  ctx.fillText(chipText, chipX + chipW / 2, chipY);
+
+  ctx.font = '700 13px "Inter", sans-serif';
+  ctx.fillStyle = muted;
+  ctx.textAlign = 'center';
+  ctx.fillText('C E R T I F I C A T E   O F   W I T H D R A W A L', W / 2, pad + 130);
+
+  ctx.font = '700 42px "Space Grotesk", sans-serif';
+  ctx.fillStyle = text;
+  ctx.fillText(data.amount, W / 2, pad + 195);
+
+  ctx.font = '500 18px "Inter", sans-serif';
+  ctx.fillStyle = muted;
+  ctx.fillText(data.fullName + ' (' + data.username + ')', W / 2, pad + 228);
+
+  ctx.strokeStyle = isLight ? 'rgba(0,0,0,.14)' : 'rgba(255,255,255,.13)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad + 60, pad + 270);
+  ctx.lineTo(W - pad - 60, pad + 270);
+  ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.font = '700 12px "Inter", sans-serif';
+  ctx.fillStyle = muted;
+  ctx.fillText('SERIAL', pad + 60, pad + 310);
+  ctx.font = '600 17px "JetBrains Mono", monospace';
+  ctx.fillStyle = text;
+  ctx.fillText(data.serial, pad + 60, pad + 335);
+
+  ctx.textAlign = 'right';
+  ctx.font = '700 12px "Inter", sans-serif';
+  ctx.fillStyle = muted;
+  ctx.fillText('PAID ON', W - pad - 60, pad + 310);
+  ctx.font = '600 17px "JetBrains Mono", monospace';
+  ctx.fillStyle = text;
+  ctx.fillText(data.paidDate, W - pad - 60, pad + 335);
+
+  ctx.save();
+  ctx.translate(W / 2, pad + 415);
+  ctx.rotate(-0.08);
+  ctx.transform(1, 0, -0.18, 1, 0, 0);
+  ctx.textAlign = 'center';
+  ctx.font = '700 50px "Dancing Script", cursive';
+  ctx.fillStyle = accent2;
+  ctx.fillText('Es Teams', 0, 0);
+  ctx.globalAlpha = 0.7;
+  ctx.strokeStyle = accent2;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-72, 18);
+  ctx.bezierCurveTo(-38, -2, -8, 30, 22, 8);
+  ctx.bezierCurveTo(48, -10, 68, 4, 74, -2);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  ctx.font = '700 12px "Inter", sans-serif';
+  ctx.fillStyle = muted;
+  ctx.textAlign = 'center';
+  ctx.fillText('AUTHORIZED SIGNATURE, ES TEAMS TV', W / 2, pad + 450);
+
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'WITHDRAWAL_CERTIFICATE.png';
   document.body.appendChild(a);
   a.click();
   a.remove();
