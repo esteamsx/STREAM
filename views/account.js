@@ -425,10 +425,12 @@ input{font-family:inherit}
 .rw-bank-card-delete svg{width:14px;height:14px}
 .rw-bank-card-brand{position:relative;display:flex;align-items:center;gap:9px;margin-bottom:26px}
 .rw-bank-card-logo{
-  width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  font-family:var(--font-display);font-weight:800;font-size:.65rem;color:#fff;letter-spacing:.01em;
+  width:30px;height:30px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-weight:800;font-size:.95rem;color:#fff;letter-spacing:.01em;
   box-shadow:0 2px 6px rgba(0,0,0,.3),inset 0 0 0 1px rgba(255,255,255,.25);
 }
+.rw-bank-card-logo.shape-circle{border-radius:50%}
+.rw-bank-card-logo.wide{font-size:.6rem;letter-spacing:.02em}
 .rw-bank-card-brand-text{font-family:var(--font-display);font-weight:800;font-size:.85rem;letter-spacing:.08em;opacity:.92;text-transform:uppercase}
 .rw-bank-card-number-row{position:relative;display:flex;align-items:center;gap:10px;margin-bottom:22px}
 .rw-bank-card-number{font-family:var(--font-mono);font-size:1.15rem;letter-spacing:.1em;font-weight:600}
@@ -3950,43 +3952,43 @@ const NIGERIA_BANKS = [
 ];
 
 const BANK_BRANDS = {
-  'Access Bank': { mono: 'AB', color: '#F26522' },
-  'Carbon': { mono: 'CB', color: '#101820' },
-  'Citibank Nigeria': { mono: 'C', color: '#003882' },
-  'Ecobank Nigeria': { mono: 'EB', color: '#00335E' },
-  'FairMoney MFB': { mono: 'FM', color: '#6C2EB9' },
-  'Fidelity Bank': { mono: 'FB', color: '#00447C' },
-  'First Bank of Nigeria': { mono: 'FBN', color: '#00447B' },
-  'First City Monument Bank (FCMB)': { mono: 'FC', color: '#00338D' },
-  'Globus Bank': { mono: 'GB', color: '#00A99D' },
-  'Guaranty Trust Bank (GTBank)': { mono: 'GT', color: '#EE6C0F' },
-  'Jaiz Bank': { mono: 'JB', color: '#00693E' },
-  'Keystone Bank': { mono: 'KB', color: '#EE7623' },
-  'Kuda Bank': { mono: 'KU', color: '#3D1E6D' },
-  'Moniepoint MFB': { mono: 'MP', color: '#052D5D' },
-  'OPay': { mono: 'OP', color: '#00A860' },
-  'Optimus Bank': { mono: 'OB', color: '#0B6E5C' },
-  'PalmPay': { mono: 'PP', color: '#6A2EE0' },
-  'Parallex Bank': { mono: 'PX', color: '#1B4F9C' },
-  'Polaris Bank': { mono: 'PB', color: '#ED1C24' },
-  'Premium Trust Bank': { mono: 'PT', color: '#1C8A4B' },
-  'Providus Bank': { mono: 'PV', color: '#1B2A4A' },
-  'Rubies MFB': { mono: 'RB', color: '#E4287C' },
-  'Signature Bank': { mono: 'SB', color: '#1A1A1A' },
-  'Sparkle Microfinance Bank': { mono: 'SP', color: '#F7A600' },
-  'Stanbic IBTC Bank': { mono: 'SI', color: '#0033A1' },
-  'Standard Chartered Bank': { mono: 'SC', color: '#006A4D' },
-  'Sterling Bank': { mono: 'ST', color: '#A6192E' },
-  'SunTrust Bank': { mono: 'SU', color: '#F7941D' },
-  'Titan Trust Bank': { mono: 'TT', color: '#12294B' },
-  'Union Bank of Nigeria': { mono: 'UB', color: '#F58220' },
-  'United Bank for Africa (UBA)': { mono: 'UBA', color: '#D71921' },
-  'Unity Bank': { mono: 'UN', color: '#00A651' },
-  'VFD Microfinance Bank': { mono: 'VF', color: '#0F3D3E' },
-  'Wema Bank': { mono: 'WB', color: '#6E2585' },
-  'Zenith Bank': { mono: 'ZB', color: '#E4002B' },
+  'Access Bank': { mono: 'A', color: '#F26522', shape: 'square' },
+  'Carbon': { mono: 'C', color: '#101820', shape: 'circle' },
+  'Citibank Nigeria': { mono: 'C', color: '#003882', shape: 'square' },
+  'Ecobank Nigeria': { mono: 'E', color: '#00335E', shape: 'square' },
+  'FairMoney MFB': { mono: 'F', color: '#6C2EB9', shape: 'circle' },
+  'Fidelity Bank': { mono: 'F', color: '#00447C', shape: 'square' },
+  'First Bank of Nigeria': { mono: 'FBN', gradient: 'linear-gradient(135deg,#00447B,#C9A227)', shape: 'square' },
+  'First City Monument Bank (FCMB)': { mono: 'FC', color: '#00338D', shape: 'square' },
+  'Globus Bank': { mono: 'G', color: '#00A99D', shape: 'circle' },
+  'Guaranty Trust Bank (GTBank)': { mono: 'GT', color: '#EE6C0F', shape: 'circle' },
+  'Jaiz Bank': { mono: 'J', color: '#00693E', shape: 'square' },
+  'Keystone Bank': { mono: 'K', color: '#EE7623', shape: 'square' },
+  'Kuda Bank': { mono: 'k', color: '#3D1E6D', shape: 'circle' },
+  'Moniepoint MFB': { mono: 'M', color: '#052D5D', shape: 'square' },
+  'OPay': { mono: 'O', color: '#00A860', shape: 'circle' },
+  'Optimus Bank': { mono: 'OB', color: '#0B6E5C', shape: 'square' },
+  'PalmPay': { mono: 'P', gradient: 'linear-gradient(135deg,#8A2EE0,#2E7CF6)', shape: 'square' },
+  'Parallex Bank': { mono: 'PX', color: '#1B4F9C', shape: 'square' },
+  'Polaris Bank': { mono: 'PB', color: '#ED1C24', shape: 'circle' },
+  'Premium Trust Bank': { mono: 'PT', color: '#1C8A4B', shape: 'square' },
+  'Providus Bank': { mono: 'PV', color: '#1B2A4A', shape: 'square' },
+  'Rubies MFB': { mono: 'R', color: '#E4287C', shape: 'circle' },
+  'Signature Bank': { mono: 'S', color: '#1A1A1A', shape: 'square' },
+  'Sparkle Microfinance Bank': { mono: 'S', color: '#F7A600', shape: 'circle' },
+  'Stanbic IBTC Bank': { mono: 'SI', color: '#0033A1', shape: 'square' },
+  'Standard Chartered Bank': { mono: 'SC', gradient: 'linear-gradient(135deg,#0473EA,#006A4D)', shape: 'square' },
+  'Sterling Bank': { mono: 'S', color: '#A6192E', shape: 'circle' },
+  'SunTrust Bank': { mono: 'SU', gradient: 'linear-gradient(135deg,#FDC830,#F37335)', shape: 'circle' },
+  'Titan Trust Bank': { mono: 'TT', color: '#12294B', shape: 'square' },
+  'Union Bank of Nigeria': { mono: 'UB', color: '#F58220', shape: 'circle' },
+  'United Bank for Africa (UBA)': { mono: 'U', color: '#D71921', shape: 'circle' },
+  'Unity Bank': { mono: 'UN', color: '#00A651', shape: 'square' },
+  'VFD Microfinance Bank': { mono: 'VF', color: '#0F3D3E', shape: 'square' },
+  'Wema Bank': { mono: 'W', color: '#6E2585', shape: 'circle' },
+  'Zenith Bank': { mono: 'Z', color: '#E4002B', shape: 'circle' },
 };
-const DEFAULT_BANK_BRAND = { mono: 'BK', color: '#5a4fcf' };
+const DEFAULT_BANK_BRAND = { mono: 'BK', color: '#5a4fcf', shape: 'square' };
 
 const rwBankPicker = document.getElementById('rwBankPicker');
 const rwBankSearch = document.getElementById('rwBankSearch');
@@ -4119,8 +4121,9 @@ function renderBankCard(){
     addForm.style.display = 'none';
     cardDisplay.style.display = 'block';
     const brand = BANK_BRANDS[bd.bankName] || DEFAULT_BANK_BRAND;
+    const logoClass = 'rw-bank-card-logo' + (brand.shape === 'circle' ? ' shape-circle' : '') + (brand.mono.length > 1 ? ' wide' : '');
     document.getElementById('rwBankCardBrand').innerHTML =
-      '<span class="rw-bank-card-logo" style="background:' + brand.color + '">' + esc(brand.mono) + '</span>' +
+      '<span class="' + logoClass + '" style="background:' + (brand.gradient || brand.color) + '">' + esc(brand.mono) + '</span>' +
       '<span class="rw-bank-card-brand-text">' + esc(bd.bankName) + '</span>';
     document.getElementById('rwBankCardBankName').textContent = bd.bankName;
     document.getElementById('rwBankCardName').textContent = bd.accountName;
