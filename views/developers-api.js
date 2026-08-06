@@ -322,6 +322,66 @@ const FEATURES = [
     live: true,
     example: "GET /api/v1/dev/dogimage",
   },
+  {
+    key: "quote",
+    title: "Random Quote",
+    desc: "A random inspirational quote and its author.",
+    icon: '<path d="M7 7h4v4a4 4 0 01-4 4H6v-2h1a2 2 0 002-2H7V7z"/><path d="M15 7h4v4a4 4 0 01-4 4h-1v-2h1a2 2 0 002-2h-2V7z"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/quote",
+    live: true,
+    example: "GET /api/v1/dev/quote",
+  },
+  {
+    key: "minecraft",
+    title: "Minecraft Server Status",
+    desc: "Online status, player count, and version for any Minecraft server.",
+    icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h10v6H7z"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/minecraft?address=",
+    live: true,
+    example: "GET /api/v1/dev/minecraft?address=mc.hypixel.net",
+  },
+  {
+    key: "npm",
+    title: "NPM Package Info",
+    desc: "Latest version, description, and license for any npm package.",
+    icon: '<path d="M3 3h18v18H3z"/><path d="M8 8h8v8h-3v-6h-2v6H8z"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/npm?package=",
+    live: true,
+    example: "GET /api/v1/dev/npm?package=express",
+  },
+  {
+    key: "animeimage",
+    title: "Anime Image",
+    desc: "A random anime-style image, pick from 18 categories (waifu, neko, hug, pat, and more).",
+    icon: '<circle cx="12" cy="12" r="9"/><path d="M8 10h.01M16 10h.01M8 15c1.5 1.5 6.5 1.5 8 0"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/animeimage?category=",
+    live: true,
+    example: "GET /api/v1/dev/animeimage?category=waifu",
+  },
+  {
+    key: "youtube",
+    title: "YouTube Info",
+    desc: "Title, channel, and thumbnail for any YouTube video link.",
+    icon: '<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M10 9l5 3-5 3z"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/youtube?url=",
+    live: true,
+    example: "GET /api/v1/dev/youtube?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  },
+  {
+    key: "githubrepo",
+    title: "GitHub Repo",
+    desc: "Stars, forks, language, and description for any public GitHub repo.",
+    icon: '<path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2-.2 4.5-1 4.5-4.5 0-1-.5-2-1-2.5.1-.5.5-1.5-.1-3 0 0-1 0-3 1.5-1.8-.5-3.2-.5-5 0C8 4 7 4 7 4c-.6 1.5-.2 2.5-.1 3-.5.5-1 1.5-1 2.5 0 3.5 2.5 4.3 4.5 4.5-.3.3-.5.7-.5 1.5"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/githubrepo?repo=",
+    live: true,
+    example: "GET /api/v1/dev/githubrepo?repo=facebook/react",
+  },
 ];
 
 const CATEGORIES = [];
@@ -1132,6 +1192,79 @@ ${musicPlayerStyle()}
   "imageUrl": "https://images.dog.ceo/breeds/hound-afghan/n02088094_1003.jpg"
 }</pre>
 
+    <h2 class="doc-h2">Random Quote</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/quote</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/quote"</pre>
+    <pre>{
+  "quote": "The only way to do great work is to love what you do.",
+  "author": "Steve Jobs"
+}</pre>
+
+    <h2 class="doc-h2">Minecraft Server Status</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/minecraft?address=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/minecraft?address=mc.hypixel.net"</pre>
+    <pre>{
+  "online": true,
+  "hostname": "mc.hypixel.net",
+  "ip": "...",
+  "port": 25565,
+  "version": "Requires MC 1.8 / 1.21",
+  "playersOnline": 25000,
+  "playersMax": 200000,
+  "motd": "Hypixel Network..."
+}</pre>
+
+    <h2 class="doc-h2">NPM Package Info</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/npm?package=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/npm?package=express"</pre>
+    <pre>{
+  "name": "express",
+  "version": "4.21.2",
+  "description": "Fast, unopinionated, minimalist web framework",
+  "license": "MIT",
+  "homepage": "http://expressjs.com/",
+  "author": "TJ Holowaychuk"
+}</pre>
+
+    <h2 class="doc-h2">Anime Image</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/animeimage?category=</code></p>
+    <p class="doc-p">Optional <code>category</code>: waifu, neko, shinobu, megumin, bully, cuddle, cry, hug, awoo, kiss, lick, pat, smug, bonk, yeet, blush, smile, wave. Defaults to waifu.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/animeimage?category=hug"</pre>
+    <pre>{
+  "category": "hug",
+  "imageUrl": "https://i.waifu.pics/..."
+}</pre>
+
+    <h2 class="doc-h2">YouTube Info</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/youtube?url=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/youtube?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ"</pre>
+    <pre>{
+  "title": "Rick Astley - Never Gonna Give You Up",
+  "author": "Rick Astley",
+  "authorUrl": "https://www.youtube.com/@RickAstleyYT",
+  "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+}</pre>
+
+    <h2 class="doc-h2">GitHub Repo</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/githubrepo?repo=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/githubrepo?repo=facebook/react"</pre>
+    <pre>{
+  "fullName": "facebook/react",
+  "description": "The library for web and native user interfaces.",
+  "stars": 230000,
+  "forks": 47000,
+  "openIssues": 900,
+  "language": "JavaScript",
+  "url": "https://github.com/facebook/react",
+  "createdAt": "2013-05-24T16:15:54Z"
+}</pre>
+
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
     <p class="doc-p">20 requests per minute per API key on each endpoint (15 for AI, 15 for Temp Mail, 2 per hour for AI Video Generation). On top of that, every account has a monthly allowance shared across <strong>all</strong> your Developer Api keys, separate from the Live Tv Api's own allowance. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
 
@@ -1689,6 +1822,12 @@ ${musicPlayerHtml()}
     holidays: { title: 'Try it — Public Holidays', method: 'GET', path: '/api/v1/dev/holidays', label: 'Year - Country code', placeholder: '2026 - NG', parts: ['year', 'country'], splitOn: ' - ' },
     githubuser: { title: 'Try it — GitHub User', method: 'GET', path: '/api/v1/dev/githubuser', param: 'username', label: 'GitHub username', placeholder: 'torvalds' },
     dogimage: { title: 'Try it — Dog Image', method: 'GET', path: '/api/v1/dev/dogimage', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true },
+    quote: { title: 'Try it — Random Quote', method: 'GET', path: '/api/v1/dev/quote', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true },
+    minecraft: { title: 'Try it — Minecraft Server Status', method: 'GET', path: '/api/v1/dev/minecraft', param: 'address', label: 'Server address', placeholder: 'mc.hypixel.net' },
+    npm: { title: 'Try it — NPM Package Info', method: 'GET', path: '/api/v1/dev/npm', param: 'package', label: 'Package name', placeholder: 'express' },
+    animeimage: { title: 'Try it — Anime Image', method: 'GET', path: '/api/v1/dev/animeimage', param: 'category', label: 'Category (optional)', placeholder: 'waifu', optional: true },
+    youtube: { title: 'Try it — YouTube Info', method: 'GET', path: '/api/v1/dev/youtube', param: 'url', label: 'YouTube URL', placeholder: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+    githubrepo: { title: 'Try it — GitHub Repo', method: 'GET', path: '/api/v1/dev/githubrepo', param: 'repo', label: 'owner/repo', placeholder: 'facebook/react' },
     movie: { title: 'Try it — Movie Info', method: 'GET', path: '/api/v1/dev/movie', param: 'query', label: 'Movie title', placeholder: 'Inception' },
     sportsteam: { title: 'Try it — Sports Team', method: 'GET', path: '/api/v1/dev/sportsteam', param: 'name', label: 'Team name', placeholder: 'Arsenal' },
     crypto: { title: 'Try it — Crypto Price', method: 'GET', path: '/api/v1/dev/crypto', param: 'coin', label: 'Coin name or symbol', placeholder: 'BTC' },

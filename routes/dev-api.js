@@ -31,6 +31,12 @@ import {
   getPublicHolidays,
   getGithubUser,
   getRandomDogImage,
+  getRandomQuote,
+  getMinecraftServerStatus,
+  getNpmPackageInfo,
+  getAnimeImage,
+  getYoutubeInfo,
+  getGithubRepo,
 } from "../services/lookup.js";
 import { signDownloadToken, verifyDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
 import {
@@ -226,6 +232,12 @@ const videogenLimiter = new SimpleRateLimiter(2, 60 * 60 * 1000, (req) => req.ap
 const tiktokLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const cryptoLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const wikipediaLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const quoteLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const minecraftLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const npmLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const animeImageLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const youtubeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const githubrepoLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 
 router.get("/api/v1/dev/ocr", requireDevApiKey, ocrLimiter, async (req, res) => {
   const url = String(req.query.url || "").trim();
@@ -584,6 +596,68 @@ router.get("/api/v1/dev/dogimage", requireDevApiKey, dogimageLimiter, async (req
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not fetch a dog image." });
+  }
+});
+
+router.get("/api/v1/dev/quote", requireDevApiKey, quoteLimiter, async (req, res) => {
+  try {
+    const result = await getRandomQuote();
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch a quote." });
+  }
+});
+
+router.get("/api/v1/dev/minecraft", requireDevApiKey, minecraftLimiter, async (req, res) => {
+  const address = String(req.query.address || "").trim();
+  if (!address) return res.status(400).json({ error: "Missing address query parameter." });
+  try {
+    const result = await getMinecraftServerStatus(address);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not check that server." });
+  }
+});
+
+router.get("/api/v1/dev/npm", requireDevApiKey, npmLimiter, async (req, res) => {
+  const packageName = String(req.query.package || "").trim();
+  if (!packageName) return res.status(400).json({ error: "Missing package query parameter." });
+  try {
+    const result = await getNpmPackageInfo(packageName);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that npm package." });
+  }
+});
+
+router.get("/api/v1/dev/animeimage", requireDevApiKey, animeImageLimiter, async (req, res) => {
+  try {
+    const result = await getAnimeImage(String(req.query.category || "").trim());
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch an anime image." });
+  }
+});
+
+router.get("/api/v1/dev/youtube", requireDevApiKey, youtubeLimiter, async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing url query parameter." });
+  try {
+    const result = await getYoutubeInfo(url);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch that video's info." });
+  }
+});
+
+router.get("/api/v1/dev/githubrepo", requireDevApiKey, githubrepoLimiter, async (req, res) => {
+  const repo = String(req.query.repo || "").trim();
+  if (!repo) return res.status(400).json({ error: "Missing repo query parameter." });
+  try {
+    const result = await getGithubRepo(repo);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that repo." });
   }
 });
 

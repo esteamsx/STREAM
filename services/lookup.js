@@ -203,3 +203,83 @@ export async function getRandomDogImage() {
   if (!data.message) throw Object.assign(new Error("Could not fetch a dog image right now."), { status: 502 });
   return { imageUrl: data.message };
 }
+
+export async function getRandomQuote() {
+  const data = await fetchJson("https://zenquotes.io/api/random");
+  const entry = Array.isArray(data) ? data[0] : null;
+  if (!entry || !entry.q) throw Object.assign(new Error("Could not fetch a quote right now."), { status: 502 });
+  return { quote: entry.q, author: entry.a || "Unknown" };
+}
+
+export async function getMinecraftServerStatus(address) {
+  const data = await fetchJson(`https://api.mcsrvstat.us/3/${encodeURIComponent(address)}`);
+  return {
+    online: !!data.online,
+    hostname: data.hostname || address,
+    ip: data.ip || null,
+    port: data.port || null,
+    version: data.version || null,
+    playersOnline: (data.players && data.players.online) != null ? data.players.online : null,
+    playersMax: (data.players && data.players.max) != null ? data.players.max : null,
+    motd: (data.motd && Array.isArray(data.motd.clean) ? data.motd.clean.join(" ") : null) || null,
+  };
+}
+
+export async function getNpmPackageInfo(packageName) {
+  const data = await fetchJson(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`);
+  if (!data.name) throw Object.assign(new Error("Could not find that npm package."), { status: 404 });
+  return {
+    name: data.name,
+    version: data.version,
+    description: data.description || null,
+    license: data.license || null,
+    homepage: data.homepage || null,
+    author: (data.author && (data.author.name || data.author)) || null,
+  };
+}
+
+const ANIME_IMAGE_CATEGORIES = new Set(["waifu", "neko", "shinobu", "megumin", "bully", "cuddle", "cry", "hug", "awoo", "kiss", "lick", "pat", "smug", "bonk", "yeet", "blush", "smile", "wave"]);
+
+export async function getAnimeImage(category) {
+  const clean = ANIME_IMAGE_CATEGORIES.has(category) ? category : "waifu";
+  const data = await fetchJson(`https://api.waifu.pics/sfw/${clean}`);
+  if (!data.url) throw Object.assign(new Error("Could not fetch an image right now."), { status: 502 });
+  return { category: clean, imageUrl: data.url };
+}
+
+export async function getYoutubeInfo(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw Object.assign(new Error("Invalid YouTube URL."), { status: 400 });
+  }
+  if (!/(^|\.)(youtube\.com|youtu\.be)$/.test(parsed.hostname)) {
+    throw Object.assign(new Error("URL must be a youtube.com or youtu.be link."), { status: 400 });
+  }
+  const data = await fetchJson(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+  if (!data.title) throw Object.assign(new Error("Could not find that YouTube video."), { status: 404 });
+  return {
+    title: data.title,
+    author: data.author_name || null,
+    authorUrl: data.author_url || null,
+    thumbnail: data.thumbnail_url || null,
+  };
+}
+
+export async function getGithubRepo(fullName) {
+  const clean = String(fullName || "").trim().replace(/^\/+|\/+$/g, "");
+  if (!/^[\w.-]+\/[\w.-]+$/.test(clean)) throw Object.assign(new Error("Give it a repo as owner/name, e.g. facebook/react."), { status: 400 });
+  const data = await fetchJson(`https://api.github.com/repos/${clean}`);
+  if (!data.full_name) throw Object.assign(new Error("Could not find that GitHub repo."), { status: 404 });
+  return {
+    fullName: data.full_name,
+    description: data.description || null,
+    stars: data.stargazers_count,
+    forks: data.forks_count,
+    openIssues: data.open_issues_count,
+    language: data.language || null,
+    url: data.html_url,
+    createdAt: data.created_at,
+  };
+}

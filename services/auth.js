@@ -2509,6 +2509,7 @@ const REFERRAL_SIGNUP_COINS = 5;
 const DAILY_COIN_CLAIM_AMOUNT = 2;
 const REFERRAL_COMMISSION_RATE = 0.15;
 const MIN_WITHDRAWAL_NGN = 3000;
+const MAX_WITHDRAWAL_NGN = 100000;
 const WITHDRAWAL_TAX_RATE = 0.15;
 
 const COIN_STORE_ITEMS = {
@@ -2696,6 +2697,11 @@ function isValidBankAccountNumber(v) {
 }
 
 async function setBankDetails(uid, { bankName, accountNumber, accountName }) {
+  const profile = await getUserProfile(uid);
+  if (!profile) throw new Error("Account not found.");
+  if (profile.bankDetails) {
+    throw Object.assign(new Error("You already have a saved card. Delete it before adding a new one."), { status: 400 });
+  }
   const cleanBankName = String(bankName || "").trim().slice(0, 80);
   const cleanAccountName = String(accountName || "").trim().slice(0, 80);
   const cleanAccountNumber = String(accountNumber || "").trim();
@@ -2707,10 +2713,18 @@ async function setBankDetails(uid, { bankName, accountNumber, accountName }) {
   return bankDetails;
 }
 
+async function deleteBankDetails(uid) {
+  await db.collection("users").doc(uid).update({ bankDetails: admin.firestore.FieldValue.delete() });
+  return { ok: true };
+}
+
 async function requestWithdrawal(uid, amountNgn) {
   const amount = Math.floor(Number(amountNgn) || 0);
   if (amount < MIN_WITHDRAWAL_NGN) {
     throw Object.assign(new Error(`Minimum withdrawal is ₦${MIN_WITHDRAWAL_NGN.toLocaleString("en-NG")}.`), { status: 400 });
+  }
+  if (amount > MAX_WITHDRAWAL_NGN) {
+    throw Object.assign(new Error(`Maximum withdrawal is ₦${MAX_WITHDRAWAL_NGN.toLocaleString("en-NG")}.`), { status: 400 });
   }
   const userRef = db.collection("users").doc(uid);
   const withdrawalRef = db.collection("withdrawalRequests").doc();
@@ -3123,6 +3137,7 @@ export {
   COIN_STORE_ITEMS,
   COIN_PACKAGES,
   MIN_WITHDRAWAL_NGN,
+  MAX_WITHDRAWAL_NGN,
   WITHDRAWAL_TAX_RATE,
   applyReferral,
   ensureReferralCode,
@@ -3136,6 +3151,7 @@ export {
   finalizeCoinPurchasePayment,
   creditReferralCommission,
   setBankDetails,
+  deleteBankDetails,
   requestWithdrawal,
   listWithdrawalRequestsForUser,
   adminListWithdrawalRequests,

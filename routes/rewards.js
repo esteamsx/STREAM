@@ -8,6 +8,7 @@ import {
   redeemCoinsForVerification,
   getReferralsForUser,
   setBankDetails,
+  deleteBankDetails,
   requestWithdrawal,
   listWithdrawalRequestsForUser,
   ensureReferralCode,
@@ -16,8 +17,10 @@ import {
   COIN_STORE_ITEMS,
   COIN_PACKAGES,
   MIN_WITHDRAWAL_NGN,
+  MAX_WITHDRAWAL_NGN,
   WITHDRAWAL_TAX_RATE,
 } from "../services/auth.js";
+import { findBankCode, resolveAccountNumber } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 
 const router = express.Router();
@@ -38,6 +41,8 @@ const summaryLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).mi
 const claimLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000, (req) => req.uid).middleware();
 const redeemLimiter = new SimpleRateLimiter(20, 60 * 60 * 1000, (req) => req.uid).middleware();
 const bankLimiter = new SimpleRateLimiter(10, 60 * 60 * 1000, (req) => req.uid).middleware();
+const bankDeleteLimiter = new SimpleRateLimiter(10, 60 * 60 * 1000, (req) => req.uid).middleware();
+const resolveAccountLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
 const withdrawLimiter = new SimpleRateLimiter(10, 60 * 60 * 1000, (req) => req.uid).middleware();
 
 router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res) => {
@@ -57,6 +62,7 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
       bankDetails: profile.bankDetails || null,
       verified: isAdminEmail(profile.email) || isVerificationActive(profile),
       minWithdrawalNgn: MIN_WITHDRAWAL_NGN,
+      maxWithdrawalNgn: MAX_WITHDRAWAL_NGN,
       withdrawalTaxRate: WITHDRAWAL_TAX_RATE,
       referrals: referrals.map((r) => ({
         referredUsername: r.referredUsername,
@@ -114,7 +120,35 @@ router.post("/api/rewards/bank-details", requireAuth, bankLimiter, async (req, r
     });
     res.json({ ok: true, bankDetails: result });
   } catch (err) {
-    res.status(400).json({ error: err.message || "Could not save bank details." });
+    res.status(err.status || 400).json({ error: err.message || "Could not save bank details." });
+  }
+});
+
+router.post("/api/rewards/bank-details/delete", requireAuth, bankDeleteLimiter, async (req, res) => {
+  try {
+    if (!(await verifyCaptcha(req.body?.altcha))) {
+      return res.status(400).json({ error: "Captcha not completed." });
+    }
+    await deleteBankDetails(req.uid);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not delete that card." });
+  }
+});
+
+router.get("/api/rewards/resolve-account", requireAuth, resolveAccountLimiter, async (req, res) => {
+  try {
+    const bankName = String(req.query.bankName || "").trim();
+    const accountNumber = String(req.query.accountNumber || "").trim();
+    if (!bankName || !/^\d{10}$/.test(accountNumber)) {
+      return res.status(400).json({ error: "Provide a bank name and 10-digit account number." });
+    }
+    const bankCode = await findBankCode(bankName);
+    if (!bankCode) return res.status(404).json({ error: "Could not match that bank for verification." });
+    const result = await resolveAccountNumber(accountNumber, bankCode);
+    res.json({ accountName: result.account_name });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not verify that account number." });
   }
 });
 

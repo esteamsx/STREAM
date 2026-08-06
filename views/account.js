@@ -327,16 +327,17 @@ input{font-family:inherit}
 }
 .field select:focus{border-color:var(--accent)}
 
-.acc-swipe-hint-row{display:flex;justify-content:center;margin-bottom:14px}
 .acc-swipe-hint{
-  background:transparent;border:none;padding:6px 12px;color:var(--muted);display:flex;align-items:center;gap:6px;
-  border-radius:20px;cursor:pointer;font-size:.72rem;font-weight:600;font-family:inherit;
+  position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:20;
+  background:var(--card);border:1px solid var(--border-strong);border-right:none;
+  border-radius:12px 0 0 12px;padding:12px 8px;color:var(--muted);display:flex;align-items:center;
+  cursor:pointer;box-shadow:-4px 0 14px rgba(0,0,0,.18);
 }
 .acc-swipe-hint:hover{color:var(--accent)}
-.swipe-hint-icon{width:15px;height:15px;flex-shrink:0;animation:swipeHintPulse 1.8s ease-in-out infinite}
+.swipe-hint-icon{width:16px;height:16px;animation:swipeHintPulse 1.8s ease-in-out infinite}
 @keyframes swipeHintPulse{
   0%,100%{transform:translateX(0);opacity:.5}
-  50%{transform:translateX(3px);opacity:1}
+  50%{transform:translateX(-3px);opacity:1}
 }
 
 .rw-balance-grid{margin-bottom:16px}
@@ -407,6 +408,34 @@ input{font-family:inherit}
 }
 .bank-picker-item:hover,.bank-picker-item.active{background:var(--card2);color:var(--accent)}
 .bank-picker-empty{font-size:.8rem;color:var(--muted);text-align:center;padding:12px 4px}
+
+.rw-bank-card{
+  position:relative;background:linear-gradient(135deg,var(--accent2),var(--accent) 65%,#132430);
+  border-radius:18px;padding:22px 20px;color:#fff;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.25);
+}
+.rw-bank-card::before{
+  content:'';position:absolute;top:-45%;right:-15%;width:220px;height:220px;
+  background:radial-gradient(circle,rgba(255,255,255,.16),transparent 70%);border-radius:50%;pointer-events:none;
+}
+.rw-bank-card-delete{
+  position:absolute;top:12px;right:12px;background:rgba(255,255,255,.16);border:none;color:#fff;
+  width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:1;
+}
+.rw-bank-card-delete:hover{background:rgba(255,59,92,.55)}
+.rw-bank-card-delete svg{width:14px;height:14px}
+.rw-bank-card-brand{position:relative;font-family:var(--font-display);font-weight:800;font-size:.85rem;letter-spacing:.08em;opacity:.9;margin-bottom:26px;text-transform:uppercase}
+.rw-bank-card-number-row{position:relative;display:flex;align-items:center;gap:10px;margin-bottom:22px}
+.rw-bank-card-number{font-family:var(--font-mono);font-size:1.15rem;letter-spacing:.1em;font-weight:600}
+.rw-bank-card-eye{background:transparent;border:none;color:rgba(255,255,255,.8);padding:4px;display:flex;cursor:pointer}
+.rw-bank-card-eye:hover{color:#fff}
+.rw-bank-card-eye svg{width:16px;height:16px}
+.rw-bank-card-eye .eye-off{display:none}
+.rw-bank-card-eye.shown .eye{display:none}
+.rw-bank-card-eye.shown .eye-off{display:block}
+.rw-bank-card-bottom{position:relative;display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.rw-bank-card-label{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;opacity:.75;margin-bottom:2px}
+.rw-bank-card-name{font-weight:700;font-size:.85rem;text-transform:uppercase}
+.rw-bank-card-bankname{font-weight:700;font-size:.82rem;text-align:right}
 
 .custom-select{position:relative}
 .custom-select-btn{
@@ -785,12 +814,9 @@ body:has(.page-overlay.show){overflow:hidden}
     </button>
   </div>
 
-  <div class="acc-swipe-hint-row">
-    <button type="button" class="acc-swipe-hint" id="accSwipeHint" aria-label="Swipe for Rewards">
-      <svg class="swipe-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>
-      <span>Swipe for Rewards</span>
-    </button>
-  </div>
+  <button type="button" class="acc-swipe-hint" id="accSwipeHint" aria-label="Swipe for Rewards">
+    <svg class="swipe-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>
+  </button>
 
   <div class="acc-views-clip" id="accViewsClip">
   <div class="acc-views-track" id="accViewsTrack">
@@ -1192,24 +1218,54 @@ body:has(.page-overlay.show){overflow:hidden}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 10h20"/></svg>
         Bank Details
       </div>
-      <div class="field">
-        <label>Bank Name</label>
-        <div class="bank-picker" id="rwBankPicker">
-          <input type="text" id="rwBankSearch" placeholder="Search for your bank…" autocomplete="off">
-          <input type="hidden" id="rwBankName">
-          <div class="bank-picker-list" id="rwBankList"></div>
+
+      <div id="rwBankAddForm">
+        <div class="field">
+          <label>Bank Name</label>
+          <div class="bank-picker" id="rwBankPicker">
+            <input type="text" id="rwBankSearch" placeholder="Search for your bank…" autocomplete="off">
+            <input type="hidden" id="rwBankName">
+            <div class="bank-picker-list" id="rwBankList"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Account Number</label>
+          <input type="text" id="rwAccountNumber" placeholder="10-digit account number" maxlength="10">
+          <div class="uname-status" id="rwAccountVerifyStatus"></div>
+        </div>
+        <div class="field">
+          <label>Account Name</label>
+          <input type="text" id="rwAccountName" placeholder="Name on the account">
+        </div>
+        <button type="button" class="acc-btn" id="rwSaveBankBtn" style="width:100%">Save Bank Details</button>
+        <div class="acc-msg" id="rwBankMsg"></div>
+      </div>
+
+      <div id="rwBankCardDisplay" style="display:none">
+        <div class="rw-bank-card">
+          <button type="button" class="rw-bank-card-delete" id="rwBankCardDeleteBtn" aria-label="Delete card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg>
+          </button>
+          <div class="rw-bank-card-brand" id="rwBankCardBrand">BANK</div>
+          <div class="rw-bank-card-number-row">
+            <div class="rw-bank-card-number" id="rwBankCardNumber">•••• •••• ••</div>
+            <button type="button" class="rw-bank-card-eye" id="rwBankCardEyeBtn" aria-label="Show account number">
+              <svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.6 21.6 0 015.06-6.06M9.9 4.24A10.4 10.4 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+            </button>
+          </div>
+          <div class="rw-bank-card-bottom">
+            <div>
+              <div class="rw-bank-card-label">Card Holder</div>
+              <div class="rw-bank-card-name" id="rwBankCardName">–</div>
+            </div>
+            <div>
+              <div class="rw-bank-card-label">Bank</div>
+              <div class="rw-bank-card-bankname" id="rwBankCardBankName">–</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="field">
-        <label>Account Number</label>
-        <input type="text" id="rwAccountNumber" placeholder="10-digit account number" maxlength="10">
-      </div>
-      <div class="field">
-        <label>Account Name</label>
-        <input type="text" id="rwAccountName" placeholder="Name on the account">
-      </div>
-      <button type="button" class="acc-btn" id="rwSaveBankBtn" style="width:100%">Save Bank Details</button>
-      <div class="acc-msg" id="rwBankMsg"></div>
     </div>
 
     <div class="acc-card">
@@ -1228,10 +1284,10 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="rwWithdrawOverlay">
   <div class="overlay-card" style="max-width:360px">
     <div class="overlay-title">Withdraw to your bank</div>
-    <div class="overlay-sub">Minimum withdrawal is &#8358;3,000. Save your bank details first if you haven't.</div>
+    <div class="overlay-sub">Withdrawals are &#8358;3,000&ndash;&#8358;100,000. Save your bank details first if you haven't.</div>
     <div class="field">
       <label>Amount (&#8358;)</label>
-      <input type="number" id="rwWithdrawAmount" placeholder="3000" min="3000" step="100">
+      <input type="number" id="rwWithdrawAmount" placeholder="3000" min="3000" max="100000" step="100">
     </div>
     <div class="rw-withdraw-payout" id="rwWithdrawPayoutNote"></div>
     <div class="rw-hint">A 15% service fee applies to every withdrawal &mdash; it's taken out of what you receive, not added to what's debited. Only verified accounts can withdraw; this helps prevent fraud and fake account farming.</div>
@@ -1248,6 +1304,17 @@ body:has(.page-overlay.show){overflow:hidden}
     <div class="overlay-sub">Only verified accounts can withdraw &mdash; this helps prevent fraud and fake account farming. Get verified to unlock withdrawals.</div>
     <button class="acc-btn" id="notVerifiedGoBtn" type="button" style="width:100%;justify-content:center;margin-top:6px">Get Verified</button>
     <button class="overlay-cancel" id="notVerifiedCancelBtn" type="button">Cancel</button>
+  </div>
+</div>
+
+<div class="page-overlay" id="rwBankDeleteOverlay">
+  <div class="overlay-card" style="max-width:320px;text-align:center">
+    <div class="overlay-title">Delete this card?</div>
+    <div class="overlay-sub">Are you sure you want to delete your saved bank details? You'll need to add them again before you can withdraw.</div>
+    <div style="margin:12px 0"><altcha-widget id="rwBankDeleteAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>
+    <div class="acc-msg" id="rwBankDeleteMsg"></div>
+    <button class="acc-btn acc-btn-danger" id="rwBankDeleteConfirmBtn" type="button" style="width:100%;justify-content:center;border-color:var(--red)" disabled>Delete Card</button>
+    <button class="overlay-cancel" id="rwBankDeleteCancelBtn" type="button">Cancel</button>
   </div>
 </div>
 
@@ -3634,16 +3701,26 @@ function syncPanelHeight(){
 }
 window.addEventListener('resize', syncPanelHeight);
 
+const ACC_VIEW_STORAGE_KEY = 'accActiveView';
 function showAccount(){
   document.getElementById('accViewsTrack').classList.remove('show-rewards');
+  localStorage.setItem(ACC_VIEW_STORAGE_KEY, 'account');
   syncPanelHeight();
   window.scrollTo(0, 0);
 }
 function showRewards(){
   document.getElementById('accViewsTrack').classList.add('show-rewards');
+  localStorage.setItem(ACC_VIEW_STORAGE_KEY, 'rewards');
   syncPanelHeight();
   window.scrollTo(0, 0);
 }
+if (localStorage.getItem(ACC_VIEW_STORAGE_KEY) === 'rewards') {
+  showRewards();
+  loadRewardsSummary();
+}
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) syncPanelHeight();
+});
 document.getElementById('accSwipeHint').addEventListener('click', () => {
   if (document.getElementById('accViewsTrack').classList.contains('show-rewards')) {
     showAccount();
@@ -3765,12 +3842,7 @@ async function loadRewardsSummary(){
     btn.addEventListener('click', () => buyCoinPackage(btn.getAttribute('data-buy-pkg'), btn));
   });
 
-  if (rewardsSummary.bankDetails) {
-    document.getElementById('rwBankName').value = rewardsSummary.bankDetails.bankName || '';
-    document.getElementById('rwBankSearch').value = rewardsSummary.bankDetails.bankName || '';
-    document.getElementById('rwAccountNumber').value = rewardsSummary.bankDetails.accountNumber || '';
-    document.getElementById('rwAccountName').value = rewardsSummary.bankDetails.accountName || '';
-  }
+  renderBankCard();
 
   const wdList = document.getElementById('rwWithdrawalList');
   if (!rewardsSummary.withdrawals.length) {
@@ -3892,6 +3964,7 @@ function renderBankList(query){
       rwBankNameField.value = bank;
       rwBankSearch.value = bank;
       rwBankPicker.classList.remove('open');
+      triggerAccountVerify();
     });
   });
 }
@@ -3907,6 +3980,45 @@ rwBankSearch.addEventListener('input', () => {
 rwBankSearch.addEventListener('blur', () => {
   setTimeout(() => rwBankPicker.classList.remove('open'), 150);
 });
+
+let bankVerifyCheckSeq = 0;
+function triggerAccountVerify(){
+  const status = document.getElementById('rwAccountVerifyStatus');
+  const accountNameField = document.getElementById('rwAccountName');
+  const bankName = rwBankNameField.value.trim();
+  const accountNumber = document.getElementById('rwAccountNumber').value.trim();
+  const seq = ++bankVerifyCheckSeq;
+  accountNameField.readOnly = false;
+  if (!bankName || !/^\d{10}$/.test(accountNumber)) {
+    status.className = 'uname-status';
+    status.innerHTML = '';
+    return;
+  }
+  status.className = 'uname-status';
+  status.innerHTML = '<span class="uname-spinner"></span>Checking account…';
+  setTimeout(async () => {
+    if (seq !== bankVerifyCheckSeq) return;
+    try {
+      const res = await fetch('/api/rewards/resolve-account?bankName=' + encodeURIComponent(bankName) + '&accountNumber=' + encodeURIComponent(accountNumber));
+      const data = await res.json();
+      if (seq !== bankVerifyCheckSeq) return;
+      if (res.ok && data.accountName) {
+        accountNameField.value = data.accountName;
+        accountNameField.readOnly = true;
+        status.className = 'uname-status ok';
+        status.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified: ' + esc(data.accountName);
+      } else {
+        status.className = 'uname-status';
+        status.textContent = 'Could not auto-verify this account. Enter the name manually.';
+      }
+    } catch {
+      if (seq !== bankVerifyCheckSeq) return;
+      status.className = 'uname-status';
+      status.textContent = 'Could not auto-verify this account. Enter the name manually.';
+    }
+  }, 500);
+}
+document.getElementById('rwAccountNumber').addEventListener('input', triggerAccountVerify);
 
 document.getElementById('rwCopyReferralBtn').addEventListener('click', () => {
   const input = document.getElementById('rwReferralLinkInput');
@@ -3927,14 +4039,98 @@ document.getElementById('rwSaveBankBtn').addEventListener('click', async () => {
     flashMsg(msg, 'Search and select your bank from the list first.', false);
     return;
   }
+  const originalHtml = btn.innerHTML;
   btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span>Saving…';
   try {
     await postJSON('/api/rewards/bank-details', { bankName, accountNumber, accountName });
     flashMsg(msg, 'Bank details saved.', true);
+    loadRewardsSummary();
   } catch (err) {
     flashMsg(msg, err.message, false);
   } finally {
     btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+});
+
+function formatAccountNumberGroups(num){
+  return String(num || '').replace(/(\d{4})(\d{4})(\d{0,2})/, '$1 $2 $3').trim();
+}
+let bankCardNumberVisible = false;
+function updateBankCardNumberDisplay(){
+  const el = document.getElementById('rwBankCardNumber');
+  const bd = rewardsSummary && rewardsSummary.bankDetails;
+  if (!bd) return;
+  el.textContent = bankCardNumberVisible ? formatAccountNumberGroups(bd.accountNumber) : '•••• •••• ••';
+}
+function renderBankCard(){
+  const addForm = document.getElementById('rwBankAddForm');
+  const cardDisplay = document.getElementById('rwBankCardDisplay');
+  const bd = rewardsSummary && rewardsSummary.bankDetails;
+  if (bd) {
+    addForm.style.display = 'none';
+    cardDisplay.style.display = 'block';
+    document.getElementById('rwBankCardBrand').textContent = bd.bankName;
+    document.getElementById('rwBankCardBankName').textContent = bd.bankName;
+    document.getElementById('rwBankCardName').textContent = bd.accountName;
+    bankCardNumberVisible = false;
+    document.getElementById('rwBankCardEyeBtn').classList.remove('shown');
+    updateBankCardNumberDisplay();
+  } else {
+    addForm.style.display = 'block';
+    cardDisplay.style.display = 'none';
+    document.getElementById('rwBankName').value = '';
+    document.getElementById('rwBankSearch').value = '';
+    document.getElementById('rwAccountNumber').value = '';
+    document.getElementById('rwAccountName').value = '';
+    document.getElementById('rwAccountName').readOnly = false;
+  }
+  syncPanelHeight();
+}
+document.getElementById('rwBankCardEyeBtn').addEventListener('click', () => {
+  bankCardNumberVisible = !bankCardNumberVisible;
+  document.getElementById('rwBankCardEyeBtn').classList.toggle('shown', bankCardNumberVisible);
+  updateBankCardNumberDisplay();
+});
+
+const rwBankDeleteOverlay = document.getElementById('rwBankDeleteOverlay');
+document.getElementById('rwBankCardDeleteBtn').addEventListener('click', () => {
+  const msg = document.getElementById('rwBankDeleteMsg');
+  msg.textContent = '';
+  msg.className = 'acc-msg';
+  rwBankDeleteOverlay.classList.add('show');
+});
+document.getElementById('rwBankDeleteCancelBtn').addEventListener('click', () => rwBankDeleteOverlay.classList.remove('show'));
+rwBankDeleteOverlay.addEventListener('click', (e) => { if (e.target === rwBankDeleteOverlay) rwBankDeleteOverlay.classList.remove('show'); });
+
+let bankDeleteCaptchaPassed = false;
+let bankDeleteCaptchaValue = '';
+document.getElementById('rwBankDeleteAltcha').addEventListener('statechange', (ev) => {
+  const state = ev.detail.state;
+  bankDeleteCaptchaPassed = state === 'verified';
+  bankDeleteCaptchaValue = bankDeleteCaptchaPassed ? ev.detail.payload : '';
+  document.getElementById('rwBankDeleteConfirmBtn').disabled = !bankDeleteCaptchaPassed;
+});
+
+document.getElementById('rwBankDeleteConfirmBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('rwBankDeleteConfirmBtn');
+  const msg = document.getElementById('rwBankDeleteMsg');
+  if (!bankDeleteCaptchaPassed) {
+    flashMsg(msg, 'Complete the captcha first.', false);
+    return;
+  }
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner btn-spinner-light"></span>Deleting…';
+  try {
+    await postJSON('/api/rewards/bank-details/delete', { altcha: bankDeleteCaptchaValue });
+    rwBankDeleteOverlay.classList.remove('show');
+    loadRewardsSummary();
+  } catch (err) {
+    flashMsg(msg, err.message, false);
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
   }
 });
 
@@ -3966,7 +4162,10 @@ function updateWithdrawPayoutNote(){
     note.textContent = '';
   }
 }
-document.getElementById('rwWithdrawAmount').addEventListener('input', updateWithdrawPayoutNote);
+document.getElementById('rwWithdrawAmount').addEventListener('input', (e) => {
+  if (Number(e.target.value) > 100000) e.target.value = '100000';
+  updateWithdrawPayoutNote();
+});
 
 const rwWithdrawOverlay = document.getElementById('rwWithdrawOverlay');
 document.getElementById('rwWithdrawBtn').addEventListener('click', () => {
@@ -3990,6 +4189,10 @@ document.getElementById('rwWithdrawConfirmBtn').addEventListener('click', async 
   const amountNgn = Number(document.getElementById('rwWithdrawAmount').value);
   if (!amountNgn) {
     flashMsg(msg, 'Enter an amount.', false);
+    return;
+  }
+  if (amountNgn > 100000) {
+    flashMsg(msg, 'Maximum withdrawal is ₦100,000.', false);
     return;
   }
   if (!withdrawCaptchaPassed) {

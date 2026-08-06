@@ -38,6 +38,48 @@ export async function verifyTransaction(reference) {
   return paystackRequest("GET", `/transaction/verify/${encodeURIComponent(reference)}`);
 }
 
+const BANK_NAME_STOPWORDS = ["bank", "plc", "nigeria", "limited", "ltd", "microfinance", "mfb", "digital", "services", "the", "of", "company", "and"];
+function normalizeBankName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w && !BANK_NAME_STOPWORDS.includes(w))
+    .join(" ")
+    .trim();
+}
+
+let bankListCache = null;
+let bankListCacheAt = 0;
+const BANK_LIST_TTL_MS = 6 * 60 * 60 * 1000;
+
+export async function listBanks() {
+  if (bankListCache && Date.now() - bankListCacheAt < BANK_LIST_TTL_MS) return bankListCache;
+  const data = await paystackRequest("GET", "/bank?country=nigeria&currency=NGN&perPage=100");
+  bankListCache = data;
+  bankListCacheAt = Date.now();
+  return data;
+}
+
+export async function findBankCode(bankName) {
+  const banks = await listBanks();
+  const target = normalizeBankName(bankName);
+  if (!target) return null;
+  let match = banks.find((b) => normalizeBankName(b.name) === target);
+  if (!match) {
+    match = banks.find((b) => {
+      const n = normalizeBankName(b.name);
+      return n && (n.includes(target) || target.includes(n));
+    });
+  }
+  return match ? match.code : null;
+}
+
+export async function resolveAccountNumber(accountNumber, bankCode) {
+  return paystackRequest("GET", `/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`);
+}
+
 export function verifyWebhookSignature(rawBody, signature) {
   if (!signature || !rawBody || !PAYSTACK_SECRET_KEY) return false;
   const hash = crypto.createHmac("sha512", PAYSTACK_SECRET_KEY).update(rawBody).digest("hex");
