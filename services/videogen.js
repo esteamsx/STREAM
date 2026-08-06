@@ -56,7 +56,8 @@ export async function generateVideoFromPrompt(prompt) {
 
   const contentType = res.headers.get("content-type") || "video/mp4";
   if (!contentType.startsWith("video/")) {
-    throw Object.assign(new Error("Video generation did not return a video. The provider may be overloaded, try again shortly."), { status: 502 });
+    const detail = await res.text().catch(() => "");
+    throw Object.assign(new Error(`Video generation did not return a video (upstream sent ${contentType}${detail ? `: ${detail.slice(0, 150)}` : ""}). The provider may be overloaded, try again shortly.`), { status: 502 });
   }
 
   const buffer = Buffer.from(await res.arrayBuffer());

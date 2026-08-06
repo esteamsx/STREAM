@@ -238,23 +238,6 @@ export async function getNpmPackageInfo(packageName) {
   };
 }
 
-const ANIME_IMAGE_CATEGORIES = new Set([
-  "kitsune", "neko", "husbando", "waifu",
-  "angry", "baka", "bite", "bleh", "blowkiss", "blush", "bonk", "bored", "carry", "clap", "confused",
-  "cry", "cuddle", "dance", "facepalm", "feed", "handhold", "handshake", "happy", "highfive", "hug",
-  "kabedon", "kick", "kiss", "laugh", "lurk", "nod", "nom", "nope", "pat", "peck", "poke", "pout",
-  "punch", "shocked", "shoot", "shrug", "slap", "sleep", "smile", "smug", "stare", "think",
-  "thumbsup", "tickle", "wave", "wink", "yawn", "yeet",
-]);
-
-export async function getAnimeImage(category) {
-  const clean = ANIME_IMAGE_CATEGORIES.has(category) ? category : "waifu";
-  const data = await fetchJson(`https://nekos.best/api/v2/${clean}`);
-  const result = data.results && data.results[0];
-  if (!result || !result.url) throw Object.assign(new Error("Could not fetch an image right now."), { status: 502 });
-  return { category: clean, imageUrl: result.url };
-}
-
 export async function getYoutubeInfo(url) {
   let parsed;
   try {

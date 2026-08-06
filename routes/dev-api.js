@@ -34,7 +34,6 @@ import {
   getRandomQuote,
   getMinecraftServerStatus,
   getNpmPackageInfo,
-  getAnimeImage,
   getYoutubeInfo,
   getGithubRepo,
 } from "../services/lookup.js";
@@ -235,7 +234,6 @@ const wikipediaLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKe
 const quoteLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const minecraftLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const npmLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
-const animeImageLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const youtubeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const githubrepoLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 
@@ -627,15 +625,6 @@ router.get("/api/v1/dev/npm", requireDevApiKey, npmLimiter, async (req, res) => 
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not find that npm package." });
-  }
-});
-
-router.get("/api/v1/dev/animeimage", requireDevApiKey, animeImageLimiter, async (req, res) => {
-  try {
-    const result = await getAnimeImage(String(req.query.category || "").trim());
-    res.json(result);
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not fetch an anime image." });
   }
 });
 

@@ -353,16 +353,6 @@ const FEATURES = [
     example: "GET /api/v1/dev/npm?package=express",
   },
   {
-    key: "animeimage",
-    title: "Anime Image",
-    desc: "A random anime-style image or GIF, pick from 50+ categories (waifu, neko, hug, pat, and more).",
-    icon: '<circle cx="12" cy="12" r="9"/><path d="M8 10h.01M16 10h.01M8 15c1.5 1.5 6.5 1.5 8 0"/>',
-    category: "Lookup",
-    endpoint: "GET /api/v1/dev/animeimage?category=",
-    live: true,
-    example: "GET /api/v1/dev/animeimage?category=waifu",
-  },
-  {
     key: "youtube",
     title: "YouTube Info",
     desc: "Title, channel, and thumbnail for any YouTube video link.",
@@ -1229,16 +1219,6 @@ ${musicPlayerStyle()}
   "author": "TJ Holowaychuk"
 }</pre>
 
-    <h2 class="doc-h2">Anime Image</h2>
-    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/animeimage?category=</code></p>
-    <p class="doc-p">Optional <code>category</code>: waifu, neko, kitsune, husbando, hug, pat, cuddle, kiss, slap, smile, wave, wink, dance, cry, and 40+ more. Defaults to waifu.</p>
-    <pre>curl -H "x-api-key: estv_your_key_here" \\
-  "https://esteamstv.devs.surf/api/v1/dev/animeimage?category=hug"</pre>
-    <pre>{
-  "category": "hug",
-  "imageUrl": "https://nekos.best/api/v2/hug/..."
-}</pre>
-
     <h2 class="doc-h2">YouTube Info</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/youtube?url=</code></p>
     <pre>curl -H "x-api-key: estv_your_key_here" \\
@@ -1825,7 +1805,6 @@ ${musicPlayerHtml()}
     quote: { title: 'Try it — Random Quote', method: 'GET', path: '/api/v1/dev/quote', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true },
     minecraft: { title: 'Try it — Minecraft Server Status', method: 'GET', path: '/api/v1/dev/minecraft', param: 'address', label: 'Server address', placeholder: 'mc.hypixel.net' },
     npm: { title: 'Try it — NPM Package Info', method: 'GET', path: '/api/v1/dev/npm', param: 'package', label: 'Package name', placeholder: 'express' },
-    animeimage: { title: 'Try it — Anime Image', method: 'GET', path: '/api/v1/dev/animeimage', param: 'category', label: 'Category (optional)', placeholder: 'waifu', optional: true },
     youtube: { title: 'Try it — YouTube Info', method: 'GET', path: '/api/v1/dev/youtube', param: 'url', label: 'YouTube URL', placeholder: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
     githubrepo: { title: 'Try it — GitHub Repo', method: 'GET', path: '/api/v1/dev/githubrepo', param: 'repo', label: 'owner/repo', placeholder: 'facebook/react' },
     movie: { title: 'Try it — Movie Info', method: 'GET', path: '/api/v1/dev/movie', param: 'query', label: 'Movie title', placeholder: 'Inception' },

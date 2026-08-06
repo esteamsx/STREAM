@@ -1243,7 +1243,7 @@ body:has(.page-overlay.show){overflow:hidden}
         </div>
         <div class="field">
           <label>Account Name</label>
-          <input type="text" id="rwAccountName" placeholder="Will appear after verification" disabled>
+          <input type="text" id="rwAccountName" placeholder="Name on the account">
         </div>
         <div style="margin:12px 0"><altcha-widget id="rwBankAddAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>
         <button type="button" class="acc-btn" id="rwSaveBankBtn" style="width:100%" disabled>Save Bank Details</button>
@@ -4044,7 +4044,7 @@ let bankAddCaptchaPassed = false;
 let bankAddCaptchaValue = '';
 function updateSaveBankBtnState(){
   const accountNameField = document.getElementById('rwAccountName');
-  document.getElementById('rwSaveBankBtn').disabled = !(accountNameField.value && bankAddCaptchaPassed);
+  document.getElementById('rwSaveBankBtn').disabled = !(accountNameField.value.trim() && bankAddCaptchaPassed);
 }
 document.getElementById('rwBankAddAltcha').addEventListener('statechange', (ev) => {
   const state = ev.detail.state;
@@ -4052,6 +4052,7 @@ document.getElementById('rwBankAddAltcha').addEventListener('statechange', (ev) 
   bankAddCaptchaValue = bankAddCaptchaPassed ? ev.detail.payload : '';
   updateSaveBankBtnState();
 });
+document.getElementById('rwAccountName').addEventListener('input', updateSaveBankBtnState);
 
 let bankVerifyCheckSeq = 0;
 function triggerAccountVerify(){
@@ -4060,8 +4061,6 @@ function triggerAccountVerify(){
   const bankName = rwBankNameField.value.trim();
   const accountNumber = document.getElementById('rwAccountNumber').value.trim();
   const seq = ++bankVerifyCheckSeq;
-  accountNameField.value = '';
-  updateSaveBankBtnState();
   if (!/^\d{10}$/.test(accountNumber)) {
     status.className = 'uname-status';
     status.innerHTML = '';
@@ -4069,7 +4068,7 @@ function triggerAccountVerify(){
   }
   if (!bankName) {
     status.className = 'uname-status';
-    status.textContent = 'Select your bank from the list above to verify.';
+    status.textContent = 'Select your bank from the list above to auto-verify (optional).';
     return;
   }
   status.className = 'uname-status';
@@ -4087,12 +4086,12 @@ function triggerAccountVerify(){
         status.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified: ' + esc(data.accountName);
       } else {
         status.className = 'uname-status';
-        status.textContent = data.error || 'Could not verify this account. Check the number and bank, then try again.';
+        status.textContent = data.error || 'Could not auto-verify this account. You can enter the name manually below.';
       }
     } catch {
       if (seq !== bankVerifyCheckSeq) return;
       status.className = 'uname-status';
-      status.textContent = 'Could not verify this account. Check the number and bank, then try again.';
+      status.textContent = 'Could not auto-verify this account. You can enter the name manually below.';
     }
   }, 500);
 }
@@ -4114,7 +4113,7 @@ document.getElementById('rwSaveBankBtn').addEventListener('click', async () => {
   const accountNumber = document.getElementById('rwAccountNumber').value.trim();
   const accountName = document.getElementById('rwAccountName').value.trim();
   if (!bankName || !accountName) {
-    flashMsg(msg, 'Verify your account number first.', false);
+    flashMsg(msg, 'Select your bank and enter the account name first.', false);
     return;
   }
   if (!bankAddCaptchaPassed) {
