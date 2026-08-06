@@ -192,6 +192,66 @@ const FEATURES = [
     live: true,
     example: "GET /api/v1/dev/trivia?difficulty=easy",
   },
+  {
+    key: "joke",
+    title: "Joke",
+    desc: "A random Chuck Norris style joke.",
+    icon: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/joke",
+    live: true,
+    example: "GET /api/v1/dev/joke",
+  },
+  {
+    key: "advice",
+    title: "Advice",
+    desc: "A random piece of advice.",
+    icon: '<path d="M12 2a7 7 0 00-4 12.7V17a2 2 0 002 2h4a2 2 0 002-2v-2.3A7 7 0 0012 2z"/><path d="M10 22h4"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/advice",
+    live: true,
+    example: "GET /api/v1/dev/advice",
+  },
+  {
+    key: "catfact",
+    title: "Cat Fact",
+    desc: "A random fact about cats.",
+    icon: '<path d="M4 8l4-4 4 4M12 8l4-4 4 4M6 8v8a6 6 0 006 6 6 6 0 006-6V8"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/catfact",
+    live: true,
+    example: "GET /api/v1/dev/catfact",
+  },
+  {
+    key: "holidays",
+    title: "Public Holidays",
+    desc: "Public holidays for a country and year.",
+    icon: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/holidays?year=&country=",
+    live: true,
+    example: "GET /api/v1/dev/holidays?year=2026&country=NG",
+  },
+  {
+    key: "githubuser",
+    title: "GitHub User",
+    desc: "Public profile info for a GitHub username.",
+    icon: '<path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2-.2 4.5-1 4.5-4.5 0-1-.5-2-1-2.5.1-.5.5-1.5-.1-3 0 0-1 0-3 1.5-1.8-.5-3.2-.5-5 0C8 4 7 4 7 4c-.6 1.5-.2 2.5-.1 3-.5.5-1 1.5-1 2.5 0 3.5 2.5 4.3 4.5 4.5-.3.3-.5.7-.5 1.5"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/githubuser?username=",
+    live: true,
+    example: "GET /api/v1/dev/githubuser?username=torvalds",
+  },
+  {
+    key: "dogimage",
+    title: "Dog Image",
+    desc: "A random dog image URL.",
+    icon: '<path d="M10 5.5C8 4 5 4 4 6c-1 2 0 4 2 5m8-5.5c2-1.5 5-1.5 6 .5 1 2 0 4-2 5"/><path d="M6 11c0 5 3 8 6 8s6-3 6-8c0-2-2-4-6-4s-6 2-6 4z"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/dogimage",
+    live: true,
+    example: "GET /api/v1/dev/dogimage",
+  },
 ];
 
 const CATEGORIES = [];
@@ -828,6 +888,68 @@ ${musicPlayerStyle()}
   "incorrect_answers": ["...", "...", "..."]
 }</pre>
 
+    <h2 class="doc-h2">Joke</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/joke</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/joke"</pre>
+    <pre>{
+  "joke": "Chuck Norris can divide by zero.",
+  "url": "https://api.chucknorris.io/jokes/abc123"
+}</pre>
+
+    <h2 class="doc-h2">Advice</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/advice</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/advice"</pre>
+    <pre>{
+  "advice": "Don't be afraid to ask questions."
+}</pre>
+
+    <h2 class="doc-h2">Cat Fact</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/catfact</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/catfact"</pre>
+    <pre>{
+  "fact": "Cats sleep for 70% of their lives."
+}</pre>
+
+    <h2 class="doc-h2">Public Holidays</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/holidays?year=&amp;country=</code></p>
+    <p class="doc-p"><code>country</code> is a 2-letter country code, e.g. <code>NG</code> or <code>US</code>.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/holidays?year=2026&country=NG"</pre>
+    <pre>{
+  "holidays": [
+    { "date": "2026-01-01", "name": "New Year's Day", "localName": "New Year's Day", "global": true }
+  ]
+}</pre>
+
+    <h2 class="doc-h2">GitHub User</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/githubuser?username=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/githubuser?username=torvalds"</pre>
+    <pre>{
+  "login": "torvalds",
+  "name": "Linus Torvalds",
+  "avatar": "https://avatars.githubusercontent.com/u/1024025",
+  "bio": null,
+  "company": "Linux Foundation",
+  "location": "Portland, OR",
+  "blog": "",
+  "public_repos": 8,
+  "followers": 250000,
+  "following": 0,
+  "created_at": "2011-09-03T15:26:22Z"
+}</pre>
+
+    <h2 class="doc-h2">Dog Image</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/dogimage</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/dogimage"</pre>
+    <pre>{
+  "imageUrl": "https://images.dog.ceo/breeds/hound-afghan/n02088094_1003.jpg"
+}</pre>
+
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
     <p class="doc-p">20 requests per minute per API key on each endpoint (15 for AI). On top of that, every account has a monthly allowance shared across <strong>all</strong> your Developer Api keys, separate from the Live Tv Api's own allowance. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
 
@@ -1361,6 +1483,12 @@ ${musicPlayerHtml()}
     iplookup: { title: 'Try it — IP Lookup', method: 'GET', path: '/api/v1/dev/iplookup', param: 'ip', label: 'IP address', placeholder: '8.8.8.8' },
     country: { title: 'Try it — Country Info', method: 'GET', path: '/api/v1/dev/country', param: 'name', label: 'Country name', placeholder: 'Nigeria' },
     trivia: { title: 'Try it — Trivia', method: 'GET', path: '/api/v1/dev/trivia', param: 'difficulty', label: 'Difficulty (optional)', placeholder: 'easy', optional: true },
+    joke: { title: 'Try it — Joke', method: 'GET', path: '/api/v1/dev/joke', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true },
+    advice: { title: 'Try it — Advice', method: 'GET', path: '/api/v1/dev/advice', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true },
+    catfact: { title: 'Try it — Cat Fact', method: 'GET', path: '/api/v1/dev/catfact', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true },
+    holidays: { title: 'Try it — Public Holidays', method: 'GET', path: '/api/v1/dev/holidays', label: 'Year - Country code', placeholder: '2026 - NG', parts: ['year', 'country'], splitOn: ' - ' },
+    githubuser: { title: 'Try it — GitHub User', method: 'GET', path: '/api/v1/dev/githubuser', param: 'username', label: 'GitHub username', placeholder: 'torvalds' },
+    dogimage: { title: 'Try it — Dog Image', method: 'GET', path: '/api/v1/dev/dogimage', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true },
   };
 
   function buildQueryParams(ep, val){

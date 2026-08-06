@@ -1,10 +1,14 @@
 const FETCH_TIMEOUT_MS = 15000;
+const REQUEST_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (compatible; ESTeamsTV/1.0; +https://esteamstv.devs.surf)",
+  Accept: "application/json",
+};
 
 async function fetchJson(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { signal: controller.signal, headers: REQUEST_HEADERS });
     if (!res.ok) throw Object.assign(new Error(`Upstream responded ${res.status}.`), { status: 502 });
     return await res.json();
   } catch (err) {
@@ -146,4 +150,56 @@ export async function getTriviaQuestion(category, difficulty) {
     correct_answer: decodeURIComponent(q.correct_answer),
     incorrect_answers: q.incorrect_answers.map((a) => decodeURIComponent(a)),
   };
+}
+
+export async function getRandomJoke() {
+  const data = await fetchJson("https://api.chucknorris.io/jokes/random");
+  if (!data.value) throw Object.assign(new Error("Could not fetch a joke right now."), { status: 502 });
+  return { joke: data.value, url: data.url || null };
+}
+
+export async function getRandomAdvice() {
+  const data = await fetchJson("https://api.adviceslip.com/advice");
+  if (!data.slip || !data.slip.advice) throw Object.assign(new Error("Could not fetch advice right now."), { status: 502 });
+  return { advice: data.slip.advice };
+}
+
+export async function getCatFact() {
+  const data = await fetchJson("https://catfact.ninja/fact");
+  if (!data.fact) throw Object.assign(new Error("Could not fetch a cat fact right now."), { status: 502 });
+  return { fact: data.fact };
+}
+
+export async function getPublicHolidays(year, countryCode) {
+  const cleanYear = String(year || new Date().getFullYear()).trim();
+  const cleanCode = String(countryCode || "").trim().toUpperCase();
+  if (!/^\d{4}$/.test(cleanYear)) throw Object.assign(new Error("Enter a valid 4-digit year."), { status: 400 });
+  if (!/^[A-Z]{2}$/.test(cleanCode)) throw Object.assign(new Error("Enter a valid 2-letter country code, e.g. NG or US."), { status: 400 });
+  const data = await fetchJson(`https://date.nager.at/api/v3/PublicHolidays/${encodeURIComponent(cleanYear)}/${encodeURIComponent(cleanCode)}`);
+  if (!Array.isArray(data)) throw Object.assign(new Error("Could not find holidays for that country."), { status: 404 });
+  return data.map((h) => ({ date: h.date, name: h.name, localName: h.localName, global: !!h.global }));
+}
+
+export async function getGithubUser(username) {
+  const data = await fetchJson(`https://api.github.com/users/${encodeURIComponent(username)}`);
+  if (!data.login) throw Object.assign(new Error("Could not find that GitHub user."), { status: 404 });
+  return {
+    login: data.login,
+    name: data.name || null,
+    avatar: data.avatar_url || null,
+    bio: data.bio || null,
+    company: data.company || null,
+    location: data.location || null,
+    blog: data.blog || null,
+    public_repos: data.public_repos,
+    followers: data.followers,
+    following: data.following,
+    created_at: data.created_at,
+  };
+}
+
+export async function getRandomDogImage() {
+  const data = await fetchJson("https://dog.ceo/api/breeds/image/random");
+  if (!data.message) throw Object.assign(new Error("Could not fetch a dog image right now."), { status: 502 });
+  return { imageUrl: data.message };
 }

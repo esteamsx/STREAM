@@ -126,10 +126,32 @@ async function sendDmcaReportEmail(report) {
   });
 }
 
+async function sendWithdrawalRequestEmail(adminEmail, username, amountNgn, bankDetails) {
+  await sendMailWithFallback({
+    from: `"ES TEAMS TV" <${process.env.GMAIL_USER}>`,
+    to: adminEmail,
+    subject: `New withdrawal request: ₦${amountNgn.toLocaleString("en-NG")} from @${username}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;background:#0A0A0F;padding:32px;color:#F3F3FA">
+        <h2 style="color:#00E0FF;margin:0 0 12px">ES TEAMS TV</h2>
+        <p style="margin:0 0 4px;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,.6);font-size:12px">WITHDRAWAL REQUEST</p>
+        <p style="margin:0 0 20px">@${escapeHtml(username)} requested a withdrawal of <b>₦${amountNgn.toLocaleString("en-NG")}</b>.</p>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px">
+          <tr><td style="padding:6px 0;color:rgba(255,255,255,.5);width:140px">Bank</td><td>${escapeHtml(bankDetails.bankName)}</td></tr>
+          <tr><td style="padding:6px 0;color:rgba(255,255,255,.5)">Account Number</td><td>${escapeHtml(bankDetails.accountNumber)}</td></tr>
+          <tr><td style="padding:6px 0;color:rgba(255,255,255,.5)">Account Name</td><td>${escapeHtml(bankDetails.accountName)}</td></tr>
+        </table>
+        <a href="https://esteamstv.devs.surf/admin" style="display:inline-block;background:linear-gradient(135deg,#00E0FF,#7c5cff);color:#04141a;font-weight:700;text-decoration:none;padding:12px 26px;border-radius:10px;font-size:14px">Go to Admin Panel</a>
+        <p style="margin:24px 0 0;color:rgba(255,255,255,.5);font-size:13px">Pay this manually to the bank details above, then confirm it in the admin panel to notify the user and mark it paid.</p>
+      </div>
+    `,
+  });
+}
+
 function escapeHtml(str) {
   return String(str || "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
 }
 
-export { sendVerificationCode, sendSignupVerificationCode, sendBanNotificationEmail, sendDmcaReportEmail };
+export { sendVerificationCode, sendSignupVerificationCode, sendBanNotificationEmail, sendDmcaReportEmail, sendWithdrawalRequestEmail };

@@ -18,6 +18,12 @@ import {
   lookupIp,
   getCountryInfo,
   getTriviaQuestion,
+  getRandomJoke,
+  getRandomAdvice,
+  getCatFact,
+  getPublicHolidays,
+  getGithubUser,
+  getRandomDogImage,
 } from "../services/lookup.js";
 import { signDownloadToken, verifyDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
 import {
@@ -199,6 +205,12 @@ const dictionaryLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiK
 const iplookupLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const countryLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const triviaLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const jokeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const adviceLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const catfactLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const holidaysLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const githubuserLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const dogimageLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const dlLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.ip).middleware();
 
 router.get("/api/v1/dev/ocr", requireDevApiKey, ocrLimiter, async (req, res) => {
@@ -476,6 +488,65 @@ router.get("/api/v1/dev/trivia", requireDevApiKey, triviaLimiter, async (req, re
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not fetch a trivia question." });
+  }
+});
+
+router.get("/api/v1/dev/joke", requireDevApiKey, jokeLimiter, async (req, res) => {
+  try {
+    const result = await getRandomJoke();
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch a joke." });
+  }
+});
+
+router.get("/api/v1/dev/advice", requireDevApiKey, adviceLimiter, async (req, res) => {
+  try {
+    const result = await getRandomAdvice();
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch advice." });
+  }
+});
+
+router.get("/api/v1/dev/catfact", requireDevApiKey, catfactLimiter, async (req, res) => {
+  try {
+    const result = await getCatFact();
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch a cat fact." });
+  }
+});
+
+router.get("/api/v1/dev/holidays", requireDevApiKey, holidaysLimiter, async (req, res) => {
+  const year = String(req.query.year || "").trim();
+  const country = String(req.query.country || "").trim();
+  if (!year || !country) return res.status(400).json({ error: "Missing year and/or country query parameter." });
+  try {
+    const result = await getPublicHolidays(year, country);
+    res.json({ holidays: result });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch public holidays." });
+  }
+});
+
+router.get("/api/v1/dev/githubuser", requireDevApiKey, githubuserLimiter, async (req, res) => {
+  const username = String(req.query.username || "").trim();
+  if (!username) return res.status(400).json({ error: "Missing username query parameter." });
+  try {
+    const result = await getGithubUser(username);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that GitHub user." });
+  }
+});
+
+router.get("/api/v1/dev/dogimage", requireDevApiKey, dogimageLimiter, async (req, res) => {
+  try {
+    const result = await getRandomDogImage();
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch a dog image." });
   }
 });
 

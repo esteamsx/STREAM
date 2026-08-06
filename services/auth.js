@@ -8,7 +8,7 @@ import {
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
 import { db, auth } from "../config/firebase.js";
-import { sendVerificationCode, sendBanNotificationEmail } from "./mailer.js";
+import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEmail } from "./mailer.js";
 
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
@@ -639,18 +639,31 @@ async function getDevApiPlanPayment(reference) {
   return snap.exists ? snap.data() : null;
 }
 
+async function claimPendingPayment(ref, paystackData) {
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { notOurs: true };
+    const record = snap.data();
+    if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
+    if (record.status === "claimed") return { inProgress: true };
+    if (paystackData.status !== "success" || paystackData.amount < record.amountKobo) {
+      tx.update(ref, { status: "failed", failedAt: Date.now() });
+      return { failed: true };
+    }
+    tx.update(ref, { status: "claimed" });
+    return { claimed: true, record };
+  });
+}
+
 async function finalizeDevApiPlanPayment(reference, paystackData) {
   const ref = db.collection("devApiPlanPayments").doc(reference);
-  const snap = await ref.get();
-  if (!snap.exists) return { notOurs: true };
-  const record = snap.data();
-  if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
+  const claim = await claimPendingPayment(ref, paystackData);
+  if (claim.notOurs) return { notOurs: true };
+  if (claim.alreadyProcessed) return { alreadyProcessed: true, uid: claim.uid };
+  if (claim.inProgress) return { alreadyProcessed: true };
+  if (claim.failed) throw new Error("Payment was not successful.");
 
-  if (paystackData.status !== "success" || paystackData.amount < record.amountKobo) {
-    await ref.update({ status: "failed", failedAt: Date.now() });
-    throw new Error("Payment was not successful.");
-  }
-
+  const record = claim.record;
   const expiresAt = Date.now() + DEV_API_PLAN_DAYS * 24 * 60 * 60 * 1000;
   await db.collection("users").doc(record.uid).update({
     devApiPlanPaid: record.plan,
@@ -2371,16 +2384,13 @@ async function getVerificationPayment(reference) {
 
 async function finalizeVerificationPayment(reference, paystackData) {
   const ref = db.collection("verificationPayments").doc(reference);
-  const snap = await ref.get();
-  if (!snap.exists) return { notOurs: true };
-  const record = snap.data();
-  if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
+  const claim = await claimPendingPayment(ref, paystackData);
+  if (claim.notOurs) return { notOurs: true };
+  if (claim.alreadyProcessed) return { alreadyProcessed: true, uid: claim.uid };
+  if (claim.inProgress) return { alreadyProcessed: true };
+  if (claim.failed) throw new Error("Payment was not successful.");
 
-  if (paystackData.status !== "success" || paystackData.amount < record.amountKobo) {
-    await ref.update({ status: "failed", failedAt: Date.now() });
-    throw new Error("Payment was not successful.");
-  }
-
+  const record = claim.record;
   const expiresAt = Date.now() + PAID_VERIFICATION_DAYS * 24 * 60 * 60 * 1000;
   await db.collection("users").doc(record.uid).update({
     verified: true,
@@ -2538,22 +2548,25 @@ async function applyReferral(newUid, rawReferredByCode) {
   if (!code || !/^[A-Z0-9]{4,16}$/.test(code)) return;
   const referrer = await findUserByReferralCode(code);
   if (!referrer || referrer.uid === newUid) return;
-  const referralRef = db.collection("referrals").doc(newUid);
-  const existing = await referralRef.get();
-  if (existing.exists) return;
   const newProfile = await getUserProfile(newUid);
-  await referralRef.set({
-    referrerUid: referrer.uid,
-    referredUid: newUid,
-    referredUsername: (newProfile && newProfile.username) || "",
-    referredAt: Date.now(),
-    totalCommissionNgn: 0,
+  const referralRef = db.collection("referrals").doc(newUid);
+  const newUserRef = db.collection("users").doc(newUid);
+  const referrerRef = db.collection("users").doc(referrer.uid);
+  const applied = await db.runTransaction(async (tx) => {
+    const existing = await tx.get(referralRef);
+    if (existing.exists) return false;
+    tx.set(referralRef, {
+      referrerUid: referrer.uid,
+      referredUid: newUid,
+      referredUsername: (newProfile && newProfile.username) || "",
+      referredAt: Date.now(),
+      totalCommissionNgn: 0,
+    });
+    tx.update(newUserRef, { referredBy: referrer.uid });
+    tx.set(referrerRef, { coinBalance: admin.firestore.FieldValue.increment(REFERRAL_SIGNUP_COINS) }, { merge: true });
+    return true;
   });
-  await db.collection("users").doc(newUid).update({ referredBy: referrer.uid });
-  await db.collection("users").doc(referrer.uid).set(
-    { coinBalance: admin.firestore.FieldValue.increment(REFERRAL_SIGNUP_COINS) },
-    { merge: true }
-  );
+  if (!applied) return;
   await addNotification(
     referrer.uid,
     "referral_signup",
@@ -2570,16 +2583,15 @@ async function getReferralsForUser(uid) {
 async function claimDailyCoins(uid) {
   const today = currentUsageDay();
   const ref = db.collection("users").doc(uid);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error("Account not found.");
-  const data = snap.data();
-  if (data.lastDailyCoinClaimDay === today) {
-    throw Object.assign(new Error("You've already claimed today's coins. Come back tomorrow."), { status: 400 });
-  }
-  await ref.set(
-    { coinBalance: admin.firestore.FieldValue.increment(DAILY_COIN_CLAIM_AMOUNT), lastDailyCoinClaimDay: today },
-    { merge: true }
-  );
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error("Account not found.");
+    const data = snap.data();
+    if (data.lastDailyCoinClaimDay === today) {
+      throw Object.assign(new Error("You've already claimed today's coins. Come back tomorrow."), { status: 400 });
+    }
+    tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(DAILY_COIN_CLAIM_AMOUNT), lastDailyCoinClaimDay: today }, { merge: true });
+  });
   return { amount: DAILY_COIN_CLAIM_AMOUNT };
 }
 
@@ -2638,14 +2650,13 @@ async function getCoinPurchasePayment(reference) {
 
 async function finalizeCoinPurchasePayment(reference, paystackData) {
   const ref = db.collection("coinPurchasePayments").doc(reference);
-  const snap = await ref.get();
-  if (!snap.exists) return { notOurs: true };
-  const record = snap.data();
-  if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
-  if (paystackData.status !== "success" || paystackData.amount < record.amountKobo) {
-    await ref.update({ status: "failed", failedAt: Date.now() });
-    throw new Error("Payment was not successful.");
-  }
+  const claim = await claimPendingPayment(ref, paystackData);
+  if (claim.notOurs) return { notOurs: true };
+  if (claim.alreadyProcessed) return { alreadyProcessed: true, uid: claim.uid };
+  if (claim.inProgress) return { alreadyProcessed: true };
+  if (claim.failed) throw new Error("Payment was not successful.");
+
+  const record = claim.record;
   const pkg = COIN_PACKAGES[record.packageKey];
   const coins = pkg ? pkg.coins : 0;
   await db.collection("users").doc(record.uid).set({ coinBalance: admin.firestore.FieldValue.increment(coins) }, { merge: true });
@@ -2707,7 +2718,32 @@ async function requestWithdrawal(uid, amountNgn) {
     }
     tx.update(userRef, { nairaBalance: admin.firestore.FieldValue.increment(-amount) });
     tx.set(withdrawalRef, { uid, amountNgn: amount, bankDetails: data.bankDetails, status: "pending", requestedAt: Date.now() });
-    return { id: withdrawalRef.id };
+    return { id: withdrawalRef.id, bankDetails: data.bankDetails };
+  }).then(async (result) => {
+    notifyAdminOfWithdrawalRequest(uid, amount, result.bankDetails, result.id).catch((err) => {
+      console.error("[requestWithdrawal] admin notify failed:", err.message);
+    });
+    return { id: result.id };
+  });
+}
+
+async function notifyAdminOfWithdrawalRequest(uid, amountNgn, bankDetails, withdrawalId) {
+  const [adminSnap, profile] = await Promise.all([
+    db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get(),
+    getUserProfile(uid).catch(() => null),
+  ]);
+  const username = (profile && profile.username) || "user";
+  if (!adminSnap.empty) {
+    const adminUid = adminSnap.docs[0].id;
+    await addNotification(
+      adminUid,
+      "withdrawal_request",
+      `New withdrawal request: ₦${amountNgn.toLocaleString("en-NG")} from @${username}`,
+      { uid, amountNgn, withdrawalId }
+    );
+  }
+  await sendWithdrawalRequestEmail(ADMIN_EMAIL, username, amountNgn, bankDetails).catch((err) => {
+    console.error("[requestWithdrawal] admin email failed:", err.message);
   });
 }
 
@@ -2733,12 +2769,17 @@ function generateCertificateSerial() {
 
 async function adminConfirmWithdrawalPaid(withdrawalId) {
   const ref = db.collection("withdrawalRequests").doc(withdrawalId);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error("Withdrawal request not found.");
-  const data = snap.data();
-  if (data.status === "completed") return { alreadyProcessed: true };
   const certificateSerial = generateCertificateSerial();
-  await ref.update({ status: "completed", completedAt: Date.now(), certificateSerial });
+  const claim = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error("Withdrawal request not found.");
+    const data = snap.data();
+    if (data.status === "completed") return { alreadyProcessed: true, certificateSerial: data.certificateSerial };
+    tx.update(ref, { status: "completed", completedAt: Date.now(), certificateSerial });
+    return { data };
+  });
+  if (claim.alreadyProcessed) return { ok: true, certificateSerial: claim.certificateSerial };
+  const data = claim.data;
   await addNotification(
     data.uid,
     "withdrawal_paid",
@@ -2765,16 +2806,13 @@ async function getApiPlanPayment(reference) {
 
 async function finalizeApiPlanPayment(reference, paystackData) {
   const ref = db.collection("apiPlanPayments").doc(reference);
-  const snap = await ref.get();
-  if (!snap.exists) return { notOurs: true };
-  const record = snap.data();
-  if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
+  const claim = await claimPendingPayment(ref, paystackData);
+  if (claim.notOurs) return { notOurs: true };
+  if (claim.alreadyProcessed) return { alreadyProcessed: true, uid: claim.uid };
+  if (claim.inProgress) return { alreadyProcessed: true };
+  if (claim.failed) throw new Error("Payment was not successful.");
 
-  if (paystackData.status !== "success" || paystackData.amount < record.amountKobo) {
-    await ref.update({ status: "failed", failedAt: Date.now() });
-    throw new Error("Payment was not successful.");
-  }
-
+  const record = claim.record;
   const expiresAt = Date.now() + API_PLAN_DAYS * 24 * 60 * 60 * 1000;
   await db.collection("users").doc(record.uid).update({
     apiPlanPaid: record.plan,
