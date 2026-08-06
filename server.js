@@ -1651,8 +1651,14 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .user-menu-btn:hover,.user-menu-btn.open{border-color:var(--accent);color:var(--accent)}
 .user-menu-btn svg{width:17px;height:17px;flex-shrink:0;pointer-events:none}
 .user-menu-dropdown{
-  position:absolute;bottom:38px;top:auto;right:0;min-width:190px;background:var(--card);border:1px solid var(--border-strong);
-  border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.5);padding:6px;display:none;flex-direction:column;gap:2px;z-index:30;
+  position:absolute;bottom:38px;top:auto;right:0;min-width:190px;
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),var(--card);
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1);padding:6px;display:none;flex-direction:column;gap:2px;z-index:30;
+}
+:root[data-theme="light"] .user-menu-dropdown{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%),var(--card);
+  border:1px solid rgba(255,255,255,.55);
 }
 .user-menu-dropdown.open{display:flex}
 .user-menu-item{
@@ -1676,9 +1682,14 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
 .bnav-menu-wrap{position:relative}
 .bnav-menu{
-  position:absolute;bottom:calc(var(--bnav-h) + 8px);right:8px;min-width:190px;background:var(--card);
-  border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.5);
+  position:absolute;bottom:calc(var(--bnav-h) + 8px);right:8px;min-width:190px;
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),var(--card);
+  border:1px solid rgba(255,255,255,.16);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1);
   padding:6px;display:none;flex-direction:column;gap:2px;z-index:310;
+}
+:root[data-theme="light"] .bnav-menu{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%),var(--card);
+  border:1px solid rgba(255,255,255,.55);
 }
 .bnav-menu.open{display:flex}
 
