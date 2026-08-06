@@ -42,10 +42,17 @@ ${cfg.protectionCSS || ""}
 html,body{height:100%}
 body{
   background:var(--dark);color:var(--text);font-family:var(--font-body);min-height:100%;
-  background-image:
-    radial-gradient(900px 500px at 15% -10%,rgba(0,224,255,.06),transparent 60%),
-    radial-gradient(700px 400px at 100% 0%,rgba(124,92,255,.04),transparent 55%);
+  overflow-x:hidden;position:relative;
 }
+.aurora{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+.blob{position:absolute;border-radius:50%;filter:blur(65px);mix-blend-mode:screen}
+.blob-1{width:560px;height:560px;background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.5;top:-160px;left:-140px}
+.blob-2{width:500px;height:500px;background:radial-gradient(circle,var(--accent2),transparent 70%);opacity:.45;bottom:-180px;right:-120px}
+.blob-3{width:420px;height:420px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.32;top:38%;left:50%;transform:translate(-50%,-50%)}
+:root[data-theme="light"] .blob{filter:blur(70px);mix-blend-mode:normal}
+:root[data-theme="light"] .blob-1{background:radial-gradient(circle,rgba(0,224,255,.5),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-2{background:radial-gradient(circle,rgba(124,92,255,.45),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-3{background:radial-gradient(circle,rgba(255,92,184,.35),transparent 70%);opacity:1}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
@@ -243,7 +250,7 @@ input{font-family:inherit}
 }
 .notif-dot.show{display:block}
 
-.acc-wrap{max-width:520px;margin:0 auto;padding:28px 18px 60px}
+.acc-wrap{max-width:520px;margin:0 auto;padding:28px 18px 60px;position:relative;z-index:1}
 .acc-views-clip{overflow:hidden;transition:height .3s var(--ease)}
 .acc-views-track{display:flex;align-items:flex-start;width:200%;transition:transform .4s cubic-bezier(.22,.61,.36,1)}
 .acc-views-track.show-rewards{transform:translateX(-50%)}
@@ -275,7 +282,16 @@ input{font-family:inherit}
 .acc-settings-icon svg{width:20px;height:20px}
 
 .acc-card{
-  background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px 20px;margin-bottom:18px;
+  position:relative;
+  background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+  border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:22px 20px;margin-bottom:18px;
+  box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
+}
+:root[data-theme="light"] .acc-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.6);
 }
 .acc-card-title{font-family:var(--font-display);font-weight:700;font-size:.95rem;margin-bottom:16px;display:flex;align-items:center;gap:8px}
 .acc-card-title svg{width:17px;height:17px;color:var(--accent)}
@@ -615,8 +631,17 @@ input{font-family:inherit}
 .page-overlay.show{display:flex}
 body:has(.page-overlay.show){overflow:hidden}
 .overlay-card{
-  width:100%;max-width:360px;background:var(--card);border:1px solid var(--border-strong);border-radius:16px;
-  padding:26px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);
+  width:100%;max-width:360px;
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
+  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
+  border:1px solid rgba(255,255,255,.22);border-radius:16px;
+  padding:26px 22px;display:flex;flex-direction:column;gap:14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);
+}
+:root[data-theme="light"] .overlay-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);
+  border:1px solid rgba(255,255,255,.65);
+  box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
 }
 .overlay-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem}
 .overlay-sub{font-size:.82rem;color:var(--muted);line-height:1.5}
@@ -638,7 +663,7 @@ body:has(.page-overlay.show){overflow:hidden}
 .overlay-cancel{background:transparent;border:none;color:var(--muted);font-size:.78rem;align-self:center;text-decoration:underline}
 .acc-loader{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
-  min-height:70vh;
+  min-height:70vh;position:relative;z-index:1;
 }
 .acc-loader-ring{
   width:34px;height:34px;border:3px solid var(--border-strong);border-top-color:var(--accent);
@@ -648,8 +673,16 @@ body:has(.page-overlay.show){overflow:hidden}
 @keyframes accSpin{to{transform:rotate(360deg)}}
 
 .flist-card{
-  width:100%;max-width:400px;max-height:78vh;background:var(--card);border:1px solid var(--border-strong);
-  border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:flex;flex-direction:column;overflow:hidden;
+  width:100%;max-width:400px;max-height:78vh;
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
+  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
+  border:1px solid rgba(255,255,255,.22);
+  border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);display:flex;flex-direction:column;overflow:hidden;
+}
+:root[data-theme="light"] .flist-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);
+  border:1px solid rgba(255,255,255,.65);
+  box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
 }
 .flist-header{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 0}
 .flist-title{font-family:var(--font-display);font-weight:700;font-size:1.02rem}
@@ -787,6 +820,12 @@ body:has(.page-overlay.show){overflow:hidden}
 </style>
 </head>
 <body>
+
+<div class="aurora">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
 
 <div class="acc-nav">
   <button type="button" class="acc-back" id="accBackBtn">
