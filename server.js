@@ -1958,7 +1958,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
             <svg class="umi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             DMCA
           </a>
-          <span class="user-menu-avatar" id="menuAvatar" style="display:none">–</span>
+          <span class="user-menu-avatar" id="menuAvatar" style="display:none">-</span>
           <button class="user-menu-item user-menu-logout" id="menuLogoutBtn" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
             Logout
@@ -2242,9 +2242,9 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 
 <div class="page-overlay" id="mpvOverlay">
   <div class="mpv-card">
-    <div class="mpv-avatar" id="mpvAvatar">–</div>
-    <div class="mpv-name" id="mpvName">–</div>
-    <div class="mpv-username" id="mpvUsername">–</div>
+    <div class="mpv-avatar" id="mpvAvatar">-</div>
+    <div class="mpv-name" id="mpvName">-</div>
+    <div class="mpv-username" id="mpvUsername">-</div>
     <div class="mpv-stats">
       <div class="mpv-stat"><div class="mpv-stat-num" id="mpvFollowers">0</div><div class="mpv-stat-label">Followers</div></div>
       <div class="mpv-stat"><div class="mpv-stat-num" id="mpvFollowing">0</div><div class="mpv-stat-label">Following</div></div>
@@ -3236,7 +3236,7 @@ async function openMiniPreview(username){
   document.getElementById('mpvName').textContent = 'Loading…';
   document.getElementById('mpvUsername').textContent = '';
   document.getElementById('mpvAvatar').style.backgroundImage = '';
-  document.getElementById('mpvAvatar').textContent = '–';
+  document.getElementById('mpvAvatar').textContent = '-';
   document.getElementById('mpvFollowers').textContent = '0';
   document.getElementById('mpvFollowing').textContent = '0';
   document.getElementById('mpvLikes').textContent = '0';

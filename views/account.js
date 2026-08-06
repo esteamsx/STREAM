@@ -807,10 +807,10 @@ body:has(.page-overlay.show){overflow:hidden}
 
 <div class="acc-wrap" id="accWrap" style="display:none">
   <div class="acc-hero">
-    <div class="acc-avatar" id="heroAvatar">–</div>
+    <div class="acc-avatar" id="heroAvatar">-</div>
     <div style="flex:1">
-      <div class="acc-hero-name" id="heroName">Hi, –</div>
-      <div class="acc-hero-email" id="heroEmail">–</div>
+      <div class="acc-hero-name" id="heroName">Hi, -</div>
+      <div class="acc-hero-email" id="heroEmail">-</div>
     </div>
     <button type="button" class="acc-verify-link" id="getVerifiedLink" style="display:none">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
@@ -1184,7 +1184,7 @@ body:has(.page-overlay.show){overflow:hidden}
         <input type="text" id="rwReferralLinkInput" readonly>
         <button type="button" class="acc-btn" id="rwCopyReferralBtn">Copy</button>
       </div>
-      <div class="rw-hint">Share this link — you get +5 coins for every person who joins with it, and 15% commission on anything they later pay for (except buying coins).</div>
+      <div class="rw-hint">Share this link and get +5 coins for every person who joins with it, plus 15% commission on anything they later pay for (except buying coins).</div>
       <div class="rw-referral-list" id="rwReferralList"><div class="rw-empty">No referrals yet.</div></div>
     </div>
 
@@ -1266,11 +1266,11 @@ body:has(.page-overlay.show){overflow:hidden}
           <div class="rw-bank-card-bottom">
             <div>
               <div class="rw-bank-card-label">Card Holder</div>
-              <div class="rw-bank-card-name" id="rwBankCardName">–</div>
+              <div class="rw-bank-card-name" id="rwBankCardName">-</div>
             </div>
             <div>
               <div class="rw-bank-card-label">Bank</div>
-              <div class="rw-bank-card-bankname" id="rwBankCardBankName">–</div>
+              <div class="rw-bank-card-bankname" id="rwBankCardBankName">-</div>
             </div>
           </div>
         </div>
@@ -1293,13 +1293,13 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="rwWithdrawOverlay">
   <div class="overlay-card" style="max-width:360px">
     <div class="overlay-title">Withdraw to your bank</div>
-    <div class="overlay-sub">Withdrawals are &#8358;3,000&ndash;&#8358;100,000. Save your bank details first if you haven't.</div>
+    <div class="overlay-sub">Withdrawals are &#8358;3,000-&#8358;100,000. Save your bank details first if you haven't.</div>
     <div class="field">
       <label>Amount (&#8358;)</label>
       <input type="number" id="rwWithdrawAmount" placeholder="3000" min="3000" max="100000" step="100">
     </div>
     <div class="rw-withdraw-payout" id="rwWithdrawPayoutNote"></div>
-    <div class="rw-hint">A 15% service fee applies to every withdrawal &mdash; it's taken out of what you receive, not added to what's debited. Only verified accounts can withdraw; this helps prevent fraud and fake account farming.</div>
+    <div class="rw-hint">A 15% service fee applies to every withdrawal: it's taken out of what you receive, not added to what's debited. Only verified accounts can withdraw; this helps prevent fraud and fake account farming.</div>
     <div style="margin:12px 0"><altcha-widget id="rwWithdrawAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>
     <div class="acc-msg" id="rwWithdrawMsg"></div>
     <button class="acc-btn" id="rwWithdrawConfirmBtn" type="button" style="width:100%;justify-content:center" disabled>Submit Request</button>
@@ -1310,7 +1310,7 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="notVerifiedOverlay">
   <div class="overlay-card" style="max-width:320px;text-align:center">
     <div class="overlay-title">You're not verified</div>
-    <div class="overlay-sub">Only verified accounts can withdraw &mdash; this helps prevent fraud and fake account farming. Get verified to unlock withdrawals.</div>
+    <div class="overlay-sub">Only verified accounts can withdraw: this helps prevent fraud and fake account farming. Get verified to unlock withdrawals.</div>
     <button class="acc-btn" id="notVerifiedGoBtn" type="button" style="width:100%;justify-content:center;margin-top:6px">Get Verified</button>
     <button class="overlay-cancel" id="notVerifiedCancelBtn" type="button">Cancel</button>
   </div>
@@ -1596,17 +1596,17 @@ body:has(.page-overlay.show){overflow:hidden}
         <div class="cert-status-chip" id="certStatusChip">VALID</div>
       </div>
       <div class="cert-label">Certificate of Verification</div>
-      <div class="cert-name" id="certName">–</div>
-      <div class="cert-username" id="certUsername">–</div>
+      <div class="cert-name" id="certName">-</div>
+      <div class="cert-username" id="certUsername">-</div>
       <div class="cert-divider"></div>
       <div class="cert-meta-row">
         <div>
           <span class="cert-meta-label">Issued</span>
-          <span class="cert-meta-val" id="certIssued">–</span>
+          <span class="cert-meta-val" id="certIssued">-</span>
         </div>
         <div>
           <span class="cert-meta-label">Expires</span>
-          <span class="cert-meta-val" id="certExpires">–</span>
+          <span class="cert-meta-val" id="certExpires">-</span>
         </div>
       </div>
       <div class="cert-signature-wrap">
@@ -4317,7 +4317,7 @@ document.getElementById('verifyViewCertBtn').addEventListener('click', () => {
 });
 
 function formatCertDate(ts){
-  if (!ts) return '–';
+  if (!ts) return '-';
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function openCertOverlay(){

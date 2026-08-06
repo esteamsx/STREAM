@@ -5,7 +5,7 @@ export function renderRomanNumeral(cfg) {
     pageKey: "toolsRomanNumeral",
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" d="M5 6v12M9 6v12M13 6l4 12M20 6l-4 12"/></svg>`,
     heading: "Roman Numeral Converter",
-    subtitle: "Convert between numbers (1–3999) and Roman numerals.",
+    subtitle: "Convert between numbers (1-3999) and Roman numerals.",
     bodyHtml: `
       <div class="field">
         <label for="modeSelect">Mode</label>
