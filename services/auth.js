@@ -1540,6 +1540,54 @@ async function growAdminFollowerCount() {
 
 const MAX_POST_IMAGE_BYTES = 900 * 1024;
 
+function decodeDataUrlPayload(dataUrl) {
+  const match = /^data:([a-z0-9.+-]+\/[a-z0-9.+-]+)[^,]*;base64,(.+)$/i.exec(dataUrl);
+  if (!match) return null;
+  try {
+    return { mime: match[1].toLowerCase(), buffer: Buffer.from(match[2], "base64") };
+  } catch {
+    return null;
+  }
+}
+
+function bufferStartsWith(buf, bytes, offset = 0) {
+  if (buf.length < offset + bytes.length) return false;
+  for (let i = 0; i < bytes.length; i++) {
+    if (buf[offset + i] !== bytes[i]) return false;
+  }
+  return true;
+}
+
+function sniffImageFormat(buf) {
+  if (bufferStartsWith(buf, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "png";
+  if (bufferStartsWith(buf, [0xff, 0xd8, 0xff])) return "jpeg";
+  if (bufferStartsWith(buf, [0x47, 0x49, 0x46, 0x38])) return "gif";
+  if (bufferStartsWith(buf, [0x52, 0x49, 0x46, 0x46]) && bufferStartsWith(buf, [0x57, 0x45, 0x42, 0x50], 8)) return "webp";
+  return null;
+}
+
+function sniffAudioFormat(buf) {
+  if (bufferStartsWith(buf, [0x1a, 0x45, 0xdf, 0xa3])) return "webm";
+  if (bufferStartsWith(buf, [0x66, 0x74, 0x79, 0x70], 4)) return "mp4";
+  return null;
+}
+
+function looksExecutableOrScript(buf) {
+  if (bufferStartsWith(buf, [0x4d, 0x5a])) return true;
+  if (bufferStartsWith(buf, [0x7f, 0x45, 0x4c, 0x46])) return true;
+  if (bufferStartsWith(buf, [0x23, 0x21])) return true;
+  const head = buf.slice(0, 512).toString("latin1").toLowerCase();
+  if (/^\s*(<!doctype html|<html[\s>]|<\?php|<svg[\s>])/.test(head)) return true;
+  return /<script[\s>]/.test(head);
+}
+
+function validateImageDataUrl(dataUrl, maxBytes) {
+  if (typeof dataUrl !== "string" || !/^data:image\/(png|jpeg|jpg|webp);base64,/.test(dataUrl)) return false;
+  if (dataUrl.length > maxBytes) return false;
+  const decoded = decodeDataUrlPayload(dataUrl);
+  return !!(decoded && sniffImageFormat(decoded.buffer));
+}
+
 async function resolveTaggedUsers(uid, taggedUsernames) {
   const tagged = [];
   if (Array.isArray(taggedUsernames) && taggedUsernames.length) {
@@ -1558,11 +1606,8 @@ async function resolveTaggedUsers(uid, taggedUsernames) {
 async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
   const cleanText = (text || "").toString().trim().slice(0, 2000);
   if (!cleanText && !imageDataUrl) throw new Error("Write something or add a photo first.");
-  if (imageDataUrl) {
-    if (typeof imageDataUrl !== "string" || !/^data:image\/(png|jpeg|jpg|webp);base64,/.test(imageDataUrl)) {
-      throw new Error("Please attach a valid image.");
-    }
-    if (imageDataUrl.length > MAX_POST_IMAGE_BYTES) throw new Error("That image is too large. Try a smaller photo.");
+  if (imageDataUrl && !validateImageDataUrl(imageDataUrl, MAX_POST_IMAGE_BYTES)) {
+    throw new Error("Please attach a valid image.");
   }
 
   const author = await getUserProfile(uid);
@@ -1711,11 +1756,8 @@ async function updatePost(uid, postId, { text, imageDataUrl, taggedUsernames }) 
   const cleanText = (text || "").toString().trim().slice(0, 2000);
   const finalImage = imageDataUrl !== undefined ? imageDataUrl : post.imageDataUrl;
   if (!cleanText && !finalImage) throw new Error("Write something or add a photo first.");
-  if (imageDataUrl) {
-    if (typeof imageDataUrl !== "string" || !/^data:image\/(png|jpeg|jpg|webp);base64,/.test(imageDataUrl)) {
-      throw new Error("Please attach a valid image.");
-    }
-    if (imageDataUrl.length > MAX_POST_IMAGE_BYTES) throw new Error("That image is too large. Try a smaller photo.");
+  if (imageDataUrl && !validateImageDataUrl(imageDataUrl, MAX_POST_IMAGE_BYTES)) {
+    throw new Error("Please attach a valid image.");
   }
 
   const author = await getUserProfile(uid);
@@ -2947,6 +2989,17 @@ function validateSupportAttachment(attachment) {
     throw new Error("That attachment couldn't be read.");
   }
   if (dataUrl.length > SUPPORT_ATTACHMENT_MAX_BYTES) throw new Error("That attachment is too large.");
+  const decoded = decodeDataUrlPayload(dataUrl);
+  if (!decoded) throw new Error("That attachment couldn't be read.");
+  if (type === "image" && !sniffImageFormat(decoded.buffer)) {
+    throw new Error("That doesn't look like a valid image file.");
+  }
+  if (type === "voice" && !sniffAudioFormat(decoded.buffer)) {
+    throw new Error("That doesn't look like a valid voice recording.");
+  }
+  if (type === "file" && looksExecutableOrScript(decoded.buffer)) {
+    throw new Error("That file type isn't allowed as an attachment.");
+  }
   return { dataUrl, type, name: type === "file" ? String(name || "file").slice(0, 200) : null };
 }
 
@@ -3192,6 +3245,7 @@ export {
   isFollowing,
   getFollowStats,
   growAdminFollowerCount,
+  validateImageDataUrl,
   createPost,
   getPostsByUser,
   togglePostLike,

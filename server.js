@@ -188,6 +188,7 @@ import {
   isFollowing,
   getFollowStats,
   growAdminFollowerCount,
+  validateImageDataUrl,
   createPost,
   getPostsByUser,
   togglePostLike,
@@ -5086,11 +5087,8 @@ app.post("/api/update-profile", requireAuth, async (req, res) => {
 app.post("/api/profile/photo", requireAuth, async (req, res) => {
   try {
     const { photoDataUrl } = req.body;
-    if (!photoDataUrl || typeof photoDataUrl !== "string" || !/^data:image\/(png|jpeg|jpg|webp);base64,/.test(photoDataUrl)) {
+    if (!photoDataUrl || !validateImageDataUrl(photoDataUrl, 900 * 1024)) {
       return res.status(400).json({ error: "Please upload a valid image." });
-    }
-    if (photoDataUrl.length > 900 * 1024) {
-      return res.status(400).json({ error: "That image is too large. Try a smaller photo." });
     }
     const profile = await getUserProfile(req.uid);
     if (!profile) return res.status(404).json({ error: "Profile not found." });

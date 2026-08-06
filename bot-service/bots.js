@@ -397,6 +397,14 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         }
         return;
       }
+      if (/ECONNREFUSED 127\.0\.0\.1/.test(line)) {
+        entry.localConnRefusedCount = (entry.localConnRefusedCount || 0) + 1;
+        if (entry.localConnRefusedCount >= 5) {
+          pushLog(entry, "Bot is stuck on repeated local connection failures, restarting the process to recover…");
+          if (entry.proc) entry.proc.kill("SIGTERM");
+        }
+        return;
+      }
     });
   };
   proc.stdout.on("data", (buf) => onOutput(buf, "out"));
