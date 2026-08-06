@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 const FETCH_TIMEOUT_MS = 15000;
 const BASE = "https://api.mail.tm";
 
@@ -26,8 +28,9 @@ async function request(path, options = {}) {
 
 function randomString(len) {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = crypto.randomBytes(len);
   let out = "";
-  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < len; i++) out += chars[bytes[i] % chars.length];
   return out;
 }
 

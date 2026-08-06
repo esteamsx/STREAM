@@ -5355,7 +5355,7 @@ app.post("/api/account/request-email", requireAuth, emailCodeLimiter, async (req
   }
 });
 
-app.post("/api/account/confirm-email", requireAuth, async (req, res) => {
+app.post("/api/account/confirm-email", requireAuth, emailCodeLimiter, async (req, res) => {
   try {
     const { code } = req.body;
     const result = await checkCode(req.uid, "add_email", code);
@@ -5560,7 +5560,7 @@ app.post("/api/request-account-deletion", requireAuth, emailCodeLimiter, async (
   }
 });
 
-app.post("/api/confirm-account-deletion", requireAuth, async (req, res) => {
+app.post("/api/confirm-account-deletion", requireAuth, emailCodeLimiter, async (req, res) => {
   try {
     const { code } = req.body;
     const result = await checkCode(req.uid, "delete_account", code);

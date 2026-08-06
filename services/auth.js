@@ -37,7 +37,7 @@ async function autoFollowAdmin(newUid, newUserEmail) {
 }
 
 function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 async function issueCode(uid, contact, purpose, channel = "email") {
