@@ -605,7 +605,7 @@ const DEV_API_PLANS = {
   free: { name: "Free", apiKeys: 1, requestsPerSecond: 3, monthlyRequests: 100, noAds: false, customAdsLink: false, priceNgn: 0 },
   starter: { name: "Starter", apiKeys: 3, requestsPerSecond: 10, monthlyRequests: 200, noAds: false, customAdsLink: false, priceNgn: 0 },
   standard: { name: "Standard", apiKeys: 5, requestsPerSecond: 20, monthlyRequests: 350, noAds: false, customAdsLink: false, priceNgn: 3000 },
-  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: true, priceNgn: 5000 },
+  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: false, priceNgn: 5000 },
   max: { name: "Max", apiKeys: 15, requestsPerSecond: 50, monthlyRequests: 1000, noAds: true, customAdsLink: true, priceNgn: 10000 },
 };
 
@@ -681,7 +681,7 @@ async function finalizeDevApiPlanPayment(reference, paystackData) {
 async function setDevApiCustomAdsUrl(uid, url) {
   const profile = await getUserProfile(uid);
   if (!profile) throw new Error("Account not found.");
-  if (!getDevApiPlanConfig(profile).customAdsLink) throw new Error("The custom ads link is a Pro/Max plan feature.");
+  if (!getDevApiPlanConfig(profile).customAdsLink) throw new Error("The custom ads link is a Max plan feature.");
   const trimmed = String(url || "").trim();
   if (!trimmed) {
     await db.collection("users").doc(uid).update({ devApiCustomAdsUrl: admin.firestore.FieldValue.delete() });

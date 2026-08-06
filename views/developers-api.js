@@ -43,6 +43,16 @@ const FEATURES = [
     example: "GET /api/v1/dev/audiomack?query=your track here",
   },
   {
+    key: "instagram",
+    title: "Instagram Downloader",
+    desc: "Pull a direct video or image file from a public Instagram post or reel.",
+    icon: '<rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>',
+    category: "Downloaders",
+    endpoint: "GET /api/v1/dev/instagram?url=",
+    live: true,
+    example: "GET /api/v1/dev/instagram?url=https://www.instagram.com/reel/...",
+  },
+  {
     key: "ai",
     title: "AI",
     desc: "Send a prompt, get a real AI response back.",
@@ -73,6 +83,16 @@ const FEATURES = [
     example: "GET /api/v1/dev/imgscan?url=https://example.com/image.png",
   },
   {
+    key: "videogen",
+    title: "AI Video Generation",
+    desc: "Generate a short video from a text prompt. Experimental — generation can take 30-120 seconds.",
+    icon: '<rect x="2" y="5" width="15" height="14" rx="2"/><path d="M22 8l-5 3.5L22 15V8z"/>',
+    category: "AI & Vision",
+    endpoint: "POST /api/v1/dev/videogen",
+    live: true,
+    example: 'POST /api/v1/dev/videogen  { "prompt": "a cat surfing a wave" }',
+  },
+  {
     key: "qrcode",
     title: "QR Code",
     desc: "Generate a QR code image for any text or link.",
@@ -91,6 +111,16 @@ const FEATURES = [
     endpoint: "POST /api/v1/dev/shorten",
     live: true,
     example: 'POST /api/v1/dev/shorten  { "url": "..." }',
+  },
+  {
+    key: "tempmail",
+    title: "Temp Mail",
+    desc: "Spin up a disposable inbox, then poll it for incoming mail. Handy for OTP/verification flows.",
+    icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+    category: "Tools",
+    endpoint: "POST /api/v1/dev/tempmail/create",
+    live: true,
+    example: "POST /api/v1/dev/tempmail/create",
   },
   {
     key: "weather",
@@ -241,6 +271,26 @@ const FEATURES = [
     endpoint: "GET /api/v1/dev/githubuser?username=",
     live: true,
     example: "GET /api/v1/dev/githubuser?username=torvalds",
+  },
+  {
+    key: "movie",
+    title: "Movie Info",
+    desc: "Plot, cast, poster, and rating for any movie title.",
+    icon: '<rect x="2" y="3" width="20" height="18" rx="2"/><path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/movie?query=",
+    live: true,
+    example: "GET /api/v1/dev/movie?query=Inception",
+  },
+  {
+    key: "sportsteam",
+    title: "Sports Team",
+    desc: "League, stadium, and background info for any sports team.",
+    icon: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M6 6l12 12M18 6L6 18"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/sportsteam?name=",
+    live: true,
+    example: "GET /api/v1/dev/sportsteam?name=Arsenal",
   },
   {
     key: "dogimage",
@@ -490,7 +540,10 @@ body:has(.page-overlay.show){overflow:hidden}
 .empty-state{font-size:.8rem;color:var(--muted);line-height:1.6;padding:6px 2px 14px}
 
 .browse-head{margin:32px 0 16px}
-.browse-head h2{font-family:var(--font-display);font-size:1.15rem;margin-bottom:10px}
+.browse-head h2{font-family:var(--font-display);font-size:1.15rem;margin-bottom:2px}
+.browse-total{font-size:.78rem;color:var(--muted);margin-bottom:10px;font-variant-numeric:tabular-nums}
+.browse-total-count{font-weight:700;color:var(--accent);font-family:var(--font-display)}
+.category-count{font-weight:400;color:var(--muted);opacity:.75}
 .search-box{position:relative}
 .search-box svg{
   position:absolute;left:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted);pointer-events:none;
@@ -615,22 +668,22 @@ ${musicPlayerStyle()}
 
     <div class="browse-head">
       <h2>Browse APIs</h2>
+      <div class="browse-total"><span class="browse-total-count" id="browseTotalCount">0</span> APIs available and growing</div>
       <div class="search-box">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
         <input type="text" id="apiSearchInput" placeholder="Search APIs…">
       </div>
     </div>
 
-    ${CATEGORIES.map(
-      (cat) => `<div class="category-section" data-category>
-      <div class="category-title">${cat}</div>
+    ${CATEGORIES.map((cat) => {
+      const catFeatures = FEATURES.filter((f) => f.category === cat);
+      return `<div class="category-section" data-category>
+      <div class="category-title">${cat} <span class="category-count">(${catFeatures.length})</span></div>
       <div class="hscroll">
-        ${FEATURES.filter((f) => f.category === cat)
-          .map(featureCardHtml)
-          .join("\n        ")}
+        ${catFeatures.map(featureCardHtml).join("\n        ")}
       </div>
-    </div>`
-    ).join("\n    ")}
+    </div>`;
+    }).join("\n    ")}
 
     <div class="no-results" id="noResults">No APIs match your search.</div>
 
@@ -705,6 +758,19 @@ ${musicPlayerStyle()}
   "expires_at": "2026-08-05T20:00:00.000Z"
 }</pre>
 
+    <h2 class="doc-h2">Instagram Downloader</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/instagram?url=</code></p>
+    <p class="doc-p">Give it a public instagram.com post, reel, or IGTV link. Returns a branded download link for the video or image.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/instagram?url=https://www.instagram.com/reel/..."</pre>
+    <pre>{
+  "type": "video",
+  "title": "Post Title",
+  "caption": "...",
+  "download_url": "https://esteamstv.devs.surf/api/v1/dev/dl/eyJ1cmwi...",
+  "expires_at": "2026-08-05T20:00:00.000Z"
+}</pre>
+
     <h2 class="doc-h2">Audiomack</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/audiomack?query=</code></p>
     <p class="doc-p">Search by track title or artist. Returns the best match as a branded download link.</p>
@@ -726,6 +792,16 @@ ${musicPlayerStyle()}
   "https://esteamstv.devs.surf/api/v1/dev/ai"</pre>
     <pre>{
   "response": "1. ...\n2. ...\n3. ..."
+}</pre>
+
+    <h2 class="doc-h2">AI Video Generation</h2>
+    <p class="doc-p"><span class="badge badge-post">POST</span> <code>/api/v1/dev/videogen</code></p>
+    <p class="doc-p">Send a text prompt (500 character limit), get back a link to a generated video. Experimental and slow &mdash; generation can take 30-120 seconds, so use a generous client timeout. Limited to 2 requests per hour per key.</p>
+    <pre>curl -X POST -H "x-api-key: estv_your_key_here" -H "Content-Type: application/json" \\
+  -d '{"prompt":"a cat surfing a wave"}' \\
+  "https://esteamstv.devs.surf/api/v1/dev/videogen"</pre>
+    <pre>{
+  "video_url": "https://files.catbox.moe/xxxxx.mp4"
 }</pre>
 
     <h2 class="doc-h2">OCR</h2>
@@ -763,6 +839,34 @@ ${musicPlayerStyle()}
     <pre>{
   "short_url": "https://esteamstv.devs.surf/s/aB3xY9",
   "original_url": "https://example.com/a/very/long/path"
+}</pre>
+
+    <h2 class="doc-h2">Temp Mail</h2>
+    <p class="doc-p">Three endpoints for a disposable inbox flow: create an inbox, list what's arrived, read a message. Handy for reading OTP/verification codes in a bot.</p>
+    <p class="doc-p"><span class="badge badge-post">POST</span> <code>/api/v1/dev/tempmail/create</code></p>
+    <pre>curl -X POST -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/tempmail/create"</pre>
+    <pre>{
+  "email": "a1b2c3d4e5@somedomain.tld",
+  "password": "...",
+  "token": "eyJhbGciOi..."
+}</pre>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/tempmail/inbox?token=</code></p>
+    <p class="doc-p">Poll this with the <code>token</code> from create to see what's arrived.</p>
+    <pre>{
+  "messages": [
+    { "id": "abc123", "from": "noreply@example.com", "subject": "Your code", "intro": "Your code is...", "seen": false, "createdAt": "2026-08-05T20:00:00.000Z" }
+  ]
+}</pre>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/tempmail/message?token=&amp;id=</code></p>
+    <p class="doc-p">Read the full body of one message by its <code>id</code> from the inbox list.</p>
+    <pre>{
+  "id": "abc123",
+  "from": "noreply@example.com",
+  "subject": "Your code",
+  "text": "Your code is 482913.",
+  "html": "...",
+  "createdAt": "2026-08-05T20:00:00.000Z"
 }</pre>
 
     <h2 class="doc-h2">Weather</h2>
@@ -924,6 +1028,41 @@ ${musicPlayerStyle()}
   ]
 }</pre>
 
+    <h2 class="doc-h2">Movie Info</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/movie?query=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/movie?query=Inception"</pre>
+    <pre>{
+  "title": "Inception",
+  "artist": "Christopher Nolan",
+  "genre": "Action & Adventure",
+  "releaseDate": "2010-07-16T07:00:00Z",
+  "priceFormatted": "USD 14.99",
+  "rating": "PG-13",
+  "runtimeMinutes": 148,
+  "description": "...",
+  "poster": "https://...600x600bb.jpg",
+  "trailerUrl": "https://...",
+  "country": "USA"
+}</pre>
+
+    <h2 class="doc-h2">Sports Team</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/sportsteam?name=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/sportsteam?name=Arsenal"</pre>
+    <pre>{
+  "name": "Arsenal",
+  "sport": "Soccer",
+  "league": "English Premier League",
+  "country": "England",
+  "stadium": "Emirates Stadium",
+  "founded": "1886",
+  "description": "...",
+  "badge": "https://...",
+  "jersey": "https://...",
+  "website": "www.arsenal.com"
+}</pre>
+
     <h2 class="doc-h2">GitHub User</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/githubuser?username=</code></p>
     <pre>curl -H "x-api-key: estv_your_key_here" \\
@@ -951,7 +1090,7 @@ ${musicPlayerStyle()}
 }</pre>
 
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
-    <p class="doc-p">20 requests per minute per API key on each endpoint (15 for AI). On top of that, every account has a monthly allowance shared across <strong>all</strong> your Developer Api keys, separate from the Live Tv Api's own allowance. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
+    <p class="doc-p">20 requests per minute per API key on each endpoint (15 for AI, 15 for Temp Mail, 2 per hour for AI Video Generation). On top of that, every account has a monthly allowance shared across <strong>all</strong> your Developer Api keys, separate from the Live Tv Api's own allowance. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
 
     <h2 class="doc-h2">Errors</h2>
     <table>
@@ -1071,7 +1210,7 @@ ${musicPlayerHtml()}
     { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, requestsPerSecond: 3, monthlyRequests: 100, noAds: false, customAdsLink: false, note: 'Default plan' },
     { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, requestsPerSecond: 10, monthlyRequests: 200, noAds: false, customAdsLink: false, note: 'Auto with account verification' },
     { key: 'standard', name: 'Standard', priceNgn: 3000, apiKeys: 5, requestsPerSecond: 20, monthlyRequests: 350, noAds: false, customAdsLink: false, note: '30 days' },
-    { key: 'pro', name: 'Pro', priceNgn: 5000, apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: true, note: '30 days', highlight: true },
+    { key: 'pro', name: 'Pro', priceNgn: 5000, apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: false, note: '30 days', highlight: true },
     { key: 'max', name: 'Max', priceNgn: 10000, apiKeys: 15, requestsPerSecond: 50, monthlyRequests: 1000, noAds: true, customAdsLink: true, note: '30 days' },
   ];
 
@@ -1463,11 +1602,29 @@ ${musicPlayerHtml()}
     noResults.classList.toggle('show', !anyVisible);
   });
 
+  (function animateTotalCount(){
+    var el = document.getElementById('browseTotalCount');
+    if(!el) return;
+    var target = ${FEATURES.length};
+    var start = null;
+    var duration = 1100;
+    function tick(ts){
+      if(start === null) start = ts;
+      var progress = Math.min((ts - start) / duration, 1);
+      var eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.round(eased * target);
+      if(progress < 1) requestAnimationFrame(tick);
+      else el.textContent = target;
+    }
+    requestAnimationFrame(tick);
+  })();
+
   var TRYIT_ENDPOINTS = {
     ocr: { title: 'Try it — OCR', method: 'GET', path: '/api/v1/dev/ocr', param: 'url', label: 'Image URL', placeholder: 'https://example.com/image.png' },
     mp3: { title: 'Try it — MP3 Downloader', method: 'GET', path: '/api/v1/dev/mp3', param: 'query', label: 'Search', placeholder: 'Song title or artist' },
     mp4: { title: 'Try it — MP4 Downloader', method: 'GET', path: '/api/v1/dev/mp4', param: 'query', label: 'Search', placeholder: 'Video title' },
     facebook: { title: 'Try it — Facebook Downloader', method: 'GET', path: '/api/v1/dev/facebook', param: 'url', label: 'Facebook URL', placeholder: 'https://facebook.com/watch/?v=...' },
+    instagram: { title: 'Try it — Instagram Downloader', method: 'GET', path: '/api/v1/dev/instagram', param: 'url', label: 'Instagram post/reel URL', placeholder: 'https://www.instagram.com/reel/...' },
     audiomack: { title: 'Try it — Audiomack', method: 'GET', path: '/api/v1/dev/audiomack', param: 'query', label: 'Search', placeholder: 'Track title or artist' },
     ai: { title: 'Try it — AI', method: 'POST', path: '/api/v1/dev/ai', param: 'prompt', label: 'Prompt', placeholder: 'Ask anything…', body: true },
     qrcode: { title: 'Try it — QR Code', method: 'GET', path: '/api/v1/dev/qrcode', param: 'text', label: 'Text or link', placeholder: 'https://esteamstv.devs.surf', isImage: true },
@@ -1489,6 +1646,10 @@ ${musicPlayerHtml()}
     holidays: { title: 'Try it — Public Holidays', method: 'GET', path: '/api/v1/dev/holidays', label: 'Year - Country code', placeholder: '2026 - NG', parts: ['year', 'country'], splitOn: ' - ' },
     githubuser: { title: 'Try it — GitHub User', method: 'GET', path: '/api/v1/dev/githubuser', param: 'username', label: 'GitHub username', placeholder: 'torvalds' },
     dogimage: { title: 'Try it — Dog Image', method: 'GET', path: '/api/v1/dev/dogimage', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true },
+    movie: { title: 'Try it — Movie Info', method: 'GET', path: '/api/v1/dev/movie', param: 'query', label: 'Movie title', placeholder: 'Inception' },
+    sportsteam: { title: 'Try it — Sports Team', method: 'GET', path: '/api/v1/dev/sportsteam', param: 'name', label: 'Team name', placeholder: 'Arsenal' },
+    tempmail: { title: 'Try it — Temp Mail', method: 'POST', path: '/api/v1/dev/tempmail/create', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true, body: true },
+    videogen: { title: 'Try it — AI Video Generation', method: 'POST', path: '/api/v1/dev/videogen', param: 'prompt', label: 'Prompt', placeholder: 'a cat surfing a wave', body: true },
   };
 
   function buildQueryParams(ep, val){

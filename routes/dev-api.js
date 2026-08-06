@@ -4,8 +4,13 @@ import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { extractTextFromImageUrl } from "../services/ocr.js";
 import { fetchSongByQuery, analyzeImage } from "../services/davidcyril.js";
 import { resolveFacebookVideo } from "../services/facebook.js";
+import { resolveInstagramMedia } from "../services/instagram.js";
 import { searchAudiomackTrack } from "../services/audiomack.js";
 import { askFreeAI } from "../services/ai.js";
+import { searchMovie } from "../services/movies.js";
+import { searchSportsTeam } from "../services/sportsdb.js";
+import { createTempInbox, listTempMessages, readTempMessage } from "../services/tempmail.js";
+import { generateVideoFromPrompt } from "../services/videogen.js";
 import { createShortLink, resolveShortLink } from "../services/shortener.js";
 import { getWeatherForLocation } from "../services/weather.js";
 import {
@@ -212,6 +217,11 @@ const holidaysLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKey
 const githubuserLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const dogimageLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const dlLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.ip).middleware();
+const instagramLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const movieLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const sportsteamLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const tempmailLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const videogenLimiter = new SimpleRateLimiter(2, 60 * 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 
 router.get("/api/v1/dev/ocr", requireDevApiKey, ocrLimiter, async (req, res) => {
   const url = String(req.query.url || "").trim();
@@ -303,6 +313,26 @@ router.get("/api/v1/dev/audiomack", requireDevApiKey, audiomackLimiter, async (r
     });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not fetch that track." });
+  }
+});
+
+router.get("/api/v1/dev/instagram", requireDevApiKey, instagramLimiter, async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing url query parameter." });
+
+  try {
+    const media = await resolveInstagramMedia(url);
+    const filename = sanitizeFilename(media.title || "instagram-media");
+    const out = { type: media.type, title: media.title, caption: media.caption };
+    if (media.videoUrl) {
+      out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.videoUrl, mime: "video/mp4", filename: `${filename}.mp4` }, DL_TTL_MS)}`;
+    } else if (media.imageUrl) {
+      out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.imageUrl, mime: "image/jpeg", filename: `${filename}.jpg` }, DL_TTL_MS)}`;
+    }
+    out.expires_at = new Date(Date.now() + DL_TTL_MS).toISOString();
+    res.json(out);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch that Instagram media." });
   }
 });
 
@@ -547,6 +577,72 @@ router.get("/api/v1/dev/dogimage", requireDevApiKey, dogimageLimiter, async (req
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not fetch a dog image." });
+  }
+});
+
+router.get("/api/v1/dev/movie", requireDevApiKey, movieLimiter, async (req, res) => {
+  const query = String(req.query.query || "").trim();
+  if (!query) return res.status(400).json({ error: "Missing query parameter." });
+  try {
+    const movie = await searchMovie(query);
+    res.json(movie);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that movie." });
+  }
+});
+
+router.get("/api/v1/dev/sportsteam", requireDevApiKey, sportsteamLimiter, async (req, res) => {
+  const name = String(req.query.name || "").trim();
+  if (!name) return res.status(400).json({ error: "Missing name query parameter." });
+  try {
+    const team = await searchSportsTeam(name);
+    res.json(team);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that team." });
+  }
+});
+
+router.post("/api/v1/dev/tempmail/create", requireDevApiKey, tempmailLimiter, async (req, res) => {
+  try {
+    const inbox = await createTempInbox();
+    res.json(inbox);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not create a temp inbox." });
+  }
+});
+
+router.get("/api/v1/dev/tempmail/inbox", requireDevApiKey, tempmailLimiter, async (req, res) => {
+  const token = String(req.query.token || "").trim();
+  if (!token) return res.status(400).json({ error: "Missing token query parameter." });
+  try {
+    const messages = await listTempMessages(token);
+    res.json({ messages });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not read that inbox." });
+  }
+});
+
+router.get("/api/v1/dev/tempmail/message", requireDevApiKey, tempmailLimiter, async (req, res) => {
+  const token = String(req.query.token || "").trim();
+  const id = String(req.query.id || "").trim();
+  if (!token || !id) return res.status(400).json({ error: "Missing token or id query parameter." });
+  try {
+    const message = await readTempMessage(token, id);
+    res.json(message);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not read that message." });
+  }
+});
+
+router.post("/api/v1/dev/videogen", requireDevApiKey, videogenLimiter, async (req, res) => {
+  const prompt = String((req.body && req.body.prompt) || "").trim();
+  if (!prompt) return res.status(400).json({ error: "Missing prompt in request body." });
+  if (prompt.length > 500) return res.status(400).json({ error: "Prompt is too long (500 character limit)." });
+  try {
+    const result = await generateVideoFromPrompt(prompt);
+    res.json({ video_url: result.videoUrl });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not generate that video." });
   }
 });
 
