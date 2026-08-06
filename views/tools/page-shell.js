@@ -39,16 +39,22 @@ ${cfg.protectionCSS || ""}
 html,body{min-height:100%}
 body{
   background:var(--dark);color:var(--text);font-family:var(--font-body);
-  padding:24px;padding-bottom:60px;
-  background-image:
-    radial-gradient(900px 500px at 15% -10%,rgba(0,224,255,.06),transparent 60%),
-    radial-gradient(700px 400px at 100% 0%,rgba(124,92,255,.04),transparent 55%);
+  padding:24px;padding-bottom:60px;overflow-x:hidden;position:relative;
 }
+.aurora{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+.blob{position:absolute;border-radius:50%;filter:blur(65px);mix-blend-mode:screen}
+.blob-1{width:560px;height:560px;background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.5;top:-160px;left:-140px}
+.blob-2{width:500px;height:500px;background:radial-gradient(circle,var(--accent2),transparent 70%);opacity:.45;bottom:-180px;right:-120px}
+.blob-3{width:420px;height:420px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.32;top:38%;left:50%;transform:translate(-50%,-50%)}
+:root[data-theme="light"] .blob{filter:blur(70px);mix-blend-mode:normal}
+:root[data-theme="light"] .blob-1{background:radial-gradient(circle,rgba(0,224,255,.5),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-2{background:radial-gradient(circle,rgba(124,92,255,.45),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-3{background:radial-gradient(circle,rgba(255,92,184,.35),transparent 70%);opacity:1}
 a{color:var(--accent);text-decoration:none}
 button{font-family:inherit;cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
-.wrap{width:100%;max-width:640px;margin:0 auto}
+.wrap{width:100%;max-width:640px;margin:0 auto;position:relative;z-index:1}
 .back-row{margin-bottom:14px}
 .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-size:.82rem;font-weight:600}
 .back-link:hover{color:var(--accent)}
@@ -63,7 +69,18 @@ h1{font-family:var(--font-display);font-size:1.4rem;margin-bottom:6px;display:fl
 h1 svg{width:22px;height:22px;color:var(--accent);flex-shrink:0}
 .subtitle{color:var(--muted);font-size:.85rem;margin-bottom:22px;line-height:1.6}
 
-.tool-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:16px}
+.tool-card{
+  position:relative;
+  background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+  border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:22px;margin-bottom:16px;
+  box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
+}
+:root[data-theme="light"] .tool-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.6);
+}
 label{display:block;font-size:.76rem;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
 input[type=text],textarea,select{
   width:100%;background:var(--card2);border:1px solid var(--border-strong);border-radius:10px;
@@ -136,6 +153,12 @@ ${extraStyle}
 </style>
 </head>
 <body>
+
+<div class="aurora">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
 
 <div class="wrap">
   <div class="back-row">
