@@ -37,13 +37,19 @@ ${cfg.protectionCSS || ""}
 html,body{height:100%}
 body{
   background:var(--dark);color:var(--text);font-family:var(--font-body);
-  min-height:100%;
-  background-image:
-    radial-gradient(900px 500px at 15% -10%,rgba(0,224,255,.06),transparent 60%),
-    radial-gradient(700px 400px at 100% 0%,rgba(124,92,255,.04),transparent 55%);
+  min-height:100%;overflow-x:hidden;position:relative;
 }
+.aurora{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+.blob{position:absolute;border-radius:50%;filter:blur(65px);mix-blend-mode:screen}
+.blob-1{width:560px;height:560px;background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.5;top:-160px;left:-140px}
+.blob-2{width:500px;height:500px;background:radial-gradient(circle,var(--accent2),transparent 70%);opacity:.45;bottom:-180px;right:-120px}
+.blob-3{width:420px;height:420px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.32;top:38%;left:50%;transform:translate(-50%,-50%)}
+:root[data-theme="light"] .blob{filter:blur(70px);mix-blend-mode:normal}
+:root[data-theme="light"] .blob-1{background:radial-gradient(circle,rgba(0,224,255,.5),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-2{background:radial-gradient(circle,rgba(124,92,255,.45),transparent 70%);opacity:1}
+:root[data-theme="light"] .blob-3{background:radial-gradient(circle,rgba(255,92,184,.35),transparent 70%);opacity:1}
 a{color:var(--accent);text-decoration:none}
-.wrap{max-width:920px;margin:0 auto;padding:22px 20px 80px}
+.wrap{max-width:920px;margin:0 auto;padding:22px 20px 80px;position:relative;z-index:1}
 
 .back-row{margin-bottom:14px}
 .back-link{
@@ -66,9 +72,17 @@ a{color:var(--accent);text-decoration:none}
 .tile-list{display:flex;flex-direction:column;gap:16px}
 
 .tile{
-  background:var(--card);border:1px solid var(--border);border-radius:20px;
+  background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+  border:1px solid rgba(255,255,255,.16);border-radius:20px;
   padding:26px 24px;display:flex;flex-direction:column;gap:16px;position:relative;
+  box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
   transition:border-color .2s var(--ease),transform .2s var(--ease);
+}
+:root[data-theme="light"] .tile{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.6);
 }
 .tile:hover{border-color:var(--border-strong);transform:translateY(-2px)}
 .tile-icon{
@@ -97,6 +111,11 @@ a{color:var(--accent);text-decoration:none}
 </style>
 </head>
 <body>
+<div class="aurora">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
 <div class="wrap">
 
   <div class="back-row">

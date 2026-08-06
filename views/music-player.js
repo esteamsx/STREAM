@@ -5,8 +5,15 @@ export function musicPlayerStyle() {
 .music-player{
   position:fixed;right:20px;bottom:20px;z-index:60;
   display:flex;align-items:center;gap:6px;
-  background:var(--card);border:1px solid var(--border-strong);border-radius:30px;
-  padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.4);
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
+  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
+  border:1px solid rgba(255,255,255,.22);border-radius:30px;
+  padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.3);
+}
+:root[data-theme="light"] .music-player{
+  background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);
+  border:1px solid rgba(255,255,255,.65);
+  box-shadow:0 10px 30px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
 }
 .mp-btn{
   width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;
