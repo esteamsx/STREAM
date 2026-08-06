@@ -355,7 +355,7 @@ const FEATURES = [
   {
     key: "animeimage",
     title: "Anime Image",
-    desc: "A random anime-style image, pick from 18 categories (waifu, neko, hug, pat, and more).",
+    desc: "A random anime-style image or GIF, pick from 50+ categories (waifu, neko, hug, pat, and more).",
     icon: '<circle cx="12" cy="12" r="9"/><path d="M8 10h.01M16 10h.01M8 15c1.5 1.5 6.5 1.5 8 0"/>',
     category: "Lookup",
     endpoint: "GET /api/v1/dev/animeimage?category=",
@@ -1231,12 +1231,12 @@ ${musicPlayerStyle()}
 
     <h2 class="doc-h2">Anime Image</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/animeimage?category=</code></p>
-    <p class="doc-p">Optional <code>category</code>: waifu, neko, shinobu, megumin, bully, cuddle, cry, hug, awoo, kiss, lick, pat, smug, bonk, yeet, blush, smile, wave. Defaults to waifu.</p>
+    <p class="doc-p">Optional <code>category</code>: waifu, neko, kitsune, husbando, hug, pat, cuddle, kiss, slap, smile, wave, wink, dance, cry, and 40+ more. Defaults to waifu.</p>
     <pre>curl -H "x-api-key: estv_your_key_here" \\
   "https://esteamstv.devs.surf/api/v1/dev/animeimage?category=hug"</pre>
     <pre>{
   "category": "hug",
-  "imageUrl": "https://i.waifu.pics/..."
+  "imageUrl": "https://nekos.best/api/v2/hug/..."
 }</pre>
 
     <h2 class="doc-h2">YouTube Info</h2>
