@@ -1,4 +1,6 @@
 const FETCH_TIMEOUT_MS = 15000;
+const TMDB_BASE = "https://api.themoviedb.org/3";
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
 async function fetchJson(url) {
   const controller = new AbortController();
@@ -16,23 +18,26 @@ async function fetchJson(url) {
 }
 
 export async function searchMovie(query) {
-  const data = await fetchJson(
-    `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=movie&entity=movie&limit=1`
+  const apiKey = process.env.TMDB_API_KEY;
+  if (!apiKey) throw Object.assign(new Error("Movie lookup is not configured on this server."), { status: 503 });
+
+  const searchData = await fetchJson(
+    `${TMDB_BASE}/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}`
   );
-  const result = data.results && data.results[0];
+  const result = searchData.results && searchData.results[0];
   if (!result) throw Object.assign(new Error("Could not find a movie matching that title."), { status: 404 });
 
+  const details = await fetchJson(`${TMDB_BASE}/movie/${result.id}?api_key=${apiKey}`).catch(() => null);
+  const genres = details && Array.isArray(details.genres) ? details.genres.map((g) => g.name) : [];
+
   return {
-    title: result.trackName,
-    artist: result.artistName || null,
-    genre: result.primaryGenreName || null,
-    releaseDate: result.releaseDate || null,
-    priceFormatted: result.trackPrice != null ? `${result.currency} ${result.trackPrice}` : null,
-    rating: result.contentAdvisoryRating || null,
-    runtimeMinutes: result.trackTimeMillis ? Math.round(result.trackTimeMillis / 60000) : null,
-    description: result.longDescription || result.shortDescription || null,
-    poster: (result.artworkUrl100 || "").replace("100x100", "600x600") || null,
-    trailerUrl: result.previewUrl || null,
-    country: result.country || null,
+    title: result.title,
+    overview: result.overview || null,
+    releaseDate: result.release_date || null,
+    rating: result.vote_average != null ? result.vote_average : null,
+    genres,
+    runtimeMinutes: (details && details.runtime) || null,
+    poster: result.poster_path ? `${TMDB_IMAGE_BASE}${result.poster_path}` : null,
+    backdrop: result.backdrop_path ? `${TMDB_IMAGE_BASE}${result.backdrop_path}` : null,
   };
 }

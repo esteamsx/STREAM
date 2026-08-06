@@ -5,10 +5,12 @@ import { extractTextFromImageUrl } from "../services/ocr.js";
 import { fetchSongByQuery, analyzeImage } from "../services/davidcyril.js";
 import { resolveFacebookVideo } from "../services/facebook.js";
 import { resolveInstagramMedia } from "../services/instagram.js";
-import { searchAudiomackTrack } from "../services/audiomack.js";
+import { resolveTikTokMedia } from "../services/tiktok.js";
 import { askFreeAI } from "../services/ai.js";
 import { searchMovie } from "../services/movies.js";
 import { searchSportsTeam } from "../services/sportsdb.js";
+import { getCryptoPrice } from "../services/crypto.js";
+import { getWikipediaSummary } from "../services/wikipedia.js";
 import { createTempInbox, listTempMessages, readTempMessage } from "../services/tempmail.js";
 import { generateVideoFromPrompt } from "../services/videogen.js";
 import { createShortLink, resolveShortLink } from "../services/shortener.js";
@@ -194,7 +196,6 @@ const ocrLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId ||
 const mp3Limiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const mp4Limiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const facebookLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
-const audiomackLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const aiLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const qrcodeLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const shortenLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
@@ -222,6 +223,9 @@ const movieLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId 
 const sportsteamLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const tempmailLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const videogenLimiter = new SimpleRateLimiter(2, 60 * 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const tiktokLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const cryptoLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const wikipediaLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 
 router.get("/api/v1/dev/ocr", requireDevApiKey, ocrLimiter, async (req, res) => {
   const url = String(req.query.url || "").trim();
@@ -296,26 +300,6 @@ router.get("/api/v1/dev/facebook", requireDevApiKey, facebookLimiter, async (req
   }
 });
 
-router.get("/api/v1/dev/audiomack", requireDevApiKey, audiomackLimiter, async (req, res) => {
-  const query = String(req.query.query || "").trim();
-  if (!query) return res.status(400).json({ error: "Missing query parameter." });
-
-  try {
-    const track = await searchAudiomackTrack(query);
-    const filename = `${sanitizeFilename(track.title)}.mp3`;
-    const token = signDownloadToken({ url: track.streamUrl, mime: "audio/mpeg", filename }, DL_TTL_MS);
-    res.json({
-      title: track.title,
-      artist: track.artist,
-      duration_seconds: track.durationSeconds,
-      download_url: `${PUBLIC_BASE}/api/v1/dev/dl/${token}`,
-      expires_at: new Date(Date.now() + DL_TTL_MS).toISOString(),
-    });
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not fetch that track." });
-  }
-});
-
 router.get("/api/v1/dev/instagram", requireDevApiKey, instagramLimiter, async (req, res) => {
   const url = String(req.query.url || "").trim();
   if (!url) return res.status(400).json({ error: "Missing url query parameter." });
@@ -333,6 +317,29 @@ router.get("/api/v1/dev/instagram", requireDevApiKey, instagramLimiter, async (r
     res.json(out);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not fetch that Instagram media." });
+  }
+});
+
+router.get("/api/v1/dev/tiktok", requireDevApiKey, tiktokLimiter, async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing url query parameter." });
+
+  try {
+    const media = await resolveTikTokMedia(url);
+    const filename = sanitizeFilename(media.title || "tiktok-media");
+    const out = { type: media.type, title: media.title, author: media.author };
+    if (media.videoUrl) {
+      out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.videoUrl, mime: "video/mp4", filename: `${filename}.mp4` }, DL_TTL_MS)}`;
+    }
+    if (media.images.length) {
+      out.image_urls = media.images.map((imgUrl, i) =>
+        `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: imgUrl, mime: "image/jpeg", filename: `${filename}-${i + 1}.jpg` }, DL_TTL_MS)}`
+      );
+    }
+    out.expires_at = new Date(Date.now() + DL_TTL_MS).toISOString();
+    res.json(out);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch that TikTok media." });
   }
 });
 
@@ -588,6 +595,28 @@ router.get("/api/v1/dev/movie", requireDevApiKey, movieLimiter, async (req, res)
     res.json(movie);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not find that movie." });
+  }
+});
+
+router.get("/api/v1/dev/crypto", requireDevApiKey, cryptoLimiter, async (req, res) => {
+  const coin = String(req.query.coin || "").trim();
+  if (!coin) return res.status(400).json({ error: "Missing coin query parameter." });
+  try {
+    const result = await getCryptoPrice(coin);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that coin." });
+  }
+});
+
+router.get("/api/v1/dev/wikipedia", requireDevApiKey, wikipediaLimiter, async (req, res) => {
+  const title = String(req.query.title || "").trim();
+  if (!title) return res.status(400).json({ error: "Missing title query parameter." });
+  try {
+    const result = await getWikipediaSummary(title);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that article." });
   }
 });
 

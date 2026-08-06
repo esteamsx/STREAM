@@ -33,14 +33,14 @@ const FEATURES = [
     example: "GET /api/v1/dev/facebook?url=https://facebook.com/watch/?v=...",
   },
   {
-    key: "audiomack",
-    title: "Audiomack",
-    desc: "Search and fetch tracks from Audiomack.",
-    icon: '<circle cx="12" cy="12" r="9"/><path d="M9 9v6l6-3-6-3z"/>',
+    key: "tiktok",
+    title: "TikTok Downloader",
+    desc: "Pull a direct video (no watermark) or image set from a public TikTok link.",
+    icon: '<path d="M9 12a4 4 0 104 4V4a5 5 0 005 5"/>',
     category: "Downloaders",
-    endpoint: "GET /api/v1/dev/audiomack?query=",
+    endpoint: "GET /api/v1/dev/tiktok?url=",
     live: true,
-    example: "GET /api/v1/dev/audiomack?query=your track here",
+    example: "GET /api/v1/dev/tiktok?url=https://www.tiktok.com/@user/video/...",
   },
   {
     key: "instagram",
@@ -275,7 +275,7 @@ const FEATURES = [
   {
     key: "movie",
     title: "Movie Info",
-    desc: "Plot, cast, poster, and rating for any movie title.",
+    desc: "Overview, genres, poster, and rating for any movie title.",
     icon: '<rect x="2" y="3" width="20" height="18" rx="2"/><path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5"/>',
     category: "Lookup",
     endpoint: "GET /api/v1/dev/movie?query=",
@@ -291,6 +291,26 @@ const FEATURES = [
     endpoint: "GET /api/v1/dev/sportsteam?name=",
     live: true,
     example: "GET /api/v1/dev/sportsteam?name=Arsenal",
+  },
+  {
+    key: "crypto",
+    title: "Crypto Price",
+    desc: "Live USD/NGN price and 24h change for any coin, by name or symbol.",
+    icon: '<circle cx="12" cy="12" r="9"/><path d="M12 6v12M9 9h4.5a2 2 0 010 4H9m0 0h4.5a2 2 0 010 4H9"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/crypto?coin=",
+    live: true,
+    example: "GET /api/v1/dev/crypto?coin=BTC",
+  },
+  {
+    key: "wikipedia",
+    title: "Wikipedia Summary",
+    desc: "Short summary, thumbnail, and link for any Wikipedia article.",
+    icon: '<circle cx="12" cy="12" r="9"/><path d="M8 9l2 6 2-4 2 4 2-6"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/wikipedia?title=",
+    live: true,
+    example: "GET /api/v1/dev/wikipedia?title=Lagos",
   },
   {
     key: "dogimage",
@@ -720,7 +740,7 @@ ${musicPlayerStyle()}
     </table>
 
     <h2 class="doc-h2">Downloaded files &amp; links</h2>
-    <p class="doc-p">MP3, MP4, Facebook Downloader, and Audiomack don't hand back a raw source URL. Instead they return a <code>download_url</code> (or <code>hd_download_url</code> / <code>sd_download_url</code> for Facebook) hosted on <code>esteamstv.devs.surf</code>, the same way the <a href="/developers/live-tv" target="_blank" rel="noopener">Live Tv Api</a>'s <code>embed_url</code> never exposes the real stream source. Each link is signed and expires after 6 hours; fetch a fresh one by calling the endpoint again.</p>
+    <p class="doc-p">MP3, MP4, Facebook Downloader, Instagram Downloader, and TikTok Downloader don't hand back a raw source URL. Instead they return a <code>download_url</code> (or <code>hd_download_url</code> / <code>sd_download_url</code> for Facebook, or <code>image_urls</code> for TikTok photo posts) hosted on <code>esteamstv.devs.surf</code>, the same way the <a href="/developers/live-tv" target="_blank" rel="noopener">Live Tv Api</a>'s <code>embed_url</code> never exposes the real stream source. Each link is signed and expires after 6 hours; fetch a fresh one by calling the endpoint again.</p>
 
     <h2 class="doc-h2">MP3 Downloader</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/mp3?query=</code></p>
@@ -771,15 +791,15 @@ ${musicPlayerStyle()}
   "expires_at": "2026-08-05T20:00:00.000Z"
 }</pre>
 
-    <h2 class="doc-h2">Audiomack</h2>
-    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/audiomack?query=</code></p>
-    <p class="doc-p">Search by track title or artist. Returns the best match as a branded download link.</p>
+    <h2 class="doc-h2">TikTok Downloader</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/tiktok?url=</code></p>
+    <p class="doc-p">Give it a public tiktok.com video or photo-post link. Video posts return a no-watermark <code>download_url</code>; photo posts return an <code>image_urls</code> array instead.</p>
     <pre>curl -H "x-api-key: estv_your_key_here" \\
-  "https://esteamstv.devs.surf/api/v1/dev/audiomack?query=your track here"</pre>
+  "https://esteamstv.devs.surf/api/v1/dev/tiktok?url=https://www.tiktok.com/@user/video/..."</pre>
     <pre>{
-  "title": "Track Title",
-  "artist": "Artist Name",
-  "duration_seconds": 180,
+  "type": "video",
+  "title": "Post Title",
+  "author": "username",
   "download_url": "https://esteamstv.devs.surf/api/v1/dev/dl/eyJ1cmwi...",
   "expires_at": "2026-08-05T20:00:00.000Z"
 }</pre>
@@ -1034,16 +1054,39 @@ ${musicPlayerStyle()}
   "https://esteamstv.devs.surf/api/v1/dev/movie?query=Inception"</pre>
     <pre>{
   "title": "Inception",
-  "artist": "Christopher Nolan",
-  "genre": "Action & Adventure",
-  "releaseDate": "2010-07-16T07:00:00Z",
-  "priceFormatted": "USD 14.99",
-  "rating": "PG-13",
+  "overview": "...",
+  "releaseDate": "2010-07-15",
+  "rating": 8.4,
+  "genres": ["Action", "Science Fiction", "Adventure"],
   "runtimeMinutes": 148,
-  "description": "...",
-  "poster": "https://...600x600bb.jpg",
-  "trailerUrl": "https://...",
-  "country": "USA"
+  "poster": "https://image.tmdb.org/t/p/w500/...jpg",
+  "backdrop": "https://image.tmdb.org/t/p/w500/...jpg"
+}</pre>
+
+    <h2 class="doc-h2">Crypto Price</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/crypto?coin=</code></p>
+    <p class="doc-p">Give it a coin name or symbol (e.g. <code>BTC</code>, <code>bitcoin</code>, <code>solana</code>). Returns the live USD and NGN price.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/crypto?coin=BTC"</pre>
+    <pre>{
+  "id": "bitcoin",
+  "name": "Bitcoin",
+  "symbol": "BTC",
+  "priceUsd": 64000.12,
+  "priceNgn": 99000000,
+  "change24hPercent": 1.53,
+  "thumbnail": "https://..."
+}</pre>
+
+    <h2 class="doc-h2">Wikipedia Summary</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/wikipedia?title=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/wikipedia?title=Lagos"</pre>
+    <pre>{
+  "title": "Lagos",
+  "extract": "Lagos is the largest city in Nigeria...",
+  "thumbnail": "https://...",
+  "url": "https://en.wikipedia.org/wiki/Lagos"
 }</pre>
 
     <h2 class="doc-h2">Sports Team</h2>
@@ -1625,7 +1668,7 @@ ${musicPlayerHtml()}
     mp4: { title: 'Try it — MP4 Downloader', method: 'GET', path: '/api/v1/dev/mp4', param: 'query', label: 'Search', placeholder: 'Video title' },
     facebook: { title: 'Try it — Facebook Downloader', method: 'GET', path: '/api/v1/dev/facebook', param: 'url', label: 'Facebook URL', placeholder: 'https://facebook.com/watch/?v=...' },
     instagram: { title: 'Try it — Instagram Downloader', method: 'GET', path: '/api/v1/dev/instagram', param: 'url', label: 'Instagram post/reel URL', placeholder: 'https://www.instagram.com/reel/...' },
-    audiomack: { title: 'Try it — Audiomack', method: 'GET', path: '/api/v1/dev/audiomack', param: 'query', label: 'Search', placeholder: 'Track title or artist' },
+    tiktok: { title: 'Try it — TikTok Downloader', method: 'GET', path: '/api/v1/dev/tiktok', param: 'url', label: 'TikTok URL', placeholder: 'https://www.tiktok.com/@user/video/...' },
     ai: { title: 'Try it — AI', method: 'POST', path: '/api/v1/dev/ai', param: 'prompt', label: 'Prompt', placeholder: 'Ask anything…', body: true },
     qrcode: { title: 'Try it — QR Code', method: 'GET', path: '/api/v1/dev/qrcode', param: 'text', label: 'Text or link', placeholder: 'https://esteamstv.devs.surf', isImage: true },
     shorten: { title: 'Try it — URL Shortener', method: 'POST', path: '/api/v1/dev/shorten', param: 'url', label: 'URL to shorten', placeholder: 'https://example.com/a/very/long/path', body: true },
@@ -1648,6 +1691,8 @@ ${musicPlayerHtml()}
     dogimage: { title: 'Try it — Dog Image', method: 'GET', path: '/api/v1/dev/dogimage', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true },
     movie: { title: 'Try it — Movie Info', method: 'GET', path: '/api/v1/dev/movie', param: 'query', label: 'Movie title', placeholder: 'Inception' },
     sportsteam: { title: 'Try it — Sports Team', method: 'GET', path: '/api/v1/dev/sportsteam', param: 'name', label: 'Team name', placeholder: 'Arsenal' },
+    crypto: { title: 'Try it — Crypto Price', method: 'GET', path: '/api/v1/dev/crypto', param: 'coin', label: 'Coin name or symbol', placeholder: 'BTC' },
+    wikipedia: { title: 'Try it — Wikipedia Summary', method: 'GET', path: '/api/v1/dev/wikipedia', param: 'title', label: 'Article title', placeholder: 'Lagos' },
     tempmail: { title: 'Try it — Temp Mail', method: 'POST', path: '/api/v1/dev/tempmail/create', param: 'note', label: 'No input needed', placeholder: '(optional)', optional: true, body: true },
     videogen: { title: 'Try it — AI Video Generation', method: 'POST', path: '/api/v1/dev/videogen', param: 'prompt', label: 'Prompt', placeholder: 'a cat surfing a wave', body: true },
   };
