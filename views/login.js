@@ -45,17 +45,13 @@ body{
 }
 .aurora{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
 .blob{position:absolute;border-radius:50%;filter:blur(65px);mix-blend-mode:screen}
-.blob-1{width:560px;height:560px;background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.65;top:-160px;left:-140px;animation:blobDrift1 22s ease-in-out infinite}
-.blob-2{width:500px;height:500px;background:radial-gradient(circle,var(--accent2),transparent 70%);opacity:.6;bottom:-180px;right:-120px;animation:blobDrift2 26s ease-in-out infinite}
-.blob-3{width:420px;height:420px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.45;top:38%;left:50%;animation:blobDrift3 30s ease-in-out infinite}
+.blob-1{width:560px;height:560px;background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.65;top:-160px;left:-140px}
+.blob-2{width:500px;height:500px;background:radial-gradient(circle,var(--accent2),transparent 70%);opacity:.6;bottom:-180px;right:-120px}
+.blob-3{width:420px;height:420px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.45;top:38%;left:50%;transform:translate(-50%,-50%)}
 :root[data-theme="light"] .blob{filter:blur(70px);mix-blend-mode:normal}
 :root[data-theme="light"] .blob-1{background:radial-gradient(circle,rgba(0,224,255,.6),transparent 70%);opacity:1}
 :root[data-theme="light"] .blob-2{background:radial-gradient(circle,rgba(124,92,255,.55),transparent 70%);opacity:1}
 :root[data-theme="light"] .blob-3{background:radial-gradient(circle,rgba(255,92,184,.45),transparent 70%);opacity:1}
-@keyframes blobDrift1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(70px,50px) scale(1.12)}}
-@keyframes blobDrift2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-60px,-40px) scale(1.1)}}
-@keyframes blobDrift3{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) translate(-50px,60px) scale(1.18)}}
-@media (prefers-reduced-motion: reduce){.blob{animation:none}}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
