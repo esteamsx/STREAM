@@ -242,7 +242,7 @@ body:has(.ad-overlay.show){overflow:hidden}
 .custom-select-chevron{width:15px;height:15px;color:var(--muted);flex-shrink:0;transition:transform .2s var(--ease)}
 .custom-select.open .custom-select-chevron{transform:rotate(180deg)}
 .custom-select-list{
-  display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:5;max-height:220px;overflow-y:auto;
+  display:none;position:fixed;z-index:200;max-height:220px;overflow-y:auto;
   background:var(--card);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.35);
   padding:6px;
 }
@@ -529,9 +529,17 @@ document.querySelectorAll('.custom-select').forEach((wrap) => {
   const label = btn.querySelector('span');
   const hidden = wrap.querySelector('input[type="hidden"]');
   const list = wrap.querySelector('.custom-select-list');
+  function positionList(){
+    const r = btn.getBoundingClientRect();
+    list.style.left = r.left + 'px';
+    list.style.top = (r.bottom + 6) + 'px';
+    list.style.width = r.width + 'px';
+  }
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     document.querySelectorAll('.custom-select.open').forEach((w) => { if (w !== wrap) w.classList.remove('open'); });
+    const opening = !wrap.classList.contains('open');
+    if (opening) positionList();
     wrap.classList.toggle('open');
   });
   list.addEventListener('click', (e) => {
@@ -548,6 +556,9 @@ document.querySelectorAll('.custom-select').forEach((wrap) => {
 document.addEventListener('click', () => {
   document.querySelectorAll('.custom-select.open').forEach((w) => w.classList.remove('open'));
 });
+window.addEventListener('scroll', () => {
+  document.querySelectorAll('.custom-select.open').forEach((w) => w.classList.remove('open'));
+}, true);
 
 document.getElementById('bonusHeader').addEventListener('click', () => {
   document.getElementById('bonusCard').classList.toggle('open');

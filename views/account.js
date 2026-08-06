@@ -244,8 +244,8 @@ input{font-family:inherit}
 .notif-dot.show{display:block}
 
 .acc-wrap{max-width:520px;margin:0 auto;padding:28px 18px 60px}
-.acc-views-clip{overflow:hidden}
-.acc-views-track{display:flex;width:200%;transition:transform .4s cubic-bezier(.22,.61,.36,1)}
+.acc-views-clip{overflow:hidden;transition:height .3s var(--ease)}
+.acc-views-track{display:flex;align-items:flex-start;width:200%;transition:transform .4s cubic-bezier(.22,.61,.36,1)}
 .acc-views-track.show-rewards{transform:translateX(-50%)}
 .acc-view-panel{width:50%;flex-shrink:0;min-width:0}
 
@@ -327,12 +327,13 @@ input{font-family:inherit}
 }
 .field select:focus{border-color:var(--accent)}
 
+.acc-swipe-hint-row{display:flex;justify-content:center;margin-bottom:14px}
 .acc-swipe-hint{
-  background:transparent;border:none;padding:6px;color:var(--muted);display:flex;align-items:center;
-  border-radius:8px;flex-shrink:0;cursor:pointer;
+  background:transparent;border:none;padding:6px 12px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  border-radius:20px;cursor:pointer;font-size:.72rem;font-weight:600;font-family:inherit;
 }
 .acc-swipe-hint:hover{color:var(--accent)}
-.swipe-hint-icon{width:18px;height:18px;animation:swipeHintPulse 1.8s ease-in-out infinite}
+.swipe-hint-icon{width:15px;height:15px;flex-shrink:0;animation:swipeHintPulse 1.8s ease-in-out infinite}
 @keyframes swipeHintPulse{
   0%,100%{transform:translateX(0);opacity:.5}
   50%{transform:translateX(3px);opacity:1}
@@ -418,7 +419,7 @@ input{font-family:inherit}
 .custom-select-chevron{width:16px;height:16px;color:var(--muted);flex-shrink:0;transition:transform .2s var(--ease)}
 .custom-select.open .custom-select-chevron{transform:rotate(180deg)}
 .custom-select-list{
-  display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:5;max-height:220px;overflow-y:auto;
+  display:none;position:fixed;z-index:200;max-height:220px;overflow-y:auto;
   background:var(--card);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.35);
   padding:6px;
 }
@@ -774,9 +775,6 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="acc-hero-name" id="heroName">Hi, –</div>
       <div class="acc-hero-email" id="heroEmail">–</div>
     </div>
-    <button type="button" class="acc-swipe-hint" id="accSwipeHint" aria-label="Swipe for Rewards" title="Swipe for Rewards">
-      <svg class="swipe-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>
-    </button>
     <button type="button" class="acc-verify-link" id="getVerifiedLink" style="display:none">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
       Get Verified
@@ -787,7 +785,14 @@ body:has(.page-overlay.show){overflow:hidden}
     </button>
   </div>
 
-  <div class="acc-views-clip">
+  <div class="acc-swipe-hint-row">
+    <button type="button" class="acc-swipe-hint" id="accSwipeHint" aria-label="Swipe for Rewards">
+      <svg class="swipe-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>
+      <span>Swipe for Rewards</span>
+    </button>
+  </div>
+
+  <div class="acc-views-clip" id="accViewsClip">
   <div class="acc-views-track" id="accViewsTrack">
   <div id="view-account" class="acc-view-panel">
 
@@ -1947,6 +1952,7 @@ async function loadProfile(){
   if (window.location.hash === '#addEmail' && addEmailLink.style.display !== 'none') {
     document.getElementById('addEmailOverlay').classList.add('show');
   }
+  syncPanelHeight();
 }
 loadProfile();
 
@@ -2434,9 +2440,17 @@ document.querySelectorAll('.custom-select').forEach((wrap) => {
   const label = btn.querySelector('span');
   const hidden = wrap.querySelector('input[type="hidden"]');
   const list = wrap.querySelector('.custom-select-list');
+  function positionList(){
+    const r = btn.getBoundingClientRect();
+    list.style.left = r.left + 'px';
+    list.style.top = (r.bottom + 6) + 'px';
+    list.style.width = r.width + 'px';
+  }
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     document.querySelectorAll('.custom-select.open').forEach((w) => { if (w !== wrap) w.classList.remove('open'); });
+    const opening = !wrap.classList.contains('open');
+    if (opening) positionList();
     wrap.classList.toggle('open');
   });
   list.addEventListener('click', (e) => {
@@ -2453,6 +2467,9 @@ document.querySelectorAll('.custom-select').forEach((wrap) => {
 document.addEventListener('click', () => {
   document.querySelectorAll('.custom-select.open').forEach((w) => w.classList.remove('open'));
 });
+window.addEventListener('scroll', () => {
+  document.querySelectorAll('.custom-select.open').forEach((w) => w.classList.remove('open'));
+}, true);
 
 if (resetToken) {
   document.getElementById('pwDefaultView').style.display = 'none';
@@ -3607,12 +3624,24 @@ async function confirmVerificationPayment(reference){
 
 let rewardsSummary = null;
 
+function syncPanelHeight(){
+  const clip = document.getElementById('accViewsClip');
+  const track = document.getElementById('accViewsTrack');
+  const activePanel = track.classList.contains('show-rewards')
+    ? document.getElementById('view-rewards')
+    : document.getElementById('view-account');
+  clip.style.height = activePanel.scrollHeight + 'px';
+}
+window.addEventListener('resize', syncPanelHeight);
+
 function showAccount(){
   document.getElementById('accViewsTrack').classList.remove('show-rewards');
+  syncPanelHeight();
   window.scrollTo(0, 0);
 }
 function showRewards(){
   document.getElementById('accViewsTrack').classList.add('show-rewards');
+  syncPanelHeight();
   window.scrollTo(0, 0);
 }
 document.getElementById('accSwipeHint').addEventListener('click', () => {
@@ -3759,6 +3788,7 @@ async function loadRewardsSummary(){
       btn.addEventListener('click', () => openWithdrawalCertificate(btn.getAttribute('data-cert-wd')));
     });
   }
+  syncPanelHeight();
 }
 
 document.getElementById('rwDailyClaimBtn').addEventListener('click', async () => {

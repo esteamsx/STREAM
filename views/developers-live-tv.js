@@ -210,7 +210,7 @@ body:has(.page-overlay.show){overflow:hidden}
 }
 .custom-select input[type="text"]:focus{border-color:var(--accent)}
 .custom-select-list{
-  display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:5;max-height:220px;overflow-y:auto;
+  display:none;position:fixed;z-index:200;max-height:220px;overflow-y:auto;
   background:var(--card);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.35);
   padding:6px;
 }
@@ -1107,12 +1107,20 @@ ${musicPlayerHtml()}
     });
   }
 
+  function positionTryitList(){
+    var r = tryitSearch.getBoundingClientRect();
+    tryitList.style.left = r.left + 'px';
+    tryitList.style.top = (r.bottom + 6) + 'px';
+    tryitList.style.width = r.width + 'px';
+  }
+
   if(tryitSearch){
-    tryitSearch.addEventListener('focus', function(){ tryitWrap.classList.add('open'); renderTryitOptions(''); });
-    tryitSearch.addEventListener('input', function(){ tryitWrap.classList.add('open'); renderTryitOptions(tryitSearch.value); });
+    tryitSearch.addEventListener('focus', function(){ positionTryitList(); tryitWrap.classList.add('open'); renderTryitOptions(''); });
+    tryitSearch.addEventListener('input', function(){ positionTryitList(); tryitWrap.classList.add('open'); renderTryitOptions(tryitSearch.value); });
     document.addEventListener('click', function(e){
       if(!tryitWrap.contains(e.target)) tryitWrap.classList.remove('open');
     });
+    window.addEventListener('scroll', function(){ tryitWrap.classList.remove('open'); }, true);
   }
 
   function renderChannelList(filter){
