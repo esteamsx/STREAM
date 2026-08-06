@@ -405,6 +405,14 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         }
         return;
       }
+      if (/PING FAILED/i.test(line)) {
+        entry.pingFailCount = (entry.pingFailCount || 0) + 1;
+        if (entry.pingFailCount >= 5) {
+          pushLog(entry, "Bot's internal ping check keeps failing, restarting the process to recover…");
+          if (entry.proc) entry.proc.kill("SIGTERM");
+        }
+        return;
+      }
     });
   };
   proc.stdout.on("data", (buf) => onOutput(buf, "out"));
