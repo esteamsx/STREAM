@@ -604,7 +604,17 @@ input{font-family:inherit}
 
 .pv-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;position:relative}
 .pv-configure{background:transparent;border:none;color:var(--accent);font-weight:700;font-size:.78rem;text-decoration:underline;padding:4px;flex-shrink:0}
-.pv-menu{position:absolute;right:0;top:calc(100% + 4px);background:var(--card);border:1px solid var(--border-strong);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:20;overflow:hidden;min-width:130px}
+.pv-menu{
+  position:absolute;right:0;top:calc(100% + 4px);z-index:20;overflow:hidden;min-width:130px;border-radius:10px;
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),var(--card);
+  border:1px solid rgba(255,255,255,.18);
+  box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.12);
+}
+:root[data-theme="light"] .pv-menu{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%),var(--card);
+  border:1px solid rgba(255,255,255,.6);
+  box-shadow:0 10px 30px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
+}
 .pv-menu.pv-menu-up{top:auto;bottom:calc(100% + 4px)}
 .pv-menu button{display:block;width:100%;text-align:left;padding:10px 14px;background:transparent;border:none;color:var(--text);font-size:.82rem}
 .pv-menu button:hover{background:var(--dark3)}

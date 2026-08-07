@@ -278,8 +278,15 @@ body:has(.ad-overlay.show){overflow:hidden}
 .custom-select.open .custom-select-chevron{transform:rotate(180deg)}
 .custom-select-list{
   display:none;position:fixed;z-index:200;max-height:220px;overflow-y:auto;
-  background:var(--card);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.35);
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),var(--card);
+  border:1px solid rgba(255,255,255,.18);border-radius:12px;
+  box-shadow:0 12px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.12);
   padding:6px;
+}
+:root[data-theme="light"] .custom-select-list{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%),var(--card);
+  border:1px solid rgba(255,255,255,.6);
+  box-shadow:0 12px 30px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
 }
 .custom-select.open .custom-select-list{display:block}
 .custom-select-option{
@@ -570,10 +577,28 @@ document.querySelectorAll('.custom-select').forEach((wrap) => {
   const label = btn.querySelector('span');
   const hidden = wrap.querySelector('input[type="hidden"]');
   const list = wrap.querySelector('.custom-select-list');
+  function fixedContainingBlock(el){
+    let p = el.parentElement;
+    while (p && p !== document.body) {
+      const s = getComputedStyle(p);
+      if (s.transform !== 'none' || s.perspective !== 'none' || s.filter !== 'none' ||
+          s.backdropFilter !== 'none' || /transform|perspective|filter/.test(s.willChange || '')) return p;
+      p = p.parentElement;
+    }
+    return null;
+  }
   function positionList(){
     const r = btn.getBoundingClientRect();
-    list.style.left = r.left + 'px';
-    list.style.top = (r.bottom + 6) + 'px';
+    let left = r.left;
+    let top = r.bottom + 6;
+    const anchor = fixedContainingBlock(list);
+    if (anchor) {
+      const a = anchor.getBoundingClientRect();
+      left -= a.left;
+      top -= a.top;
+    }
+    list.style.left = left + 'px';
+    list.style.top = top + 'px';
     list.style.width = r.width + 'px';
   }
   btn.addEventListener('click', (e) => {
