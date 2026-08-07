@@ -152,9 +152,9 @@ function ensureOverlayStyles() {
   padding-top:max(28px,env(safe-area-inset-top));gap:10px}
 #${OVERLAY_ID}.fs-top-mode .fs-abstract,#${OVERLAY_ID}.fs-top-mode .fs-status,#${OVERLAY_ID}.fs-top-mode .fs-cancel{
   pointer-events:auto}
-#${OVERLAY_ID}.fs-top-mode .fs-abstract{width:74px;height:74px}
-#${OVERLAY_ID}.fs-top-mode .fs-abstract-face{width:38px;height:38px}
-#${OVERLAY_ID}.fs-top-mode .fs-abstract-check,#${OVERLAY_ID}.fs-top-mode .fs-abstract-cross{width:34px;height:34px}
+#${OVERLAY_ID}.fs-top-mode .fs-abstract{width:158px;height:158px}
+#${OVERLAY_ID}.fs-top-mode .fs-abstract-face{width:60px;height:60px}
+#${OVERLAY_ID}.fs-top-mode .fs-abstract-check,#${OVERLAY_ID}.fs-top-mode .fs-abstract-cross{width:52px;height:52px}
 #${OVERLAY_ID}.fs-top-mode .fs-status{background:rgba(20,20,28,.75);backdrop-filter:blur(12px);
   padding:6px 14px;border-radius:14px;font-size:.76rem}
 #${OVERLAY_ID}.fs-top-mode .fs-cancel{padding:5px 16px;font-size:.72rem}
@@ -188,8 +188,16 @@ function ensureOverlayStyles() {
 
 #${OVERLAY_ID} .fs-abstract{position:relative;width:120px;height:120px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;color:#00E0FF;border-radius:32%;overflow:hidden}
-#${OVERLAY_ID} .fs-scan-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1}
-#${OVERLAY_ID} .fs-abstract-backdrop{position:absolute;inset:0;background:rgba(10,10,16,.94)}
+#${OVERLAY_ID} .fs-scan-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1;
+  transform:scaleX(-1)}
+#${OVERLAY_ID} .fs-abstract-backdrop{position:absolute;inset:0;background:rgba(10,10,16,.94);
+  transition:opacity .25s ease}
+#${OVERLAY_ID} .fs-abstract.fs-live .fs-abstract-backdrop{opacity:0}
+#${OVERLAY_ID} .fs-abstract.fs-live .fs-abstract-ring{border-width:3px;border-color:rgba(0,224,255,.8);
+  box-shadow:0 0 0 1px rgba(0,0,0,.35),0 10px 30px rgba(0,0,0,.45)}
+#${OVERLAY_ID} .fs-abstract.fs-live .fs-abstract-face{opacity:0;transform:scale(.7)}
+#${OVERLAY_ID} .fs-abstract.fs-live.success .fs-abstract-backdrop,
+#${OVERLAY_ID} .fs-abstract.fs-live.failed .fs-abstract-backdrop{opacity:1}
 #${OVERLAY_ID} .fs-abstract-ring{position:absolute;inset:0;border-radius:32%;border:2px solid rgba(0,224,255,.35);
   animation:fsPulse 1.6s ease-in-out infinite}
 @keyframes fsPulse{
@@ -362,7 +370,8 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         const faceapi = await modelsPromise;
         if (cancelled) return;
 
-        setStatus(showCamera ? 'Position your face in the frame' : 'Scanning…');
+        if (abstractEl) abstractEl.classList.add('fs-live');
+        setStatus(showCamera ? 'Position your face in the frame' : 'Center your face in the circle');
 
         const srcW = video.videoWidth || 480;
         const srcH = video.videoHeight || 480;
@@ -487,7 +496,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           }
           if (!probe) {
             noFaceCount++;
-            if (showCamera) setStatus('Position your face in the frame');
+            setStatus(showCamera ? 'Position your face in the frame' : 'Center your face in the circle');
             again(tick);
             return;
           }
@@ -497,6 +506,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             again(tick);
             return;
           }
+          if (!requireLiveness) setStatus('Hold still');
 
           const wantDescriptor = !requireLiveness || turnStage === 3;
           const result = await runDetect(true, wantDescriptor);
