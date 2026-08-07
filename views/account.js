@@ -383,7 +383,7 @@ input{font-family:inherit}
 .rw-withdraw-payout{font-size:.8rem;color:var(--accent);font-weight:600;margin-top:8px;min-height:16px}
 .rw-empty{font-size:.8rem;color:var(--muted);text-align:center;padding:16px 4px}
 
-.rw-referral-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:260px;overflow-y:auto}
+.rw-referral-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:190px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-right:4px}
 .rw-ref-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;background:var(--card2);border:1px solid var(--border)}
 .rw-ref-row-name{font-size:.82rem;font-weight:600}
 .rw-ref-row-meta{font-size:.7rem;color:var(--muted);margin-top:2px}
@@ -399,7 +399,12 @@ input{font-family:inherit}
 .rw-store-item-cost,.rw-buy-item-cost{font-size:.72rem;color:var(--muted)}
 .rw-store-item button,.rw-buy-item button{width:100%;margin-top:auto}
 
-.rw-withdrawal-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto}
+.rw-withdrawal-list{display:flex;flex-direction:column;gap:8px;max-height:190px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-right:4px}
+.rw-referral-list::-webkit-scrollbar,.rw-withdrawal-list::-webkit-scrollbar{width:4px}
+.rw-referral-list::-webkit-scrollbar-track,.rw-withdrawal-list::-webkit-scrollbar-track{background:transparent}
+.rw-referral-list::-webkit-scrollbar-thumb,.rw-withdrawal-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
+.rw-referral-list::-webkit-scrollbar-thumb:hover,.rw-withdrawal-list::-webkit-scrollbar-thumb:hover{background:rgba(0,224,255,.45)}
+:root[data-theme="light"] .rw-referral-list::-webkit-scrollbar-thumb,:root[data-theme="light"] .rw-withdrawal-list::-webkit-scrollbar-thumb{background:rgba(20,20,28,.22)}
 .rw-wd-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;background:var(--card2);border:1px solid var(--border)}
 .rw-wd-row-amount{font-size:.85rem;font-weight:700}
 .rw-wd-row-meta{font-size:.7rem;color:var(--muted);margin-top:2px}
