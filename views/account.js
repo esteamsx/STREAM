@@ -750,6 +750,8 @@ body:has(.page-overlay.show){overflow:hidden}
 .verify-benefits{display:flex;flex-direction:column;gap:9px;margin:2px 0}
 .verify-benefit{display:flex;align-items:center;gap:9px;font-size:.82rem;color:var(--text)}
 .verify-benefit svg{width:16px;height:16px;color:var(--green);flex-shrink:0}
+.verify-benefit.htw-benefit{align-items:flex-start;text-align:left;line-height:1.5}
+.verify-benefit.htw-benefit svg{margin-top:2px}
 .verify-price-row{
   display:flex;align-items:baseline;justify-content:center;gap:6px;padding:14px 0;
   border-top:1px dashed var(--border-strong);border-bottom:1px dashed var(--border-strong);
@@ -1193,10 +1195,15 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="rw-wallet-card">
         <div class="rw-wallet-top">
           <div class="rw-wallet-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Wallet Balance</div>
-          <button type="button" class="rw-wallet-eye" id="rwBalanceEyeBtn" aria-label="Show balance">
-            <svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-            <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.6 21.6 0 015.06-6.06M9.9 4.24A10.4 10.4 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>
-          </button>
+          <div style="display:flex;align-items:center;gap:2px">
+            <button type="button" class="rw-wallet-eye" id="rwHowToEarnBtn" aria-label="How to earn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2 1.7-2.3 3.2"/><circle cx="12" cy="16.6" r=".35" fill="currentColor" stroke="none"/></svg>
+            </button>
+            <button type="button" class="rw-wallet-eye" id="rwBalanceEyeBtn" aria-label="Show balance">
+              <svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.6 21.6 0 015.06-6.06M9.9 4.24A10.4 10.4 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+            </button>
+          </div>
         </div>
         <div class="rw-wallet-val" id="rwNairaBalance">&#8358;0</div>
         <div class="rw-wallet-sub" id="rwCoinBalanceSub">0 coins</div>
@@ -1324,6 +1331,22 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
   </div>
 
+</div>
+
+<div class="page-overlay" id="howToEarnOverlay">
+  <div class="overlay-card" style="max-width:380px">
+    <div class="verify-icon-wrap">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2 1.7-2.3 3.2"/><circle cx="12" cy="16.6" r=".4" fill="currentColor" stroke="none"/></svg>
+    </div>
+    <div class="overlay-title" style="text-align:center">How to Earn</div>
+    <div class="overlay-sub" style="text-align:center">Three ways to build up your balance on ES TEAMS TV.</div>
+    <div class="verify-benefits">
+      <div class="verify-benefit htw-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span><b>Daily Claim</b>: tap Claim on this page once a day for +2 free coins.</span></div>
+      <div class="verify-benefit htw-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span><b>Refer Friends</b>: share your referral link below. You get +5 coins the moment someone signs up with it, plus 15% cash commission on anything they pay for afterward (except when they buy coins).</span></div>
+      <div class="verify-benefit htw-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span><b>Spend or Cash Out</b>: coins can be spent in the Coin Store on request-limit boosts or free verification. Referral commission builds up as real Naira, which a verified account can withdraw to a bank account.</span></div>
+    </div>
+    <button class="acc-btn" id="howToEarnCloseBtn" style="width:100%">Got It</button>
+  </div>
 </div>
 
 <div class="page-overlay" id="rwWithdrawOverlay">
@@ -4287,6 +4310,11 @@ document.getElementById('rwWithdrawAmount').addEventListener('input', (e) => {
   if (Number(e.target.value) > 100000) e.target.value = '100000';
   updateWithdrawPayoutNote();
 });
+
+const howToEarnOverlay = document.getElementById('howToEarnOverlay');
+document.getElementById('rwHowToEarnBtn').addEventListener('click', () => howToEarnOverlay.classList.add('show'));
+document.getElementById('howToEarnCloseBtn').addEventListener('click', () => howToEarnOverlay.classList.remove('show'));
+howToEarnOverlay.addEventListener('click', (e) => { if (e.target === howToEarnOverlay) howToEarnOverlay.classList.remove('show'); });
 
 const rwWithdrawOverlay = document.getElementById('rwWithdrawOverlay');
 document.getElementById('rwWithdrawBtn').addEventListener('click', () => {
