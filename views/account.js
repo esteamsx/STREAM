@@ -360,6 +360,9 @@ input{font-family:inherit}
 .rw-wallet-top{display:flex;align-items:center;justify-content:space-between}
 .rw-wallet-label{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .rw-wallet-label svg{width:14px;height:14px;color:var(--accent)}
+.rw-label-info-btn{background:transparent;border:none;padding:0;margin-left:1px;color:var(--muted);display:flex;align-items:center;cursor:pointer}
+.rw-label-info-btn:hover{color:var(--accent)}
+.rw-label-info-btn svg{width:14px;height:14px;color:inherit}
 .rw-wallet-eye{background:transparent;border:none;padding:4px;color:var(--muted);display:flex;border-radius:6px}
 .rw-wallet-eye:hover{color:var(--accent)}
 .rw-wallet-eye svg{width:16px;height:16px}
@@ -1194,11 +1197,13 @@ body:has(.page-overlay.show){overflow:hidden}
     <div class="rw-balance-grid">
       <div class="rw-wallet-card">
         <div class="rw-wallet-top">
-          <div class="rw-wallet-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Wallet Balance</div>
-          <div style="display:flex;align-items:center;gap:2px">
-            <button type="button" class="rw-wallet-eye" id="rwHowToEarnBtn" aria-label="How to earn">
+          <div class="rw-wallet-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Wallet Balance
+            <button type="button" class="rw-label-info-btn" id="rwHowToEarnBtn" aria-label="How to earn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2 1.7-2.3 3.2"/><circle cx="12" cy="16.6" r=".35" fill="currentColor" stroke="none"/></svg>
             </button>
+          </div>
+          <div style="display:flex;align-items:center;gap:2px">
             <button type="button" class="rw-wallet-eye" id="rwBalanceEyeBtn" aria-label="Show balance">
               <svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
               <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.6 21.6 0 015.06-6.06M9.9 4.24A10.4 10.4 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>
