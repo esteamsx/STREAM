@@ -14,6 +14,7 @@ const DESCRIPTOR_LENGTH = 128;
 const DETECT_TIMEOUT_MS = 3000;
 const DEFAULT_SAMPLES = 4;
 const SOFT_DEADLINE_MS = 5000;
+const NO_FACE_TIMEOUT_MS = 12000;
 
 const FACE_CLIP_PATH_D =
   'M 0.5 0.03 C 0.75 0.03 0.95 0.22 0.95 0.42 C 0.95 0.60 0.85 0.72 0.80 0.80 ' +
@@ -426,6 +427,11 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           const elapsed = Date.now() - startTime;
           if (!requireLiveness && collected.length > 0 && elapsed > SOFT_DEADLINE_MS) {
             finishCapture(collected);
+            return;
+          }
+          if (!requireLiveness && collected.length === 0 && elapsed > NO_FACE_TIMEOUT_MS) {
+            cleanup();
+            reject(new Error("Couldn't see your face. Make sure the camera isn't blocked, move somewhere brighter, and try again."));
             return;
           }
           if (elapsed > CAPTURE_TIMEOUT_MS) {
