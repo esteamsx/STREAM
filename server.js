@@ -5516,8 +5516,16 @@ app.post("/api/facescan/verify", facescanVerifyLimiter, async (req, res) => {
     res.json({ customToken });
   } catch (err) {
     console.error("[facescan-verify]", err.stack || err);
-    const notFound = err.code === "facescan/not-found";
-    res.status(notFound ? 404 : 400).json({ error: notFound ? "Face not recognized. Try again." : (err.message || "Could not verify face scan.") });
+    const code = err.code || "";
+    if (code === "facescan/not-found") {
+      return res.status(404).json({
+        error: "Face not recognized. Move somewhere brighter, hold the phone at eye level, and try again.",
+      });
+    }
+    if (code === "facescan/none-enrolled" || code === "facescan/ambiguous") {
+      return res.status(code === "facescan/none-enrolled" ? 404 : 400).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message || "Could not verify face scan." });
   }
 });
 

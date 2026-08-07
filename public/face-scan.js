@@ -9,10 +9,10 @@ const DETECT_INPUT_SIZE = 160;
 const DETECT_SCORE_THRESHOLD = 0.2;
 const WORK_CANVAS_MAX = 480;
 const MIN_FACE_RATIO = 0.12;
-const CAMERA_SETTLE_MS = 280;
-const STABLE_FRAMES_NEEDED = 1;
+const CAMERA_SETTLE_MS = 420;
 const DESCRIPTOR_LENGTH = 128;
 const DETECT_TIMEOUT_MS = 3000;
+const DEFAULT_SAMPLES = 5;
 
 const FACE_CLIP_PATH_D =
   'M 0.5 0.03 C 0.75 0.03 0.95 0.22 0.95 0.42 C 0.95 0.60 0.85 0.72 0.80 0.80 ' +
@@ -234,6 +234,15 @@ function headTurnRatio(landmarks) {
   return -((nose.x - eyeMidX) / eyeDist);
 }
 
+function averageDescriptors(list) {
+  const out = new Array(DESCRIPTOR_LENGTH).fill(0);
+  list.forEach((d) => {
+    for (let i = 0; i < DESCRIPTOR_LENGTH; i++) out[i] += d[i];
+  });
+  for (let i = 0; i < DESCRIPTOR_LENGTH; i++) out[i] /= list.length;
+  return out;
+}
+
 function headPitchRatio(landmarks) {
   const leftEye = avgPoint(landmarks.getLeftEye());
   const rightEye = avgPoint(landmarks.getRightEye());
@@ -244,7 +253,8 @@ function headPitchRatio(landmarks) {
   return (chin.y - eyeMidY) / eyeDist;
 }
 
-export function captureFaceDescriptor({ requireLiveness = true, showCamera = true, verify = null, voice = true } = {}) {
+export function captureFaceDescriptor({ requireLiveness = true, showCamera = true, verify = null, voice = true, samples = DEFAULT_SAMPLES, returnSamples = false } = {}) {
+  const sampleTarget = Math.max(1, samples);
   ensureOverlayStyles();
   const overlay = document.createElement('div');
   overlay.id = OVERLAY_ID;
@@ -365,10 +375,14 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
         let turnStage = 0;
         let nodBaseline = null;
-        let stableFrames = 0;
+        let neutralPitch = null;
+        const collected = [];
         const startTime = Date.now();
 
-        const finishCapture = async (descriptor) => {
+        const finishCapture = async (collected) => {
+          const descriptor = averageDescriptors(collected);
+          const payload = returnSamples ? { descriptor, samples: collected } : descriptor;
+
           if (!verify) {
             overlay.classList.add('fs-success');
             if (abstractEl) abstractEl.classList.add('success');
@@ -376,14 +390,14 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             setStatus('Face recognized');
             setTimeout(() => {
               cleanup();
-              resolve(descriptor);
+              resolve(payload);
             }, RESULT_HOLD_MS);
             return;
           }
 
           setStatus('Verifying…');
           try {
-            const outcome = await verify(descriptor);
+            const outcome = await verify(descriptor, collected);
             overlay.classList.add('fs-success');
             if (abstractEl) abstractEl.classList.add('success');
             playSuccessSound();
@@ -435,23 +449,23 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           const descriptor = result.descriptor ? Array.from(result.descriptor) : null;
 
           if (!descriptor || descriptor.length !== DESCRIPTOR_LENGTH) {
-            stableFrames = 0;
+            collected.length = 0;
             if (showCamera) setStatus('Position your face in the frame');
             again(tick);
             return;
           }
 
           if (result.detection.box.width < work.width * MIN_FACE_RATIO) {
-            stableFrames = 0;
+            collected.length = 0;
             if (showCamera) setStatus('Move a little closer');
             again(tick);
             return;
           }
 
           if (!requireLiveness) {
-            stableFrames++;
-            if (stableFrames >= STABLE_FRAMES_NEEDED) {
-              finishCapture(descriptor);
+            collected.push(descriptor);
+            if (collected.length >= sampleTarget) {
+              finishCapture(collected);
               return;
             }
             again(tick);
@@ -461,6 +475,9 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           const turnRatio = headTurnRatio(result.landmarks);
 
           if (turnStage === 0) {
+            if (neutralPitch === null && Math.abs(turnRatio) < CENTER_THRESHOLD) {
+              neutralPitch = headPitchRatio(result.landmarks);
+            }
             setStatus('Turn your head to the left');
             if (turnRatio < -TURN_THRESHOLD) {
               turnStage = 1;
@@ -483,9 +500,18 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
               setStatus('Hold still');
             }
           } else if (turnStage === 3) {
-            if (Math.abs(turnRatio) < CENTER_THRESHOLD) {
-              finishCapture(descriptor);
-              return;
+            const levelEnough =
+              neutralPitch === null ||
+              Math.abs(headPitchRatio(result.landmarks) - neutralPitch) < NOD_THRESHOLD;
+            if (Math.abs(turnRatio) < CENTER_THRESHOLD && levelEnough) {
+              collected.push(descriptor);
+              if (collected.length >= sampleTarget) {
+                finishCapture(collected);
+                return;
+              }
+            } else {
+              collected.length = 0;
+              setStatus('Look straight at the camera and hold still');
             }
           }
 

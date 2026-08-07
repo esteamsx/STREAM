@@ -1315,7 +1315,9 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
 
 
 const FACE_DESCRIPTOR_LENGTH = 128;
-const FACE_MATCH_THRESHOLD = 0.5;
+const FACE_MATCH_THRESHOLD = 0.55;
+const FACE_AMBIGUITY_MARGIN = 0.05;
+const FACE_MAX_SAMPLES = 8;
 
 function isValidFaceDescriptor(descriptor) {
   return (
@@ -1323,6 +1325,29 @@ function isValidFaceDescriptor(descriptor) {
     descriptor.length === FACE_DESCRIPTOR_LENGTH &&
     descriptor.every((n) => typeof n === "number" && Number.isFinite(n))
   );
+}
+
+function normalizeFaceSamples(input) {
+  if (isValidFaceDescriptor(input)) return [input];
+  if (!Array.isArray(input)) return [];
+  const samples = [];
+  for (const entry of input) {
+    if (isValidFaceDescriptor(entry)) samples.push(entry);
+    else if (entry && isValidFaceDescriptor(entry.v)) samples.push(entry.v);
+    if (samples.length >= FACE_MAX_SAMPLES) break;
+  }
+  return samples;
+}
+
+function storedFaceSamples(data) {
+  const samples = [];
+  if (Array.isArray(data?.samples)) {
+    for (const entry of data.samples) {
+      if (entry && isValidFaceDescriptor(entry.v)) samples.push(entry.v);
+    }
+  }
+  if (isValidFaceDescriptor(data?.descriptor)) samples.push(data.descriptor);
+  return samples;
 }
 
 function faceEuclideanDistance(a, b) {
@@ -1340,7 +1365,8 @@ async function getFaceScanForUser(uid) {
 }
 
 async function enrollFaceScan(uid, descriptor) {
-  if (!isValidFaceDescriptor(descriptor)) {
+  const samples = normalizeFaceSamples(descriptor);
+  if (!samples.length) {
     throw new Error("Invalid face scan data. Try again.");
   }
   const existing = await getFaceScanForUser(uid);
@@ -1348,7 +1374,8 @@ async function enrollFaceScan(uid, descriptor) {
     throw new Error("Face Scan is already set up for this account. Remove it first to set up a different one.");
   }
   await db.collection("face_recognition_credentials").doc(uid).set({
-    descriptor,
+    descriptor: samples[0],
+    samples: samples.map((v) => ({ v })),
     createdAt: Date.now(),
   });
 }
@@ -1360,22 +1387,52 @@ async function removeFaceScan(uid) {
 }
 
 async function matchFaceScan(descriptor) {
-  if (!isValidFaceDescriptor(descriptor)) {
+  const probes = normalizeFaceSamples(descriptor);
+  if (!probes.length) {
     throw new Error("Invalid face scan data.");
   }
   const snap = await db.collection("face_recognition_credentials").get();
   let bestUid = null;
   let bestDistance = Infinity;
+  let runnerUpDistance = Infinity;
+  let enrolled = 0;
   snap.forEach((doc) => {
-    const data = doc.data();
-    if (!isValidFaceDescriptor(data.descriptor)) return;
-    const distance = faceEuclideanDistance(descriptor, data.descriptor);
+    const samples = storedFaceSamples(doc.data());
+    if (!samples.length) return;
+    enrolled++;
+    let distance = Infinity;
+    for (const stored of samples) {
+      for (const probe of probes) {
+        const d = faceEuclideanDistance(probe, stored);
+        if (d < distance) distance = d;
+      }
+    }
     if (distance < bestDistance) {
+      runnerUpDistance = bestDistance;
       bestDistance = distance;
       bestUid = doc.id;
+    } else if (distance < runnerUpDistance) {
+      runnerUpDistance = distance;
     }
   });
+
+  if (!enrolled) {
+    const err = new Error("No face has been set up yet. Add Face Scan from your account settings first.");
+    err.code = "facescan/none-enrolled";
+    throw err;
+  }
+
+  const fmt = (n) => (Number.isFinite(n) ? n.toFixed(3) : "n/a");
+  console.log(
+    `[facescan-match] accounts=${enrolled} probes=${probes.length} best=${fmt(bestDistance)} runnerUp=${fmt(runnerUpDistance)} threshold=${FACE_MATCH_THRESHOLD}`
+  );
+
   if (bestUid && bestDistance <= FACE_MATCH_THRESHOLD) {
+    if (runnerUpDistance - bestDistance < FACE_AMBIGUITY_MARGIN) {
+      const err = new Error("Could not tell your face apart from another account. Please sign in with your password.");
+      err.code = "facescan/ambiguous";
+      throw err;
+    }
     return bestUid;
   }
   const err = new Error("No matching face found.");

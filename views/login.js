@@ -1123,9 +1123,9 @@ async function signInWithFaceId(){
       requireLiveness: false,
       showCamera: false,
       voice: false,
-      verify: async (descriptor) => {
+      verify: async (descriptor, samples) => {
         const verifyStart = performance.now();
-        const { customToken } = await postJSON('/api/facescan/verify', { descriptor });
+        const { customToken } = await postJSON('/api/facescan/verify', { descriptor: [descriptor].concat(samples || []) });
         console.log('[faceid-timing] server verify call: ' + Math.round(performance.now() - verifyStart) + 'ms');
         return customToken;
       },
