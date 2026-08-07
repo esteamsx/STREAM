@@ -14,7 +14,9 @@ const DESCRIPTOR_LENGTH = 128;
 const DETECT_TIMEOUT_MS = 3000;
 const DEFAULT_SAMPLES = 4;
 const SOFT_DEADLINE_MS = 5000;
-const NO_FACE_TIMEOUT_MS = 12000;
+const NO_FACE_TIMEOUT_MS = 25000;
+const MIN_NO_FACE_ATTEMPTS = 18;
+const DETECT_TIMEOUT_SENTINEL = {};
 
 const FACE_CLIP_PATH_D =
   'M 0.5 0.03 C 0.75 0.03 0.95 0.22 0.95 0.42 C 0.95 0.60 0.85 0.72 0.80 0.80 ' +
@@ -380,8 +382,18 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         let neutralPitch = null;
         const collected = [];
         const startTime = Date.now();
+        let noFaceCount = 0;
+        let tooSmallCount = 0;
+        let detectTimeouts = 0;
+
+        function scanReport(){
+          return 'attempts(no-face)=' + noFaceCount + ' too-small=' + tooSmallCount +
+            ' detector-timeouts=' + detectTimeouts + ' samples=' + collected.length +
+            ' elapsed=' + Math.round((Date.now() - startTime) / 1000) + 's';
+        }
 
         const finishCapture = async (collected) => {
+          console.log('[face-scan] captured: ' + scanReport());
           const descriptor = averageDescriptors(collected);
           const payload = returnSamples ? { descriptor, samples: collected } : descriptor;
 
@@ -429,14 +441,21 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             finishCapture(collected);
             return;
           }
-          if (!requireLiveness && collected.length === 0 && elapsed > NO_FACE_TIMEOUT_MS) {
+          if (!requireLiveness && collected.length === 0 && elapsed > NO_FACE_TIMEOUT_MS &&
+              (noFaceCount + tooSmallCount) >= MIN_NO_FACE_ATTEMPTS) {
+            console.log('[face-scan] giving up early: ' + scanReport());
             cleanup();
-            reject(new Error("Couldn't see your face. Make sure the camera isn't blocked, move somewhere brighter, and try again."));
+            reject(new Error(tooSmallCount > noFaceCount
+              ? 'Hold the phone a bit closer to your face and try again.'
+              : "Couldn't see your face. Make sure the camera isn't blocked, move somewhere brighter, and try again."));
             return;
           }
           if (elapsed > CAPTURE_TIMEOUT_MS) {
+            console.log('[face-scan] timed out: ' + scanReport());
             cleanup();
-            reject(new Error('Timed out waiting for a face. Try again.'));
+            reject(new Error(tooSmallCount > 0
+              ? 'Hold the phone a bit closer to your face and try again.'
+              : 'Timed out waiting for a face. Try again.'));
             return;
           }
 
@@ -447,13 +466,21 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
           workCtx.drawImage(video, 0, 0, work.width, work.height);
 
-          const result = await Promise.race([
+          const raced = await Promise.race([
             faceapi.detectSingleFace(work, detectOptions).withFaceLandmarks().withFaceDescriptor(),
-            new Promise((r) => setTimeout(() => r(null), DETECT_TIMEOUT_MS)),
+            new Promise((r) => setTimeout(() => r(DETECT_TIMEOUT_SENTINEL), DETECT_TIMEOUT_MS)),
           ]);
           if (cancelled) return;
 
+          if (raced === DETECT_TIMEOUT_SENTINEL) {
+            detectTimeouts++;
+            again(tick);
+            return;
+          }
+          const result = raced;
+
           if (!result) {
+            noFaceCount++;
             again(tick);
             return;
           }
@@ -467,7 +494,8 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           }
 
           if (result.detection.box.width < work.width * MIN_FACE_RATIO) {
-            if (showCamera) setStatus('Move a little closer');
+            tooSmallCount++;
+            setStatus('Move a little closer');
             again(tick);
             return;
           }
