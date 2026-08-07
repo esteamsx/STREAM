@@ -358,6 +358,26 @@ app.use(crossOriginWriteGuard);
 
 app.use(express.json({ limit: "25mb", verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(cookieParser());
+
+const REFERRAL_CODE_RE = /^[A-Z0-9]{4,16}$/;
+const REFERRAL_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+app.use((req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+  const raw = req.query?.ref;
+  if (!raw) return next();
+  const code = String(raw).trim().toUpperCase();
+  if (!REFERRAL_CODE_RE.test(code)) return next();
+  res.cookie("ref_code", code, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: REFERRAL_COOKIE_MAX_AGE_MS,
+  });
+  next();
+});
+
 app.use(maintenanceGate);
 app.use(apiRouter);
 app.use(devApiRouter);
