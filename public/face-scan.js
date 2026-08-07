@@ -1,6 +1,6 @@
 const OVERLAY_ID = 'faceScanOverlay';
 const CLIP_ID = 'faceScanClipPath';
-const CAPTURE_TIMEOUT_MS = 60000;
+const CAPTURE_TIMEOUT_MS = 75000;
 const TURN_THRESHOLD = 0.16;
 const CENTER_THRESHOLD = 0.09;
 const NOD_THRESHOLD = 0.12;
@@ -11,7 +11,7 @@ const WORK_CANVAS_MAX = 480;
 const MIN_FACE_RATIO = 0.12;
 const CAMERA_SETTLE_MS = 420;
 const DESCRIPTOR_LENGTH = 128;
-const DETECT_TIMEOUT_MS = 3000;
+const DETECT_TIMEOUT_MS = 5000;
 const DEFAULT_SAMPLES = 3;
 const SOFT_DEADLINE_MS = 5000;
 const NO_FACE_TIMEOUT_MS = 25000;
@@ -40,7 +40,13 @@ async function loadModels() {
     try {
       await faceapiModule.tf.setBackend('webgl');
       await faceapiModule.tf.ready();
-    } catch (e) {}
+    } catch (e) {
+      try {
+        console.warn('[face-scan] webgl backend unavailable, falling back to cpu:', e);
+        await faceapiModule.tf.setBackend('cpu');
+        await faceapiModule.tf.ready();
+      } catch (e2) {}
+    }
     if (!modelsLoaded) {
       await Promise.all([
         faceapiModule.nets.tinyFaceDetector.loadFromUri('/vendor/face-api-models'),
@@ -443,14 +449,28 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
         const again = (fn) => { loopTimer = setTimeout(fn, 0); };
 
+        // Tracks the currently-running detector call so a slow device never ends up
+        // with several overlapping detectSingleFace() calls in flight at once. Without
+        // this, a call that misses the DETECT_TIMEOUT_MS deadline was simply abandoned
+        // (not cancelled) while the next tick immediately started a fresh one on top of
+        // it, so on borderline-slow hardware each "timeout" made the next call slower
+        // still, snowballing until the whole scan always timed out.
+        let pendingTask = null;
+        let pendingKey = null;
+
         const runDetect = (withLandmarks, withDescriptor) => {
-          let task = faceapi.detectSingleFace(work, detectOptions);
-          if (withLandmarks) {
-            task = task.withFaceLandmarks();
-            if (withDescriptor) task = task.withFaceDescriptor();
+          const key = withLandmarks ? (withDescriptor ? 'full' : 'landmarks') : 'probe';
+          if (!pendingTask || pendingKey !== key) {
+            let task = faceapi.detectSingleFace(work, detectOptions);
+            if (withLandmarks) {
+              task = task.withFaceLandmarks();
+              if (withDescriptor) task = task.withFaceDescriptor();
+            }
+            pendingKey = key;
+            pendingTask = task.finally(() => { pendingTask = null; pendingKey = null; });
           }
           return Promise.race([
-            task,
+            pendingTask,
             new Promise((r) => setTimeout(() => r(DETECT_TIMEOUT_SENTINEL), DETECT_TIMEOUT_MS)),
           ]);
         };
