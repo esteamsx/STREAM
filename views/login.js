@@ -90,6 +90,39 @@ input{font-family:inherit}
 :root[data-theme="light"] .auth-tabs{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.5)}
 :root[data-theme="light"] .auth-tab.active{background:rgba(255,255,255,.85);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 
+.otp-notice{
+  display:flex;align-items:flex-start;gap:11px;
+  background:linear-gradient(135deg,rgba(245,166,35,.18),rgba(245,166,35,.06));
+  border:1px solid rgba(245,166,35,.34);border-radius:12px;
+  padding:11px 13px;margin-bottom:18px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14);
+}
+.otp-notice-icon{
+  width:30px;height:30px;border-radius:9px;flex-shrink:0;
+  background:rgba(245,166,35,.2);color:#F5A623;
+  display:flex;align-items:center;justify-content:center;
+  transform-origin:50% 15%;animation:otpSwing 3s ease-in-out infinite;
+}
+.otp-notice-icon svg{width:16px;height:16px}
+@keyframes otpSwing{
+  0%,62%,100%{transform:rotate(0deg)}
+  68%{transform:rotate(-13deg)}
+  76%{transform:rotate(10deg)}
+  84%{transform:rotate(-6deg)}
+  92%{transform:rotate(3deg)}
+}
+@media(prefers-reduced-motion:reduce){.otp-notice-icon{animation:none}}
+.otp-notice-body{flex:1;min-width:0}
+.otp-notice-title{font-family:var(--font-display);font-weight:700;font-size:.81rem;color:#F5A623;letter-spacing:-.01em}
+.otp-notice-text{font-size:.755rem;color:var(--muted);line-height:1.5;margin-top:3px}
+.otp-notice-text b{color:var(--text);font-weight:600}
+:root[data-theme="light"] .otp-notice{
+  background:linear-gradient(135deg,rgba(245,166,35,.2),rgba(245,166,35,.08));
+  border-color:rgba(184,120,10,.4);
+}
+:root[data-theme="light"] .otp-notice-title{color:#95610A}
+:root[data-theme="light"] .otp-notice-icon{background:rgba(245,166,35,.26);color:#95610A}
+
 .auth-form{display:none;flex-direction:column;gap:14px}
 .auth-form.active{display:flex}
 
@@ -318,6 +351,16 @@ body:has(.page-overlay.show){overflow:hidden}
     <div class="auth-tabs">
       <button class="auth-tab active" data-tab="login">Sign In</button>
       <button class="auth-tab" data-tab="signup">Create Account</button>
+    </div>
+
+    <div class="otp-notice">
+      <span class="otp-notice-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      </span>
+      <div class="otp-notice-body">
+        <div class="otp-notice-title">Email OTP is currently unavailable</div>
+        <div class="otp-notice-text">Verification codes are not being delivered right now. Please continue with <b>Google</b>, <b>Telegram</b>, <b>GitHub</b>, a <b>passkey</b>, or <b>Face ID</b> instead.</div>
+      </div>
     </div>
 
     <div class="auth-error" id="authError"></div>
