@@ -87,6 +87,42 @@ input[type=text],textarea,select{
 }
 textarea{resize:vertical;min-height:100px}
 input[type=text]:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+
+.xsel{position:relative}
+.xsel>select{position:absolute;opacity:0;width:0;height:0;padding:0;border:0;pointer-events:none}
+.xsel-btn{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:var(--card2);border:1px solid var(--border-strong);border-radius:10px;
+  padding:11px 13px;color:var(--text);font-family:var(--font-mono);font-size:.85rem;
+  text-align:left;cursor:pointer;transition:border-color .18s var(--ease);
+}
+.xsel-btn:hover,.xsel.open .xsel-btn{border-color:var(--accent)}
+.xsel-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xsel-chev{width:15px;height:15px;color:var(--muted);flex-shrink:0;transition:transform .2s var(--ease)}
+.xsel.open .xsel-chev{transform:rotate(180deg)}
+.xsel-list{
+  display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:50;
+  max-height:240px;overflow-y:auto;overscroll-behavior:contain;padding:6px;
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),var(--card);
+  border:1px solid rgba(255,255,255,.18);border-radius:12px;
+  box-shadow:0 12px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.12);
+}
+.xsel.open .xsel-list{display:block}
+.xsel-opt{
+  padding:9px 10px;border-radius:8px;font-family:var(--font-body);font-size:.84rem;
+  color:var(--text);cursor:pointer;
+}
+.xsel-opt:hover,.xsel-opt.active{background:var(--card2);color:var(--accent)}
+.xsel-opt.disabled{opacity:.45;cursor:not-allowed}
+.xsel-list::-webkit-scrollbar{width:4px}
+.xsel-list::-webkit-scrollbar-track{background:transparent}
+.xsel-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
+:root[data-theme="light"] .xsel-list{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%),var(--card);
+  border:1px solid rgba(255,255,255,.6);
+  box-shadow:0 12px 30px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
+}
+:root[data-theme="light"] .xsel-list::-webkit-scrollbar-thumb{background:rgba(20,20,28,.22)}
 .field{margin-bottom:14px}
 .field-row{display:flex;gap:10px}
 .field-row .field{flex:1}
@@ -259,7 +295,85 @@ ${musicPlayerHtml()}
     });
   }
 
+  function enhanceSelect(sel){
+    if (sel.getAttribute('data-xsel')) return;
+    sel.setAttribute('data-xsel', '1');
+
+    var wrap = document.createElement('div');
+    wrap.className = 'xsel';
+    sel.parentNode.insertBefore(wrap, sel);
+    wrap.appendChild(sel);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'xsel-btn';
+    btn.innerHTML = '<span class="xsel-label"></span><svg class="xsel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>';
+    wrap.appendChild(btn);
+
+    var list = document.createElement('div');
+    list.className = 'xsel-list';
+    wrap.appendChild(list);
+
+    var lbl = btn.querySelector('.xsel-label');
+
+    function syncLabel(){
+      var o = sel.options[sel.selectedIndex];
+      lbl.textContent = o ? o.textContent : '';
+    }
+    function buildList(){
+      list.innerHTML = '';
+      Array.prototype.forEach.call(sel.options, function(o, i){
+        var item = document.createElement('div');
+        item.className = 'xsel-opt' + (i === sel.selectedIndex ? ' active' : '') + (o.disabled ? ' disabled' : '');
+        item.textContent = o.textContent;
+        item.setAttribute('data-i', String(i));
+        list.appendChild(item);
+      });
+    }
+    function close(){ wrap.classList.remove('open'); }
+
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var opening = !wrap.classList.contains('open');
+      document.querySelectorAll('.xsel.open').forEach(function(w){ w.classList.remove('open'); });
+      if (opening) { buildList(); syncLabel(); wrap.classList.add('open'); }
+    });
+
+    list.addEventListener('click', function(e){
+      var opt = e.target.closest('.xsel-opt');
+      if (!opt || opt.classList.contains('disabled')) return;
+      e.stopPropagation();
+      sel.selectedIndex = Number(opt.getAttribute('data-i'));
+      syncLabel();
+      close();
+      sel.dispatchEvent(new Event('input', { bubbles: true }));
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    sel.addEventListener('change', syncLabel);
+
+    if (window.MutationObserver) {
+      new MutationObserver(function(){ syncLabel(); if (wrap.classList.contains('open')) buildList(); })
+        .observe(sel, { childList: true, subtree: true, characterData: true });
+    }
+
+    syncLabel();
+  }
+
+  function enhanceAllSelects(){
+    document.querySelectorAll('select:not([data-xsel])').forEach(enhanceSelect);
+  }
+  document.addEventListener('click', function(){
+    document.querySelectorAll('.xsel.open').forEach(function(w){ w.classList.remove('open'); });
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') document.querySelectorAll('.xsel.open').forEach(function(w){ w.classList.remove('open'); });
+  });
+  enhanceAllSelects();
+
   ${script}
+
+  enhanceAllSelects();
 })();
 ${musicPlayerScript()}
 </script>
