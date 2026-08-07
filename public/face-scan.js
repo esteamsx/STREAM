@@ -12,7 +12,8 @@ const MIN_FACE_RATIO = 0.12;
 const CAMERA_SETTLE_MS = 420;
 const DESCRIPTOR_LENGTH = 128;
 const DETECT_TIMEOUT_MS = 3000;
-const DEFAULT_SAMPLES = 5;
+const DEFAULT_SAMPLES = 4;
+const SOFT_DEADLINE_MS = 5000;
 
 const FACE_CLIP_PATH_D =
   'M 0.5 0.03 C 0.75 0.03 0.95 0.22 0.95 0.42 C 0.95 0.60 0.85 0.72 0.80 0.80 ' +
@@ -422,7 +423,12 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
         const tick = async () => {
           if (cancelled) return;
-          if (Date.now() - startTime > CAPTURE_TIMEOUT_MS) {
+          const elapsed = Date.now() - startTime;
+          if (!requireLiveness && collected.length > 0 && elapsed > SOFT_DEADLINE_MS) {
+            finishCapture(collected);
+            return;
+          }
+          if (elapsed > CAPTURE_TIMEOUT_MS) {
             cleanup();
             reject(new Error('Timed out waiting for a face. Try again.'));
             return;
@@ -449,14 +455,12 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           const descriptor = result.descriptor ? Array.from(result.descriptor) : null;
 
           if (!descriptor || descriptor.length !== DESCRIPTOR_LENGTH) {
-            collected.length = 0;
             if (showCamera) setStatus('Position your face in the frame');
             again(tick);
             return;
           }
 
           if (result.detection.box.width < work.width * MIN_FACE_RATIO) {
-            collected.length = 0;
             if (showCamera) setStatus('Move a little closer');
             again(tick);
             return;
@@ -510,7 +514,6 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
                 return;
               }
             } else {
-              collected.length = 0;
               setStatus('Look straight at the camera and hold still');
             }
           }
