@@ -12,7 +12,7 @@ const MIN_FACE_RATIO = 0.12;
 const CAMERA_SETTLE_MS = 420;
 const DESCRIPTOR_LENGTH = 128;
 const DETECT_TIMEOUT_MS = 3000;
-const DEFAULT_SAMPLES = 4;
+const DEFAULT_SAMPLES = 3;
 const SOFT_DEADLINE_MS = 5000;
 const NO_FACE_TIMEOUT_MS = 25000;
 const MIN_NO_FACE_ATTEMPTS = 18;
@@ -434,6 +434,18 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
         const again = (fn) => { loopTimer = setTimeout(fn, 0); };
 
+        const runDetect = (withLandmarks, withDescriptor) => {
+          let task = faceapi.detectSingleFace(work, detectOptions);
+          if (withLandmarks) {
+            task = task.withFaceLandmarks();
+            if (withDescriptor) task = task.withFaceDescriptor();
+          }
+          return Promise.race([
+            task,
+            new Promise((r) => setTimeout(() => r(DETECT_TIMEOUT_SENTINEL), DETECT_TIMEOUT_MS)),
+          ]);
+        };
+
         const tick = async () => {
           if (cancelled) return;
           const elapsed = Date.now() - startTime;
@@ -466,36 +478,42 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
           workCtx.drawImage(video, 0, 0, work.width, work.height);
 
-          const raced = await Promise.race([
-            faceapi.detectSingleFace(work, detectOptions).withFaceLandmarks().withFaceDescriptor(),
-            new Promise((r) => setTimeout(() => r(DETECT_TIMEOUT_SENTINEL), DETECT_TIMEOUT_MS)),
-          ]);
+          const probe = await runDetect(false, false);
           if (cancelled) return;
-
-          if (raced === DETECT_TIMEOUT_SENTINEL) {
+          if (probe === DETECT_TIMEOUT_SENTINEL) {
             detectTimeouts++;
             again(tick);
             return;
           }
-          const result = raced;
+          if (!probe) {
+            noFaceCount++;
+            if (showCamera) setStatus('Position your face in the frame');
+            again(tick);
+            return;
+          }
+          if (probe.box.width < work.width * MIN_FACE_RATIO) {
+            tooSmallCount++;
+            setStatus('Move a little closer');
+            again(tick);
+            return;
+          }
 
+          const wantDescriptor = !requireLiveness || turnStage === 3;
+          const result = await runDetect(true, wantDescriptor);
+          if (cancelled) return;
+          if (result === DETECT_TIMEOUT_SENTINEL) {
+            detectTimeouts++;
+            again(tick);
+            return;
+          }
           if (!result) {
             noFaceCount++;
             again(tick);
             return;
           }
 
-          const descriptor = result.descriptor ? Array.from(result.descriptor) : null;
-
-          if (!descriptor || descriptor.length !== DESCRIPTOR_LENGTH) {
-            if (showCamera) setStatus('Position your face in the frame');
-            again(tick);
-            return;
-          }
-
-          if (result.detection.box.width < work.width * MIN_FACE_RATIO) {
-            tooSmallCount++;
-            setStatus('Move a little closer');
+          const descriptor = wantDescriptor && result.descriptor ? Array.from(result.descriptor) : null;
+          if (wantDescriptor && (!descriptor || descriptor.length !== DESCRIPTOR_LENGTH)) {
             again(tick);
             return;
           }
