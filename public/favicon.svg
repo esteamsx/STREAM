@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ES TEAMS TV">
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="96" y1="128" x2="416" y2="400">
+      <stop offset="0" stop-color="#00E0FF"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="#0A0A0F"/>
+  <rect x="8" y="8" width="496" height="496" rx="108" fill="none" stroke="url(#g)" stroke-width="16" stroke-opacity=".55"/>
+  <rect x="96" y="128" width="320" height="216" rx="36" fill="none" stroke="url(#g)" stroke-width="26"/>
+  <path d="M232 196v80l70-40z" fill="url(#g)"/>
+  <path d="M196 384h120" stroke="url(#g)" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="256" cy="384" r="9" fill="#0A0A0F"/>
+</svg>
