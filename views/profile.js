@@ -564,6 +564,9 @@ body:has(.page-overlay.show){overflow:hidden}
 .pf-post-more-btn svg{width:18px;height:18px}
 .pf-post-reshare-label{display:flex;align-items:center;gap:6px;font-size:.76rem;color:var(--accent);font-weight:700;margin-bottom:8px;cursor:pointer}
 .pf-post-reshare-label svg{width:14px;height:14px}
+.pf-post-pinned-label{display:flex;align-items:center;gap:6px;font-size:.76rem;color:#F5B700;font-weight:700;margin-bottom:8px}
+.pf-post-pinned-label svg{width:14px;height:14px}
+.pf-post.is-pinned{border:1px solid rgba(245,183,0,.35);background:linear-gradient(180deg,rgba(245,183,0,.06),transparent 60%)}
 .pf-post-edited{font-size:.68rem;color:var(--muted)}
 .post-opt-btn{
   display:flex;align-items:center;gap:12px;width:100%;padding:12px 10px;background:transparent;border:none;
@@ -1450,9 +1453,16 @@ function initFollowingFeedFab(){
 
 function createPostCard(post, isOwner){
   const card = document.createElement('div');
-  card.className = 'pf-post';
+  card.className = 'pf-post' + (post.pinnedAt ? ' is-pinned' : '');
   card.id = 'post-' + post.id;
   card.style.position = 'relative';
+
+  if (post.pinnedAt) {
+    const pinnedLabel = document.createElement('div');
+    pinnedLabel.className = 'pf-post-pinned-label';
+    pinnedLabel.innerHTML = PIN_ICON + '<span>Pinned</span>';
+    card.appendChild(pinnedLabel);
+  }
 
   if (post.resharedFrom) {
     const reshareLabel = document.createElement('div');
@@ -1581,6 +1591,22 @@ function openPostOptions(post, isOwner, cardEl){
     visBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg><span>Who Can View</span><span class="post-opt-sub">' + visibilityLabel(post.visibility) + '</span>';
     visBtn.addEventListener('click', () => openPostVisibility(post));
     body.appendChild(visBtn);
+
+    const pinBtn = document.createElement('button');
+    pinBtn.type = 'button';
+    pinBtn.className = 'post-opt-btn';
+    pinBtn.innerHTML = PIN_ICON + '<span>' + (post.pinnedAt ? 'Unpin' : 'Pin to Profile') + '</span>';
+    pinBtn.addEventListener('click', async () => {
+      document.getElementById('postOptionsOverlay').classList.remove('show');
+      try {
+        const result = await postJSON('/api/posts/' + post.id + '/pin', {});
+        showToast(result.pinned ? 'Post pinned.' : 'Post unpinned.');
+        if (ownProfile && ownProfile.username) loadPosts(ownProfile.username, true);
+      } catch (err) {
+        showToast(err.message || 'Could not update that post.');
+      }
+    });
+    body.appendChild(pinBtn);
 
     const editBtn = document.createElement('button');
     editBtn.type = 'button';

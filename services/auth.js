@@ -1597,6 +1597,25 @@ async function addNotification(uid, type, message, meta = null) {
   }
 }
 
+async function broadcastNotification(message, meta = null) {
+  const usersSnap = await db.collection("users").select().get();
+  const uids = usersSnap.docs.map((d) => d.id);
+  const createdAt = Date.now();
+  const chunkSize = 400;
+  let sent = 0;
+  for (let i = 0; i < uids.length; i += chunkSize) {
+    const chunk = uids.slice(i, i + chunkSize);
+    const batch = db.batch();
+    chunk.forEach((uid) => {
+      const ref = db.collection("notifications").doc();
+      batch.set(ref, { uid, type: "broadcast", message, meta, createdAt, read: false });
+    });
+    await batch.commit();
+    sent += chunk.length;
+  }
+  return { sent, total: uids.length };
+}
+
 async function getNotifications(uid, limit = 50) {
   const snap = await db.collection("notifications").where("uid", "==", uid).limit(200).get();
   const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -1830,9 +1849,13 @@ async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
     reshareEnabled: true,
     linksEnabled: true,
     reshareCount: 0,
+    pinnedAt: null,
     editedAt: null,
     createdAt: Date.now(),
   };
+  if (isAdminEmail(author.email)) {
+    post.bonusLikes = 50 + Math.floor(Math.random() * 51);
+  }
   const ref = await db.collection("posts").add(post);
 
   const authorName = `${author.firstName || ""} ${author.lastName || ""}`.trim() || `@${author.username}`;
@@ -1841,7 +1864,7 @@ async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
     await addNotification(t.uid, "tag", `${authorName} tagged you.`, { postId: ref.id, postUrl });
   }
 
-  return { id: ref.id, ...post, likesCount: 0, likedByViewer: false, commentsCount: 0 };
+  return { id: ref.id, ...post, likesCount: post.bonusLikes || 0, likedByViewer: false, commentsCount: 0 };
 }
 
 async function resolveEffectivePostStats(rawPosts) {
@@ -1861,6 +1884,7 @@ async function resolveEffectivePostStats(rawPosts) {
       likedBy: src.likedBy || [],
       commentsCount: src.commentsCount || 0,
       commentsEnabled: src.commentsEnabled !== false,
+      bonusLikes: src.bonusLikes || 0,
     });
   }
   return result;
@@ -1876,7 +1900,7 @@ async function resolveCommentTargetPostId(postId) {
 async function getPostsByUser(targetUid, viewerUid) {
   const snap = await db.collection("posts").where("uid", "==", targetUid).limit(200).get();
   const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  posts.sort((a, b) => b.createdAt - a.createdAt);
+  posts.sort((a, b) => (b.pinnedAt ? 1 : 0) - (a.pinnedAt ? 1 : 0) || b.createdAt - a.createdAt);
 
   const isOwner = viewerUid === targetUid;
   let mutualFollow = false;
@@ -1908,9 +1932,10 @@ async function getPostsByUser(targetUid, viewerUid) {
       reshareEnabled: p.reshareEnabled !== false,
       linksEnabled: p.linksEnabled !== false,
       reshareCount: p.reshareCount || 0,
+      pinnedAt: p.pinnedAt || null,
       editedAt: p.editedAt || null,
       createdAt: p.createdAt,
-      likesCount: stats.likedBy.length,
+      likesCount: stats.likedBy.length + (stats.bonusLikes || 0),
       likedByViewer: viewerUid ? stats.likedBy.includes(viewerUid) : false,
       commentsCount: stats.commentsCount,
     };
@@ -2020,6 +2045,28 @@ async function deletePost(uid, postId) {
   return { ok: true };
 }
 
+async function togglePinPost(uid, postId) {
+  const ref = db.collection("posts").doc(postId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("Post not found.");
+  const post = snap.data();
+  if (post.uid !== uid) throw new Error("You can only pin your own posts.");
+
+  if (post.pinnedAt) {
+    await ref.update({ pinnedAt: null });
+    return { pinned: false };
+  }
+
+  const existingSnap = await db.collection("posts").where("uid", "==", uid).limit(200).get();
+  const batch = db.batch();
+  existingSnap.forEach((d) => {
+    if (d.id !== postId && d.data().pinnedAt) batch.update(d.ref, { pinnedAt: null });
+  });
+  batch.update(ref, { pinnedAt: Date.now() });
+  await batch.commit();
+  return { pinned: true };
+}
+
 async function resharePost(uid, postId) {
   const ref = db.collection("posts").doc(postId);
   const snap = await ref.get();
@@ -2044,6 +2091,7 @@ async function resharePost(uid, postId) {
     reshareEnabled: true,
     linksEnabled: true,
     reshareCount: 0,
+    pinnedAt: null,
     editedAt: null,
     createdAt: Date.now(),
   };
@@ -2358,7 +2406,7 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
       text: p.text || "",
       imageDataUrl: p.imageDataUrl || null,
       createdAt: p.createdAt,
-      likesCount: stats.likedBy.length,
+      likesCount: stats.likedBy.length + (stats.bonusLikes || 0),
       likedByViewer: stats.likedBy.includes(uid),
       commentsCount: stats.commentsCount,
       commentsEnabled: stats.commentsEnabled,
@@ -4002,6 +4050,7 @@ export {
   updatePost,
   deletePost,
   resharePost,
+  togglePinPost,
   getPostOwner,
   getCommentAuthorUid,
   addComment,
@@ -4016,6 +4065,7 @@ export {
   getFollowingFeed,
   getFollowingFeedUnseenCount,
   addNotification,
+  broadcastNotification,
   getNotifications,
   hasUnreadNotifications,
   markAllNotificationsRead,

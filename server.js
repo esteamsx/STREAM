@@ -206,6 +206,7 @@ import {
   updatePost,
   deletePost,
   resharePost,
+  togglePinPost,
   getPostOwner,
   getCommentAuthorUid,
   addComment,
@@ -254,6 +255,7 @@ import {
   API_PLANS,
   SESSION_TTL_MS,
   createBonusCode,
+  broadcastNotification,
   listBonusCodes,
   adminListWithdrawalRequests,
   adminConfirmWithdrawalPaid,
@@ -3833,13 +3835,17 @@ app.get("/api/admin/push/stats", requireAuth, requireAdmin, async (req, res) => 
 
 app.post("/api/admin/push/broadcast", requireAuth, requireAdmin, async (req, res) => {
   try {
-    if (!PUSH_ENABLED) return res.status(400).json({ error: "Push is not configured on this server." });
     const title = String(req.body?.title || "").trim();
     const body = String(req.body?.body || "").trim();
     const url = String(req.body?.url || "/").trim();
     if (!title || !body) return res.status(400).json({ error: "Title and message are required." });
-    const result = await broadcastPush({ title, body, url, tag: "esteamstv-broadcast" });
-    res.json(result);
+
+    const inApp = await broadcastNotification(`${title}: ${body}`, { url });
+    const push = PUSH_ENABLED
+      ? await broadcastPush({ title, body, url, tag: "esteamstv-broadcast" })
+      : { sent: 0, failed: 0, total: 0 };
+
+    res.json({ inApp, push });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not send broadcast." });
@@ -5557,6 +5563,15 @@ app.post("/api/posts/:postId/reshare", requireAuth, async (req, res) => {
     res.json({ ok: true, post });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not reshare that post." });
+  }
+});
+
+app.post("/api/posts/:postId/pin", requireAuth, async (req, res) => {
+  try {
+    const result = await togglePinPost(req.uid, req.params.postId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not update that post." });
   }
 });
 
