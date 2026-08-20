@@ -50,6 +50,14 @@ body{
 .blob-1{width:560px;height:560px;background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.5;top:-160px;left:-140px}
 .blob-2{width:500px;height:500px;background:radial-gradient(circle,var(--accent2),transparent 70%);opacity:.45;bottom:-180px;right:-120px}
 .blob-3{width:420px;height:420px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.32;top:38%;left:50%;transform:translate(-50%,-50%)}
+.cr-support-fab{
+  position:fixed;right:20px;bottom:24px;z-index:90;width:48px;height:48px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
+  cursor:pointer;transition:transform .15s var(--ease);
+}
+.cr-support-fab:active{transform:scale(.94)}
+.cr-support-fab svg{width:21px;height:21px}
 :root[data-theme="light"] .blob{filter:blur(70px);mix-blend-mode:normal}
 :root[data-theme="light"] .blob-1{background:radial-gradient(circle,rgba(0,224,255,.5),transparent 70%);opacity:1}
 :root[data-theme="light"] .blob-2{background:radial-gradient(circle,rgba(124,92,255,.45),transparent 70%);opacity:1}
@@ -217,6 +225,10 @@ altcha-widget{--altcha-max-width:100%}
   <div class="cr-nav-title">Channel Reaction</div>
   <div class="cr-build">${PAGE_BUILD}</div>
 </div>
+
+<a href="/account?openSupport=1" class="cr-support-fab" aria-label="Customer Care" title="Customer Care">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0116 0v1"/><rect x="2" y="13" width="5" height="7" rx="2"/><rect x="17" y="13" width="5" height="7" rx="2"/><path d="M20 20a4 4 0 01-4 4h-2"/></svg>
+</a>
 
 <div class="cr-wrap">
 

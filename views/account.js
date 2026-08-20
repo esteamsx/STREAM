@@ -4087,6 +4087,9 @@ function initSupportFab(){
     if (profile.isAdmin) openSupportInbox();
     else openSupportChat(profile.uid, 'Customer Care', false);
   });
+  if (!profile.isAdmin && new URLSearchParams(window.location.search).get('openSupport') === '1') {
+    openSupportChat(profile.uid, 'Customer Care', false);
+  }
   document.getElementById('supportInboxCloseBtn').addEventListener('click', () => {
     document.getElementById('supportInboxOverlay').classList.remove('show');
   });

@@ -3053,6 +3053,7 @@ async function redeemBonusCode(uid, rawCode, product) {
 const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const REFERRAL_SIGNUP_COINS = 5;
 const DAILY_COIN_CLAIM_AMOUNT = 2;
+const ADMIN_DAILY_COIN_CLAIM_AMOUNT = 5;
 const REFERRAL_COMMISSION_RATE = 0.15;
 const MIN_WITHDRAWAL_NGN = 3000;
 const MAX_WITHDRAWAL_NGN = 100000;
@@ -3142,6 +3143,7 @@ async function claimDailyCoins(uid, faceDescriptor) {
   const probes = await checkClaimFace(uid, faceDescriptor);
   const today = currentUsageDay();
   const ref = db.collection("users").doc(uid);
+  let amount = DAILY_COIN_CLAIM_AMOUNT;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new Error("Account not found.");
@@ -3149,13 +3151,14 @@ async function claimDailyCoins(uid, faceDescriptor) {
     if (data.lastDailyCoinClaimDay === today) {
       throw Object.assign(new Error("You've already claimed today's coins. Come back tomorrow."), { status: 400 });
     }
-    tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(DAILY_COIN_CLAIM_AMOUNT), lastDailyCoinClaimDay: today }, { merge: true });
+    if (isAdminEmail(data.email)) amount = ADMIN_DAILY_COIN_CLAIM_AMOUNT;
+    tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(amount), lastDailyCoinClaimDay: today }, { merge: true });
   });
   await saveClaimFace(uid, probes);
   await addNotification(uid, "daily_claim", "You have successfully claimed daily coins", {
-    amount: DAILY_COIN_CLAIM_AMOUNT,
+    amount,
   });
-  return { amount: DAILY_COIN_CLAIM_AMOUNT };
+  return { amount };
 }
 
 const CHANNEL_REACT_COIN_COST = 5;
@@ -3165,10 +3168,13 @@ async function spendCoins(uid, amount, reason) {
   if (!cost) return { spent: 0, balance: null };
   const userRef = db.collection("users").doc(uid);
   let remaining = 0;
+  let spenderData = null;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
     if (!snap.exists) throw Object.assign(new Error("Account not found."), { status: 404 });
-    const balance = snap.data().coinBalance || 0;
+    const data = snap.data();
+    spenderData = data;
+    const balance = data.coinBalance || 0;
     if (balance < cost) {
       throw Object.assign(
         new Error(`You need ${cost} coins for this. You have ${balance}.`),
@@ -3178,6 +3184,7 @@ async function spendCoins(uid, amount, reason) {
     remaining = balance - cost;
     tx.update(userRef, { coinBalance: admin.firestore.FieldValue.increment(-cost) });
   });
+  creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, cost).catch(() => {});
   return { spent: cost, balance: remaining, reason: reason || "" };
 }
 
@@ -3190,21 +3197,39 @@ async function refundCoins(uid, amount) {
     .set({ coinBalance: admin.firestore.FieldValue.increment(cost) }, { merge: true });
 }
 
+async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, amount) {
+  if (!amount || isAdminEmail(spenderEmail)) return;
+  try {
+    const snap = await db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get();
+    if (snap.empty) return;
+    const adminDoc = snap.docs[0];
+    if (adminDoc.id === spenderUid) return;
+    await adminDoc.ref.update({ coinBalance: admin.firestore.FieldValue.increment(amount) });
+    const handle = spenderUsername ? `@${spenderUsername}` : "A user";
+    await addNotification(adminDoc.id, "coin_income", `${handle} paid +${amount} coins`, { fromUid: spenderUid, amount });
+  } catch {
+  }
+}
+
 async function redeemCoinsForLimit(uid, itemKey, product) {
   const item = COIN_STORE_ITEMS[itemKey];
   if (!item || !item.bonusAmount) throw Object.assign(new Error("Unknown reward."), { status: 400 });
   const field = product === "devapi" ? "bonusDevApiRequests" : "bonusApiRequests";
   const userRef = db.collection("users").doc(uid);
+  let spenderData = null;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
     if (!snap.exists) throw new Error("Account not found.");
-    const balance = snap.data().coinBalance || 0;
+    const data = snap.data();
+    spenderData = data;
+    const balance = data.coinBalance || 0;
     if (balance < item.coinCost) throw Object.assign(new Error("Not enough coins for that reward."), { status: 400 });
     tx.update(userRef, {
       coinBalance: admin.firestore.FieldValue.increment(-item.coinCost),
       [field]: admin.firestore.FieldValue.increment(item.bonusAmount),
     });
   });
+  creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, item.coinCost).catch(() => {});
   const productLabel = product === "devapi" ? "Developer API" : "Live TV API";
   await addNotification(uid, "coin_redeem", `Redeemed ${item.coinCost} coins for ${item.label} on your ${productLabel}`, { itemKey, product });
   return { amount: item.bonusAmount, coinCost: item.coinCost };
@@ -3213,10 +3238,12 @@ async function redeemCoinsForLimit(uid, itemKey, product) {
 async function redeemCoinsForVerification(uid) {
   const item = COIN_STORE_ITEMS.verify3d;
   const userRef = db.collection("users").doc(uid);
+  let spenderData = null;
   const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
     if (!snap.exists) throw new Error("Account not found.");
     const data = snap.data();
+    spenderData = data;
     const balance = data.coinBalance || 0;
     if (balance < item.coinCost) throw Object.assign(new Error("Not enough coins for that reward."), { status: 400 });
     const base = Math.max(Date.now(), data.verifiedExpiresAt || 0);
@@ -3230,6 +3257,7 @@ async function redeemCoinsForVerification(uid) {
     });
     return { expiresAt };
   });
+  creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, item.coinCost).catch(() => {});
   await addNotification(uid, "coin_redeem", `Redeemed ${item.coinCost} coins for 3-day account verification`, { itemKey: "verify3d" });
   return { expiresAt: result.expiresAt };
 }
@@ -3557,6 +3585,29 @@ async function adminListWithdrawalRequests() {
       return { ...w, username: (profile && profile.username) || "", email: (profile && profile.email) || "" };
     })
   );
+}
+
+async function logChannelReactUse(uid, username, link, charged) {
+  try {
+    await db.collection("channelReactLog").add({
+      uid,
+      username: username || "",
+      link,
+      charged: charged || 0,
+      createdAt: Date.now(),
+      lastResendAt: null,
+    });
+  } catch {
+  }
+}
+
+async function adminListChannelReactLog() {
+  const snap = await db.collection("channelReactLog").orderBy("createdAt", "desc").limit(300).get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+async function adminMarkChannelReactResent(logId) {
+  await db.collection("channelReactLog").doc(logId).update({ lastResendAt: Date.now() }).catch(() => {});
 }
 
 function generateCertificateSerial() {
@@ -4005,6 +4056,9 @@ export {
   listWithdrawalRequestsForUser,
   adminListWithdrawalRequests,
   adminConfirmWithdrawalPaid,
+  logChannelReactUse,
+  adminListChannelReactLog,
+  adminMarkChannelReactResent,
   recordIssuedStreamLink,
   getIssuedStreamLinks,
   issueResetToken,

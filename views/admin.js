@@ -85,8 +85,18 @@ input{font-family:inherit}
   background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
   border:1px solid rgba(255,255,255,.16);
   box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
-  border-radius:16px;margin-bottom:18px;overflow:hidden;
+  border-radius:16px;margin-bottom:18px;overflow:hidden;border-left-width:3px;
 }
+.ad-card.accent-blue{border-left-color:var(--accent)}
+.ad-card.accent-purple{border-left-color:var(--accent2)}
+.ad-card.accent-green{border-left-color:#3DDC84}
+.ad-card.accent-gold{border-left-color:#F5B700}
+.ad-section-label{
+  display:flex;align-items:center;gap:10px;margin:28px 0 12px;font-family:var(--font-display);
+  font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+}
+.ad-section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.ad-section-label:first-child{margin-top:0}
 :root[data-theme="light"] .ad-card{
   background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
   border:1px solid rgba(255,255,255,.55);
@@ -417,6 +427,19 @@ body:has(.ad-overlay.show){overflow:hidden}
 }
 .withdrawal-confirm-btn:disabled{opacity:.55}
 
+.crlog-item{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card2)}
+.crlog-item-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px}
+.crlog-item-user{font-family:var(--font-display);font-weight:700;font-size:.86rem}
+.crlog-item-link{font-size:.72rem;color:var(--muted);line-height:1.5;margin-bottom:10px;word-break:break-all}
+.crlog-item-actions{display:flex;gap:8px}
+.crlog-copy-btn,.crlog-resend-btn{
+  flex:1;padding:8px;border-radius:10px;font-weight:700;font-size:.76rem;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.crlog-copy-btn{background:var(--card);border:1px solid var(--border-strong);color:var(--text)}
+.crlog-resend-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a}
+.crlog-resend-btn:disabled,.crlog-copy-btn:disabled{opacity:.55}
+.ad-scroll-list{max-height:340px}
+
 .ad-toast{
   position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card2);
   border:1px solid var(--border-strong);color:var(--text);padding:11px 18px;border-radius:12px;font-size:.82rem;
@@ -452,7 +475,9 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div>
   </div>
 
-  <div class="ad-card open" id="maintenanceCard">
+  <div class="ad-section-label">Platform</div>
+
+  <div class="ad-card open accent-blue" id="maintenanceCard">
     <div class="ad-card-header" style="cursor:default">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
       <div class="ad-card-header-title">Maintenance Mode</div>
@@ -477,7 +502,7 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div>
   </div>
 
-  <div class="ad-card open" id="pushCard">
+  <div class="ad-card open accent-blue" id="pushCard">
     <div class="ad-card-header" style="cursor:default">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
       <div class="ad-card-header-title">Push Broadcast</div>
@@ -494,7 +519,9 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div>
   </div>
 
-  <div class="ad-card" id="bonusCard">
+  <div class="ad-section-label">Finance &amp; Rewards</div>
+
+  <div class="ad-card accent-gold" id="bonusCard">
     <div class="ad-card-header" id="bonusHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
       <div class="ad-card-header-title">Bonus Codes</div>
@@ -525,7 +552,7 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div></div>
   </div>
 
-  <div class="ad-card" id="withdrawalsCard">
+  <div class="ad-card accent-gold" id="withdrawalsCard">
     <div class="ad-card-header" id="withdrawalsHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
       <div class="ad-card-header-title">Withdrawal Requests</div>
@@ -537,7 +564,21 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div></div>
   </div>
 
-  <div class="ad-card" id="usersCard">
+  <div class="ad-card accent-gold" id="crlogCard">
+    <div class="ad-card-header" id="crlogHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M8 15s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>
+      <div class="ad-card-header-title">Channel Reactions</div>
+      <div class="ad-card-count" id="crlogCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="bonus-list ad-scroll-list" id="crlogList"><div class="sk-stack"><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div></div></div>
+    </div></div>
+  </div>
+
+  <div class="ad-section-label">Users &amp; Moderation</div>
+
+  <div class="ad-card accent-purple" id="usersCard">
     <div class="ad-card-header" id="usersHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
       <div class="ad-card-header-title">User Accounts</div>
@@ -554,7 +595,7 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div></div>
   </div>
 
-  <div class="ad-card" id="bannedCard">
+  <div class="ad-card accent-purple" id="bannedCard">
     <div class="ad-card-header" id="bannedHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8" stroke-linecap="round"/></svg>
       <div class="ad-card-header-title">Banned Users</div>
@@ -566,7 +607,7 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div></div>
   </div>
 
-  <div class="ad-card" id="verifyCard">
+  <div class="ad-card accent-purple" id="verifyCard">
     <div class="ad-card-header" id="verifyHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
       <div class="ad-card-header-title">Account Verification</div>
@@ -581,7 +622,9 @@ body:has(.ad-overlay.show){overflow:hidden}
       <button type="button" class="ad-loadmore" id="verifyLoadMore" style="display:none">Load more</button>
     </div></div>
   </div>
-  <div class="ad-card" id="botsCard">
+  <div class="ad-section-label">Bot Deployments</div>
+
+  <div class="ad-card accent-green" id="botsCard">
     <div class="ad-card-header" id="botsHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="8.5" cy="16" r="1.2"/><circle cx="15.5" cy="16" r="1.2"/><path stroke-linecap="round" d="M12 11V7m-3 0h6"/></svg>
       <div class="ad-card-header-title">Bot Deployments</div>
@@ -597,7 +640,7 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div></div>
   </div>
 
-  <div class="ad-card" id="storageCard">
+  <div class="ad-card accent-green" id="storageCard">
     <div class="ad-card-header" id="storageHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
       <div class="ad-card-header-title">Bot Deployment Storage</div>
@@ -915,6 +958,72 @@ function loadWithdrawals(){
     renderWithdrawalsList(list);
   }).catch(() => { withdrawalsList.innerHTML = '<div class="ad-empty">Could not load withdrawal requests.</div>'; });
 }
+
+const crlogList = document.getElementById('crlogList');
+const crlogCount = document.getElementById('crlogCount');
+
+function fmtCrlogTime(ts){
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }) + ' at ' + d.toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit' });
+}
+
+function crlogItemHtml(entry){
+  return '<div class="crlog-item" data-crlog-id="' + esc(entry.id) + '">' +
+    '<div class="crlog-item-head">' +
+      '<div class="crlog-item-user">@' + esc(entry.username || 'user') + '</div>' +
+      '<span class="status-pill ' + (entry.charged ? 'bad' : 'ok') + '">' + (entry.charged ? entry.charged + ' coins' : 'Free') + '</span>' +
+    '</div>' +
+    '<div class="crlog-item-link">' + esc(entry.link || '') + '<br>' + fmtCrlogTime(entry.createdAt) +
+      (entry.lastResendAt ? ' &middot; Last resent ' + fmtCrlogTime(entry.lastResendAt) : '') +
+    '</div>' +
+    '<div class="crlog-item-actions">' +
+      '<button type="button" class="crlog-copy-btn" data-copy-link="' + esc(entry.link || '') + '">Copy Link</button>' +
+      '<button type="button" class="crlog-resend-btn" data-resend-id="' + esc(entry.id) + '" data-resend-link="' + esc(entry.link || '') + '">Resend</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderCrlogList(list){
+  if(!list.length){ crlogList.innerHTML = '<div class="ad-empty">No channel reactions used yet.</div>'; return; }
+  crlogList.innerHTML = list.map(crlogItemHtml).join('');
+  crlogList.querySelectorAll('[data-copy-link]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const link = btn.getAttribute('data-copy-link');
+      navigator.clipboard.writeText(link).then(() => showToast('Link copied.')).catch(() => showToast('Could not copy link.'));
+    });
+  });
+  crlogList.querySelectorAll('[data-resend-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-resend-id');
+      const link = btn.getAttribute('data-resend-link');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="ad-spinner"></span> Resending…';
+      try {
+        await postJSON('/api/admin/channel-react-log/' + encodeURIComponent(id) + '/resend', { link });
+        showToast('Reaction resent.');
+        loadCrlog();
+      } catch (err) {
+        showToast(err.message || 'Could not resend that reaction.');
+        btn.disabled = false;
+        btn.textContent = 'Resend';
+      }
+    });
+  });
+}
+
+function loadCrlog(){
+  getJSON('/api/admin/channel-react-log').then((data) => {
+    const list = data.entries || [];
+    crlogCount.style.display = list.length ? '' : 'none';
+    crlogCount.textContent = String(list.length);
+    renderCrlogList(list);
+  }).catch(() => { crlogList.innerHTML = '<div class="ad-empty">Could not load channel reactions.</div>'; });
+}
+
+document.getElementById('crlogHeader').addEventListener('click', () => {
+  document.getElementById('crlogCard').classList.toggle('open');
+});
 
 document.getElementById('bonusGenerateBtn').addEventListener('click', () => {
   const btn = document.getElementById('bonusGenerateBtn');
@@ -1898,7 +2007,7 @@ document.getElementById('pushSendBtn').addEventListener('click', async () => {
   try {
     const result = await postJSON('/api/admin/push/broadcast', { title, body, url });
     msg.className = 'ad-modal-msg ok';
-    msg.textContent = 'Sent to ' + result.sent + ' of ' + result.total + ' subscribers.';
+    msg.textContent = 'Sent to ' + result.inApp.sent + ' of ' + result.inApp.total + ' users. Push delivered to ' + result.push.sent + ' device' + (result.push.sent === 1 ? '' : 's') + '.';
     document.getElementById('pushTitleInput').value = '';
     document.getElementById('pushBodyInput').value = '';
     document.getElementById('pushUrlInput').value = '';
@@ -1995,6 +2104,7 @@ document.getElementById('maintenanceEndBtn').addEventListener('click', async () 
 loadMaintenanceStatus();
 loadBonusCodes();
 loadWithdrawals();
+loadCrlog();
 loadUsersPage(true);
 loadBannedUsers();
 loadVerifyPage(true);

@@ -259,6 +259,9 @@ import {
   listBonusCodes,
   adminListWithdrawalRequests,
   adminConfirmWithdrawalPaid,
+  logChannelReactUse,
+  adminListChannelReactLog,
+  adminMarkChannelReactResent,
 } from "./services/auth.js";
 import { chargeAuthorization } from "./services/paystack.js";
 import { paymentsRouter } from "./routes/payments.js";
@@ -3890,6 +3893,33 @@ app.post("/api/admin/withdrawals/:id/confirm", requireAuth, requireAdmin, async 
   }
 });
 
+app.get("/api/admin/channel-react-log", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ entries: await adminListChannelReactLog() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load the channel react log." });
+  }
+});
+
+app.post("/api/admin/channel-react-log/:id/resend", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const link = String(req.body?.link || "").trim();
+    if (!link) return res.status(400).json({ error: "Missing link." });
+    const serviceBot = await resolveServiceBot();
+    if (!serviceBot) return res.status(409).json({ error: "The reaction service is not available right now." });
+    await botServiceFetch(`/internal/bots/${serviceBot.id}/channel-react`, {
+      method: "POST",
+      body: JSON.stringify({ uid: serviceBot.uid, link, mode: "relay" }),
+    });
+    await adminMarkChannelReactResent(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not resend that reaction." });
+  }
+});
+
 app.get("/api/admin/support/threads", requireAuth, requireAdmin, async (req, res) => {
   try {
     res.json({ threads: await getSupportThreadsForAdmin() });
@@ -4580,6 +4610,8 @@ app.post("/api/channel/react", requireAuth, channelReactLimiter, async (req, res
       method: "POST",
       body: JSON.stringify({ uid: serviceBot.uid, link, mode: "relay" }),
     });
+
+    logChannelReactUse(req.uid, profile?.username, link, charged).catch(() => {});
 
     if (charged) {
       await addNotification(req.uid, "coin_spend", `You were charge -${charged} coins for Reactions`, {
