@@ -274,3 +274,25 @@ export async function getGithubRepo(fullName) {
     createdAt: data.created_at,
   };
 }
+
+export async function getAnimeInfo(query) {
+  const clean = String(query || "").trim();
+  if (!clean) throw Object.assign(new Error("Give it a title to search for."), { status: 400 });
+  const data = await fetchJson(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(clean)}&limit=1`);
+  const hit = Array.isArray(data.data) ? data.data[0] : null;
+  if (!hit) throw Object.assign(new Error("Could not find that anime."), { status: 404 });
+  return {
+    title: hit.title,
+    titleEnglish: hit.title_english || null,
+    synopsis: hit.synopsis || null,
+    type: hit.type || null,
+    episodes: hit.episodes ?? null,
+    status: hit.status || null,
+    score: hit.score ?? null,
+    year: hit.year ?? null,
+    genres: Array.isArray(hit.genres) ? hit.genres.map((g) => g.name) : [],
+    image: hit.images?.jpg?.image_url || null,
+    url: hit.url,
+  };
+}
+

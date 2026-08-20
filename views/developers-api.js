@@ -85,7 +85,7 @@ const FEATURES = [
   {
     key: "videogen",
     title: "AI Video Generation",
-    desc: "Generate a short video from a text prompt. Experimental - generation can take 30-120 seconds.",
+    desc: "Generate a short video from a text prompt. Experimental - generation can take 30-120 seconds. Pro/Max plans only.",
     icon: '<rect x="2" y="5" width="15" height="14" rx="2"/><path d="M22 8l-5 3.5L22 15V8z"/>',
     category: "AI & Vision",
     endpoint: "POST /api/v1/dev/videogen",
@@ -95,7 +95,7 @@ const FEATURES = [
   {
     key: "imagegen",
     title: "AI Image Generation",
-    desc: "Generate an image from a text prompt.",
+    desc: "Generate an image from a text prompt. Pro/Max plans only.",
     icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
     category: "AI & Vision",
     endpoint: "GET /api/v1/dev/imagegen?prompt=",
@@ -482,7 +482,28 @@ const FEATURES = [
     live: true,
     example: "GET /api/v1/dev/githubrepo?repo=facebook/react",
   },
+  {
+    key: "anime",
+    title: "Anime Search",
+    desc: "Search for an anime and get its synopsis, score, episodes, genres, and cover image.",
+    icon: '<circle cx="12" cy="12" r="10"/><path d="M8 15s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/>',
+    category: "Lookup",
+    endpoint: "GET /api/v1/dev/anime?query=",
+    live: true,
+    example: "GET /api/v1/dev/anime?query=Naruto",
+  },
+  {
+    key: "shazam",
+    title: "Song Recognition",
+    desc: "Identify a song from an audio or video url, returns the title, artist, and streaming links. Pro/Max plans only.",
+    icon: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    category: "AI & Vision",
+    endpoint: "POST /api/v1/dev/shazam",
+    live: true,
+    example: 'POST /api/v1/dev/shazam  { "url": "https://..." }',
+  },
 ];
+
 
 const CATEGORIES = [];
 FEATURES.forEach((f) => {
@@ -1007,7 +1028,7 @@ ${musicPlayerStyle()}
 
     <h2 class="doc-h2">AI Video Generation</h2>
     <p class="doc-p"><span class="badge badge-post">POST</span> <code>/api/v1/dev/videogen</code></p>
-    <p class="doc-p">Send a text prompt (500 character limit), get back a link to a generated video. Experimental and slow - generation can take 30-120 seconds, so use a generous client timeout. Limited to 2 requests per hour per key.</p>
+    <p class="doc-p"><strong>Requires a Pro or Max plan.</strong> Send a text prompt (500 character limit), get back a link to a generated video. Experimental and slow - generation can take 30-120 seconds, so use a generous client timeout. Limited to 2 requests per hour per key.</p>
     <pre>curl -X POST -H "x-api-key: estv_your_key_here" -H "Content-Type: application/json" \\
   -d '{"prompt":"a cat surfing a wave"}' \\
   "https://esteamstv.devs.surf/api/v1/dev/videogen"</pre>
@@ -1017,7 +1038,7 @@ ${musicPlayerStyle()}
 
     <h2 class="doc-h2">AI Image Generation</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/imagegen?prompt=</code></p>
-    <p class="doc-p">Returns a PNG/JPEG image directly, not JSON. Optional <code>width</code>, <code>height</code> (256-1920, default 1024), and <code>seed</code> for a repeatable result.</p>
+    <p class="doc-p"><strong>Requires a Pro or Max plan.</strong> Returns a PNG/JPEG image directly, not JSON. Optional <code>width</code>, <code>height</code> (256-1920, default 1024), and <code>seed</code> for a repeatable result.</p>
     <pre>curl -H "x-api-key: estv_your_key_here" \\
   "https://esteamstv.devs.surf/api/v1/dev/imagegen?prompt=a cat surfing a wave" \\
   --output image.jpg</pre>
@@ -1496,6 +1517,42 @@ ${musicPlayerStyle()}
   "createdAt": "2013-05-24T16:15:54Z"
 }</pre>
 
+    <h2 class="doc-h2">Anime Search</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/anime?query=</code></p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/anime?query=Naruto"</pre>
+    <pre>{
+  "title": "Naruto",
+  "titleEnglish": "Naruto",
+  "synopsis": "...",
+  "type": "TV",
+  "episodes": 220,
+  "status": "Finished Airing",
+  "score": 7.99,
+  "year": 2002,
+  "genres": ["Action", "Adventure"],
+  "image": "https://cdn.myanimelist.net/images/anime/....jpg",
+  "url": "https://myanimelist.net/anime/20/Naruto"
+}</pre>
+
+    <h2 class="doc-h2">Song Recognition</h2>
+    <p class="doc-p"><span class="badge badge-post">POST</span> <code>/api/v1/dev/shazam</code></p>
+    <p class="doc-p"><strong>Requires a Pro or Max plan.</strong> Identify a song from a direct audio or video url, Shazam-style.</p>
+    <pre>curl -X POST -H "x-api-key: estv_your_key_here" -H "Content-Type: application/json" \\
+  -d '{"url":"https://example.com/clip.mp3"}' \\
+  "https://esteamstv.devs.surf/api/v1/dev/shazam"</pre>
+    <pre>{
+  "matched": true,
+  "title": "Faded",
+  "artist": "Alan Walker",
+  "album": "Different World",
+  "releaseDate": "2015-12-03",
+  "label": "...",
+  "spotifyUrl": "https://open.spotify.com/track/...",
+  "appleMusicUrl": "https://music.apple.com/...",
+  "songLink": "https://lis.tn/..."
+}</pre>
+
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
     <p class="doc-p">20 requests per minute per API key on each endpoint (15 for AI, 15 for Temp Mail, 2 per hour for AI Video Generation). On top of that, every account has a monthly allowance shared across <strong>all</strong> your Developer Api keys, separate from the Live Tv Api's own allowance. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
 
@@ -1504,6 +1561,7 @@ ${musicPlayerStyle()}
       <tr><th>Status</th><th>Meaning</th></tr>
       <tr><td>400</td><td>Missing or invalid parameter</td></tr>
       <tr><td>401</td><td>Missing, invalid, or revoked API key</td></tr>
+      <tr><td>403</td><td>This endpoint requires a Pro or Max plan</td></tr>
       <tr><td>404</td><td>No results found for that search, or the download link expired</td></tr>
       <tr><td>413</td><td>Image too large (10MB limit)</td></tr>
       <tr><td>415</td><td>URL did not return a supported file type</td></tr>
@@ -2064,6 +2122,8 @@ ${musicPlayerHtml()}
     npm: { title: 'Try it - NPM Package Info', method: 'GET', path: '/api/v1/dev/npm', param: 'package', label: 'Package name', placeholder: 'express' },
     youtube: { title: 'Try it - YouTube Info', method: 'GET', path: '/api/v1/dev/youtube', param: 'url', label: 'YouTube URL', placeholder: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
     githubrepo: { title: 'Try it - GitHub Repo', method: 'GET', path: '/api/v1/dev/githubrepo', param: 'repo', label: 'owner/repo', placeholder: 'facebook/react' },
+    anime: { title: 'Try it - Anime Search', method: 'GET', path: '/api/v1/dev/anime', param: 'query', label: 'Anime title', placeholder: 'Naruto' },
+    shazam: { title: 'Try it - Song Recognition', method: 'POST', path: '/api/v1/dev/shazam', param: 'url', label: 'Audio or video URL', placeholder: 'https://example.com/clip.mp3', body: true },
     movie: { title: 'Try it - Movie Info', method: 'GET', path: '/api/v1/dev/movie', param: 'query', label: 'Movie title', placeholder: 'Inception' },
     sportsteam: { title: 'Try it - Sports Team', method: 'GET', path: '/api/v1/dev/sportsteam', param: 'name', label: 'Team name', placeholder: 'Arsenal' },
     crypto: { title: 'Try it - Crypto Price', method: 'GET', path: '/api/v1/dev/crypto', param: 'coin', label: 'Coin name or symbol', placeholder: 'BTC' },

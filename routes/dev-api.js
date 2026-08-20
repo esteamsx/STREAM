@@ -15,6 +15,7 @@ import { createTempInbox, listTempMessages, readTempMessage } from "../services/
 import { generateVideoFromPrompt } from "../services/videogen.js";
 import { generateImageFromPrompt, removeImageBackground } from "../services/imagegen.js";
 import { checkWhatsAppNumberViaBotService } from "../services/bot-relay.js";
+import { recognizeSong } from "../services/recognition.js";
 import { createShortLink, resolveShortLink } from "../services/shortener.js";
 import { getWeatherForLocation } from "../services/weather.js";
 import {
@@ -38,6 +39,7 @@ import {
   getNpmPackageInfo,
   getYoutubeInfo,
   getGithubRepo,
+  getAnimeInfo,
 } from "../services/lookup.js";
 import { signDownloadToken, verifyDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
 import { generatePassword, encodeBase64, decodeBase64, hashText, translateText, captureScreenshot, getLinkPreview, buildChartUrl, makeSticker } from "../services/utils-tools.js";
@@ -85,6 +87,7 @@ async function requireDevApiKey(req, res, next) {
 
     const ownerProfile = await getUserProfile(found.uid).catch(() => null);
     const plan = getDevApiPlanConfig(ownerProfile);
+    req.devApiPlanKey = getEffectiveDevApiPlan(ownerProfile);
 
     const originalJson = res.json.bind(res);
     res.json = (body) => {
@@ -116,6 +119,14 @@ async function requireDevApiKey(req, res, next) {
     console.error("dev api key check error:", err.message);
     res.status(500).json({ error: "Could not verify API key." });
   }
+}
+
+const PREMIUM_PLANS = new Set(["pro", "max"]);
+function requirePremiumPlan(req, res, next) {
+  if (!PREMIUM_PLANS.has(req.devApiPlanKey)) {
+    return res.status(403).json({ error: "This endpoint requires a Pro or Max Developer API plan. Upgrade your plan to unlock it." });
+  }
+  next();
 }
 
 router.post("/api/devapi/keys", requireAuth, async (req, res) => {
@@ -250,6 +261,8 @@ const minecraftLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKe
 const npmLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const youtubeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const githubrepoLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const animeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const shazamLimiter = new SimpleRateLimiter(10, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 
 router.get("/api/v1/dev/ocr", requireDevApiKey, ocrLimiter, async (req, res) => {
   const url = String(req.query.url || "").trim();
@@ -611,6 +624,17 @@ router.post("/api/v1/dev/sticker", requireDevApiKey, stickerLimiter, async (req,
   }
 });
 
+router.post("/api/v1/dev/shazam", requireDevApiKey, requirePremiumPlan, shazamLimiter, async (req, res) => {
+  const mediaUrl = String((req.body && req.body.url) || "").trim();
+  if (!mediaUrl) return res.status(400).json({ error: "Missing url in request body." });
+  try {
+    const result = await recognizeSong(mediaUrl);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not recognize that media." });
+  }
+});
+
 router.get("/api/v1/dev/dictionary", requireDevApiKey, dictionaryLimiter, async (req, res) => {
   const word = String(req.query.word || "").trim();
   if (!word) return res.status(400).json({ error: "Missing word query parameter." });
@@ -771,6 +795,17 @@ router.get("/api/v1/dev/githubrepo", requireDevApiKey, githubrepoLimiter, async 
   }
 });
 
+router.get("/api/v1/dev/anime", requireDevApiKey, animeLimiter, async (req, res) => {
+  const query = String(req.query.query || "").trim();
+  if (!query) return res.status(400).json({ error: "Missing query parameter." });
+  try {
+    const result = await getAnimeInfo(query);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that anime." });
+  }
+});
+
 router.get("/api/v1/dev/movie", requireDevApiKey, movieLimiter, async (req, res) => {
   const query = String(req.query.query || "").trim();
   if (!query) return res.status(400).json({ error: "Missing query parameter." });
@@ -847,7 +882,7 @@ router.get("/api/v1/dev/tempmail/message", requireDevApiKey, tempmailLimiter, as
   }
 });
 
-router.post("/api/v1/dev/videogen", requireDevApiKey, videogenLimiter, async (req, res) => {
+router.post("/api/v1/dev/videogen", requireDevApiKey, requirePremiumPlan, videogenLimiter, async (req, res) => {
   const prompt = String((req.body && req.body.prompt) || "").trim();
   if (!prompt) return res.status(400).json({ error: "Missing prompt in request body." });
   if (prompt.length > 500) return res.status(400).json({ error: "Prompt is too long (500 character limit)." });
@@ -859,7 +894,7 @@ router.post("/api/v1/dev/videogen", requireDevApiKey, videogenLimiter, async (re
   }
 });
 
-router.get("/api/v1/dev/imagegen", requireDevApiKey, imagegenLimiter, async (req, res) => {
+router.get("/api/v1/dev/imagegen", requireDevApiKey, requirePremiumPlan, imagegenLimiter, async (req, res) => {
   const prompt = String(req.query.prompt || "").trim();
   if (!prompt) return res.status(400).json({ error: "Missing prompt query parameter." });
   if (prompt.length > 500) return res.status(400).json({ error: "Prompt is too long (500 character limit)." });
