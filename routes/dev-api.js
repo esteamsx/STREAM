@@ -40,7 +40,7 @@ import {
   getGithubRepo,
 } from "../services/lookup.js";
 import { signDownloadToken, verifyDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
-import { generatePassword, encodeBase64, decodeBase64, hashText, translateText, captureScreenshot } from "../services/utils-tools.js";
+import { generatePassword, encodeBase64, decodeBase64, hashText, translateText, captureScreenshot, getLinkPreview, buildChartUrl, makeSticker } from "../services/utils-tools.js";
 import {
   requireAuth,
   createDevApiKey,
@@ -220,6 +220,9 @@ const hashLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.apiKeyId |
 const screenshotLimiter = new SimpleRateLimiter(10, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const translateLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const summarizeLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const chartLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const linkpreviewLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const stickerLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const dictionaryLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const iplookupLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const countryLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
@@ -570,6 +573,41 @@ router.post("/api/v1/dev/summarize", requireDevApiKey, summarizeLimiter, async (
     res.json({ summary: summary.trim() });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not summarize that text right now." });
+  }
+});
+
+router.post("/api/v1/dev/chart", requireDevApiKey, chartLimiter, async (req, res) => {
+  try {
+    const body = { ...(req.body || {}) };
+    if (typeof body.labels === "string") body.labels = body.labels.split(",").map((s) => s.trim()).filter(Boolean);
+    if (typeof body.data === "string") body.data = body.data.split(",").map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n));
+    const chartUrl = buildChartUrl(body);
+    res.json({ chart_url: chartUrl });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not build that chart." });
+  }
+});
+
+router.get("/api/v1/dev/linkpreview", requireDevApiKey, linkpreviewLimiter, async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing url query parameter." });
+  try {
+    const result = await getLinkPreview(url);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not preview that url." });
+  }
+});
+
+router.post("/api/v1/dev/sticker", requireDevApiKey, stickerLimiter, async (req, res) => {
+  const imageUrl = String((req.body && req.body.image_url) || "").trim();
+  if (!imageUrl) return res.status(400).json({ error: "Missing image_url in request body." });
+  try {
+    const { buffer, contentType } = await makeSticker(imageUrl);
+    res.set("Content-Type", contentType);
+    res.send(buffer);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not create that sticker." });
   }
 });
 

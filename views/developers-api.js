@@ -123,6 +123,36 @@ const FEATURES = [
     example: 'POST /api/v1/dev/summarize  { "text": "..." }',
   },
   {
+    key: "chart",
+    title: "Chart Generator",
+    desc: "Turn a dataset into a chart image (bar, line, pie, and more).",
+    icon: '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>',
+    category: "Tools",
+    endpoint: "POST /api/v1/dev/chart",
+    live: true,
+    example: 'POST /api/v1/dev/chart  { "type": "bar", "labels": ["Mon","Tue"], "data": [10,20] }',
+  },
+  {
+    key: "linkpreview",
+    title: "Link Preview",
+    desc: "Get the title, description, and image for any url, the same way link previews work.",
+    icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/>',
+    category: "Tools",
+    endpoint: "GET /api/v1/dev/linkpreview?url=",
+    live: true,
+    example: "GET /api/v1/dev/linkpreview?url=https://esteamstv.devs.surf",
+  },
+  {
+    key: "sticker",
+    title: "Sticker Maker",
+    desc: "Convert an image into a WhatsApp-ready sticker (512x512 webp).",
+    icon: '<path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/>',
+    category: "Tools",
+    endpoint: "POST /api/v1/dev/sticker",
+    live: true,
+    example: 'POST /api/v1/dev/sticker  { "image_url": "https://..." }',
+  },
+  {
     key: "qrcode",
     title: "QR Code",
     desc: "Generate a QR code image for any text or link.",
@@ -1011,6 +1041,37 @@ ${musicPlayerStyle()}
     <pre>{
   "summary": "A short summary of the given text."
 }</pre>
+
+    <h2 class="doc-h2">Chart Generator</h2>
+    <p class="doc-p"><span class="badge badge-post">POST</span> <code>/api/v1/dev/chart</code></p>
+    <p class="doc-p"><code>type</code> is one of <code>bar</code>, <code>line</code>, <code>pie</code>, <code>doughnut</code>, <code>radar</code>, <code>polarArea</code>. <code>labels</code> and <code>data</code> must be same-length arrays. <code>label</code> and <code>title</code> are optional.</p>
+    <pre>curl -X POST -H "x-api-key: estv_your_key_here" -H "Content-Type: application/json" \\
+  -d '{"type":"bar","labels":["Mon","Tue","Wed"],"data":[10,20,15],"label":"Visitors"}' \\
+  "https://esteamstv.devs.surf/api/v1/dev/chart"</pre>
+    <pre>{
+  "chart_url": "https://quickchart.io/chart?width=600&height=400&..."
+}</pre>
+
+    <h2 class="doc-h2">Link Preview</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/linkpreview?url=</code></p>
+    <p class="doc-p">Fetches a url and returns its title, description, and preview image, the same metadata WhatsApp itself reads to build a link preview.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/linkpreview?url=https://esteamstv.devs.surf"</pre>
+    <pre>{
+  "url": "https://esteamstv.devs.surf/",
+  "title": "ES TEAMS TV",
+  "description": "...",
+  "image": "https://esteamstv.devs.surf/og-image.png",
+  "siteName": "esteamstv.devs.surf"
+}</pre>
+
+    <h2 class="doc-h2">Sticker Maker</h2>
+    <p class="doc-p"><span class="badge badge-post">POST</span> <code>/api/v1/dev/sticker</code></p>
+    <p class="doc-p">Give it a direct image url, get back a 512x512 webp sticker image directly, not JSON, ready to send as a WhatsApp sticker.</p>
+    <pre>curl -X POST -H "x-api-key: estv_your_key_here" -H "Content-Type: application/json" \\
+  -d '{"image_url":"https://example.com/photo.jpg"}' \\
+  "https://esteamstv.devs.surf/api/v1/dev/sticker" \\
+  --output sticker.webp</pre>
 
     <h2 class="doc-h2">OCR</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/ocr?url=</code></p>
@@ -2012,6 +2073,9 @@ ${musicPlayerHtml()}
     imagegen: { title: 'Try it - AI Image Generation', method: 'GET', path: '/api/v1/dev/imagegen', param: 'prompt', label: 'Prompt', placeholder: 'a cat surfing a wave', isImage: true },
     bgremove: { title: 'Try it - Background Remover', method: 'POST', path: '/api/v1/dev/bg-remove', param: 'image_url', label: 'Image URL', placeholder: 'https://example.com/photo.jpg', body: true },
     summarize: { title: 'Try it - Text Summarizer', method: 'POST', path: '/api/v1/dev/summarize', param: 'text', label: 'Text to summarize', placeholder: 'Paste a long paragraph here...', body: true },
+    chart: { title: 'Try it - Chart Generator', method: 'POST', path: '/api/v1/dev/chart', label: 'Type | Labels (comma-separated) | Data (comma-separated numbers)', placeholder: 'bar | Mon,Tue,Wed | 10,20,15', parts: ['type', 'labels', 'data'], splitOn: ' | ', body: true },
+    linkpreview: { title: 'Try it - Link Preview', method: 'GET', path: '/api/v1/dev/linkpreview', param: 'url', label: 'Website URL', placeholder: 'https://esteamstv.devs.surf' },
+    sticker: { title: 'Try it - Sticker Maker', method: 'POST', path: '/api/v1/dev/sticker', param: 'image_url', label: 'Image URL', placeholder: 'https://example.com/photo.jpg', body: true, isImage: true },
   };
 
   function buildQueryParams(ep, val){
@@ -2115,7 +2179,7 @@ ${musicPlayerHtml()}
       url = ep.path;
       opts.method = 'POST';
       opts.headers['Content-Type'] = 'application/json';
-      var b = {}; b[ep.param] = val;
+      var b = buildQueryParams(ep, val);
       opts.body = JSON.stringify(b);
     } else {
       var params = buildQueryParams(ep, val);
