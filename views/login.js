@@ -689,7 +689,7 @@ suUsername.addEventListener('input', () => {
   }, 450);
 });
 
-const NET_TIMEOUT_MS = 20000;
+const NET_TIMEOUT_MS = 45000;
 
 function withTimeout(promise, label, ms = NET_TIMEOUT_MS){
   let timer;
