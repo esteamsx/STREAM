@@ -108,7 +108,7 @@ input{font-family:inherit}
 .signup-blur-target{filter:blur(6px);pointer-events:none;user-select:none;display:flex;flex-direction:column;gap:14px}
 .signup-lock-overlay{
   position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:12px;padding:24px 20px;text-align:center;z-index:5;
+  gap:12px;padding:24px 20px 18%;text-align:center;z-index:5;
 }
 .signup-lock-overlay svg{width:34px;height:34px;color:var(--accent)}
 .signup-lock-overlay b{font-family:var(--font-display);font-size:.98rem}
@@ -352,7 +352,7 @@ body:has(.page-overlay.show){overflow:hidden}
       <button class="auth-tab" data-tab="signup">Create Account</button>
     </div>
 
-    <div class="otp-notice">
+    <div class="otp-notice" id="otpNotice">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M10.3 3.9L2.4 17.5A1.8 1.8 0 004 20.2h16a1.8 1.8 0 001.6-2.7L13.7 3.9a1.8 1.8 0 00-3.4 0z"/><path d="M12 17h.01"/></svg>
       Manual OTP Verification is Currently Unavailable
     </div>
@@ -606,6 +606,7 @@ function setTab(name){
   tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   forms.login.classList.toggle('active', name === 'login');
   forms.signup.classList.toggle('active', name === 'signup');
+  document.getElementById('otpNotice').style.display = name === 'login' ? '' : 'none';
   clearError();
 }
 tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
