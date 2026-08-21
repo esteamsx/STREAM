@@ -446,6 +446,8 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
       if (/^Connected to\s*:/i.test(line)) {
         setStatus("connected", { connectedAt: Date.now(), lastError: null });
         crashRestartCounts.delete(botId);
+        entry.deleteSessionCount = 0;
+        entry.badMacCount = 0;
         if (!entry.backupTimer) {
           backupSessionFiles(workDir, botId, entry);
           entry.backupTimer = setInterval(() => backupSessionFiles(workDir, botId, entry), SESSION_BACKUP_INTERVAL_MS);
@@ -453,7 +455,10 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         return;
       }
       if (/Delete Session and Scan again/i.test(line)) {
-        setStatus("needs_repair", { lastError: "Session invalid, restart to get a new pairing code." });
+        entry.deleteSessionCount = (entry.deleteSessionCount || 0) + 1;
+        if (entry.deleteSessionCount >= 3) {
+          setStatus("needs_repair", { lastError: "Session invalid, restart to get a new pairing code." });
+        }
         return;
       }
       if (/Bad MAC|Failed to decrypt message with any known session/i.test(line)) {

@@ -367,7 +367,10 @@ altcha-widget{--altcha-max-width:100%}
 
   let state = { ready: false, free: false, loaded: false, sending: false };
 
-  document.getElementById('crBackBtn').addEventListener('click', function(){ location.href = '/deploy-bot'; });
+  document.getElementById('crBackBtn').addEventListener('click', function(){
+    if (window.history.length > 1) window.history.back();
+    else location.href = '/tools';
+  });
 
   function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
