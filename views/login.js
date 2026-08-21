@@ -699,6 +699,26 @@ function withTimeout(promise, label, ms = NET_TIMEOUT_MS){
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+function isRetryableAuthError(err){
+  const code = err && err.code;
+  const msg = (err && err.message) || '';
+  return code === 'auth/network-request-failed' || code === 'auth/timeout' || /network/i.test(msg);
+}
+
+async function withRetry(fn, attempts = 3, delayMs = 1200){
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryableAuthError(err) || i === attempts - 1) throw err;
+      await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function postJSON(url, body){
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), NET_TIMEOUT_MS);
@@ -898,7 +918,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   try {
     const { email } = await postJSON('/api/resolve-login-identifier', { identifier });
     stage = 'firebase-sign-in';
-    const cred = await withTimeout(signInWithEmailAndPassword(fbAuth, email, password), 'Firebase sign-in');
+    const cred = await withRetry(() => withTimeout(signInWithEmailAndPassword(fbAuth, email, password), 'Firebase sign-in'));
     stage = 'get-id-token';
     const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
     stage = 'establish-session';
@@ -966,7 +986,7 @@ if (${JSON.stringify(!!cfg.googleClientId)}) {
     try {
       const credential = GoogleAuthProvider.credential(response.credential);
       stage = 'firebase-sign-in';
-      const cred = await withTimeout(signInWithCredential(fbAuth, credential), 'Firebase sign-in');
+      const cred = await withRetry(() => withTimeout(signInWithCredential(fbAuth, credential), 'Firebase sign-in'));
       stage = 'get-id-token';
       const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
       stage = 'establish-session';
@@ -1034,7 +1054,7 @@ document.getElementById('ghSquareBtn').addEventListener('click', signInWithGithu
     overlay.classList.add('show');
     let stage = 'firebase-sign-in';
     try {
-      const cred = await withTimeout(signInWithCustomToken(fbAuth, tgToken), 'Firebase sign-in');
+      const cred = await withRetry(() => withTimeout(signInWithCustomToken(fbAuth, tgToken), 'Firebase sign-in'));
       stage = 'get-id-token';
       const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
       stage = 'establish-session';
@@ -1068,7 +1088,7 @@ document.getElementById('ghSquareBtn').addEventListener('click', signInWithGithu
     overlay.classList.add('show');
     let stage = 'firebase-sign-in';
     try {
-      const cred = await withTimeout(signInWithCustomToken(fbAuth, ghToken), 'Firebase sign-in');
+      const cred = await withRetry(() => withTimeout(signInWithCustomToken(fbAuth, ghToken), 'Firebase sign-in'));
       stage = 'get-id-token';
       const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
       stage = 'establish-session';
@@ -1145,7 +1165,7 @@ async function signInWithPasskey(){
     const { customToken } = await postJSON('/api/passkey/authentication-verify', { token, ...response });
 
     stage = 'firebase-sign-in';
-    const cred = await withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in');
+    const cred = await withRetry(() => withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in'));
     stage = 'get-id-token';
     const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
     stage = 'establish-session';
@@ -1205,7 +1225,7 @@ async function signInWithFaceId(){
     overlay.classList.add('show');
 
     stage = 'firebase-sign-in';
-    const cred = await withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in');
+    const cred = await withRetry(() => withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in'));
     lap('firebase sign-in done');
     stage = 'get-id-token';
     const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
