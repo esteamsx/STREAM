@@ -2022,7 +2022,7 @@ async function updatePost(uid, postId, { text, imageDataUrl, taggedUsernames }) 
     reshareCount: updated.reshareCount || 0,
     editedAt: updated.editedAt || null,
     createdAt: updated.createdAt,
-    likesCount: (updated.likedBy || []).length,
+    likesCount: (updated.likedBy || []).length + (updated.bonusLikes || 0),
     likedByViewer: (updated.likedBy || []).includes(uid),
     commentsCount: updated.commentsCount || 0,
   };
@@ -2311,7 +2311,7 @@ async function togglePostLike(uid, postId) {
 
   const updatedSnap = await targetRef.get();
   const updated = updatedSnap.data();
-  return { likesCount: (updated.likedBy || []).length, likedByViewer: (updated.likedBy || []).includes(uid) };
+  return { likesCount: (updated.likedBy || []).length + (updated.bonusLikes || 0), likedByViewer: (updated.likedBy || []).includes(uid) };
 }
 
 async function getFollowList(uid, type) {
