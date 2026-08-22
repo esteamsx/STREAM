@@ -323,7 +323,7 @@ export const crossOriginWriteGuard = (req, res, next) => {
   if (!origin || origin === "null") {
     if (NO_ORIGIN_EXEMPT_PATHS.includes(req.path)) return next();
     console.warn(`Blocked write with missing origin: ${req.ip} -> ${req.method} ${req.path}`);
-    return res.status(403).json({ error: "This action must be performed from the website directly." });
+    return res.status(403).json({ error: "Unauthorized Access." });
   }
 
   let originHost;
@@ -355,7 +355,7 @@ export const requireSiteOrigin = (req, res, next) => {
   }
   if (!originHost || originHost !== String(req.headers.host || "").toLowerCase()) {
     console.warn(`Blocked request with missing/mismatched origin: ${req.ip} -> ${req.method} ${req.path} origin=${origin || "none"}`);
-    return res.status(403).json({ error: "This action must be performed from the website directly." });
+    return res.status(403).json({ error: "Unauthorized Access." });
   }
   next();
 };
