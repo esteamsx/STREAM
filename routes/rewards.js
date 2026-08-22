@@ -30,7 +30,7 @@ import {
   COIN_REQUEST_LINK_TTL_MS,
 } from "../services/auth.js";
 import { findBankCode, resolveAccountNumber } from "../services/paystack.js";
-import { SimpleRateLimiter } from "../middleware/security-middleware.js";
+import { SimpleRateLimiter, requireSiteOrigin } from "../middleware/security-middleware.js";
 
 const router = express.Router();
 
@@ -112,7 +112,7 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
   }
 });
 
-router.post("/api/rewards/daily-claim", requireAuth, claimLimiter, async (req, res) => {
+router.post("/api/rewards/daily-claim", requireAuth, requireSiteOrigin, claimLimiter, async (req, res) => {
   try {
     if (!(await verifyCaptcha(req.body?.altcha))) {
       return res.status(400).json({ error: "Captcha not completed." });

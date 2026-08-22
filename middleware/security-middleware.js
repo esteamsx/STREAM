@@ -312,12 +312,19 @@ export class RepeatedRefusalGuard {
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const CSRF_EXEMPT_PREFIXES = ["/api/v1/", "/embed/"];
 
+const NO_ORIGIN_EXEMPT_PATHS = ["/api/paystack/webhook"];
+
 export const crossOriginWriteGuard = (req, res, next) => {
   if (SAFE_METHODS.has(req.method)) return next();
   if (CSRF_EXEMPT_PREFIXES.some((p) => req.path.startsWith(p))) return next();
 
   const origin = req.get("origin");
-  if (!origin || origin === "null") return next();
+
+  if (!origin || origin === "null") {
+    if (NO_ORIGIN_EXEMPT_PATHS.includes(req.path)) return next();
+    console.warn(`Blocked write with missing origin: ${req.ip} -> ${req.method} ${req.path}`);
+    return res.status(403).json({ error: "This action must be performed from the website directly." });
+  }
 
   let originHost;
   try {
@@ -330,4 +337,25 @@ export const crossOriginWriteGuard = (req, res, next) => {
 
   console.warn(`Blocked cross-origin write: ${req.ip} - ${origin} -> ${req.method} ${req.path}`);
   return res.status(403).json({ error: "Access denied" });
+};
+
+// Stricter than crossOriginWriteGuard: for sensitive/automatable actions (login,
+// signup, claiming coins, deploying a bot), a missing Origin header is treated as
+// a block rather than allowed through. Real browsers always send Origin on a
+// same-origin fetch/POST; scripts, curl, Postman, and bots typically only send it
+// if the author deliberately adds it, so this closes that specific gap for the
+// routes that need it most, without changing behavior for the rest of the site.
+export const requireSiteOrigin = (req, res, next) => {
+  const origin = req.get("origin");
+  let originHost = null;
+  try {
+    originHost = origin ? new URL(origin).host.toLowerCase() : null;
+  } catch {
+    originHost = null;
+  }
+  if (!originHost || originHost !== String(req.headers.host || "").toLowerCase()) {
+    console.warn(`Blocked request with missing/mismatched origin: ${req.ip} -> ${req.method} ${req.path} origin=${origin || "none"}`);
+    return res.status(403).json({ error: "This action must be performed from the website directly." });
+  }
+  next();
 };

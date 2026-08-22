@@ -133,6 +133,31 @@ async function botServiceFetch(pathAndQuery, options = {}) {
   return data;
 }
 
+const TRADING_SERVICE_URL = process.env.TRADING_SERVICE_URL;
+const TRADING_INTERNAL_API_KEY = process.env.TRADING_INTERNAL_API_KEY;
+
+async function tradingServiceFetch(pathAndQuery, options = {}) {
+  if (!TRADING_SERVICE_URL || !TRADING_INTERNAL_API_KEY) {
+    throw Object.assign(new Error("Trading service is not configured."), { status: 503 });
+  }
+  let resp;
+  try {
+    resp = await fetch(`${TRADING_SERVICE_URL}${pathAndQuery}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", "x-internal-key": TRADING_INTERNAL_API_KEY, ...(options.headers || {}) },
+      signal: AbortSignal.timeout(BOT_SERVICE_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err.name === "TimeoutError" || err.name === "AbortError") {
+      throw Object.assign(new Error("Trading service didn't respond in time. It may be waking up, try again shortly."), { status: 504 });
+    }
+    throw Object.assign(new Error("Could not reach the trading service."), { status: 502 });
+  }
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw Object.assign(new Error(data.error || `Trading service returned HTTP ${resp.status}.`), { status: resp.status });
+  return data;
+}
+
 import QRCode from "qrcode";
 import {
   issueCode,
@@ -292,6 +317,7 @@ import {
   probePathTrap,
   RepeatedRefusalGuard,
   crossOriginWriteGuard,
+  requireSiteOrigin,
 } from "./middleware/security-middleware.js";
 import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
 import { canonicalPath, pageGuards } from "./middleware/navigation.js";
@@ -3920,6 +3946,78 @@ app.post("/api/admin/channel-react-log/:id/resend", requireAuth, requireAdmin, a
   }
 });
 
+app.get("/api/admin/trading/status", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await tradingServiceFetch("/internal/status"));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load trading status." });
+  }
+});
+
+app.get("/api/admin/trading/balance", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await tradingServiceFetch("/internal/balance"));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load balance." });
+  }
+});
+
+app.get("/api/admin/trading/position", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await tradingServiceFetch("/internal/position"));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load position." });
+  }
+});
+
+app.get("/api/admin/trading/trades", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await tradingServiceFetch("/internal/trades?limit=50"));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load the trade log." });
+  }
+});
+
+app.post("/api/admin/trading/config", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await tradingServiceFetch("/internal/config", { method: "POST", body: JSON.stringify(req.body || {}) }));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not update trading config." });
+  }
+});
+
+app.post("/api/admin/trading/start", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await tradingServiceFetch("/internal/start", { method: "POST", body: "{}" }));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not start the trading engine." });
+  }
+});
+
+app.post("/api/admin/trading/stop", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await tradingServiceFetch("/internal/stop", { method: "POST", body: "{}" }));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not stop the trading engine." });
+  }
+});
+
+app.post("/api/admin/trading/kill", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await tradingServiceFetch("/internal/kill", { method: "POST", body: JSON.stringify({ reason: req.body?.reason || "Manually triggered from the admin panel." }) }));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not trigger the kill switch." });
+  }
+});
+
+app.post("/api/admin/trading/resume", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await tradingServiceFetch("/internal/resume", { method: "POST", body: "{}" }));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not resume trading." });
+  }
+});
+
 app.get("/api/admin/support/threads", requireAuth, requireAdmin, async (req, res) => {
   try {
     res.json({ threads: await getSupportThreadsForAdmin() });
@@ -4378,7 +4476,7 @@ app.get("/api/bots", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/bots/deploy", requireAuth, botDeployLimiter, async (req, res) => {
+app.post("/api/bots/deploy", requireAuth, requireSiteOrigin, botDeployLimiter, async (req, res) => {
   try {
     const isAdmin = isAdminEmail(req.userProfile?.email);
     if (!isAdmin && !req.userProfile?.verified) {
@@ -4562,7 +4660,7 @@ app.get("/api/channel/diagnose", requireAuth, botStatusLimiter, async (req, res)
   res.json({ ok: steps.every((s) => s.ok), steps });
 });
 
-app.post("/api/channel/react", requireAuth, channelReactLimiter, async (req, res) => {
+app.post("/api/channel/react", requireAuth, requireSiteOrigin, channelReactLimiter, async (req, res) => {
   const profile = req.userProfile;
   const isAdmin = isAdminEmail(profile?.email);
   const verified = isVerificationActive(profile);
@@ -4764,7 +4862,7 @@ app.post("/api/account/alt-usernames/remove", requireAuth, requireAdmin, async (
   }
 });
 
-app.post("/api/signup", signupLimiter, async (req, res) => {
+app.post("/api/signup", requireSiteOrigin, signupLimiter, async (req, res) => {
   try {
     const { firstName, lastName, email, password, altcha } = req.body;
     const username = String(req.body.username || "").trim().toLowerCase();
@@ -5058,7 +5156,7 @@ function withDeadline(promise, label, ms = AUTH_OP_TIMEOUT_MS) {
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
-app.post("/api/session", passwordLoginLimiter, async (req, res) => {
+app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, res) => {
   try {
     const { idToken, remember, altcha } = req.body;
     const decoded = await withDeadline(firebaseAuth.verifyIdToken(idToken), "firebaseAuth.verifyIdToken");
