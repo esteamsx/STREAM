@@ -232,6 +232,7 @@ import {
   deletePost,
   resharePost,
   togglePinPost,
+  recalculateUserLikesCount,
   getPostOwner,
   getCommentAuthorUid,
   addComment,
@@ -264,6 +265,8 @@ import {
   getMaintenanceStatus,
   setMaintenanceMode,
   sendSupportMessage,
+  editSupportMessage,
+  deleteSupportMessage,
   getSupportMessages,
   getSupportUnreadCountForUser,
   getSupportUnreadCountForAdmin,
@@ -4038,10 +4041,28 @@ app.get("/api/admin/support/threads/:uid/messages", requireAuth, requireAdmin, a
 
 app.post("/api/admin/support/threads/:uid/messages", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const message = await sendSupportMessage(req.params.uid, req.body?.text, true, req.body?.attachment);
+    const message = await sendSupportMessage(req.params.uid, req.body?.text, true, req.body?.attachment, req.body?.replyTo);
     res.json({ message });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not send that message." });
+  }
+});
+
+app.post("/api/admin/support/threads/:uid/messages/:messageId/edit", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await editSupportMessage(req.params.uid, req.params.messageId, true, req.body?.text);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not edit that message." });
+  }
+});
+
+app.post("/api/admin/support/threads/:uid/messages/:messageId/delete", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await deleteSupportMessage(req.params.uid, req.params.messageId, true);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not delete that message." });
   }
 });
 
@@ -5461,10 +5482,28 @@ app.get("/api/support/messages", requireAuth, async (req, res) => {
 
 app.post("/api/support/messages", requireAuth, async (req, res) => {
   try {
-    const message = await sendSupportMessage(req.uid, req.body?.text, false, req.body?.attachment);
+    const message = await sendSupportMessage(req.uid, req.body?.text, false, req.body?.attachment, req.body?.replyTo);
     res.json({ message });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not send that message." });
+  }
+});
+
+app.post("/api/support/messages/:messageId/edit", requireAuth, async (req, res) => {
+  try {
+    const result = await editSupportMessage(req.uid, req.params.messageId, false, req.body?.text);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not edit that message." });
+  }
+});
+
+app.post("/api/support/messages/:messageId/delete", requireAuth, async (req, res) => {
+  try {
+    const result = await deleteSupportMessage(req.uid, req.params.messageId, false);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not delete that message." });
   }
 });
 
@@ -5702,6 +5741,15 @@ app.post("/api/posts/:postId/pin", requireAuth, async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not update that post." });
+  }
+});
+
+app.post("/api/account/recalculate-likes", requireAuth, async (req, res) => {
+  try {
+    const result = await recalculateUserLikesCount(req.uid);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not recalculate your likes total." });
   }
 });
 

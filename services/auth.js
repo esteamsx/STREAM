@@ -1857,6 +1857,11 @@ async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
     post.bonusLikes = 50 + Math.floor(Math.random() * 51);
   }
   const ref = await db.collection("posts").add(post);
+  if (post.bonusLikes) {
+    await db.collection("users").doc(uid).update({
+      likesCount: admin.firestore.FieldValue.increment(post.bonusLikes),
+    }).catch(() => {});
+  }
 
   const authorName = `${author.firstName || ""} ${author.lastName || ""}`.trim() || `@${author.username}`;
   const postUrl = `/u/${author.username}#post-${ref.id}`;
@@ -1865,6 +1870,23 @@ async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
   }
 
   return { id: ref.id, ...post, likesCount: post.bonusLikes || 0, likedByViewer: false, commentsCount: 0 };
+}
+
+async function recalculateUserLikesCount(uid) {
+  const [postsSnap, commentsSnap] = await Promise.all([
+    db.collection("posts").where("uid", "==", uid).limit(500).get(),
+    db.collection("comments").where("uid", "==", uid).limit(1000).get(),
+  ]);
+  let total = 0;
+  postsSnap.forEach((d) => {
+    const p = d.data();
+    total += (p.likedBy || []).length + (p.bonusLikes || 0);
+  });
+  commentsSnap.forEach((d) => {
+    total += (d.data().likedBy || []).length;
+  });
+  await db.collection("users").doc(uid).update({ likesCount: total }).catch(() => {});
+  return { likesCount: total };
 }
 
 async function resolveEffectivePostStats(rawPosts) {
@@ -3795,7 +3817,9 @@ async function setMaintenanceMode(enabled, untilInput) {
 }
 
 const SUPPORT_MESSAGE_MAX_LEN = 2000;
-const SUPPORT_MESSAGE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+const SUPPORT_MESSAGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const SUPPORT_MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+const SUPPORT_MESSAGE_DELETE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const SUPPORT_ATTACHMENT_MAX_BYTES = 900 * 1024;
 const SUPPORT_ATTACHMENT_TYPES = ["image", "file", "voice"];
 const ATTACHMENT_PREVIEW_LABEL = { image: "Photo", file: "File", voice: "Voice message" };
@@ -3851,7 +3875,7 @@ async function sweepExpiredSupportMessages() {
   }
 }
 
-async function sendSupportMessage(uid, text, fromAdmin, attachment) {
+async function sendSupportMessage(uid, text, fromAdmin, attachment, replyTo) {
   const trimmed = String(text || "").trim();
   const cleanAttachment = validateSupportAttachment(attachment);
   if (!trimmed && !cleanAttachment) throw new Error("Type a message first.");
@@ -3859,10 +3883,26 @@ async function sendSupportMessage(uid, text, fromAdmin, attachment) {
   const now = Date.now();
   const threadRef = db.collection("supportThreads").doc(uid);
   const msgRef = threadRef.collection("messages").doc();
+
+  let cleanReplyTo = null;
+  if (replyTo && replyTo.id) {
+    const repliedSnap = await threadRef.collection("messages").doc(replyTo.id).get();
+    if (repliedSnap.exists) {
+      const replied = repliedSnap.data();
+      cleanReplyTo = {
+        id: replyTo.id,
+        text: (replied.text || (replied.attachmentType ? ATTACHMENT_PREVIEW_LABEL[replied.attachmentType] : "")).slice(0, 200),
+        fromAdmin: !!replied.fromAdmin,
+      };
+    }
+  }
+
   const messageDoc = {
     text: trimmed,
     fromAdmin: !!fromAdmin,
     createdAt: now,
+    editedAt: null,
+    replyTo: cleanReplyTo,
     attachmentDataUrl: cleanAttachment ? cleanAttachment.dataUrl : null,
     attachmentType: cleanAttachment ? cleanAttachment.type : null,
     attachmentName: cleanAttachment ? cleanAttachment.name : null,
@@ -3882,6 +3922,63 @@ async function sendSupportMessage(uid, text, fromAdmin, attachment) {
     { merge: true }
   );
   return { id: msgRef.id, ...messageDoc };
+}
+
+async function editSupportMessage(threadUid, messageId, actorIsAdmin, newText) {
+  const trimmed = String(newText || "").trim();
+  if (!trimmed) throw Object.assign(new Error("Message can't be empty."), { status: 400 });
+  if (trimmed.length > SUPPORT_MESSAGE_MAX_LEN) throw Object.assign(new Error("Message is too long."), { status: 400 });
+
+  const threadRef = db.collection("supportThreads").doc(threadUid);
+  const msgRef = threadRef.collection("messages").doc(messageId);
+  const snap = await msgRef.get();
+  if (!snap.exists) throw Object.assign(new Error("Message not found."), { status: 404 });
+  const msg = snap.data();
+
+  if (!!msg.fromAdmin !== !!actorIsAdmin) {
+    throw Object.assign(new Error("You can only edit your own messages."), { status: 403 });
+  }
+  if (Date.now() - msg.createdAt > SUPPORT_MESSAGE_EDIT_WINDOW_MS) {
+    throw Object.assign(new Error("This message can no longer be edited."), { status: 400 });
+  }
+
+  const editedAt = Date.now();
+  await msgRef.update({ text: trimmed, editedAt });
+
+  const threadSnap = await threadRef.get();
+  if (threadSnap.exists && threadSnap.data().lastMessageAt === msg.createdAt) {
+    await threadRef.update({ lastMessageText: trimmed }).catch(() => {});
+  }
+
+  return { id: messageId, text: trimmed, editedAt };
+}
+
+async function deleteSupportMessage(threadUid, messageId, actorIsAdmin) {
+  const threadRef = db.collection("supportThreads").doc(threadUid);
+  const msgRef = threadRef.collection("messages").doc(messageId);
+  const snap = await msgRef.get();
+  if (!snap.exists) throw Object.assign(new Error("Message not found."), { status: 404 });
+  const msg = snap.data();
+
+  if (!!msg.fromAdmin !== !!actorIsAdmin) {
+    throw Object.assign(new Error("You can only delete your own messages."), { status: 403 });
+  }
+  if (Date.now() - msg.createdAt > SUPPORT_MESSAGE_DELETE_WINDOW_MS) {
+    throw Object.assign(new Error("This message can no longer be deleted."), { status: 400 });
+  }
+
+  await msgRef.delete();
+
+  const remainingSnap = await threadRef.collection("messages").orderBy("createdAt", "desc").limit(1).get();
+  if (remainingSnap.empty) {
+    await threadRef.update({ lastMessageText: "", lastMessageAt: null }).catch(() => {});
+  } else {
+    const last = remainingSnap.docs[0].data();
+    const preview = last.text || (last.attachmentType ? ATTACHMENT_PREVIEW_LABEL[last.attachmentType] : "");
+    await threadRef.update({ lastMessageText: preview, lastMessageAt: last.createdAt }).catch(() => {});
+  }
+
+  return { ok: true };
 }
 
 async function getSupportMessages(uid, asAdmin) {
@@ -3953,6 +4050,8 @@ export {
   finalizeApiPlanPayment,
   setCustomVisitPageUrl,
   sendSupportMessage,
+  editSupportMessage,
+  deleteSupportMessage,
   getSupportMessages,
   getSupportUnreadCountForUser,
   getSupportUnreadCountForAdmin,
@@ -4105,6 +4204,7 @@ export {
   deletePost,
   resharePost,
   togglePinPost,
+  recalculateUserLikesCount,
   getPostOwner,
   getCommentAuthorUid,
   addComment,
