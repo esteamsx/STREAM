@@ -2055,7 +2055,7 @@ async function deletePost(uid, postId) {
   const post = snap.data();
   if (post.uid !== uid) throw new Error("You can only delete your own posts.");
 
-  const likeCount = (post.likedBy || []).length;
+  const likeCount = (post.likedBy || []).length + (post.bonusLikes || 0);
   if (likeCount > 0) {
     await db.collection("users").doc(uid).update({
       likesCount: admin.firestore.FieldValue.increment(-likeCount),
