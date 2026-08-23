@@ -1617,10 +1617,8 @@ async function broadcastNotification(message, meta = null) {
 }
 
 async function getNotifications(uid, limit = 50) {
-  const snap = await db.collection("notifications").where("uid", "==", uid).limit(200).get();
-  const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  list.sort((a, b) => b.createdAt - a.createdAt);
-  return list.slice(0, limit);
+  const snap = await db.collection("notifications").where("uid", "==", uid).orderBy("createdAt", "desc").limit(limit).get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 async function hasUnreadNotifications(uid) {
