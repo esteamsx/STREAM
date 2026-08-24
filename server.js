@@ -135,7 +135,7 @@ async function botServiceFetch(pathAndQuery, options = {}) {
 }
 
 import QRCode from "qrcode";
-import { getPublicKlines, getPublicInstruments, getLivePosition } from "./services/bybit-readonly.js";
+import { getPublicKlines, getPublicInstruments, getLivePosition, getAllPositions, getInstrumentInfo, placeOrder, closePosition, setTradingStop } from "./services/bybit-readonly.js";
 import {
   issueCode,
   checkCode,
@@ -374,6 +374,7 @@ const botDeployLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000, (req) => req.u
 const botActionLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
 const botStatusLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.uid).middleware();
 const notifPollLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
+const tradingOrderLimiter = new SimpleRateLimiter(10, 60 * 1000, (req) => req.uid, "Too many order requests. Slow down.").middleware();
 const channelReactLimiter = new SimpleRateLimiter(
   10,
   10 * 60 * 1000,
@@ -4132,6 +4133,71 @@ app.get("/api/tools/trading/position", requireAuth, requireAdmin, async (req, re
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load your position." });
+  }
+});
+
+app.get("/api/tools/trading/positions", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const category = String(req.query.category || "linear");
+    const result = await getAllPositions(category);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load your positions." });
+  }
+});
+
+app.get("/api/tools/trading/instrument", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const category = String(req.query.category || "linear");
+    const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
+    const result = await getInstrumentInfo(category, symbol);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load instrument info." });
+  }
+});
+
+app.post("/api/tools/trading/order", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+  try {
+    const category = String(req.body?.category || "linear");
+    const symbol = String(req.body?.symbol || "").toUpperCase();
+    const side = req.body?.side === "Sell" ? "Sell" : "Buy";
+    const qty = String(req.body?.qty || "");
+    const leverage = req.body?.leverage ? String(req.body.leverage) : null;
+    if (!symbol || !qty || Number(qty) <= 0) {
+      return res.status(400).json({ error: "Symbol and quantity are required." });
+    }
+    const result = await placeOrder({ category, symbol, side, qty, leverage });
+    res.json({ ok: true, order: result });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not place order." });
+  }
+});
+
+app.post("/api/tools/trading/close", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+  try {
+    const category = String(req.body?.category || "linear");
+    const symbol = String(req.body?.symbol || "").toUpperCase();
+    const percent = req.body?.percent ? Number(req.body.percent) : 100;
+    if (!symbol) return res.status(400).json({ error: "Symbol is required." });
+    const result = await closePosition(category, symbol, percent);
+    res.json({ ok: true, order: result });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not close position." });
+  }
+});
+
+app.post("/api/tools/trading/tpsl", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+  try {
+    const category = String(req.body?.category || "linear");
+    const symbol = String(req.body?.symbol || "").toUpperCase();
+    const takeProfit = req.body?.takeProfit ? String(req.body.takeProfit) : "";
+    const stopLoss = req.body?.stopLoss ? String(req.body.stopLoss) : "";
+    if (!symbol) return res.status(400).json({ error: "Symbol is required." });
+    await setTradingStop(category, symbol, { takeProfit, stopLoss });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not update TP/SL." });
   }
 });
 
