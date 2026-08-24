@@ -10,6 +10,13 @@ const CATEGORIES = [
     ],
   },
   {
+    name: "Trading",
+    adminOnly: true,
+    tools: [
+      { href: "/tools/trading", name: "Trading Dashboard", desc: "Live BTC/USDT chart and PnL dashboard.", icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8M15 7h6v6"/>` },
+    ],
+  },
+  {
     name: "Network & Security",
     tools: [
       { href: "/tools/dns-lookup", name: "DNS Lookup", desc: "Look up A, AAAA, MX, TXT, NS, CNAME and SOA records.", icon: `<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M3 12h18M12 3c2.5 2.6 4 6 4 9s-1.5 6.4-4 9c-2.5-2.6-4-6-4-9s1.5-6.4 4-9z"/>` },
