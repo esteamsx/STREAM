@@ -4102,7 +4102,13 @@ app.get("/tools/obfuscate", scrapeGate, (req, res) => {
   res.send(cachedToolsObfuscateHtml);
 });
 
-app.get("/tools/trading", scrapeGate, requireAuth, requireAdmin, (req, res) => {
+app.get("/tools/trading", scrapeGate, async (req, res) => {
+  const sessionId = req.cookies?.session;
+  const uid = await verifySession(sessionId);
+  if (!uid) return res.redirect("/login");
+  const profile = await getUserProfile(uid);
+  if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.redirect("/login");
+  if (!isAdminEmail(profile.email)) return res.redirect("/");
   res.send(cachedToolsTradingHtml);
 });
 
