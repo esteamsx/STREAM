@@ -81,6 +81,11 @@ export const PAGES = {
     description: "Send a channel reaction through your own deployed bot.",
     auth: "required",
   },
+  trading: {
+    path: "/tools/trading",
+    description: "Live BTC/USDT chart and PnL dashboard.",
+    auth: "required",
+  },
   admin: { path: "/admin", description: "", auth: "required" },
   privacy: {
     path: "/privacy",

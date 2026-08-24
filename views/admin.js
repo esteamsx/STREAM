@@ -91,6 +91,7 @@ input{font-family:inherit}
 .ad-card.accent-purple{border-left-color:var(--accent2)}
 .ad-card.accent-green{border-left-color:#3DDC84}
 .ad-card.accent-gold{border-left-color:#F5B700}
+.ad-card.accent-red{border-left-color:#ff3b5c}
 .ad-section-label{
   display:flex;align-items:center;gap:10px;margin:28px 0 12px;font-family:var(--font-display);
   font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
@@ -1020,6 +1021,7 @@ function loadCrlog(){
     renderCrlogList(list);
   }).catch(() => { crlogList.innerHTML = '<div class="ad-empty">Could not load channel reactions.</div>'; });
 }
+
 
 document.getElementById('crlogHeader').addEventListener('click', () => {
   document.getElementById('crlogCard').classList.toggle('open');

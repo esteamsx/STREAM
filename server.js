@@ -29,6 +29,7 @@ import { renderToolsIndex } from "./views/tools/index.js";
 import { renderDnsLookup } from "./views/tools/dns-lookup.js";
 import { renderObfuscate } from "./views/tools/obfuscate.js";
 import { renderQrCode } from "./views/tools/qr-code.js";
+import { renderTrading } from "./views/tools/trading.js";
 import { renderSslChecker } from "./views/tools/ssl-checker.js";
 import { renderWhois } from "./views/tools/whois.js";
 import { renderBase64 } from "./views/tools/base64.js";
@@ -133,32 +134,8 @@ async function botServiceFetch(pathAndQuery, options = {}) {
   return data;
 }
 
-const TRADING_SERVICE_URL = process.env.TRADING_SERVICE_URL;
-const TRADING_INTERNAL_API_KEY = process.env.TRADING_INTERNAL_API_KEY;
-
-async function tradingServiceFetch(pathAndQuery, options = {}) {
-  if (!TRADING_SERVICE_URL || !TRADING_INTERNAL_API_KEY) {
-    throw Object.assign(new Error("Trading service is not configured."), { status: 503 });
-  }
-  let resp;
-  try {
-    resp = await fetch(`${TRADING_SERVICE_URL}${pathAndQuery}`, {
-      ...options,
-      headers: { "Content-Type": "application/json", "x-internal-key": TRADING_INTERNAL_API_KEY, ...(options.headers || {}) },
-      signal: AbortSignal.timeout(BOT_SERVICE_TIMEOUT_MS),
-    });
-  } catch (err) {
-    if (err.name === "TimeoutError" || err.name === "AbortError") {
-      throw Object.assign(new Error("Trading service didn't respond in time. It may be waking up, try again shortly."), { status: 504 });
-    }
-    throw Object.assign(new Error("Could not reach the trading service."), { status: 502 });
-  }
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw Object.assign(new Error(data.error || `Trading service returned HTTP ${resp.status}.`), { status: resp.status });
-  return data;
-}
-
 import QRCode from "qrcode";
+import { getPublicKlines, getPublicInstruments, getLivePosition } from "./services/bybit-readonly.js";
 import {
   issueCode,
   checkCode,
@@ -583,6 +560,7 @@ const cachedToolsIndexHtml = renderToolsIndex(authPageConfig);
 const cachedToolsDnsLookupHtml = renderDnsLookup(authPageConfig);
 const cachedToolsObfuscateHtml = renderObfuscate(authPageConfig);
 const cachedToolsQrCodeHtml = renderQrCode(authPageConfig);
+const cachedToolsTradingHtml = renderTrading(authPageConfig);
 const cachedToolsSslCheckerHtml = renderSslChecker(authPageConfig);
 const cachedToolsWhoisHtml = renderWhois(authPageConfig);
 const cachedToolsBase64Html = renderBase64(authPageConfig);
@@ -3949,78 +3927,6 @@ app.post("/api/admin/channel-react-log/:id/resend", requireAuth, requireAdmin, a
   }
 });
 
-app.get("/api/admin/trading/status", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    res.json(await tradingServiceFetch("/internal/status"));
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not load trading status." });
-  }
-});
-
-app.get("/api/admin/trading/balance", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    res.json(await tradingServiceFetch("/internal/balance"));
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not load balance." });
-  }
-});
-
-app.get("/api/admin/trading/position", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    res.json(await tradingServiceFetch("/internal/position"));
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not load position." });
-  }
-});
-
-app.get("/api/admin/trading/trades", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    res.json(await tradingServiceFetch("/internal/trades?limit=50"));
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not load the trade log." });
-  }
-});
-
-app.post("/api/admin/trading/config", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    res.json(await tradingServiceFetch("/internal/config", { method: "POST", body: JSON.stringify(req.body || {}) }));
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not update trading config." });
-  }
-});
-
-app.post("/api/admin/trading/start", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    res.json(await tradingServiceFetch("/internal/start", { method: "POST", body: "{}" }));
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not start the trading engine." });
-  }
-});
-
-app.post("/api/admin/trading/stop", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    res.json(await tradingServiceFetch("/internal/stop", { method: "POST", body: "{}" }));
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not stop the trading engine." });
-  }
-});
-
-app.post("/api/admin/trading/kill", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    res.json(await tradingServiceFetch("/internal/kill", { method: "POST", body: JSON.stringify({ reason: req.body?.reason || "Manually triggered from the admin panel." }) }));
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not trigger the kill switch." });
-  }
-});
-
-app.post("/api/admin/trading/resume", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    res.json(await tradingServiceFetch("/internal/resume", { method: "POST", body: "{}" }));
-  } catch (err) {
-    res.status(err.status || 502).json({ error: err.message || "Could not resume trading." });
-  }
-});
-
 app.get("/api/admin/support/threads", requireAuth, requireAdmin, async (req, res) => {
   try {
     res.json({ threads: await getSupportThreadsForAdmin() });
@@ -4194,6 +4100,47 @@ app.get("/tools/dns-lookup", scrapeGate, (req, res) => {
 
 app.get("/tools/obfuscate", scrapeGate, (req, res) => {
   res.send(cachedToolsObfuscateHtml);
+});
+
+app.get("/tools/trading", scrapeGate, requireAuth, requireAdmin, (req, res) => {
+  res.send(cachedToolsTradingHtml);
+});
+
+app.get("/api/tools/trading/klines", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const category = String(req.query.category || "linear");
+    const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
+    const interval = String(req.query.interval || "15");
+    const result = await getPublicKlines(category, symbol, interval, 200);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load chart data." });
+  }
+});
+
+app.get("/api/tools/trading/position", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const category = String(req.query.category || "linear");
+    const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
+    const result = await getLivePosition(category, symbol);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load your position." });
+  }
+});
+
+app.get("/api/tools/trading/symbols", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const category = String(req.query.category || "linear");
+    const result = await getPublicInstruments(category);
+    const symbols = (result.list || [])
+      .filter((s) => s.quoteCoin === "USDT" && s.status === "Trading")
+      .map((s) => s.symbol)
+      .sort();
+    res.json({ symbols });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load the symbol list." });
+  }
 });
 
 app.get("/tools/qr-code", scrapeGate, (req, res) => {
