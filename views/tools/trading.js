@@ -294,7 +294,7 @@ button{font-family:inherit}
     <div class="tr-chart-tools">
       <button type="button" class="tr-chart-tool-btn tr-expand-only" id="trExpandBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3m11-5v3a2 2 0 01-2 2h-3"/></svg>
-        Auto Trade
+        Expand
       </button>
       <button type="button" class="tr-chart-tool-btn tr-contract-only" id="trContractBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3v4a1 1 0 01-1 1H4M20 8h-4a1 1 0 01-1-1V3M4 15h4a1 1 0 011 1v4M15 20v-4a1 1 0 011-1h4"/></svg>
@@ -742,15 +742,30 @@ button{font-family:inherit}
       var trades = data.trades || [];
       var list = document.getElementById('trHistoryList');
       if (!trades.length) { list.innerHTML = '<div class="tr-positions-empty">No closed trades yet.</div>'; return; }
-      list.innerHTML = trades.map(function(t){
+      list.innerHTML = trades.map(function(t, i){
         var pnlSign = t.closedPnl >= 0 ? 'pos' : 'neg';
-        return '<div class="tr-list-item">' +
+        return '<div class="tr-list-item" style="cursor:pointer" data-trade-index="' + i + '">' +
           '<div class="tr-list-head"><span class="tr-list-symbol">' + esc(t.symbol) + '</span><span class="tr-list-pnl ' + pnlSign + '">' + (t.closedPnl >= 0 ? '+' : '') + t.closedPnl.toFixed(2) + ' USDT</span></div>' +
           '<div class="tr-list-meta"><span>' + esc(t.side === 'Buy' ? 'Long' : 'Short') + ' \\u00b7 ' + t.leverage + 'x</span><span>Qty <b>' + esc(t.qty) + '</b></span></div>' +
           '<div class="tr-list-meta"><span>Entry <b>' + formatPrice(t.entryPrice) + '</b></span><span>Exit <b>' + formatPrice(t.exitPrice) + '</b></span></div>' +
           '<div class="tr-list-date">' + fmtDate(t.updatedTime || t.createdTime) + '</div>' +
         '</div>';
       }).join('');
+      list.querySelectorAll('[data-trade-index]').forEach(function(item){
+        item.addEventListener('click', function(){
+          var t = trades[Number(item.getAttribute('data-trade-index'))];
+          if (!t) return;
+          openShareOverlay({
+            symbol: t.symbol,
+            side: t.side,
+            leverage: t.leverage,
+            entryPrice: t.entryPrice,
+            markPrice: t.exitPrice,
+            unrealizedPnl: t.closedPnl,
+            positionValue: t.entryPrice * Number(t.qty),
+          });
+        });
+      });
     } catch (err) {
       document.getElementById('trHistoryList').innerHTML = '<div class="tr-positions-empty">' + esc(err.message || 'Could not load history.') + '</div>';
     }

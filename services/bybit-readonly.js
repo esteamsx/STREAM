@@ -302,7 +302,7 @@ export async function getClosedPnl(category, limit) {
   const result = await signedGet(apiKey, apiSecret, "/v5/position/closed-pnl", { category, limit: limit || 30 });
   return (result.list || []).map((p) => ({
     symbol: p.symbol,
-    side: p.side,
+    side: p.side === "Buy" ? "Sell" : "Buy",
     qty: p.qty,
     entryPrice: Number(p.avgEntryPrice),
     exitPrice: Number(p.avgExitPrice),
