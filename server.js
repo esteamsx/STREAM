@@ -4181,7 +4181,7 @@ app.post("/api/tools/trading/order", requireAuth, requireAdmin, tradingOrderLimi
     if (!symbol || !qty || Number(qty) <= 0) {
       return res.status(400).json({ error: "Symbol and quantity are required." });
     }
-    const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo: tradingDemo(req) });
+    const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo: tradingDemo(req), marginMode: req.body.marginMode });
     res.json({ ok: true, order: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not place order." });

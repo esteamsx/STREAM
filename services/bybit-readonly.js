@@ -171,6 +171,7 @@ export async function getLivePosition(category, symbol, demo = false) {
     leverage: Number(pos.leverage),
     unrealizedPnl: Number(pos.unrealisedPnl || 0),
     positionValue: Number(pos.positionValue || 0),
+    margin: Number(pos.positionIM || 0),
     liqPrice: pos.liqPrice ? Number(pos.liqPrice) : null,
   };
 }
@@ -193,6 +194,7 @@ export async function getAllPositions(category, demo = false) {
       leverage: Number(pos.leverage),
       unrealizedPnl: Number(pos.unrealisedPnl || 0),
       positionValue: Number(pos.positionValue || 0),
+      margin: Number(pos.positionIM || 0),
       liqPrice: pos.liqPrice ? Number(pos.liqPrice) : null,
       takeProfit: pos.takeProfit ? Number(pos.takeProfit) : null,
       stopLoss: pos.stopLoss ? Number(pos.stopLoss) : null,
@@ -208,9 +210,19 @@ export async function getAllPositions(category, demo = false) {
   return { equity, available, positions };
 }
 
-export async function setLeverage(category, symbol, leverage, demo = false) {
+export async function setLeverage(category, symbol, leverage, demo = false, marginMode) {
   const { apiKey, apiSecret } = requireKeys(demo);
   const lev = String(leverage);
+  if (marginMode === "cross" || marginMode === "isolated") {
+    try {
+      await signedPost(demo, apiKey, apiSecret, "/v5/position/switch-isolated", {
+        category, symbol, tradeMode: marginMode === "isolated" ? 1 : 0, buyLeverage: lev, sellLeverage: lev,
+      });
+      return;
+    } catch (err) {
+      if (!/110026/.test(err.message || "")) throw err;
+    }
+  }
   try {
     await signedPost(demo, apiKey, apiSecret, "/v5/position/set-leverage", {
       category, symbol, buyLeverage: lev, sellLeverage: lev,
@@ -220,10 +232,10 @@ export async function setLeverage(category, symbol, leverage, demo = false) {
   }
 }
 
-export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false }) {
+export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false, marginMode }) {
   const { apiKey, apiSecret } = requireKeys(demo);
   if (leverage) {
-    await setLeverage(category, symbol, leverage, demo);
+    await setLeverage(category, symbol, leverage, demo, marginMode);
   }
   const isLimit = orderType === "Limit";
   const body = {

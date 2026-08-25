@@ -51,6 +51,7 @@ button{font-family:inherit}
 .tr-wrap{max-width:640px;margin:0 auto;padding:14px 14px 0}
 
 .tr-pair-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.tr-margin-mode-btn{margin-left:auto;padding:7px 12px;border-radius:10px;background:var(--card2);border:1px solid var(--border-strong);color:var(--text);font-family:var(--font-mono);font-weight:600;font-size:.76rem;flex-shrink:0}
 .tr-pair-btn{
   flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;
   background:var(--card);border:1px solid var(--border-strong);border-radius:14px;color:var(--text);font-family:var(--font-display);
@@ -162,6 +163,10 @@ button{font-family:inherit}
 .tr-order-toggle{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted);margin-bottom:10px}
 .tr-order-toggle input{accent-color:var(--accent)}
 .tr-tpsl-preview{font-size:.68rem;color:var(--muted);margin:-6px 0 12px;line-height:1.6}
+.tr-liq-preview{font-size:.68rem;color:var(--muted);margin:-2px 0 12px;line-height:1.6}
+.tr-liq-preview b{color:var(--text);font-family:var(--font-mono)}
+.tr-positions-head{display:flex;justify-content:flex-end;margin-bottom:8px}
+.tr-close-all-btn{padding:6px 14px;border-radius:10px;background:rgba(255,59,92,.12);border:1px solid rgba(255,59,92,.35);color:var(--red);font-family:var(--font-display);font-weight:700;font-size:.78rem}
 .tr-tpsl-preview b{font-family:var(--font-mono)}
 .tr-tpsl-preview b.pos{color:var(--green)}
 .tr-tpsl-preview b.neg{color:var(--red)}
@@ -325,6 +330,7 @@ button{font-family:inherit}
       </div>
       <span class="tr-pair-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg></span>
     </button>
+    <button type="button" class="tr-margin-mode-btn" id="trMarginModeBtn">Isolated</button>
   </div>
 
   <div class="tr-chart-card" id="trChartCard">
@@ -352,6 +358,9 @@ button{font-family:inherit}
   </div>
 
   <div class="tr-tab-panel active" id="trTabPositions">
+    <div class="tr-positions-head" id="trPositionsHead" style="display:none">
+      <button type="button" class="tr-close-all-btn" id="trCloseAllBtn">Close All</button>
+    </div>
     <div class="tr-positions-row" id="trPositionsRow">
       <div class="tr-positions-empty" id="trPositionsEmpty">No open positions.</div>
     </div>
@@ -397,6 +406,7 @@ button{font-family:inherit}
       <button type="button" class="tr-size-preset" data-pct="100">100%</button>
     </div>
     <div class="tr-order-avail">Available: <span id="trAvailable">--</span> USDT · Est. margin: <span id="trEstMargin">--</span> USDT</div>
+    <div class="tr-liq-preview" id="trLiqPreview" style="display:none"></div>
     <label class="tr-order-toggle"><input type="checkbox" id="trTpslToggle"> Set TP / SL with entry</label>
     <div class="tr-order-row" id="trTpslRow" style="display:none">
       <div class="tr-order-field"><label>Take Profit</label><input type="number" id="trTpInput" step="any" placeholder="Optional"></div>
@@ -426,6 +436,16 @@ button{font-family:inherit}
   <div class="tr-select-panel">
     <div class="tr-select-header">Select Leverage</div>
     <div class="tr-select-list" id="trLeverageList"></div>
+  </div>
+</div>
+
+<div class="tr-overlay tr-overlay-center" id="trMarginModeOverlay">
+  <div class="tr-select-panel">
+    <div class="tr-select-header">Margin Mode</div>
+    <div class="tr-select-list">
+      <button type="button" class="tr-select-item" data-mode="isolated">Isolated</button>
+      <button type="button" class="tr-select-item" data-mode="cross">Cross</button>
+    </div>
   </div>
 </div>
 
@@ -553,6 +573,8 @@ button{font-family:inherit}
   var EXCHANGE = localStorage.getItem(EXCHANGE_KEY) === 'weex' ? 'weex' : 'bybit';
   var DEMO_KEY = 'trDemoMode';
   var DEMO_MODE = localStorage.getItem(DEMO_KEY) === '1';
+  var MARGIN_MODE_KEY = 'trMarginMode';
+  var MARGIN_MODE = localStorage.getItem(MARGIN_MODE_KEY) === 'cross' ? 'cross' : 'isolated';
 
   var saved = localStorage.getItem(LAST_SYMBOL_KEY);
   if (saved) symbol = saved;
@@ -696,11 +718,13 @@ button{font-family:inherit}
   }
 
   function positionRoi(pos){
-    return pos.positionValue ? (pos.unrealizedPnl / pos.positionValue) * 100 * (pos.leverage || 1) : 0;
+    var margin = pos.margin || (pos.positionValue && pos.leverage ? pos.positionValue / pos.leverage : 0);
+    return margin ? (pos.unrealizedPnl / margin) * 100 : 0;
   }
 
   function renderPositions(){
     var row = document.getElementById('trPositionsRow');
+    document.getElementById('trPositionsHead').style.display = positions.length > 1 ? 'flex' : 'none';
     if (!positions.length) {
       row.innerHTML = '<div class="tr-positions-empty" id="trPositionsEmpty">No open positions.</div>';
       return;
@@ -728,7 +752,7 @@ button{font-family:inherit}
           '<span class="tr-pc-pnl-usdt ' + pnlSign + '">' + (pos.unrealizedPnl >= 0 ? '+' : '') + pos.unrealizedPnl.toFixed(2) + ' USDT</span>' +
         '</div>' +
         tpslBadges +
-        '<div class="tr-pc-meta"><span>Entry <b>' + formatPrice(pos.entryPrice) + '</b></span><span>Mark <b>' + formatPrice(pos.markPrice) + '</b></span></div>' +
+        '<div class="tr-pc-meta"><span>Entry <b>' + formatPrice(pos.entryPrice) + '</b></span><span>Liq <b>' + (pos.liqPrice ? formatPrice(pos.liqPrice) : '--') + '</b></span><span>Mark <b>' + formatPrice(pos.markPrice) + '</b></span></div>' +
         '<div class="tr-pc-actions">' +
           '<button type="button" class="tr-pc-btn" data-action="tpsl" data-symbol="' + esc(pos.symbol) + '">TP/SL</button>' +
           '<button type="button" class="tr-pc-btn" data-action="share" data-symbol="' + esc(pos.symbol) + '">Share</button>' +
@@ -890,6 +914,36 @@ button{font-family:inherit}
     document.getElementById('trConfirmOverlay').classList.add('show');
   }
 
+  function confirmCloseAllPositions(){
+    if (!positions.length) return;
+    var totalPnl = positions.reduce(function(sum, p){ return sum + (p.unrealizedPnl || 0); }, 0);
+    document.getElementById('trConfirmTitle').textContent = 'Close All Positions';
+    document.getElementById('trConfirmBody').innerHTML =
+      '<div class="tr-confirm-row"><span>Positions</span><span>' + positions.length + '</span></div>' +
+      '<div class="tr-confirm-row"><span>Total PnL</span><span>' + (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) + ' USDT</span></div>';
+    var okBtn = document.getElementById('trConfirmOkBtn');
+    okBtn.className = 'tr-confirm-ok short';
+    okBtn.textContent = 'Close All';
+    okBtn.onclick = async function(){
+      okBtn.disabled = true;
+      var syms = positions.map(function(p){ return p.symbol; });
+      var failed = 0;
+      for (var i = 0; i < syms.length; i++) {
+        try {
+          await postJSON('/api/tools/trading/close', { category: CATEGORY, symbol: syms[i], percent: 100 });
+        } catch (err) {
+          failed++;
+        }
+      }
+      toast(failed ? ('Closed ' + (syms.length - failed) + ' of ' + syms.length + '.') : 'All positions closed.');
+      closeConfirmOverlay();
+      pollPositions();
+      okBtn.disabled = false;
+    };
+    document.getElementById('trConfirmOverlay').classList.add('show');
+  }
+  document.getElementById('trCloseAllBtn').addEventListener('click', confirmCloseAllPositions);
+
   function closeConfirmOverlay(){
     document.getElementById('trConfirmOverlay').classList.remove('show');
   }
@@ -932,6 +986,20 @@ button{font-family:inherit}
   document.getElementById('trTpInput').addEventListener('input', updateTpslPreview);
   document.getElementById('trSlInput').addEventListener('input', updateTpslPreview);
   document.getElementById('trLimitPriceInput').addEventListener('input', updateTpslPreview);
+  document.getElementById('trLimitPriceInput').addEventListener('input', updateLiqPreview);
+
+  function updateLiqPreview(){
+    var box = document.getElementById('trLiqPreview');
+    var qty = Number(document.getElementById('trQtyInput').value || 0);
+    var lev = currentLeverage();
+    var entry = orderType === 'Limit' ? Number(document.getElementById('trLimitPriceInput').value || 0) || lastPrice : lastPrice;
+    if (!entry || !qty || !lev || lev <= 1) { box.style.display = 'none'; return; }
+    var mmr = 0.005;
+    var longLiq = entry * (1 - 1 / lev + mmr);
+    var shortLiq = entry * (1 + 1 / lev - mmr);
+    box.innerHTML = 'Est. Liquidation &nbsp;\\u00b7&nbsp; If Long: <b>' + formatPrice(longLiq) + '</b> &nbsp;\\u00b7&nbsp; If Short: <b>' + formatPrice(shortLiq) + '</b>';
+    box.style.display = 'block';
+  }
 
   function updateEditTpslPreview(pos){
     var box = document.getElementById('trEditTpslPreview');
@@ -987,6 +1055,7 @@ button{font-family:inherit}
       document.querySelectorAll('.tr-order-type-btn').forEach(function(b){ b.classList.toggle('active', b === btn); });
       document.getElementById('trLimitPriceRow').style.display = orderType === 'Limit' ? 'flex' : 'none';
       updateTpslPreview();
+      updateLiqPreview();
     });
   });
 
@@ -1027,6 +1096,28 @@ button{font-family:inherit}
     if (e.target.id === 'trLeverageOverlay') document.getElementById('trLeverageOverlay').classList.remove('show');
   });
 
+  function renderMarginModeBtn(){
+    document.getElementById('trMarginModeBtn').textContent = MARGIN_MODE === 'cross' ? 'Cross' : 'Isolated';
+  }
+  renderMarginModeBtn();
+  document.getElementById('trMarginModeBtn').addEventListener('click', function(){
+    document.querySelectorAll('#trMarginModeOverlay [data-mode]').forEach(function(btn){
+      btn.classList.toggle('active', btn.getAttribute('data-mode') === MARGIN_MODE);
+    });
+    document.getElementById('trMarginModeOverlay').classList.add('show');
+  });
+  document.getElementById('trMarginModeOverlay').addEventListener('click', function(e){
+    if (e.target.id === 'trMarginModeOverlay') document.getElementById('trMarginModeOverlay').classList.remove('show');
+  });
+  document.querySelectorAll('#trMarginModeOverlay [data-mode]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      MARGIN_MODE = btn.getAttribute('data-mode');
+      localStorage.setItem(MARGIN_MODE_KEY, MARGIN_MODE);
+      renderMarginModeBtn();
+      document.getElementById('trMarginModeOverlay').classList.remove('show');
+    });
+  });
+
   function currentLeverage(){
     return Number((document.getElementById('trLeverageValue').textContent || '1x').replace('x', '')) || 1;
   }
@@ -1039,6 +1130,7 @@ button{font-family:inherit}
     var margin = lastPrice && qty ? (qty * lastPrice) / lev : 0;
     document.getElementById('trEstMargin').textContent = margin ? margin.toFixed(2) : '--';
     updateTpslPreview();
+    updateLiqPreview();
   }
   document.getElementById('trQtyInput').addEventListener('input', function(){
     currentSizePct = 0;
@@ -1093,6 +1185,7 @@ button{font-family:inherit}
       '<div class="tr-confirm-row"><span>Type</span><span>' + orderType + '</span></div>' +
       '<div class="tr-confirm-row"><span>Side</span><span>' + (side === 'Buy' ? 'Long' : 'Short') + '</span></div>' +
       '<div class="tr-confirm-row"><span>Leverage</span><span>' + lev + 'x</span></div>' +
+      '<div class="tr-confirm-row"><span>Margin Mode</span><span>' + (MARGIN_MODE === 'cross' ? 'Cross' : 'Isolated') + '</span></div>' +
       '<div class="tr-confirm-row"><span>Quantity</span><span>' + qty + '</span></div>' +
       (limitPrice ? '<div class="tr-confirm-row"><span>Limit Price</span><span>' + limitPrice + '</span></div>' : '') +
       (tp ? '<div class="tr-confirm-row"><span>Take Profit</span><span>' + tp + '</span></div>' : '') +
@@ -1103,7 +1196,7 @@ button{font-family:inherit}
     okBtn.onclick = async function(){
       okBtn.disabled = true;
       try {
-        await postJSON('/api/tools/trading/order', { category: CATEGORY, symbol: symbol, side: side, qty: qty, leverage: lev, orderType: orderType, price: limitPrice });
+        await postJSON('/api/tools/trading/order', { category: CATEGORY, symbol: symbol, side: side, qty: qty, leverage: lev, orderType: orderType, price: limitPrice, marginMode: MARGIN_MODE });
         if (tp || sl) {
           await postJSON('/api/tools/trading/tpsl', { category: CATEGORY, symbol: symbol, takeProfit: tp, stopLoss: sl }).catch(function(){});
         }

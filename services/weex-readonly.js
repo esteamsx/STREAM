@@ -246,6 +246,7 @@ export async function getLivePosition(category, symbol, demo = false) {
     leverage: Number(pos.leverage || 1),
     unrealizedPnl: Number(pos.unrealizePnl || pos.unrealizedPnl || 0),
     positionValue: Number(pos.openValue || pos.margin || 0),
+    margin: Number(pos.margin || pos.marginSize || 0) || (pos.openValue && pos.leverage ? Number(pos.openValue) / Number(pos.leverage) : 0),
     liqPrice: pos.liquidatePrice ? Number(pos.liquidatePrice) : null,
   };
 }
@@ -267,6 +268,7 @@ export async function getAllPositions(category, demo = false) {
       leverage: Number(pos.leverage || 1),
       unrealizedPnl: Number(pos.unrealizePnl || pos.unrealizedPnl || 0),
       positionValue: Number(pos.openValue || pos.margin || 0),
+      margin: Number(pos.margin || pos.marginSize || 0) || (pos.openValue && pos.leverage ? Number(pos.openValue) / Number(pos.leverage) : 0),
       liqPrice: pos.liquidatePrice ? Number(pos.liquidatePrice) : null,
       takeProfit: pos.presetTakeProfitPrice ? Number(pos.presetTakeProfitPrice) : null,
       stopLoss: pos.presetStopLossPrice ? Number(pos.presetStopLossPrice) : null,
@@ -285,19 +287,20 @@ export async function getAllPositions(category, demo = false) {
   return { equity, available, positions };
 }
 
-export async function setLeverage(category, symbol, leverage, demo = false) {
+export async function setLeverage(category, symbol, leverage, demo = false, marginMode = "isolated") {
   const wSymbol = toWeexSymbol(symbol);
   const lev = String(leverage);
+  const mode = marginMode === "cross" ? "cross" : "isolated";
   for (const side of ["long", "short"]) {
     try {
-      await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side, marginMode: "isolated" });
+      await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side, marginMode: mode });
     } catch (err) {}
   }
 }
 
-export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false }) {
+export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false, marginMode }) {
   if (leverage) {
-    await setLeverage(category, symbol, leverage, demo);
+    await setLeverage(category, symbol, leverage, demo, marginMode);
   }
   const isLimit = orderType === "Limit";
   const isBuy = side !== "Sell";
