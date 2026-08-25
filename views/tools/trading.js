@@ -217,7 +217,8 @@ button{font-family:inherit}
 }
 .tr-exchange-item:active{background:var(--card2)}
 .tr-exchange-item.active{background:var(--card2);outline:1.5px solid var(--accent)}
-.tr-exchange-icon{width:34px;height:34px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:.86rem;color:#04141a}
+.tr-exchange-icon{width:34px;height:34px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:.86rem;color:#04141a;overflow:hidden}
+.tr-exchange-icon-img{width:100%;height:100%;object-fit:contain}
 .tr-exchange-name{flex:1}
 .tr-exchange-sub{display:block;font-family:var(--font-body);font-weight:500;font-size:.7rem;color:var(--muted);margin-top:1px}
 .tr-exchange-check{width:18px;height:18px;color:var(--accent);flex-shrink:0;visibility:hidden}
@@ -511,14 +512,14 @@ button{font-family:inherit}
     <div class="tr-select-list">
       <button type="button" class="tr-exchange-item" id="trExchangeBybit" data-exchange="bybit">
         <span class="tr-exchange-icon" style="background:#000000">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M4 16V6h6.5a3 3 0 010 6H6.5m0 0H11a3.2 3.2 0 010 6.4H4" stroke="#F7A600" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 16V8.5L20 6v6.5L14 16z" fill="#F7A600"/></svg>
+          <img src="/bybit-logo.png" alt="Bybit" class="tr-exchange-icon-img">
         </span>
         <span class="tr-exchange-name">Continue with Bybit<span class="tr-exchange-sub">USDT perpetual futures</span></span>
         <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
       </button>
       <button type="button" class="tr-exchange-item" id="trExchangeWeex" data-exchange="weex">
-        <span class="tr-exchange-icon" style="background:linear-gradient(135deg,#0A2540,#00E0FF)">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M4 7l3 10 3-7 3 7 3-10" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 7l2 10" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>
+        <span class="tr-exchange-icon" style="background:#CEAF21">
+          <img src="/weex-logo.png" alt="WEEX" class="tr-exchange-icon-img">
         </span>
         <span class="tr-exchange-name">Continue with WEEX<span class="tr-exchange-sub">USDT perpetual futures</span></span>
         <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
