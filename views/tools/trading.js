@@ -94,6 +94,7 @@ button{font-family:inherit}
   scroll-snap-align:start;flex-shrink:0;width:260px;background:var(--card);border:1px solid var(--border-strong);
   border-radius:14px;padding:14px;
 }
+.tr-position-card.single{width:100%}
 .tr-position-card.long{border-color:rgba(18,196,139,.35)}
 .tr-position-card.short{border-color:rgba(255,59,92,.35)}
 .tr-position-card.active{outline:2px solid var(--accent)}
@@ -539,6 +540,7 @@ button{font-family:inherit}
   var instrumentInfo = null;
   var tvWidget = null;
   var positionsTimer = null;
+  var dataGen = 0;
   var positions = [];
   var lastPrice = null;
   var firstPrice = null;
@@ -668,8 +670,10 @@ button{font-family:inherit}
   });
 
   async function loadTicker(){
+    var gen = dataGen;
     try {
       var data = await getJSON('/api/tools/trading/klines?category=' + CATEGORY + '&symbol=' + symbol + '&interval=15');
+      if (gen !== dataGen) return;
       var list = (data.list || []);
       if (list.length) {
         var latest = list[0];
@@ -714,7 +718,7 @@ button{font-family:inherit}
           (pos.stopLoss ? '<span>SL ' + formatPrice(pos.stopLoss) + '</span>' : '') +
         '</div>';
       }
-      return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + '" data-symbol="' + esc(pos.symbol) + '">' +
+      return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + (positions.length === 1 ? ' single' : '') + '" data-symbol="' + esc(pos.symbol) + '">' +
         '<div class="tr-pc-head">' +
           '<span class="tr-pc-symbol">' + esc(pos.symbol) + '</span>' +
           '<span><span class="tr-pc-side ' + sideLower + '">' + sideLabel + '</span><span class="tr-pc-lev">' + pos.leverage + 'x</span></span>' +
@@ -754,8 +758,10 @@ button{font-family:inherit}
   }
 
   async function pollPositions(){
+    var gen = dataGen;
     try {
       var data = await getJSON('/api/tools/trading/positions?category=' + CATEGORY);
+      if (gen !== dataGen) return;
       positions = data.positions || [];
       renderPositions();
       var equityEl = document.getElementById('trEquity');
@@ -784,15 +790,17 @@ button{font-family:inherit}
   }
 
   async function pollOrders(){
+    var gen = dataGen;
     try {
       var data = await getJSON('/api/tools/trading/orders?category=' + CATEGORY);
+      if (gen !== dataGen) return;
       var orders = data.orders || [];
       var list = document.getElementById('trOrdersList');
       if (!orders.length) { list.innerHTML = '<div class="tr-positions-empty">No pending orders.</div>'; return; }
       list.innerHTML = orders.map(function(o){
         return '<div class="tr-list-item">' +
           '<div class="tr-list-head"><span class="tr-list-symbol">' + esc(o.symbol) + '</span><span>' + esc(o.side === 'Buy' ? 'Buy' : 'Sell') + ' \\u00b7 ' + esc(o.orderType) + '</span></div>' +
-          '<div class="tr-list-meta"><span>Qty <b>' + esc(o.qty) + '</b></span><span>Price <b>' + esc(o.price || o.triggerPrice || 'Market') + '</b></span></div>' +
+          '<div class="tr-list-meta"><span>Qty <b>' + esc(o.qty) + '</b></span><span>Price <b>' + esc((Number(o.price) > 0 ? o.price : null) || (Number(o.triggerPrice) > 0 ? o.triggerPrice : null) || 'Market') + '</b></span></div>' +
           '<div class="tr-list-date">' + fmtDate(o.createdTime) + '</div>' +
           '<button type="button" class="tr-list-cancel" data-order-id="' + esc(o.orderId) + '" data-symbol="' + esc(o.symbol) + '">Cancel Order</button>' +
         '</div>';
@@ -811,13 +819,16 @@ button{font-family:inherit}
         });
       });
     } catch (err) {
+      if (gen !== dataGen) return;
       document.getElementById('trOrdersList').innerHTML = '<div class="tr-positions-empty">' + esc(err.message || 'Could not load orders.') + '</div>';
     }
   }
 
   async function pollHistory(){
+    var gen = dataGen;
     try {
       var data = await getJSON('/api/tools/trading/closed-pnl?category=' + CATEGORY);
+      if (gen !== dataGen) return;
       var trades = data.trades || [];
       var list = document.getElementById('trHistoryList');
       if (!trades.length) { list.innerHTML = '<div class="tr-positions-empty">No closed trades yet.</div>'; return; }
@@ -847,6 +858,7 @@ button{font-family:inherit}
         });
       });
     } catch (err) {
+      if (gen !== dataGen) return;
       document.getElementById('trHistoryList').innerHTML = '<div class="tr-positions-empty">' + esc(err.message || 'Could not load history.') + '</div>';
     }
   }
@@ -979,8 +991,11 @@ button{font-family:inherit}
   });
 
   async function loadInstrumentInfo(){
+    var gen = dataGen;
     try {
-      instrumentInfo = await getJSON('/api/tools/trading/instrument?category=' + CATEGORY + '&symbol=' + symbol);
+      var result = await getJSON('/api/tools/trading/instrument?category=' + CATEGORY + '&symbol=' + symbol);
+      if (gen !== dataGen) return;
+      instrumentInfo = result;
       var maxLev = Math.max(1, Math.floor(Number(instrumentInfo.maxLeverage) || 1));
       var options = [1, 2, 3, 5, 10, 15, 20, 25, 35, 50, 75, 100].filter(function(l){ return l <= maxLev; });
       if (!options.length) options = [1];
@@ -1001,6 +1016,7 @@ button{font-family:inherit}
         });
       });
     } catch (err) {
+      if (gen !== dataGen) return;
       instrumentInfo = null;
     }
   }
@@ -1329,10 +1345,13 @@ button{font-family:inherit}
   });
 
   async function loadSymbols(){
+    var gen = dataGen;
     try {
       var data = await getJSON('/api/tools/trading/symbols?category=' + CATEGORY);
+      if (gen !== dataGen) return;
       allSymbols = data.symbols || [];
     } catch (err) {
+      if (gen !== dataGen) return;
       allSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
     }
   }
@@ -1466,8 +1485,13 @@ button{font-family:inherit}
     document.getElementById('trDemoBadge').style.display = DEMO_MODE ? 'inline-block' : 'none';
   }
   function refreshTradingData(){
+    dataGen++;
     firstPrice = null;
     instrumentInfo = null;
+    positions = [];
+    renderPositions();
+    if (activeTab === 'orders') document.getElementById('trOrdersList').innerHTML = '<div class="tr-positions-empty">Loading orders...</div>';
+    if (activeTab === 'history') document.getElementById('trHistoryList').innerHTML = '<div class="tr-positions-empty">Loading history...</div>';
     initChart();
     loadTicker();
     loadSymbols();
