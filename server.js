@@ -135,7 +135,7 @@ async function botServiceFetch(pathAndQuery, options = {}) {
 }
 
 import QRCode from "qrcode";
-import { getPublicKlines, getPublicInstruments, getLivePosition, getAllPositions, getInstrumentInfo, placeOrder, closePosition, setTradingStop } from "./services/bybit-readonly.js";
+import { getPublicKlines, getPublicInstruments, getAllInstruments, getLivePosition, getAllPositions, getInstrumentInfo, placeOrder, closePosition, setTradingStop, getOpenOrders, cancelOrder, getClosedPnl } from "./services/bybit-readonly.js";
 import {
   issueCode,
   checkCode,
@@ -4164,10 +4164,12 @@ app.post("/api/tools/trading/order", requireAuth, requireAdmin, tradingOrderLimi
     const side = req.body?.side === "Sell" ? "Sell" : "Buy";
     const qty = String(req.body?.qty || "");
     const leverage = req.body?.leverage ? String(req.body.leverage) : null;
+    const orderType = req.body?.orderType === "Limit" ? "Limit" : "Market";
+    const price = req.body?.price ? String(req.body.price) : null;
     if (!symbol || !qty || Number(qty) <= 0) {
       return res.status(400).json({ error: "Symbol and quantity are required." });
     }
-    const result = await placeOrder({ category, symbol, side, qty, leverage });
+    const result = await placeOrder({ category, symbol, side, qty, leverage, orderType, price });
     res.json({ ok: true, order: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not place order." });
@@ -4204,7 +4206,7 @@ app.post("/api/tools/trading/tpsl", requireAuth, requireAdmin, tradingOrderLimit
 app.get("/api/tools/trading/symbols", requireAuth, requireAdmin, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
-    const result = await getPublicInstruments(category);
+    const result = await getAllInstruments(category);
     const symbols = (result.list || [])
       .filter((s) => s.quoteCoin === "USDT" && s.status === "Trading")
       .map((s) => s.symbol)
@@ -4212,6 +4214,39 @@ app.get("/api/tools/trading/symbols", requireAuth, requireAdmin, async (req, res
     res.json({ symbols });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load the symbol list." });
+  }
+});
+
+app.get("/api/tools/trading/orders", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const category = String(req.query.category || "linear");
+    const result = await getOpenOrders(category);
+    res.json({ orders: result });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load open orders." });
+  }
+});
+
+app.post("/api/tools/trading/orders/cancel", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+  try {
+    const category = String(req.body?.category || "linear");
+    const symbol = String(req.body?.symbol || "").toUpperCase();
+    const orderId = String(req.body?.orderId || "");
+    if (!symbol || !orderId) return res.status(400).json({ error: "Symbol and orderId are required." });
+    await cancelOrder(category, symbol, orderId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not cancel order." });
+  }
+});
+
+app.get("/api/tools/trading/closed-pnl", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const category = String(req.query.category || "linear");
+    const result = await getClosedPnl(category, 30);
+    res.json({ trades: result });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load closed trades." });
   }
 });
 

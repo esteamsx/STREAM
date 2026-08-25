@@ -103,12 +103,28 @@ export function getPublicTicker(category, symbol) {
 }
 
 export function getPublicInstruments(category) {
-  return publicGet("/v5/market/instruments-info", { category });
+  return publicGet("/v5/market/instruments-info", { category, limit: 1000 });
+}
+
+export async function getAllInstruments(category) {
+  let cursor = "";
+  let all = [];
+  for (let i = 0; i < 12; i++) {
+    const result = await publicGet("/v5/market/instruments-info", {
+      category,
+      limit: 1000,
+      cursor: cursor || undefined,
+    });
+    all = all.concat(result.list || []);
+    cursor = result.nextPageCursor || "";
+    if (!cursor) break;
+  }
+  return { list: all };
 }
 
 export async function getInstrumentInfo(category, symbol) {
-  const result = await getPublicInstruments(category);
-  const info = (result.list || []).find((s) => s.symbol === symbol);
+  const result = await publicGet("/v5/market/instruments-info", { category, symbol });
+  const info = (result.list || [])[0];
   if (!info) {
     throw Object.assign(new Error("Unknown trading pair."), { status: 404 });
   }
@@ -201,20 +217,28 @@ export async function setLeverage(category, symbol, leverage) {
   }
 }
 
-export async function placeOrder({ category, symbol, side, qty, leverage }) {
+export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price }) {
   const { apiKey, apiSecret } = requireKeys();
   if (leverage) {
     await setLeverage(category, symbol, leverage);
   }
-  return signedPost(apiKey, apiSecret, "/v5/order/create", {
+  const isLimit = orderType === "Limit";
+  const body = {
     category,
     symbol,
     side,
-    orderType: "Market",
+    orderType: isLimit ? "Limit" : "Market",
     qty: String(qty),
-    timeInForce: "IOC",
+    timeInForce: isLimit ? "GTC" : "IOC",
     reduceOnly: false,
-  });
+  };
+  if (isLimit) {
+    if (!price) {
+      throw Object.assign(new Error("A limit price is required for limit orders."), { status: 400 });
+    }
+    body.price = String(price);
+  }
+  return signedPost(apiKey, apiSecret, "/v5/order/create", body);
 }
 
 export async function closePosition(category, symbol, percent) {
@@ -249,4 +273,42 @@ export async function setTradingStop(category, symbol, { takeProfit, stopLoss })
   if (takeProfit) body.takeProfit = String(takeProfit);
   if (stopLoss) body.stopLoss = String(stopLoss);
   return signedPost(apiKey, apiSecret, "/v5/position/trading-stop", body);
+}
+
+export async function getOpenOrders(category) {
+  const { apiKey, apiSecret } = requireKeys();
+  const result = await signedGet(apiKey, apiSecret, "/v5/order/realtime", { category, settleCoin: "USDT" });
+  return (result.list || []).map((o) => ({
+    orderId: o.orderId,
+    symbol: o.symbol,
+    side: o.side,
+    orderType: o.orderType,
+    qty: o.qty,
+    price: o.price,
+    triggerPrice: o.triggerPrice || null,
+    reduceOnly: !!o.reduceOnly,
+    orderStatus: o.orderStatus,
+    createdTime: Number(o.createdTime || 0),
+  }));
+}
+
+export async function cancelOrder(category, symbol, orderId) {
+  const { apiKey, apiSecret } = requireKeys();
+  return signedPost(apiKey, apiSecret, "/v5/order/cancel", { category, symbol, orderId });
+}
+
+export async function getClosedPnl(category, limit) {
+  const { apiKey, apiSecret } = requireKeys();
+  const result = await signedGet(apiKey, apiSecret, "/v5/position/closed-pnl", { category, limit: limit || 30 });
+  return (result.list || []).map((p) => ({
+    symbol: p.symbol,
+    side: p.side,
+    qty: p.qty,
+    entryPrice: Number(p.avgEntryPrice),
+    exitPrice: Number(p.avgExitPrice),
+    closedPnl: Number(p.closedPnl),
+    leverage: Number(p.leverage),
+    createdTime: Number(p.createdTime || 0),
+    updatedTime: Number(p.updatedTime || 0),
+  }));
 }
