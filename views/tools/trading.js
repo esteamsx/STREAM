@@ -44,6 +44,7 @@ button{font-family:inherit}
 .tr-back{background:transparent;border:none;color:var(--text);display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;flex-shrink:0}
 .tr-back svg{width:20px;height:20px}
 .tr-title{font-family:var(--font-display);font-weight:700;font-size:1rem}
+.tr-demo-badge{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:8px;background:rgba(255,196,0,.16);border:1px solid rgba(255,196,0,.4);color:#FFC400;font-size:.6rem;font-weight:800;letter-spacing:.06em;vertical-align:middle}
 .tr-wallet{margin-left:auto;text-align:right}
 .tr-wallet .label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .tr-wallet .value{font-family:var(--font-mono);font-size:.86rem;font-weight:600}
@@ -192,6 +193,15 @@ button{font-family:inherit}
 .tr-select-list{overflow-y:auto;padding:6px}
 .tr-select-item{width:100%;text-align:center;padding:12px;background:transparent;border:none;color:var(--text);font-family:var(--font-mono);font-weight:600;font-size:.9rem;border-radius:10px}
 .tr-select-item.active{background:var(--card2);color:var(--accent)}
+.tr-select-header-row{display:flex;align-items:center;justify-content:space-between}
+.tr-select-close-btn{width:26px;height:26px;border-radius:50%;background:var(--card2);border:none;color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tr-select-close-btn svg{width:14px;height:14px}
+.tr-demo-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)}
+.tr-demo-toggle-text{font-family:var(--font-display);font-weight:700;font-size:.82rem;color:var(--text)}
+.tr-toggle-switch{width:42px;height:24px;border-radius:20px;background:var(--card2);border:1px solid var(--border-strong);position:relative;flex-shrink:0;transition:background .2s var(--ease)}
+.tr-toggle-knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:transform .2s var(--ease),background .2s var(--ease)}
+.tr-toggle-switch.on{background:rgba(255,196,0,.18);border-color:rgba(255,196,0,.4)}
+.tr-toggle-switch.on .tr-toggle-knob{transform:translateX(18px);background:#FFC400}
 
 .tr-settings-fab{
   position:fixed;right:16px;bottom:22px;z-index:90;width:48px;height:48px;border-radius:50%;
@@ -268,6 +278,12 @@ button{font-family:inherit}
 .tr-share-footer{text-align:center;position:relative}
 .tr-share-footer-brand{font-family:var(--font-display);font-weight:800;font-size:.88rem;color:var(--text)}
 .tr-share-footer-url{font-size:.66rem;color:var(--muted);margin-top:2px}
+.tr-share-demo-stamp{
+  position:absolute;top:46%;left:50%;transform:translate(-50%,-50%) rotate(-18deg);
+  font-family:var(--font-display);font-weight:800;font-size:2.6rem;letter-spacing:.14em;
+  color:rgba(255,196,0,.16);border:5px solid rgba(255,196,0,.16);border-radius:14px;
+  padding:6px 22px;pointer-events:none;z-index:1;white-space:nowrap;
+}
 .tr-share-save-btn{
   display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;
   background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#04141a;
@@ -291,7 +307,7 @@ button{font-family:inherit}
   <button type="button" class="tr-back" id="trBackBtn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
   </button>
-  <div class="tr-title">Trading</div>
+  <div class="tr-title">Trading<span class="tr-demo-badge" id="trDemoBadge" style="display:none">DEMO</span></div>
   <div class="tr-wallet">
     <div class="label">Equity</div>
     <div class="value" id="trEquity">--</div>
@@ -461,8 +477,9 @@ button{font-family:inherit}
       <div class="tr-share-meta-row">
         <div><span class="tr-share-meta-label">Entry</span><span class="tr-share-meta-val" id="trShareEntry">-</span></div>
         <div class="tr-share-meta-ts" id="trShareTimestamp">-</div>
-        <div><span class="tr-share-meta-label">Mark</span><span class="tr-share-meta-val" id="trShareMark">-</span></div>
+        <div><span class="tr-share-meta-label" id="trShareMarkLabel">Mark</span><span class="tr-share-meta-val" id="trShareMark">-</span></div>
       </div>
+      <div class="tr-share-demo-stamp" id="trShareDemoStamp" style="display:none">DEMO</div>
       <div class="tr-share-footer">
         <div class="tr-share-footer-brand">ES TEAMS TV</div>
         <div class="tr-share-footer-url">esteamstv.devs.surf</div>
@@ -481,15 +498,28 @@ button{font-family:inherit}
 
 <div class="tr-overlay tr-overlay-center" id="trExchangeOverlay">
   <div class="tr-select-panel">
-    <div class="tr-select-header">Trading Exchange</div>
+    <div class="tr-select-header tr-select-header-row">
+      <span>Trading Exchange</span>
+      <button type="button" class="tr-select-close-btn" id="trExchangeCloseBtn" aria-label="Cancel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="tr-demo-toggle-row">
+      <div class="tr-demo-toggle-text">Demo Trading<span class="tr-exchange-sub">Practice with virtual funds</span></div>
+      <button type="button" class="tr-toggle-switch" id="trDemoToggle" aria-label="Toggle demo trading"><span class="tr-toggle-knob"></span></button>
+    </div>
     <div class="tr-select-list">
       <button type="button" class="tr-exchange-item" id="trExchangeBybit" data-exchange="bybit">
-        <span class="tr-exchange-icon" style="background:#F7A600">B</span>
+        <span class="tr-exchange-icon" style="background:#000000">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M4 16V6h6.5a3 3 0 010 6H6.5m0 0H11a3.2 3.2 0 010 6.4H4" stroke="#F7A600" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 16V8.5L20 6v6.5L14 16z" fill="#F7A600"/></svg>
+        </span>
         <span class="tr-exchange-name">Continue with Bybit<span class="tr-exchange-sub">USDT perpetual futures</span></span>
         <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
       </button>
       <button type="button" class="tr-exchange-item" id="trExchangeWeex" data-exchange="weex">
-        <span class="tr-exchange-icon" style="background:#00E0FF">W</span>
+        <span class="tr-exchange-icon" style="background:linear-gradient(135deg,#0A2540,#00E0FF)">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M4 7l3 10 3-7 3 7 3-10" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 7l2 10" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </span>
         <span class="tr-exchange-name">Continue with WEEX<span class="tr-exchange-sub">USDT perpetual futures</span></span>
         <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
       </button>
@@ -518,6 +548,8 @@ button{font-family:inherit}
   var LAST_SYMBOL_KEY = 'trLastSymbol';
   var EXCHANGE_KEY = 'trExchange';
   var EXCHANGE = localStorage.getItem(EXCHANGE_KEY) === 'weex' ? 'weex' : 'bybit';
+  var DEMO_KEY = 'trDemoMode';
+  var DEMO_MODE = localStorage.getItem(DEMO_KEY) === '1';
 
   var saved = localStorage.getItem(LAST_SYMBOL_KEY);
   if (saved) symbol = saved;
@@ -537,13 +569,13 @@ button{font-family:inherit}
 
   async function getJSON(url){
     var sep = url.indexOf('?') === -1 ? '?' : '&';
-    var res = await fetch(url + sep + 'exchange=' + EXCHANGE);
+    var res = await fetch(url + sep + 'exchange=' + EXCHANGE + '&demo=' + (DEMO_MODE ? '1' : '0'));
     var data = await res.json().catch(function(){ return {}; });
     if (!res.ok) throw new Error(data.error || 'Request failed.');
     return data;
   }
   async function postJSON(url, body){
-    var payload = Object.assign({ exchange: EXCHANGE }, body || {});
+    var payload = Object.assign({ exchange: EXCHANGE, demo: DEMO_MODE }, body || {});
     var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     var data = await res.json().catch(function(){ return {}; });
     if (!res.ok) throw new Error(data.error || 'Request failed.');
@@ -809,6 +841,7 @@ button{font-family:inherit}
             markPrice: t.exitPrice,
             unrealizedPnl: t.closedPnl,
             positionValue: t.entryPrice * Number(t.qty),
+            isClosed: true,
           });
         });
       });
@@ -1095,6 +1128,8 @@ button{font-family:inherit}
     document.getElementById('trUsdtToggle').classList.toggle('on', shareUsdt);
     document.getElementById('trShareEntry').textContent = formatPrice(pos.entryPrice);
     document.getElementById('trShareMark').textContent = formatPrice(pos.markPrice);
+    document.getElementById('trShareMarkLabel').textContent = pos.isClosed ? 'Exit' : 'Mark';
+    document.getElementById('trShareDemoStamp').style.display = DEMO_MODE ? 'block' : 'none';
     var now = new Date();
     var dd = String(now.getDate()).padStart(2, '0');
     var mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -1208,7 +1243,7 @@ button{font-family:inherit}
     ctx.textAlign = 'left';
     ctx.fillText('ENTRY', 44, rowY);
     ctx.textAlign = 'right';
-    ctx.fillText('MARK', W - 44, rowY);
+    ctx.fillText(pos.isClosed ? 'EXIT' : 'MARK', W - 44, rowY);
 
     ctx.fillStyle = 'rgba(255,255,255,.9)';
     ctx.font = '600 20px "JetBrains Mono", monospace';
@@ -1230,6 +1265,21 @@ button{font-family:inherit}
     ctx.fillStyle = 'rgba(255,255,255,.5)';
     ctx.font = '500 15px Inter, sans-serif';
     ctx.fillText('esteamstv.devs.surf', W / 2, footerY + 24);
+
+    if (DEMO_MODE) {
+      ctx.save();
+      ctx.translate(W / 2, H * 0.46);
+      ctx.rotate(-18 * Math.PI / 180);
+      ctx.textAlign = 'center';
+      ctx.font = '800 54px "Space Grotesk", sans-serif';
+      ctx.strokeStyle = 'rgba(255,196,0,.35)';
+      ctx.lineWidth = 5;
+      roundRect(ctx, -150, -42, 300, 84, 14);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,196,0,.3)';
+      ctx.fillText('DEMO', 0, 16);
+      ctx.restore();
+    }
   }
 
   document.getElementById('trShareSaveBtn').addEventListener('click', function(){
@@ -1402,6 +1452,7 @@ button{font-family:inherit}
   function renderExchangeOverlay(){
     document.getElementById('trExchangeBybit').classList.toggle('active', EXCHANGE === 'bybit');
     document.getElementById('trExchangeWeex').classList.toggle('active', EXCHANGE === 'weex');
+    document.getElementById('trDemoToggle').classList.toggle('on', DEMO_MODE);
   }
   function openExchangeOverlay(){
     renderExchangeOverlay();
@@ -1410,13 +1461,10 @@ button{font-family:inherit}
   function closeExchangeOverlay(){
     document.getElementById('trExchangeOverlay').classList.remove('show');
   }
-  function switchExchange(next){
-    if (next !== 'bybit' && next !== 'weex') return;
-    if (next === EXCHANGE) { closeExchangeOverlay(); return; }
-    EXCHANGE = next;
-    localStorage.setItem(EXCHANGE_KEY, EXCHANGE);
-    closeExchangeOverlay();
-    toast('Switched to ' + (EXCHANGE === 'weex' ? 'WEEX' : 'Bybit') + '.');
+  function updateDemoBadge(){
+    document.getElementById('trDemoBadge').style.display = DEMO_MODE ? 'inline-block' : 'none';
+  }
+  function refreshTradingData(){
     firstPrice = null;
     instrumentInfo = null;
     initChart();
@@ -1427,10 +1475,29 @@ button{font-family:inherit}
     if (activeTab === 'orders') pollOrders();
     if (activeTab === 'history') pollHistory();
   }
+  function switchExchange(next){
+    if (next !== 'bybit' && next !== 'weex') return;
+    if (next === EXCHANGE) { closeExchangeOverlay(); return; }
+    EXCHANGE = next;
+    localStorage.setItem(EXCHANGE_KEY, EXCHANGE);
+    closeExchangeOverlay();
+    toast('Switched to ' + (EXCHANGE === 'weex' ? 'WEEX' : 'Bybit') + (DEMO_MODE ? ' Demo.' : '.'));
+    refreshTradingData();
+  }
+  function toggleDemoMode(){
+    DEMO_MODE = !DEMO_MODE;
+    localStorage.setItem(DEMO_KEY, DEMO_MODE ? '1' : '0');
+    document.getElementById('trDemoToggle').classList.toggle('on', DEMO_MODE);
+    updateDemoBadge();
+    toast(DEMO_MODE ? 'Demo trading enabled.' : 'Demo trading disabled.');
+    refreshTradingData();
+  }
   document.getElementById('trSettingsFab').addEventListener('click', function(){
     this.classList.remove('spin'); void this.offsetWidth; this.classList.add('spin');
     openExchangeOverlay();
   });
+  document.getElementById('trExchangeCloseBtn').addEventListener('click', closeExchangeOverlay);
+  document.getElementById('trDemoToggle').addEventListener('click', toggleDemoMode);
   document.getElementById('trExchangeOverlay').addEventListener('click', function(e){
     if (e.target.id === 'trExchangeOverlay') closeExchangeOverlay();
   });
@@ -1438,6 +1505,7 @@ button{font-family:inherit}
     btn.addEventListener('click', function(){ switchExchange(btn.getAttribute('data-exchange')); });
   });
 
+  updateDemoBadge();
   document.getElementById('trPairSymbol').textContent = symbol;
   initChart();
   loadTicker();

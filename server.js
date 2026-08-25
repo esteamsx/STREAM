@@ -380,6 +380,9 @@ const tradingOrderLimiter = new SimpleRateLimiter(10, 60 * 1000, (req) => req.ui
 function tradingService(req) {
   return String(req.query?.exchange || req.body?.exchange || "bybit").toLowerCase() === "weex" ? weexReadonly : bybitReadonly;
 }
+function tradingDemo(req) {
+  return String(req.query?.demo || req.body?.demo || "") === "1" || req.body?.demo === true;
+}
 const channelReactLimiter = new SimpleRateLimiter(
   10,
   10 * 60 * 1000,
@@ -4127,7 +4130,7 @@ app.get("/api/tools/trading/klines", requireAuth, requireAdmin, async (req, res)
     const category = String(req.query.category || "linear");
     const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
     const interval = String(req.query.interval || "15");
-    const result = await tradingService(req).getPublicKlines(category, symbol, interval, 200);
+    const result = await tradingService(req).getPublicKlines(category, symbol, interval, 200, tradingDemo(req));
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load chart data." });
@@ -4138,7 +4141,7 @@ app.get("/api/tools/trading/position", requireAuth, requireAdmin, async (req, re
   try {
     const category = String(req.query.category || "linear");
     const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
-    const result = await tradingService(req).getLivePosition(category, symbol);
+    const result = await tradingService(req).getLivePosition(category, symbol, tradingDemo(req));
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load your position." });
@@ -4148,7 +4151,7 @@ app.get("/api/tools/trading/position", requireAuth, requireAdmin, async (req, re
 app.get("/api/tools/trading/positions", requireAuth, requireAdmin, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
-    const result = await tradingService(req).getAllPositions(category);
+    const result = await tradingService(req).getAllPositions(category, tradingDemo(req));
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load your positions." });
@@ -4159,7 +4162,7 @@ app.get("/api/tools/trading/instrument", requireAuth, requireAdmin, async (req, 
   try {
     const category = String(req.query.category || "linear");
     const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
-    const result = await tradingService(req).getInstrumentInfo(category, symbol);
+    const result = await tradingService(req).getInstrumentInfo(category, symbol, tradingDemo(req));
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load instrument info." });
@@ -4178,7 +4181,7 @@ app.post("/api/tools/trading/order", requireAuth, requireAdmin, tradingOrderLimi
     if (!symbol || !qty || Number(qty) <= 0) {
       return res.status(400).json({ error: "Symbol and quantity are required." });
     }
-    const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price });
+    const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo: tradingDemo(req) });
     res.json({ ok: true, order: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not place order." });
@@ -4191,7 +4194,7 @@ app.post("/api/tools/trading/close", requireAuth, requireAdmin, tradingOrderLimi
     const symbol = String(req.body?.symbol || "").toUpperCase();
     const percent = req.body?.percent ? Number(req.body.percent) : 100;
     if (!symbol) return res.status(400).json({ error: "Symbol is required." });
-    const result = await tradingService(req).closePosition(category, symbol, percent);
+    const result = await tradingService(req).closePosition(category, symbol, percent, tradingDemo(req));
     res.json({ ok: true, order: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not close position." });
@@ -4205,7 +4208,7 @@ app.post("/api/tools/trading/tpsl", requireAuth, requireAdmin, tradingOrderLimit
     const takeProfit = req.body?.takeProfit ? String(req.body.takeProfit) : "";
     const stopLoss = req.body?.stopLoss ? String(req.body.stopLoss) : "";
     if (!symbol) return res.status(400).json({ error: "Symbol is required." });
-    await tradingService(req).setTradingStop(category, symbol, { takeProfit, stopLoss });
+    await tradingService(req).setTradingStop(category, symbol, { takeProfit, stopLoss, demo: tradingDemo(req) });
     res.json({ ok: true });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not update TP/SL." });
@@ -4215,7 +4218,7 @@ app.post("/api/tools/trading/tpsl", requireAuth, requireAdmin, tradingOrderLimit
 app.get("/api/tools/trading/symbols", requireAuth, requireAdmin, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
-    const result = await tradingService(req).getAllInstruments(category);
+    const result = await tradingService(req).getAllInstruments(category, tradingDemo(req));
     const symbols = (result.list || [])
       .filter((s) => s.quoteCoin === "USDT" && s.status === "Trading")
       .map((s) => s.symbol)
@@ -4229,7 +4232,7 @@ app.get("/api/tools/trading/symbols", requireAuth, requireAdmin, async (req, res
 app.get("/api/tools/trading/orders", requireAuth, requireAdmin, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
-    const result = await tradingService(req).getOpenOrders(category);
+    const result = await tradingService(req).getOpenOrders(category, tradingDemo(req));
     res.json({ orders: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load open orders." });
@@ -4242,7 +4245,7 @@ app.post("/api/tools/trading/orders/cancel", requireAuth, requireAdmin, tradingO
     const symbol = String(req.body?.symbol || "").toUpperCase();
     const orderId = String(req.body?.orderId || "");
     if (!symbol || !orderId) return res.status(400).json({ error: "Symbol and orderId are required." });
-    await tradingService(req).cancelOrder(category, symbol, orderId);
+    await tradingService(req).cancelOrder(category, symbol, orderId, tradingDemo(req));
     res.json({ ok: true });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not cancel order." });
@@ -4252,7 +4255,7 @@ app.post("/api/tools/trading/orders/cancel", requireAuth, requireAdmin, tradingO
 app.get("/api/tools/trading/closed-pnl", requireAuth, requireAdmin, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
-    const result = await tradingService(req).getClosedPnl(category, 30);
+    const result = await tradingService(req).getClosedPnl(category, 30, tradingDemo(req));
     res.json({ trades: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load closed trades." });

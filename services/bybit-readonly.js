@@ -1,7 +1,10 @@
 import crypto from "crypto";
 
-const BASE_URL = "https://api.bybit.com";
 const RECV_WINDOW = "5000";
+
+function baseUrl(demo) {
+  return demo ? "https://api-demo.bybit.com" : "https://api.bybit.com";
+}
 
 function sign(secret, payload) {
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
@@ -15,9 +18,9 @@ function buildQueryString(params) {
     .join("&");
 }
 
-async function publicGet(path, params = {}) {
+async function publicGet(demo, path, params = {}) {
   const qs = buildQueryString(params);
-  const url = `${BASE_URL}${path}${qs ? `?${qs}` : ""}`;
+  const url = `${baseUrl(demo)}${path}${qs ? `?${qs}` : ""}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   let res;
@@ -33,7 +36,7 @@ async function publicGet(path, params = {}) {
   return data.result;
 }
 
-async function signedGet(apiKey, apiSecret, path, params = {}) {
+async function signedGet(demo, apiKey, apiSecret, path, params = {}) {
   const timestamp = Date.now().toString();
   const qs = buildQueryString(params);
   const signPayload = timestamp + apiKey + RECV_WINDOW + qs;
@@ -43,7 +46,7 @@ async function signedGet(apiKey, apiSecret, path, params = {}) {
     "X-BAPI-RECV-WINDOW": RECV_WINDOW,
     "X-BAPI-SIGN": sign(apiSecret, signPayload),
   };
-  const url = `${BASE_URL}${path}${qs ? `?${qs}` : ""}`;
+  const url = `${baseUrl(demo)}${path}${qs ? `?${qs}` : ""}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   let res;
@@ -59,11 +62,7 @@ async function signedGet(apiKey, apiSecret, path, params = {}) {
   return data.result;
 }
 
-export function getPublicKlines(category, symbol, interval, limit = 200) {
-  return publicGet("/v5/market/kline", { category, symbol, interval, limit });
-}
-
-async function signedPost(apiKey, apiSecret, path, body = {}) {
+async function signedPost(demo, apiKey, apiSecret, path, body = {}) {
   const timestamp = Date.now().toString();
   const bodyStr = JSON.stringify(body);
   const signPayload = timestamp + apiKey + RECV_WINDOW + bodyStr;
@@ -78,7 +77,7 @@ async function signedPost(apiKey, apiSecret, path, body = {}) {
   const timer = setTimeout(() => controller.abort(), 10000);
   let res;
   try {
-    res = await fetch(`${BASE_URL}${path}`, { method: "POST", headers, body: bodyStr, signal: controller.signal });
+    res = await fetch(`${baseUrl(demo)}${path}`, { method: "POST", headers, body: bodyStr, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -89,28 +88,32 @@ async function signedPost(apiKey, apiSecret, path, body = {}) {
   return data.result;
 }
 
-function requireKeys() {
-  const apiKey = process.env.BYBIT_API_KEY;
-  const apiSecret = process.env.BYBIT_API_SECRET;
+function requireKeys(demo) {
+  const apiKey = demo ? process.env.BYBIT_DEMO_API_KEY : process.env.BYBIT_API_KEY;
+  const apiSecret = demo ? process.env.BYBIT_DEMO_API_SECRET : process.env.BYBIT_API_SECRET;
   if (!apiKey || !apiSecret) {
-    throw Object.assign(new Error("Trading dashboard is not connected to a Bybit account yet."), { status: 503 });
+    throw Object.assign(new Error(demo ? "Demo trading is not connected to a Bybit demo account yet." : "Trading dashboard is not connected to a Bybit account yet."), { status: 503 });
   }
   return { apiKey, apiSecret };
 }
 
-export function getPublicTicker(category, symbol) {
-  return publicGet("/v5/market/tickers", { category, symbol });
+export function getPublicKlines(category, symbol, interval, limit = 200, demo = false) {
+  return publicGet(demo, "/v5/market/kline", { category, symbol, interval, limit });
 }
 
-export function getPublicInstruments(category) {
-  return publicGet("/v5/market/instruments-info", { category, limit: 1000 });
+export function getPublicTicker(category, symbol, demo = false) {
+  return publicGet(demo, "/v5/market/tickers", { category, symbol });
 }
 
-export async function getAllInstruments(category) {
+export function getPublicInstruments(category, demo = false) {
+  return publicGet(demo, "/v5/market/instruments-info", { category, limit: 1000 });
+}
+
+export async function getAllInstruments(category, demo = false) {
   let cursor = "";
   let all = [];
   for (let i = 0; i < 12; i++) {
-    const result = await publicGet("/v5/market/instruments-info", {
+    const result = await publicGet(demo, "/v5/market/instruments-info", {
       category,
       limit: 1000,
       cursor: cursor || undefined,
@@ -122,8 +125,8 @@ export async function getAllInstruments(category) {
   return { list: all };
 }
 
-export async function getInstrumentInfo(category, symbol) {
-  const result = await publicGet("/v5/market/instruments-info", { category, symbol });
+export async function getInstrumentInfo(category, symbol, demo = false) {
+  const result = await publicGet(demo, "/v5/market/instruments-info", { category, symbol });
   const info = (result.list || [])[0];
   if (!info) {
     throw Object.assign(new Error("Unknown trading pair."), { status: 404 });
@@ -139,11 +142,11 @@ export async function getInstrumentInfo(category, symbol) {
   };
 }
 
-export async function getLivePosition(category, symbol) {
-  const { apiKey, apiSecret } = requireKeys();
+export async function getLivePosition(category, symbol, demo = false) {
+  const { apiKey, apiSecret } = requireKeys(demo);
   const [positionResult, balanceResult] = await Promise.all([
-    signedGet(apiKey, apiSecret, "/v5/position/list", { category, symbol }),
-    signedGet(apiKey, apiSecret, "/v5/account/wallet-balance", { accountType: "UNIFIED" }).catch(() => null),
+    signedGet(demo, apiKey, apiSecret, "/v5/position/list", { category, symbol }),
+    signedGet(demo, apiKey, apiSecret, "/v5/account/wallet-balance", { accountType: "UNIFIED" }).catch(() => null),
   ]);
 
   const list = positionResult.list || [];
@@ -172,11 +175,11 @@ export async function getLivePosition(category, symbol) {
   };
 }
 
-export async function getAllPositions(category) {
-  const { apiKey, apiSecret } = requireKeys();
+export async function getAllPositions(category, demo = false) {
+  const { apiKey, apiSecret } = requireKeys(demo);
   const [positionResult, balanceResult] = await Promise.all([
-    signedGet(apiKey, apiSecret, "/v5/position/list", { category, settleCoin: "USDT" }),
-    signedGet(apiKey, apiSecret, "/v5/account/wallet-balance", { accountType: "UNIFIED" }).catch(() => null),
+    signedGet(demo, apiKey, apiSecret, "/v5/position/list", { category, settleCoin: "USDT" }),
+    signedGet(demo, apiKey, apiSecret, "/v5/account/wallet-balance", { accountType: "UNIFIED" }).catch(() => null),
   ]);
 
   const positions = (positionResult.list || [])
@@ -205,11 +208,11 @@ export async function getAllPositions(category) {
   return { equity, available, positions };
 }
 
-export async function setLeverage(category, symbol, leverage) {
-  const { apiKey, apiSecret } = requireKeys();
+export async function setLeverage(category, symbol, leverage, demo = false) {
+  const { apiKey, apiSecret } = requireKeys(demo);
   const lev = String(leverage);
   try {
-    await signedPost(apiKey, apiSecret, "/v5/position/set-leverage", {
+    await signedPost(demo, apiKey, apiSecret, "/v5/position/set-leverage", {
       category, symbol, buyLeverage: lev, sellLeverage: lev,
     });
   } catch (err) {
@@ -217,10 +220,10 @@ export async function setLeverage(category, symbol, leverage) {
   }
 }
 
-export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price }) {
-  const { apiKey, apiSecret } = requireKeys();
+export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false }) {
+  const { apiKey, apiSecret } = requireKeys(demo);
   if (leverage) {
-    await setLeverage(category, symbol, leverage);
+    await setLeverage(category, symbol, leverage, demo);
   }
   const isLimit = orderType === "Limit";
   const body = {
@@ -238,12 +241,12 @@ export async function placeOrder({ category, symbol, side, qty, leverage, orderT
     }
     body.price = String(price);
   }
-  return signedPost(apiKey, apiSecret, "/v5/order/create", body);
+  return signedPost(demo, apiKey, apiSecret, "/v5/order/create", body);
 }
 
-export async function closePosition(category, symbol, percent) {
-  const { apiKey, apiSecret } = requireKeys();
-  const positionResult = await signedGet(apiKey, apiSecret, "/v5/position/list", { category, symbol });
+export async function closePosition(category, symbol, percent, demo = false) {
+  const { apiKey, apiSecret } = requireKeys(demo);
+  const positionResult = await signedGet(demo, apiKey, apiSecret, "/v5/position/list", { category, symbol });
   const pos = (positionResult.list || []).find((p) => Number(p.size) > 0);
   if (!pos) {
     throw Object.assign(new Error("No open position on this pair."), { status: 400 });
@@ -256,7 +259,7 @@ export async function closePosition(category, symbol, percent) {
     qty = ((Number(pos.size) * pct) / 100).toFixed(step === 3 ? 3 : 0);
     if (Number(qty) <= 0) qty = pos.size;
   }
-  return signedPost(apiKey, apiSecret, "/v5/order/create", {
+  return signedPost(demo, apiKey, apiSecret, "/v5/order/create", {
     category,
     symbol,
     side: closeSide,
@@ -267,17 +270,17 @@ export async function closePosition(category, symbol, percent) {
   });
 }
 
-export async function setTradingStop(category, symbol, { takeProfit, stopLoss }) {
-  const { apiKey, apiSecret } = requireKeys();
+export async function setTradingStop(category, symbol, { takeProfit, stopLoss, demo = false }) {
+  const { apiKey, apiSecret } = requireKeys(demo);
   const body = { category, symbol, tpslMode: "Full" };
   if (takeProfit) body.takeProfit = String(takeProfit);
   if (stopLoss) body.stopLoss = String(stopLoss);
-  return signedPost(apiKey, apiSecret, "/v5/position/trading-stop", body);
+  return signedPost(demo, apiKey, apiSecret, "/v5/position/trading-stop", body);
 }
 
-export async function getOpenOrders(category) {
-  const { apiKey, apiSecret } = requireKeys();
-  const result = await signedGet(apiKey, apiSecret, "/v5/order/realtime", { category, settleCoin: "USDT" });
+export async function getOpenOrders(category, demo = false) {
+  const { apiKey, apiSecret } = requireKeys(demo);
+  const result = await signedGet(demo, apiKey, apiSecret, "/v5/order/realtime", { category, settleCoin: "USDT" });
   return (result.list || []).map((o) => ({
     orderId: o.orderId,
     symbol: o.symbol,
@@ -292,14 +295,14 @@ export async function getOpenOrders(category) {
   }));
 }
 
-export async function cancelOrder(category, symbol, orderId) {
-  const { apiKey, apiSecret } = requireKeys();
-  return signedPost(apiKey, apiSecret, "/v5/order/cancel", { category, symbol, orderId });
+export async function cancelOrder(category, symbol, orderId, demo = false) {
+  const { apiKey, apiSecret } = requireKeys(demo);
+  return signedPost(demo, apiKey, apiSecret, "/v5/order/cancel", { category, symbol, orderId });
 }
 
-export async function getClosedPnl(category, limit) {
-  const { apiKey, apiSecret } = requireKeys();
-  const result = await signedGet(apiKey, apiSecret, "/v5/position/closed-pnl", { category, limit: limit || 30 });
+export async function getClosedPnl(category, limit, demo = false) {
+  const { apiKey, apiSecret } = requireKeys(demo);
+  const result = await signedGet(demo, apiKey, apiSecret, "/v5/position/closed-pnl", { category, limit: limit || 30 });
   return (result.list || []).map((p) => ({
     symbol: p.symbol,
     side: p.side === "Buy" ? "Sell" : "Buy",

@@ -59,18 +59,18 @@ async function publicGet(path, params = {}) {
   return readBody(res);
 }
 
-function requireKeys() {
-  const apiKey = process.env.WEEX_API_KEY;
-  const apiSecret = process.env.WEEX_API_SECRET;
-  const passphrase = process.env.WEEX_API_PASSPHRASE;
+function requireKeys(demo) {
+  const apiKey = demo ? process.env.WEEX_DEMO_API_KEY : process.env.WEEX_API_KEY;
+  const apiSecret = demo ? process.env.WEEX_DEMO_API_SECRET : process.env.WEEX_API_SECRET;
+  const passphrase = demo ? process.env.WEEX_DEMO_API_PASSPHRASE : process.env.WEEX_API_PASSPHRASE;
   if (!apiKey || !apiSecret || !passphrase) {
-    throw Object.assign(new Error("Trading dashboard is not connected to a WEEX account yet."), { status: 503 });
+    throw Object.assign(new Error(demo ? "Demo trading is not connected to a WEEX demo account yet." : "Trading dashboard is not connected to a WEEX account yet."), { status: 503 });
   }
   return { apiKey, apiSecret, passphrase };
 }
 
-async function signedGet(path, params = {}) {
-  const { apiKey, apiSecret, passphrase } = requireKeys();
+async function signedGet(demo, path, params = {}) {
+  const { apiKey, apiSecret, passphrase } = requireKeys(demo);
   const qs = buildQueryString(params);
   const timestamp = Date.now().toString();
   const message = timestamp + "GET" + path + (qs ? `?${qs}` : "");
@@ -94,8 +94,8 @@ async function signedGet(path, params = {}) {
   return readBody(res);
 }
 
-async function signedPost(path, body = {}) {
-  const { apiKey, apiSecret, passphrase } = requireKeys();
+async function signedPost(demo, path, body = {}) {
+  const { apiKey, apiSecret, passphrase } = requireKeys(demo);
   const bodyStr = JSON.stringify(body);
   const timestamp = Date.now().toString();
   const message = timestamp + "POST" + path + bodyStr;
@@ -118,7 +118,35 @@ async function signedPost(path, body = {}) {
   return readBody(res);
 }
 
-export async function getPublicKlines(category, symbol, interval, limit = 200) {
+function positionPath(demo) {
+  return demo ? "/capi/v3/sim/position/allPosition" : "/capi/v2/account/position/allPosition";
+}
+function singlePositionPath(demo) {
+  return demo ? "/capi/v3/sim/position/singlePosition" : "/capi/v2/account/position/singlePosition";
+}
+function balancePath(demo) {
+  return demo ? "/capi/v3/sim/balance" : "/capi/v2/account/assets";
+}
+function orderPath(demo) {
+  return demo ? "/capi/v3/sim/order" : "/capi/v3/order";
+}
+function leveragePath(demo) {
+  return demo ? "/capi/v3/sim/leverage" : "/capi/v2/account/leverage";
+}
+function currentOrdersPath(demo) {
+  return demo ? "/capi/v3/sim/order/current" : "/capi/v2/order/current";
+}
+function cancelOrderPath(demo) {
+  return demo ? "/capi/v3/sim/order/cancel_order" : "/capi/v2/order/cancel_order";
+}
+function tpSlPath(demo) {
+  return demo ? "/capi/v3/sim/order/placeTpSlOrder" : "/capi/v2/order/placeTpSlOrder";
+}
+function fillsPath(demo) {
+  return demo ? "/capi/v3/sim/order/fills" : "/capi/v2/order/fills";
+}
+
+export async function getPublicKlines(category, symbol, interval, limit = 200, demo = false) {
   const result = await publicGet("/capi/v2/market/candles", {
     symbol: toWeexSymbol(symbol),
     granularity: granularityFor(interval),
@@ -145,15 +173,15 @@ export async function getPublicKlines(category, symbol, interval, limit = 200) {
   return { list };
 }
 
-export function getPublicTicker(category, symbol) {
+export function getPublicTicker(category, symbol, demo = false) {
   return publicGet("/capi/v2/market/ticker", { symbol: toWeexSymbol(symbol) });
 }
 
-export function getPublicInstruments(category) {
+export function getPublicInstruments(category, demo = false) {
   return publicGet("/capi/v2/market/contracts", {});
 }
 
-export async function getAllInstruments(category) {
+export async function getAllInstruments(category, demo = false) {
   const result = await publicGet("/capi/v2/market/contracts", {});
   const rows = Array.isArray(result) ? result : (result && result.list) || [];
   const list = rows
@@ -169,7 +197,7 @@ export async function getAllInstruments(category) {
   return { list };
 }
 
-export async function getInstrumentInfo(category, symbol) {
+export async function getInstrumentInfo(category, symbol, demo = false) {
   const result = await publicGet("/capi/v2/market/contracts", { symbol: toWeexSymbol(symbol) });
   const rows = Array.isArray(result) ? result : (result && result.list) || [result];
   const info = rows.find((c) => fromWeexSymbol(c.symbol) === String(symbol).toUpperCase()) || rows[0];
@@ -189,11 +217,11 @@ export async function getInstrumentInfo(category, symbol) {
   };
 }
 
-export async function getLivePosition(category, symbol) {
+export async function getLivePosition(category, symbol, demo = false) {
   const wSymbol = toWeexSymbol(symbol);
   const [posResult, assetsResult] = await Promise.all([
-    signedGet("/capi/v2/account/position/singlePosition", { symbol: wSymbol }),
-    signedGet("/capi/v2/account/assets", {}).catch(() => null),
+    signedGet(demo, singlePositionPath(demo), { symbol: wSymbol }),
+    signedGet(demo, balancePath(demo), {}).catch(() => null),
   ]);
   const rows = Array.isArray(posResult) ? posResult : posResult ? [posResult] : [];
   const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
@@ -222,10 +250,10 @@ export async function getLivePosition(category, symbol) {
   };
 }
 
-export async function getAllPositions(category) {
+export async function getAllPositions(category, demo = false) {
   const [posResult, assetsResult] = await Promise.all([
-    signedGet("/capi/v2/account/position/allPosition", {}),
-    signedGet("/capi/v2/account/assets", {}).catch(() => null),
+    signedGet(demo, positionPath(demo), {}),
+    signedGet(demo, balancePath(demo), {}).catch(() => null),
   ]);
   const rows = Array.isArray(posResult) ? posResult : (posResult && posResult.list) || [];
   const positions = rows
@@ -257,19 +285,19 @@ export async function getAllPositions(category) {
   return { equity, available, positions };
 }
 
-export async function setLeverage(category, symbol, leverage) {
+export async function setLeverage(category, symbol, leverage, demo = false) {
   const wSymbol = toWeexSymbol(symbol);
   const lev = String(leverage);
   for (const side of ["long", "short"]) {
     try {
-      await signedPost("/capi/v2/account/leverage", { symbol: wSymbol, leverage: lev, side, marginMode: "isolated" });
+      await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side, marginMode: "isolated" });
     } catch (err) {}
   }
 }
 
-export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price }) {
+export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false }) {
   if (leverage) {
-    await setLeverage(category, symbol, leverage);
+    await setLeverage(category, symbol, leverage, demo);
   }
   const isLimit = orderType === "Limit";
   const isBuy = side !== "Sell";
@@ -288,12 +316,12 @@ export async function placeOrder({ category, symbol, side, qty, leverage, orderT
     }
     body.price = String(price);
   }
-  return signedPost("/capi/v3/order", body);
+  return signedPost(demo, orderPath(demo), body);
 }
 
-export async function closePosition(category, symbol, percent) {
+export async function closePosition(category, symbol, percent, demo = false) {
   const wSymbol = toWeexSymbol(symbol);
-  const posResult = await signedGet("/capi/v2/account/position/singlePosition", { symbol: wSymbol });
+  const posResult = await signedGet(demo, singlePositionPath(demo), { symbol: wSymbol });
   const rows = Array.isArray(posResult) ? posResult : posResult ? [posResult] : [];
   const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
   if (!pos) {
@@ -306,7 +334,7 @@ export async function closePosition(category, symbol, percent) {
     qty = (qty * pct) / 100;
     if (qty <= 0) qty = Number(pos.size || pos.holdSize || 0);
   }
-  return signedPost("/capi/v3/order", {
+  return signedPost(demo, orderPath(demo), {
     symbol: wSymbol,
     side: isLong ? "SELL" : "BUY",
     positionSide: isLong ? "LONG" : "SHORT",
@@ -318,16 +346,16 @@ export async function closePosition(category, symbol, percent) {
   });
 }
 
-export async function setTradingStop(category, symbol, { takeProfit, stopLoss }) {
+export async function setTradingStop(category, symbol, { takeProfit, stopLoss, demo = false }) {
   const wSymbol = toWeexSymbol(symbol);
-  const posResult = await signedGet("/capi/v2/account/position/singlePosition", { symbol: wSymbol });
+  const posResult = await signedGet(demo, singlePositionPath(demo), { symbol: wSymbol });
   const rows = Array.isArray(posResult) ? posResult : posResult ? [posResult] : [];
   const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
   const positionSide = pos && String(pos.side).toUpperCase() === "SHORT" ? "short" : "long";
   const size = pos ? String(pos.size || pos.holdSize || 0) : "0";
   const tasks = [];
   if (takeProfit) {
-    tasks.push(signedPost("/capi/v2/order/placeTpSlOrder", {
+    tasks.push(signedPost(demo, tpSlPath(demo), {
       symbol: wSymbol,
       clientOrderId: `estvtp${Date.now()}`,
       planType: "profit_plan",
@@ -339,7 +367,7 @@ export async function setTradingStop(category, symbol, { takeProfit, stopLoss })
     }));
   }
   if (stopLoss) {
-    tasks.push(signedPost("/capi/v2/order/placeTpSlOrder", {
+    tasks.push(signedPost(demo, tpSlPath(demo), {
       symbol: wSymbol,
       clientOrderId: `estvsl${Date.now()}`,
       planType: "loss_plan",
@@ -353,8 +381,8 @@ export async function setTradingStop(category, symbol, { takeProfit, stopLoss })
   return Promise.all(tasks);
 }
 
-export async function getOpenOrders(category) {
-  const result = await signedGet("/capi/v2/order/current", {});
+export async function getOpenOrders(category, demo = false) {
+  const result = await signedGet(demo, currentOrdersPath(demo), {});
   const rows = Array.isArray(result) ? result : (result && result.list) || [];
   return rows.map((o) => ({
     orderId: o.order_id || o.orderId,
@@ -370,12 +398,12 @@ export async function getOpenOrders(category) {
   }));
 }
 
-export async function cancelOrder(category, symbol, orderId) {
-  return signedPost("/capi/v2/order/cancel_order", { symbol: toWeexSymbol(symbol), orderId });
+export async function cancelOrder(category, symbol, orderId, demo = false) {
+  return signedPost(demo, cancelOrderPath(demo), { symbol: toWeexSymbol(symbol), orderId });
 }
 
-export async function getClosedPnl(category, limit) {
-  const result = await signedGet("/capi/v2/order/fills", { symbol: undefined, limit: limit || 30 });
+export async function getClosedPnl(category, limit, demo = false) {
+  const result = await signedGet(demo, fillsPath(demo), { symbol: undefined, limit: limit || 30 });
   const rows = Array.isArray(result) ? result : (result && result.list) || [];
   return rows.map((p) => ({
     symbol: fromWeexSymbol(p.symbol),
