@@ -193,6 +193,26 @@ button{font-family:inherit}
 .tr-select-item{width:100%;text-align:center;padding:12px;background:transparent;border:none;color:var(--text);font-family:var(--font-mono);font-weight:600;font-size:.9rem;border-radius:10px}
 .tr-select-item.active{background:var(--card2);color:var(--accent)}
 
+.tr-settings-fab{
+  position:fixed;right:16px;bottom:22px;z-index:90;width:48px;height:48px;border-radius:50%;
+  background:var(--card);border:1px solid var(--border-strong);color:var(--text);display:flex;
+  align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.28);
+}
+.tr-settings-fab svg{width:22px;height:22px}
+.tr-settings-fab.spin svg{animation:trGearSpin .5s var(--ease)}
+@keyframes trGearSpin{from{transform:rotate(0)}to{transform:rotate(90deg)}}
+.tr-exchange-item{
+  width:100%;display:flex;align-items:center;gap:12px;padding:12px;background:transparent;border:none;
+  color:var(--text);font-family:var(--font-display);font-weight:700;font-size:.88rem;border-radius:12px;text-align:left;
+}
+.tr-exchange-item:active{background:var(--card2)}
+.tr-exchange-item.active{background:var(--card2);outline:1.5px solid var(--accent)}
+.tr-exchange-icon{width:34px;height:34px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:.86rem;color:#04141a}
+.tr-exchange-name{flex:1}
+.tr-exchange-sub{display:block;font-family:var(--font-body);font-weight:500;font-size:.7rem;color:var(--muted);margin-top:1px}
+.tr-exchange-check{width:18px;height:18px;color:var(--accent);flex-shrink:0;visibility:hidden}
+.tr-exchange-item.active .tr-exchange-check{visibility:visible}
+
 .tr-confirm-panel{width:100%;max-width:360px;background:var(--card);border:1px solid var(--border-strong);border-radius:16px;padding:20px}
 .tr-confirm-title{font-family:var(--font-display);font-weight:700;font-size:1rem;margin-bottom:14px}
 .tr-confirm-row{display:flex;justify-content:space-between;font-size:.82rem;padding:7px 0;border-bottom:1px solid var(--border)}
@@ -455,6 +475,28 @@ button{font-family:inherit}
   </div>
 </div>
 
+<button type="button" class="tr-settings-fab" id="trSettingsFab" aria-label="Exchange settings">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+</button>
+
+<div class="tr-overlay tr-overlay-center" id="trExchangeOverlay">
+  <div class="tr-select-panel">
+    <div class="tr-select-header">Trading Exchange</div>
+    <div class="tr-select-list">
+      <button type="button" class="tr-exchange-item" id="trExchangeBybit" data-exchange="bybit">
+        <span class="tr-exchange-icon" style="background:#F7A600">B</span>
+        <span class="tr-exchange-name">Continue with Bybit<span class="tr-exchange-sub">USDT perpetual futures</span></span>
+        <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
+      </button>
+      <button type="button" class="tr-exchange-item" id="trExchangeWeex" data-exchange="weex">
+        <span class="tr-exchange-icon" style="background:#00E0FF">W</span>
+        <span class="tr-exchange-name">Continue with WEEX<span class="tr-exchange-sub">USDT perpetual futures</span></span>
+        <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="tr-share-canvas-wrap"><canvas id="trShareCanvas" width="680" height="600"></canvas></div>
 <div class="tr-toast" id="trToast"></div>
 
@@ -474,6 +516,8 @@ button{font-family:inherit}
   var activeTab = 'positions';
   var FAVORITES_KEY = 'trFavoritePairs';
   var LAST_SYMBOL_KEY = 'trLastSymbol';
+  var EXCHANGE_KEY = 'trExchange';
+  var EXCHANGE = localStorage.getItem(EXCHANGE_KEY) === 'weex' ? 'weex' : 'bybit';
 
   var saved = localStorage.getItem(LAST_SYMBOL_KEY);
   if (saved) symbol = saved;
@@ -492,13 +536,15 @@ button{font-family:inherit}
   }
 
   async function getJSON(url){
-    var res = await fetch(url);
+    var sep = url.indexOf('?') === -1 ? '?' : '&';
+    var res = await fetch(url + sep + 'exchange=' + EXCHANGE);
     var data = await res.json().catch(function(){ return {}; });
     if (!res.ok) throw new Error(data.error || 'Request failed.');
     return data;
   }
   async function postJSON(url, body){
-    var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    var payload = Object.assign({ exchange: EXCHANGE }, body || {});
+    var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     var data = await res.json().catch(function(){ return {}; });
     if (!res.ok) throw new Error(data.error || 'Request failed.');
     return data;
@@ -549,7 +595,7 @@ button{font-family:inherit}
     var theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
     tvWidget = new TradingView.widget({
       autosize: true,
-      symbol: 'BYBIT:' + symbol + '.P',
+      symbol: (EXCHANGE === 'weex' ? 'WEEX:' : 'BYBIT:') + symbol + '.P',
       interval: '15',
       timezone: 'Etc/UTC',
       theme: theme,
@@ -1176,7 +1222,7 @@ button{font-family:inherit}
     ctx.font = '500 12px "JetBrains Mono", monospace';
     ctx.fillText(timestampText, W / 2, rowY + 8);
 
-    var footerY = rowY + 27 + 62;
+    var footerY = rowY + 27 + 100;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     ctx.font = '800 23px "Space Grotesk", sans-serif';
@@ -1352,6 +1398,45 @@ button{font-family:inherit}
     loadInstrumentInfo();
     renderPositions();
   }
+
+  function renderExchangeOverlay(){
+    document.getElementById('trExchangeBybit').classList.toggle('active', EXCHANGE === 'bybit');
+    document.getElementById('trExchangeWeex').classList.toggle('active', EXCHANGE === 'weex');
+  }
+  function openExchangeOverlay(){
+    renderExchangeOverlay();
+    document.getElementById('trExchangeOverlay').classList.add('show');
+  }
+  function closeExchangeOverlay(){
+    document.getElementById('trExchangeOverlay').classList.remove('show');
+  }
+  function switchExchange(next){
+    if (next !== 'bybit' && next !== 'weex') return;
+    if (next === EXCHANGE) { closeExchangeOverlay(); return; }
+    EXCHANGE = next;
+    localStorage.setItem(EXCHANGE_KEY, EXCHANGE);
+    closeExchangeOverlay();
+    toast('Switched to ' + (EXCHANGE === 'weex' ? 'WEEX' : 'Bybit') + '.');
+    firstPrice = null;
+    instrumentInfo = null;
+    initChart();
+    loadTicker();
+    loadSymbols();
+    loadInstrumentInfo();
+    startPositionsPolling();
+    if (activeTab === 'orders') pollOrders();
+    if (activeTab === 'history') pollHistory();
+  }
+  document.getElementById('trSettingsFab').addEventListener('click', function(){
+    this.classList.remove('spin'); void this.offsetWidth; this.classList.add('spin');
+    openExchangeOverlay();
+  });
+  document.getElementById('trExchangeOverlay').addEventListener('click', function(e){
+    if (e.target.id === 'trExchangeOverlay') closeExchangeOverlay();
+  });
+  document.querySelectorAll('.tr-exchange-item').forEach(function(btn){
+    btn.addEventListener('click', function(){ switchExchange(btn.getAttribute('data-exchange')); });
+  });
 
   document.getElementById('trPairSymbol').textContent = symbol;
   initChart();
