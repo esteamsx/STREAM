@@ -196,6 +196,7 @@ export async function getAllPositions(category, demo = false) {
       positionValue: Number(pos.positionValue || 0),
       margin: Number(pos.positionIM || 0),
       liqPrice: pos.liqPrice ? Number(pos.liqPrice) : null,
+      marginMode: pos.tradeMode === 1 ? "isolated" : "cross",
       takeProfit: pos.takeProfit ? Number(pos.takeProfit) : null,
       stopLoss: pos.stopLoss ? Number(pos.stopLoss) : null,
     }));
@@ -323,4 +324,34 @@ export async function getClosedPnl(category, limit, demo = false) {
     createdTime: Number(p.createdTime || 0),
     updatedTime: Number(p.updatedTime || 0),
   }));
+}
+
+export async function placeOrderWithCredentials({ apiKey, apiSecret, category, symbol, side, qty, leverage, orderType, price, demo = false }) {
+  if (leverage) {
+    const lev = String(leverage);
+    try {
+      await signedPost(demo, apiKey, apiSecret, "/v5/position/set-leverage", {
+        category, symbol, buyLeverage: lev, sellLeverage: lev,
+      });
+    } catch (err) {
+      if (!/110043/.test(err.message || "")) throw err;
+    }
+  }
+  const isLimit = orderType === "Limit";
+  const body = {
+    category,
+    symbol,
+    side,
+    orderType: isLimit ? "Limit" : "Market",
+    qty: String(qty),
+    timeInForce: isLimit ? "GTC" : "IOC",
+    reduceOnly: false,
+  };
+  if (isLimit) {
+    if (!price) {
+      throw Object.assign(new Error("A limit price is required for limit orders."), { status: 400 });
+    }
+    body.price = String(price);
+  }
+  return signedPost(demo, apiKey, apiSecret, "/v5/order/create", body);
 }

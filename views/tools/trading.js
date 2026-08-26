@@ -82,6 +82,13 @@ button{font-family:inherit}
 .tr-chart-card.expanded .tr-expand-only{display:none}
 
 .tr-tabs{display:flex;gap:6px;margin-bottom:10px;background:var(--card);border:1px solid var(--border-strong);border-radius:12px;padding:4px}
+.tr-view-tabs{display:flex;gap:6px;margin:0 16px 12px;background:var(--card);border:1px solid var(--border-strong);border-radius:12px;padding:4px}
+.tr-view-tab{flex:1;padding:9px;border-radius:9px;background:transparent;border:none;color:var(--muted);font-family:var(--font-display);font-weight:700;font-size:.82rem}
+.tr-view-tab.active{background:linear-gradient(135deg,#22d1ee,#7c6bff);color:#04141a}
+.tr-views-clip{overflow:hidden;transition:height .3s var(--ease)}
+.tr-views-track{display:flex;align-items:flex-start;width:200%;transition:transform .4s cubic-bezier(.22,.61,.36,1)}
+.tr-views-track.show-auto{transform:translateX(-50%)}
+.tr-view-panel{width:50%;flex-shrink:0;min-width:0}
 .tr-tab-btn{flex:1;padding:9px 4px;border-radius:9px;background:transparent;border:none;color:var(--muted);font-family:var(--font-display);font-weight:700;font-size:.8rem}
 .tr-tab-btn.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a}
 .tr-tab-panel{display:none}
@@ -101,6 +108,7 @@ button{font-family:inherit}
 .tr-position-card.active{outline:2px solid var(--accent)}
 .tr-pc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .tr-pc-symbol{font-family:var(--font-display);font-weight:700;font-size:.88rem}
+.tr-pc-margin-mode{margin-left:7px;font-family:var(--font-body);font-weight:600;font-size:.64rem;color:var(--muted);background:var(--card2);border:1px solid var(--border-strong);border-radius:6px;padding:2px 6px;vertical-align:middle}
 .tr-pc-side{font-family:var(--font-display);font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:7px}
 .tr-pc-side.long{background:rgba(18,196,139,.15);color:var(--green)}
 .tr-pc-side.short{background:rgba(255,59,92,.15);color:var(--red)}
@@ -133,6 +141,16 @@ button{font-family:inherit}
 .tr-list-date{font-size:.66rem;color:var(--muted);margin-top:4px}
 
 .tr-order-card{background:var(--card);border:1px solid var(--border-strong);border-radius:16px;padding:16px;margin-bottom:14px}
+.tr-auto-card{background:var(--card);border:1px solid var(--border-strong);border-radius:16px;padding:16px;margin-bottom:14px}
+.tr-auto-card-title{font-family:var(--font-display);font-weight:800;font-size:.94rem;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.tr-auto-admin-tag{font-size:.6rem;font-weight:800;letter-spacing:.06em;color:#FFC400;background:rgba(255,196,0,.14);border:1px solid rgba(255,196,0,.35);border-radius:6px;padding:2px 6px}
+.tr-auto-help{font-size:.74rem;color:var(--muted);line-height:1.5;margin:0 0 14px}
+.tr-select-native{width:100%;padding:12px;border-radius:10px;background:var(--card2);border:1px solid var(--border-strong);color:var(--text);font-family:var(--font-mono);font-weight:600;font-size:.86rem}
+.tr-bulk-start-btn{width:100%;padding:14px;border-radius:12px;background:linear-gradient(135deg,#ff5c7a,#ff8a5c);border:none;color:#1a0508;font-family:var(--font-display);font-weight:800;font-size:.92rem;margin-top:6px}
+.tr-bulk-result{margin-top:12px;font-size:.76rem;color:var(--muted);background:var(--card2);border-radius:10px;padding:10px;line-height:1.6;max-height:180px;overflow-y:auto}
+.tr-auto-toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-family:var(--font-display);font-weight:700;font-size:.84rem}
+.tr-auto-save-btn{width:100%;padding:14px;border-radius:12px;background:linear-gradient(135deg,#22d1ee,#7c6bff);border:none;color:#04141a;font-family:var(--font-display);font-weight:800;font-size:.92rem;margin-top:4px}
+.tr-auto-save-msg{margin-top:10px;font-size:.76rem;color:var(--muted)}
 .tr-order-type-tabs{display:flex;gap:6px;margin-bottom:12px;background:var(--card2);border-radius:10px;padding:4px}
 .tr-order-type-btn{flex:1;padding:8px;border-radius:8px;background:transparent;border:none;color:var(--muted);font-family:var(--font-display);font-weight:700;font-size:.78rem}
 .tr-order-type-btn.active{background:var(--card);color:var(--text);box-shadow:0 0 0 1px var(--border-strong)}
@@ -201,6 +219,27 @@ button{font-family:inherit}
 .tr-select-item.active{background:var(--card2);color:var(--accent)}
 .tr-select-header-row{display:flex;align-items:center;justify-content:space-between}
 .tr-select-close-btn{width:26px;height:26px;border-radius:50%;background:var(--card2);border:none;color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tr-settings-back-btn{width:26px;height:26px;border-radius:50%;background:var(--card2);border:none;color:var(--text);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tr-settings-back-btn svg{width:15px;height:15px}
+.tr-settings-nav-btn{width:100%;display:flex;align-items:center;justify-content:space-between;padding:13px 14px;margin-top:6px;border-radius:12px;background:var(--card2);border:1px solid var(--border-strong);color:var(--text);font-family:var(--font-display);font-weight:700;font-size:.82rem}
+.tr-settings-nav-btn svg{width:17px;height:17px;color:var(--muted)}
+.tr-keys-scroll{max-height:70vh;overflow-y:auto;padding-right:2px}
+.tr-key-block{background:var(--card2);border:1px solid var(--border-strong);border-radius:12px;padding:12px;margin-bottom:10px}
+.tr-key-block-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.tr-key-block-title{font-family:var(--font-display);font-weight:700;font-size:.82rem}
+.tr-key-block-status{font-size:.68rem;color:var(--muted)}
+.tr-key-block-status.connected{color:#12c48b}
+.tr-key-block-view{display:flex;align-items:center;justify-content:space-between;font-family:var(--font-mono);font-size:.8rem;color:var(--muted)}
+.tr-key-pencil{width:28px;height:28px;border-radius:8px;background:var(--card);border:1px solid var(--border-strong);color:var(--text);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tr-key-pencil svg{width:14px;height:14px}
+.tr-key-block-form input{width:100%;padding:11px;border-radius:9px;background:var(--card);border:1px solid var(--border-strong);color:var(--text);font-family:var(--font-mono);font-size:.82rem;margin-bottom:8px}
+.tr-key-form-actions{display:flex;gap:8px}
+.tr-key-cancel{flex:1;padding:10px;border-radius:9px;background:var(--card);border:1px solid var(--border-strong);color:var(--muted);font-family:var(--font-display);font-weight:700;font-size:.78rem}
+.tr-key-save{flex:1;padding:10px;border-radius:9px;background:linear-gradient(135deg,#22d1ee,#7c6bff);border:none;color:#04141a;font-family:var(--font-display);font-weight:800;font-size:.78rem}
+.tr-key-instructions{background:var(--card2);border:1px solid var(--border-strong);border-radius:12px;padding:14px;margin-top:4px}
+.tr-key-instructions-title{font-family:var(--font-display);font-weight:700;font-size:.82rem;margin-bottom:8px}
+.tr-key-instructions p{font-size:.72rem;color:var(--muted);line-height:1.6;margin:0 0 10px}
+.tr-key-instructions p:last-child{margin-bottom:0}
 .tr-select-close-btn svg{width:14px;height:14px}
 .tr-demo-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)}
 .tr-demo-toggle-text{font-family:var(--font-display);font-weight:700;font-size:.82rem;color:var(--text)}
@@ -321,6 +360,15 @@ button{font-family:inherit}
   </div>
 </div>
 
+<div class="tr-view-tabs">
+  <button type="button" class="tr-view-tab active" id="trViewTabManual">Manual</button>
+  <button type="button" class="tr-view-tab" id="trViewTabAuto">Auto Trading</button>
+</div>
+
+<div class="tr-views-clip" id="trViewsClip">
+<div class="tr-views-track" id="trViewsTrack">
+<div class="tr-view-panel" id="trViewManual">
+
 <div class="tr-wrap">
   <div class="tr-pair-bar">
     <button type="button" class="tr-pair-btn" id="trPairBtn">
@@ -418,6 +466,51 @@ button{font-family:inherit}
       <button type="button" class="tr-side-btn short" id="trShortBtn">Short</button>
     </div>
   </div>
+</div>
+
+</div>
+<div class="tr-view-panel" id="trViewAuto">
+
+<div class="tr-wrap">
+  <div class="tr-auto-card">
+    <div class="tr-auto-card-title">Bulk Operation <span class="tr-auto-admin-tag">Admin</span></div>
+    <p class="tr-auto-help">Opens a position for every user who has enabled Auto Trading and saved their own API keys, sized by each user's own USDT-per-trade setting.</p>
+    <div class="tr-order-field"><label>Pair</label><input type="text" id="trBulkSymbol" placeholder="e.g. BTCUSDT" autocomplete="off"></div>
+    <div class="tr-order-row">
+      <div class="tr-order-field"><label>Leverage</label><input type="number" id="trBulkLeverage" min="1" max="125" value="10"></div>
+      <div class="tr-order-field">
+        <label>Position</label>
+        <select id="trBulkSide" class="tr-select-native"><option value="Buy">Long</option><option value="Sell">Short</option></select>
+      </div>
+    </div>
+    <button type="button" class="tr-bulk-start-btn" id="trBulkStartBtn">Bulk Start</button>
+    <div class="tr-bulk-result" id="trBulkResult" style="display:none"></div>
+  </div>
+
+  <div class="tr-auto-card">
+    <div class="tr-auto-card-title">Your Auto Trading Settings</div>
+    <div class="tr-auto-toggle-row">
+      <div>Enable Auto Trading<span class="tr-exchange-sub">Let bulk operations trade on your account</span></div>
+      <button type="button" class="tr-toggle-switch" id="trAutoEnableToggle" aria-label="Toggle auto trading"><span class="tr-toggle-knob"></span></button>
+    </div>
+    <div class="tr-order-row">
+      <div class="tr-order-field">
+        <label>Exchange</label>
+        <select id="trAutoExchange" class="tr-select-native"><option value="bybit">Bybit</option><option value="weex">WEEX</option></select>
+      </div>
+      <div class="tr-order-field">
+        <label>Mode</label>
+        <select id="trAutoMode" class="tr-select-native"><option value="demo">Demo</option><option value="live">Live</option></select>
+      </div>
+    </div>
+    <div class="tr-order-field"><label>USDT per Trade (3 to 1000)</label><input type="number" id="trAutoUsdt" min="3" max="1000" value="10"></div>
+    <button type="button" class="tr-auto-save-btn" id="trAutoSaveBtn">Save Settings</button>
+    <div class="tr-auto-save-msg" id="trAutoSaveMsg" style="display:none"></div>
+  </div>
+</div>
+
+</div>
+</div>
 </div>
 
 <div class="tr-overlay" id="trSearchOverlay">
@@ -520,37 +613,154 @@ button{font-family:inherit}
 
 <div class="tr-overlay tr-overlay-center" id="trExchangeOverlay">
   <div class="tr-select-panel">
-    <div class="tr-select-header tr-select-header-row">
-      <span>Trading Exchange</span>
-      <button type="button" class="tr-select-close-btn" id="trExchangeCloseBtn" aria-label="Cancel">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+
+    <div class="tr-settings-page" id="trSettingsPageExchange">
+      <div class="tr-select-header tr-select-header-row">
+        <span>Trading Exchange</span>
+        <button type="button" class="tr-select-close-btn" id="trExchangeCloseBtn" aria-label="Cancel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="tr-demo-toggle-row">
+        <div class="tr-demo-toggle-text">Demo Trading<span class="tr-exchange-sub">Practice with virtual funds</span></div>
+        <button type="button" class="tr-toggle-switch" id="trDemoToggle" aria-label="Toggle demo trading"><span class="tr-toggle-knob"></span></button>
+      </div>
+      <div class="tr-select-list">
+        <button type="button" class="tr-exchange-item" id="trExchangeBybit" data-exchange="bybit">
+          <span class="tr-exchange-icon" style="background:#000000">
+            <img src="/bybit-logo.png" alt="Bybit" class="tr-exchange-icon-img">
+          </span>
+          <span class="tr-exchange-name">Continue with Bybit<span class="tr-exchange-sub">USDT perpetual futures</span></span>
+          <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
+        </button>
+        <button type="button" class="tr-exchange-item" id="trExchangeWeex" data-exchange="weex">
+          <span class="tr-exchange-icon" style="background:#CEAF21">
+            <img src="/weex-logo.png" alt="WEEX" class="tr-exchange-icon-img">
+          </span>
+          <span class="tr-exchange-name">Continue with WEEX<span class="tr-exchange-sub">USDT perpetual futures</span></span>
+          <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
+        </button>
+      </div>
+      <button type="button" class="tr-settings-nav-btn" id="trGoApiKeysBtn">
+        <span>AI Trading &middot; API Keys</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
       </button>
     </div>
-    <div class="tr-demo-toggle-row">
-      <div class="tr-demo-toggle-text">Demo Trading<span class="tr-exchange-sub">Practice with virtual funds</span></div>
-      <button type="button" class="tr-toggle-switch" id="trDemoToggle" aria-label="Toggle demo trading"><span class="tr-toggle-knob"></span></button>
+
+    <div class="tr-settings-page" id="trSettingsPageKeys" style="display:none">
+      <div class="tr-select-header tr-select-header-row">
+        <button type="button" class="tr-settings-back-btn" id="trKeysBackBtn" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <span>AI Trading</span>
+        <button type="button" class="tr-select-close-btn" id="trKeysCloseBtn" aria-label="Cancel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="tr-keys-scroll" id="trKeysScroll">
+
+        <div class="tr-key-block" data-exchange="bybit" data-mode="live">
+          <div class="tr-key-block-head">
+            <span class="tr-key-block-title">Bybit &middot; Live</span>
+            <span class="tr-key-block-status" data-status>Not connected</span>
+          </div>
+          <div class="tr-key-block-view" data-view>
+            <span data-masked>--</span>
+            <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </button>
+          </div>
+          <div class="tr-key-block-form" data-form style="display:none">
+            <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
+            <input type="password" placeholder="API Secret" data-field="apiSecret" autocomplete="off">
+            <div class="tr-key-form-actions">
+              <button type="button" class="tr-key-cancel" data-cancel>Cancel</button>
+              <button type="button" class="tr-key-save" data-save>Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tr-key-block" data-exchange="bybit" data-mode="demo">
+          <div class="tr-key-block-head">
+            <span class="tr-key-block-title">Bybit &middot; Demo</span>
+            <span class="tr-key-block-status" data-status>Not connected</span>
+          </div>
+          <div class="tr-key-block-view" data-view>
+            <span data-masked>--</span>
+            <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </button>
+          </div>
+          <div class="tr-key-block-form" data-form style="display:none">
+            <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
+            <input type="password" placeholder="API Secret" data-field="apiSecret" autocomplete="off">
+            <div class="tr-key-form-actions">
+              <button type="button" class="tr-key-cancel" data-cancel>Cancel</button>
+              <button type="button" class="tr-key-save" data-save>Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tr-key-block" data-exchange="weex" data-mode="live">
+          <div class="tr-key-block-head">
+            <span class="tr-key-block-title">WEEX &middot; Live</span>
+            <span class="tr-key-block-status" data-status>Not connected</span>
+          </div>
+          <div class="tr-key-block-view" data-view>
+            <span data-masked>--</span>
+            <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </button>
+          </div>
+          <div class="tr-key-block-form" data-form style="display:none">
+            <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
+            <input type="password" placeholder="API Secret" data-field="apiSecret" autocomplete="off">
+            <input type="password" placeholder="API Passphrase" data-field="passphrase" autocomplete="off">
+            <div class="tr-key-form-actions">
+              <button type="button" class="tr-key-cancel" data-cancel>Cancel</button>
+              <button type="button" class="tr-key-save" data-save>Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tr-key-block" data-exchange="weex" data-mode="demo">
+          <div class="tr-key-block-head">
+            <span class="tr-key-block-title">WEEX &middot; Demo</span>
+            <span class="tr-key-block-status" data-status>Not connected</span>
+          </div>
+          <div class="tr-key-block-view" data-view>
+            <span data-masked>--</span>
+            <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </button>
+          </div>
+          <div class="tr-key-block-form" data-form style="display:none">
+            <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
+            <input type="password" placeholder="API Secret" data-field="apiSecret" autocomplete="off">
+            <input type="password" placeholder="API Passphrase" data-field="passphrase" autocomplete="off">
+            <div class="tr-key-form-actions">
+              <button type="button" class="tr-key-cancel" data-cancel>Cancel</button>
+              <button type="button" class="tr-key-save" data-save>Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tr-key-instructions">
+          <div class="tr-key-instructions-title">How to get your API keys</div>
+          <p><b>Bybit:</b> there is no one-click connect, since Bybit only issues keys through a formal Broker/OAuth partner program, which this app isn't registered for. Log in to Bybit, then Profile icon, then API, then Create New Key, then System-generated, then enable "Contract: Orders &amp; Positions" only (leave withdrawal off), then copy the Key and Secret. For demo keys, switch to Bybit's "Demo Trading" mode first (top nav), then repeat the same steps; demo keys are separate from live keys.</p>
+          <p><b>WEEX:</b> log in, then Account, then API Management, then Create API Key, then enable trading permission only (leave withdrawal off), then copy the Key, Secret, and Passphrase (WEEX requires all three). Demo/simulated keys are generated from WEEX's own demo trading section the same way.</p>
+          <p>For your safety, only ever enable trading permissions on these keys, never withdrawal.</p>
+        </div>
+
+      </div>
     </div>
-    <div class="tr-select-list">
-      <button type="button" class="tr-exchange-item" id="trExchangeBybit" data-exchange="bybit">
-        <span class="tr-exchange-icon" style="background:#000000">
-          <img src="/bybit-logo.png" alt="Bybit" class="tr-exchange-icon-img">
-        </span>
-        <span class="tr-exchange-name">Continue with Bybit<span class="tr-exchange-sub">USDT perpetual futures</span></span>
-        <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
-      </button>
-      <button type="button" class="tr-exchange-item" id="trExchangeWeex" data-exchange="weex">
-        <span class="tr-exchange-icon" style="background:#CEAF21">
-          <img src="/weex-logo.png" alt="WEEX" class="tr-exchange-icon-img">
-        </span>
-        <span class="tr-exchange-name">Continue with WEEX<span class="tr-exchange-sub">USDT perpetual futures</span></span>
-        <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
-      </button>
-    </div>
+
   </div>
 </div>
 
 <div class="tr-share-canvas-wrap"><canvas id="trShareCanvas" width="680" height="600"></canvas></div>
 <div class="tr-toast" id="trToast"></div>
+
 
 <script nonce="__CSP_NONCE__">
 (function(){
@@ -744,7 +954,7 @@ button{font-family:inherit}
       }
       return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + (positions.length === 1 ? ' single' : '') + '" data-symbol="' + esc(pos.symbol) + '">' +
         '<div class="tr-pc-head">' +
-          '<span class="tr-pc-symbol">' + esc(pos.symbol) + '</span>' +
+          '<span class="tr-pc-symbol">' + esc(pos.symbol) + '<span class="tr-pc-margin-mode">' + (pos.marginMode === 'cross' ? 'Cross' : 'Isolated') + '</span></span>' +
           '<span><span class="tr-pc-side ' + sideLower + '">' + sideLabel + '</span><span class="tr-pc-lev">' + pos.leverage + 'x</span></span>' +
         '</div>' +
         '<div class="tr-pc-pnl-row">' +
@@ -1585,6 +1795,7 @@ button{font-family:inherit}
   }
   function openExchangeOverlay(){
     renderExchangeOverlay();
+    showSettingsPage('exchange');
     document.getElementById('trExchangeOverlay').classList.add('show');
   }
   function closeExchangeOverlay(){
@@ -1640,6 +1851,170 @@ button{font-family:inherit}
   document.querySelectorAll('.tr-exchange-item').forEach(function(btn){
     btn.addEventListener('click', function(){ switchExchange(btn.getAttribute('data-exchange')); });
   });
+
+  function showSettingsPage(name){
+    document.getElementById('trSettingsPageExchange').style.display = name === 'exchange' ? 'block' : 'none';
+    document.getElementById('trSettingsPageKeys').style.display = name === 'keys' ? 'block' : 'none';
+  }
+  document.getElementById('trGoApiKeysBtn').addEventListener('click', function(){
+    showSettingsPage('keys');
+    loadKeysStatus();
+  });
+  document.getElementById('trKeysBackBtn').addEventListener('click', function(){ showSettingsPage('exchange'); });
+  document.getElementById('trKeysCloseBtn').addEventListener('click', closeExchangeOverlay);
+
+  async function loadKeysStatus(){
+    try {
+      var status = await getJSON('/api/tools/trading/keys/status');
+      document.querySelectorAll('.tr-key-block').forEach(function(block){
+        var ex = block.getAttribute('data-exchange');
+        var mode = block.getAttribute('data-mode');
+        var info = (status[ex] || {})[mode] || { saved: false };
+        var statusEl = block.querySelector('[data-status]');
+        var maskedEl = block.querySelector('[data-masked]');
+        statusEl.textContent = info.saved ? 'Connected' : 'Not connected';
+        statusEl.classList.toggle('connected', !!info.saved);
+        maskedEl.textContent = info.saved ? ('•••• ' + (info.last4 || '----')) : 'Not connected';
+      });
+      var auto = status.autoTrading || {};
+      document.getElementById('trAutoEnableToggle').classList.toggle('on', !!auto.enabled);
+      document.getElementById('trAutoExchange').value = auto.exchange === 'weex' ? 'weex' : 'bybit';
+      document.getElementById('trAutoMode').value = auto.mode === 'live' ? 'live' : 'demo';
+      document.getElementById('trAutoUsdt').value = auto.usdtPerTrade || 10;
+    } catch (err) {}
+  }
+
+  document.querySelectorAll('.tr-key-block').forEach(function(block){
+    var view = block.querySelector('[data-view]');
+    var form = block.querySelector('[data-form]');
+    var pencil = block.querySelector('[data-pencil]');
+    var cancelBtn = block.querySelector('[data-cancel]');
+    var saveBtn = block.querySelector('[data-save]');
+    pencil.addEventListener('click', function(){
+      form.querySelectorAll('input').forEach(function(inp){ inp.value = ''; });
+      view.style.display = 'none';
+      form.style.display = 'block';
+    });
+    cancelBtn.addEventListener('click', function(){
+      form.style.display = 'none';
+      view.style.display = 'flex';
+    });
+    saveBtn.addEventListener('click', async function(){
+      var exchange = block.getAttribute('data-exchange');
+      var mode = block.getAttribute('data-mode');
+      var payload = { exchange: exchange, mode: mode };
+      form.querySelectorAll('input[data-field]').forEach(function(inp){
+        payload[inp.getAttribute('data-field')] = inp.value.trim();
+      });
+      if (!payload.apiKey || !payload.apiSecret || (exchange === 'weex' && !payload.passphrase)) {
+        toast('Please fill in all fields.');
+        return;
+      }
+      saveBtn.disabled = true;
+      try {
+        await postJSON('/api/tools/trading/keys', payload);
+        toast('API keys saved.');
+        form.style.display = 'none';
+        view.style.display = 'flex';
+        loadKeysStatus();
+      } catch (err) {
+        toast(err.message || 'Could not save API keys.');
+      }
+      saveBtn.disabled = false;
+    });
+  });
+
+  document.getElementById('trAutoEnableToggle').addEventListener('click', function(){
+    this.classList.toggle('on');
+  });
+
+  document.getElementById('trAutoSaveBtn').addEventListener('click', async function(){
+    var btn = this;
+    var usdt = Number(document.getElementById('trAutoUsdt').value || 0);
+    var msg = document.getElementById('trAutoSaveMsg');
+    if (usdt < 3 || usdt > 1000) {
+      msg.style.display = 'block';
+      msg.textContent = 'USDT per trade must be between 3 and 1000.';
+      return;
+    }
+    btn.disabled = true;
+    try {
+      await postJSON('/api/tools/trading/auto-settings', {
+        enabled: document.getElementById('trAutoEnableToggle').classList.contains('on'),
+        exchange: document.getElementById('trAutoExchange').value,
+        mode: document.getElementById('trAutoMode').value,
+        usdtPerTrade: usdt,
+      });
+      msg.style.display = 'block';
+      msg.textContent = 'Saved.';
+      toast('Auto trading settings saved.');
+    } catch (err) {
+      msg.style.display = 'block';
+      msg.textContent = err.message || 'Could not save settings.';
+    }
+    btn.disabled = false;
+  });
+
+  document.getElementById('trBulkStartBtn').addEventListener('click', async function(){
+    var btn = this;
+    var pair = document.getElementById('trBulkSymbol').value.trim().toUpperCase();
+    var lev = Number(document.getElementById('trBulkLeverage').value || 10);
+    var side = document.getElementById('trBulkSide').value;
+    var resultBox = document.getElementById('trBulkResult');
+    if (!pair) { toast('Enter a pair, e.g. BTCUSDT.'); return; }
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+    resultBox.style.display = 'none';
+    try {
+      var data = await postJSON('/api/tools/trading/auto/bulk-start', { category: CATEGORY, symbol: pair, leverage: lev, side: side });
+      resultBox.style.display = 'block';
+      if (!data.total) {
+        resultBox.textContent = 'No users are opted into Auto Trading yet.';
+      } else {
+        var lines = [data.succeeded + ' of ' + data.total + ' succeeded.'];
+        data.results.forEach(function(r){
+          lines.push((r.ok ? '✓ ' : '✗ ') + r.uid.slice(0, 8) + (r.ok ? (' : ' + r.qty + ' ' + pair) : (' : ' + r.error)));
+        });
+        resultBox.innerHTML = lines.map(esc).join('<br>');
+      }
+    } catch (err) {
+      resultBox.style.display = 'block';
+      resultBox.textContent = err.message || 'Bulk start failed.';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Bulk Start';
+  });
+
+  var TR_VIEW_KEY = 'trActiveView';
+  function syncTrPanelHeight(){
+    var clip = document.getElementById('trViewsClip');
+    var track = document.getElementById('trViewsTrack');
+    var activePanel = track.classList.contains('show-auto') ? document.getElementById('trViewAuto') : document.getElementById('trViewManual');
+    clip.style.height = activePanel.scrollHeight + 'px';
+  }
+  window.addEventListener('resize', syncTrPanelHeight);
+  function showManualView(){
+    document.getElementById('trViewsTrack').classList.remove('show-auto');
+    document.getElementById('trViewTabManual').classList.add('active');
+    document.getElementById('trViewTabAuto').classList.remove('active');
+    localStorage.setItem(TR_VIEW_KEY, 'manual');
+    syncTrPanelHeight();
+  }
+  function showAutoView(){
+    document.getElementById('trViewsTrack').classList.add('show-auto');
+    document.getElementById('trViewTabAuto').classList.add('active');
+    document.getElementById('trViewTabManual').classList.remove('active');
+    localStorage.setItem(TR_VIEW_KEY, 'auto');
+    syncTrPanelHeight();
+    loadKeysStatus();
+  }
+  document.getElementById('trViewTabManual').addEventListener('click', showManualView);
+  document.getElementById('trViewTabAuto').addEventListener('click', showAutoView);
+  if (localStorage.getItem(TR_VIEW_KEY) === 'auto') {
+    showAutoView();
+  } else {
+    setTimeout(syncTrPanelHeight, 300);
+  }
 
   updateDemoBadge();
   document.getElementById('trPairSymbol').textContent = symbol;

@@ -138,6 +138,14 @@ import QRCode from "qrcode";
 import * as bybitReadonly from "./services/bybit-readonly.js";
 import * as weexReadonly from "./services/weex-readonly.js";
 import {
+  saveCredentials as saveTradingCredentials,
+  deleteCredentials as deleteTradingCredentials,
+  getCredentialsStatus as getTradingCredentialsStatus,
+  getDecryptedCredentials as getDecryptedTradingCredentials,
+  saveAutoTradingSettings,
+  getAllOptedInAutoTraders,
+} from "./services/trading-credentials.js";
+import {
   issueCode,
   checkCode,
   createUserAccount,
@@ -4274,6 +4282,135 @@ app.get("/api/tools/trading/closed-pnl", requireAuth, requireAdmin, async (req, 
     res.json({ trades: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load closed trades." });
+  }
+});
+
+app.get("/api/tools/trading/keys/status", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const status = await getTradingCredentialsStatus(req.uid);
+    res.json(status);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load API key status." });
+  }
+});
+
+app.post("/api/tools/trading/keys", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+  try {
+    const exchange = String(req.body?.exchange || "").toLowerCase();
+    const mode = String(req.body?.mode || "").toLowerCase();
+    const apiKey = String(req.body?.apiKey || "").trim();
+    const apiSecret = String(req.body?.apiSecret || "").trim();
+    const passphrase = req.body?.passphrase ? String(req.body.passphrase).trim() : undefined;
+    await saveTradingCredentials(req.uid, exchange, mode, { apiKey, apiSecret, passphrase });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not save API keys." });
+  }
+});
+
+app.delete("/api/tools/trading/keys", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+  try {
+    const exchange = String(req.body?.exchange || "").toLowerCase();
+    const mode = String(req.body?.mode || "").toLowerCase();
+    await deleteTradingCredentials(req.uid, exchange, mode);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not remove API keys." });
+  }
+});
+
+app.post("/api/tools/trading/auto-settings", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+  try {
+    await saveAutoTradingSettings(req.uid, {
+      enabled: !!req.body?.enabled,
+      exchange: req.body?.exchange,
+      mode: req.body?.mode,
+      usdtPerTrade: req.body?.usdtPerTrade,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not save auto trading settings." });
+  }
+});
+
+app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+  try {
+    const category = String(req.body?.category || "linear");
+    const symbol = String(req.body?.symbol || "").toUpperCase();
+    const side = req.body?.side === "Sell" ? "Sell" : "Buy";
+    const leverage = req.body?.leverage ? Number(req.body.leverage) : 1;
+    if (!symbol) {
+      return res.status(400).json({ error: "Symbol is required." });
+    }
+
+    const traders = await getAllOptedInAutoTraders();
+    if (!traders.length) {
+      return res.json({ total: 0, succeeded: 0, failed: 0, results: [] });
+    }
+
+    const priceByExchangeMode = {};
+    async function getMarkPrice(exchange, demo) {
+      const key = exchange + ":" + demo;
+      if (priceByExchangeMode[key] != null) return priceByExchangeMode[key];
+      const service = exchange === "weex" ? weexReadonly : bybitReadonly;
+      const klines = await service.getPublicKlines(category, symbol, "15", 1, demo);
+      const price = klines.list && klines.list[0] ? Number(klines.list[0][4]) : null;
+      priceByExchangeMode[key] = price;
+      return price;
+    }
+
+    const results = await Promise.allSettled(
+      traders.map(async (trader) => {
+        const auto = trader.autoTrading || {};
+        const exchange = auto.exchange === "weex" ? "weex" : "bybit";
+        const mode = auto.mode === "live" ? "live" : "demo";
+        const demo = mode === "demo";
+        const usdtPerTrade = Number(auto.usdtPerTrade || 0);
+        if (!usdtPerTrade || usdtPerTrade < 3 || usdtPerTrade > 1000) {
+          throw Object.assign(new Error("Invalid USDT per trade amount."), { uid: trader.uid });
+        }
+        const creds = await getDecryptedTradingCredentials(trader.uid, exchange, mode);
+        if (!creds) {
+          throw Object.assign(new Error("No " + exchange + " " + mode + " API keys saved."), { uid: trader.uid });
+        }
+        const price = await getMarkPrice(exchange, demo);
+        if (!price) {
+          throw Object.assign(new Error("Could not fetch a price for " + symbol + "."), { uid: trader.uid });
+        }
+        let qty = (usdtPerTrade * leverage) / price;
+        const service = exchange === "weex" ? weexReadonly : bybitReadonly;
+        try {
+          const info = await service.getInstrumentInfo(category, symbol, demo);
+          const step = Number(info.qtyStep || 0.001);
+          qty = Math.floor(qty / step) * step;
+          const min = Number(info.minOrderQty || 0);
+          if (min && qty < min) qty = min;
+        } catch (err) {}
+        qty = Number(qty.toFixed(8));
+        const order = await service.placeOrderWithCredentials({
+          apiKey: creds.apiKey,
+          apiSecret: creds.apiSecret,
+          passphrase: creds.passphrase,
+          category, symbol, side, qty, leverage, orderType: "Market", demo,
+        });
+        return { uid: trader.uid, exchange, mode, qty, order };
+      })
+    );
+
+    const summary = results.map((r, i) => {
+      if (r.status === "fulfilled") {
+        return { uid: r.value.uid, ok: true, exchange: r.value.exchange, mode: r.value.mode, qty: r.value.qty };
+      }
+      return { uid: r.reason?.uid || traders[i].uid, ok: false, error: r.reason?.message || "Failed." };
+    });
+    res.json({
+      total: summary.length,
+      succeeded: summary.filter((s) => s.ok).length,
+      failed: summary.filter((s) => !s.ok).length,
+      results: summary,
+    });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Bulk start failed." });
   }
 });
 

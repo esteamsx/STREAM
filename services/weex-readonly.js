@@ -59,7 +59,8 @@ async function publicGet(path, params = {}) {
   return readBody(res);
 }
 
-function requireKeys(demo) {
+function requireKeys(demo, override) {
+  if (override) return override;
   const apiKey = demo ? process.env.WEEX_DEMO_API_KEY : process.env.WEEX_API_KEY;
   const apiSecret = demo ? process.env.WEEX_DEMO_API_SECRET : process.env.WEEX_API_SECRET;
   const passphrase = demo ? process.env.WEEX_DEMO_API_PASSPHRASE : process.env.WEEX_API_PASSPHRASE;
@@ -69,8 +70,8 @@ function requireKeys(demo) {
   return { apiKey, apiSecret, passphrase };
 }
 
-async function signedGet(demo, path, params = {}) {
-  const { apiKey, apiSecret, passphrase } = requireKeys(demo);
+async function signedGet(demo, path, params = {}, override) {
+  const { apiKey, apiSecret, passphrase } = requireKeys(demo, override);
   const qs = buildQueryString(params);
   const timestamp = Date.now().toString();
   const message = timestamp + "GET" + path + (qs ? `?${qs}` : "");
@@ -94,8 +95,8 @@ async function signedGet(demo, path, params = {}) {
   return readBody(res);
 }
 
-async function signedPost(demo, path, body = {}) {
-  const { apiKey, apiSecret, passphrase } = requireKeys(demo);
+async function signedPost(demo, path, body = {}, override) {
+  const { apiKey, apiSecret, passphrase } = requireKeys(demo, override);
   const bodyStr = JSON.stringify(body);
   const timestamp = Date.now().toString();
   const message = timestamp + "POST" + path + bodyStr;
@@ -270,6 +271,7 @@ export async function getAllPositions(category, demo = false) {
       positionValue: Number(pos.openValue || pos.margin || 0),
       margin: Number(pos.margin || pos.marginSize || 0) || (pos.openValue && pos.leverage ? Number(pos.openValue) / Number(pos.leverage) : 0),
       liqPrice: pos.liquidatePrice ? Number(pos.liquidatePrice) : null,
+      marginMode: String(pos.marginMode || "isolated").toLowerCase() === "cross" ? "cross" : "isolated",
       takeProfit: pos.presetTakeProfitPrice ? Number(pos.presetTakeProfitPrice) : null,
       stopLoss: pos.presetStopLossPrice ? Number(pos.presetStopLossPrice) : null,
     }));
@@ -419,4 +421,35 @@ export async function getClosedPnl(category, limit, demo = false) {
     createdTime: Number(p.createTime || p.createdTime || 0),
     updatedTime: Number(p.updateTime || p.updatedTime || 0),
   }));
+}
+
+export async function placeOrderWithCredentials({ apiKey, apiSecret, passphrase, category, symbol, side, qty, leverage, orderType, price, demo = false }) {
+  const override = { apiKey, apiSecret, passphrase };
+  const wSymbol = toWeexSymbol(symbol);
+  if (leverage) {
+    const lev = String(leverage);
+    for (const s of ["long", "short"]) {
+      try {
+        await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side: s, marginMode: "isolated" }, override);
+      } catch (err) {}
+    }
+  }
+  const isLimit = orderType === "Limit";
+  const isBuy = side !== "Sell";
+  const body = {
+    symbol: wSymbol,
+    side: isBuy ? "BUY" : "SELL",
+    positionSide: isBuy ? "LONG" : "SHORT",
+    type: isLimit ? "LIMIT" : "MARKET",
+    timeInForce: isLimit ? "GTC" : "IOC",
+    quantity: String(qty),
+    newClientOrderId: `estvauto${Date.now()}`,
+  };
+  if (isLimit) {
+    if (!price) {
+      throw Object.assign(new Error("A limit price is required for limit orders."), { status: 400 });
+    }
+    body.price = String(price);
+  }
+  return signedPost(demo, orderPath(demo), body, override);
 }
