@@ -145,7 +145,6 @@ button{font-family:inherit}
 .tr-auto-card-title{font-family:var(--font-display);font-weight:800;font-size:.94rem;margin-bottom:6px;display:flex;align-items:center;gap:8px}
 .tr-auto-admin-tag{font-size:.6rem;font-weight:800;letter-spacing:.06em;color:#FFC400;background:rgba(255,196,0,.14);border:1px solid rgba(255,196,0,.35);border-radius:6px;padding:2px 6px}
 .tr-auto-help{font-size:.74rem;color:var(--muted);line-height:1.5;margin:0 0 14px}
-.tr-select-native{width:100%;padding:12px;border-radius:10px;background:var(--card2);border:1px solid var(--border-strong);color:var(--text);font-family:var(--font-mono);font-weight:600;font-size:.86rem}
 .tr-bulk-start-btn{width:100%;padding:14px;border-radius:12px;background:linear-gradient(135deg,#ff5c7a,#ff8a5c);border:none;color:#1a0508;font-family:var(--font-display);font-weight:800;font-size:.92rem;margin-top:6px}
 .tr-bulk-result{margin-top:12px;font-size:.76rem;color:var(--muted);background:var(--card2);border-radius:10px;padding:10px;line-height:1.6;max-height:180px;overflow-y:auto}
 .tr-auto-toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-family:var(--font-display);font-weight:700;font-size:.84rem}
@@ -237,9 +236,25 @@ button{font-family:inherit}
 .tr-key-cancel{flex:1;padding:10px;border-radius:9px;background:var(--card);border:1px solid var(--border-strong);color:var(--muted);font-family:var(--font-display);font-weight:700;font-size:.78rem}
 .tr-key-save{flex:1;padding:10px;border-radius:9px;background:linear-gradient(135deg,#22d1ee,#7c6bff);border:none;color:#04141a;font-family:var(--font-display);font-weight:800;font-size:.78rem}
 .tr-key-instructions{background:var(--card2);border:1px solid var(--border-strong);border-radius:12px;padding:14px;margin-top:4px}
-.tr-key-instructions-title{font-family:var(--font-display);font-weight:700;font-size:.82rem;margin-bottom:8px}
-.tr-key-instructions p{font-size:.72rem;color:var(--muted);line-height:1.6;margin:0 0 10px}
+.tr-key-instructions-title{font-family:var(--font-display);font-weight:700;font-size:.82rem;margin-bottom:10px}
+.tr-key-instructions p{font-size:.72rem;color:var(--muted);line-height:1.6;margin:0 0 12px}
 .tr-key-instructions p:last-child{margin-bottom:0}
+.tr-key-safety-note{font-weight:600;color:var(--text) !important}
+.tr-get-key-btn{display:block;text-align:center;width:100%;padding:12px;border-radius:10px;font-family:var(--font-display);font-weight:800;font-size:.8rem;text-decoration:none;margin-bottom:8px}
+.tr-get-key-btn-bybit{background:#000000;color:#F7A600;border:1px solid #F7A600}
+.tr-get-key-btn-weex{background:#CEAF21;color:#1a1400}
+.tr-settings-home-list{display:flex;flex-direction:column;gap:8px}
+.tr-settings-home-btn{display:flex;align-items:center;gap:12px;width:100%;padding:14px;border-radius:12px;background:var(--card2);border:1px solid var(--border-strong)}
+.tr-settings-home-icon{width:36px;height:36px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0}
+.tr-settings-home-icon svg{width:18px;height:18px}
+.tr-settings-home-label{flex:1;text-align:left;font-family:var(--font-display);font-weight:700;font-size:.86rem;color:var(--text)}
+.tr-settings-home-chevron{width:16px;height:16px;color:var(--muted);flex-shrink:0}
+.tr-guide-block{background:var(--card2);border:1px solid var(--border-strong);border-radius:12px;padding:14px;margin-bottom:10px}
+.tr-guide-title{font-family:var(--font-display);font-weight:700;font-size:.84rem;margin-bottom:8px}
+.tr-guide-block p{font-size:.74rem;color:var(--muted);line-height:1.6;margin:0 0 8px}
+.tr-guide-block p:last-child{margin-bottom:0}
+.tr-btn-spinner{display:inline-block;width:15px;height:15px;border-radius:50%;border:2px solid rgba(0,0,0,.25);border-top-color:currentColor;animation:trBtnSpin .6s linear infinite;vertical-align:middle;margin-right:7px}
+@keyframes trBtnSpin{to{transform:rotate(360deg)}}
 .tr-select-close-btn svg{width:14px;height:14px}
 .tr-demo-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)}
 .tr-demo-toggle-text{font-family:var(--font-display);font-weight:700;font-size:.82rem;color:var(--text)}
@@ -345,6 +360,8 @@ button{font-family:inherit}
 .tr-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card2);border:1px solid var(--border-strong);color:var(--text);padding:11px 18px;border-radius:11px;font-size:.82rem;font-weight:600;opacity:0;transition:opacity .25s var(--ease),transform .25s var(--ease);z-index:400;pointer-events:none}
 .tr-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .tr-share-canvas-wrap{display:none}
+button{transition:transform .12s ease}
+button:active{transform:scale(.96)}
 </style>
 </head>
 <body>
@@ -480,7 +497,10 @@ button{font-family:inherit}
       <div class="tr-order-field"><label>Leverage</label><input type="number" id="trBulkLeverage" min="1" max="125" value="10"></div>
       <div class="tr-order-field">
         <label>Position</label>
-        <select id="trBulkSide" class="tr-select-native"><option value="Buy">Long</option><option value="Sell">Short</option></select>
+        <button type="button" class="tr-select-btn" id="trBulkSideBtn" data-value="Buy">
+          <span id="trBulkSideLabel">Long</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+        </button>
       </div>
     </div>
     <button type="button" class="tr-bulk-start-btn" id="trBulkStartBtn">Bulk Start</button>
@@ -496,11 +516,17 @@ button{font-family:inherit}
     <div class="tr-order-row">
       <div class="tr-order-field">
         <label>Exchange</label>
-        <select id="trAutoExchange" class="tr-select-native"><option value="bybit">Bybit</option><option value="weex">WEEX</option></select>
+        <button type="button" class="tr-select-btn" id="trAutoExchangeBtn" data-value="bybit">
+          <span id="trAutoExchangeLabel">Bybit</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+        </button>
       </div>
       <div class="tr-order-field">
         <label>Mode</label>
-        <select id="trAutoMode" class="tr-select-native"><option value="demo">Demo</option><option value="live">Live</option></select>
+        <button type="button" class="tr-select-btn" id="trAutoModeBtn" data-value="demo">
+          <span id="trAutoModeLabel">Demo</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+        </button>
       </div>
     </div>
     <div class="tr-order-field"><label>USDT per Trade (3 to 1000)</label><input type="number" id="trAutoUsdt" min="3" max="1000" value="10"></div>
@@ -539,6 +565,13 @@ button{font-family:inherit}
       <button type="button" class="tr-select-item" data-mode="isolated">Isolated</button>
       <button type="button" class="tr-select-item" data-mode="cross">Cross</button>
     </div>
+  </div>
+</div>
+
+<div class="tr-overlay tr-overlay-center" id="trGenericSelectOverlay">
+  <div class="tr-select-panel">
+    <div class="tr-select-header" id="trGenericSelectTitle">Select</div>
+    <div class="tr-select-list" id="trGenericSelectList"></div>
   </div>
 </div>
 
@@ -614,10 +647,45 @@ button{font-family:inherit}
 <div class="tr-overlay tr-overlay-center" id="trExchangeOverlay">
   <div class="tr-select-panel">
 
-    <div class="tr-settings-page" id="trSettingsPageExchange">
+    <div class="tr-settings-page" id="trSettingsPageHome">
       <div class="tr-select-header tr-select-header-row">
-        <span>Trading Exchange</span>
+        <span>Settings</span>
         <button type="button" class="tr-select-close-btn" id="trExchangeCloseBtn" aria-label="Cancel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="tr-settings-home-list">
+        <button type="button" class="tr-settings-home-btn" id="trGoAccountBtn">
+          <span class="tr-settings-home-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+          </span>
+          <span class="tr-settings-home-label">Account</span>
+          <svg class="tr-settings-home-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="tr-settings-home-btn" id="trGoApiKeysBtn">
+          <span class="tr-settings-home-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path stroke-linecap="round" d="M7 11V8a5 5 0 0110 0v3"/><circle cx="12" cy="16" r="1.5"/></svg>
+          </span>
+          <span class="tr-settings-home-label">API Keys</span>
+          <svg class="tr-settings-home-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="tr-settings-home-btn" id="trGoGuideBtn">
+          <span class="tr-settings-home-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 9a2.5 2.5 0 015 .3c0 1.7-2.5 1.7-2.5 3.7"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/></svg>
+          </span>
+          <span class="tr-settings-home-label">How to Use</span>
+          <svg class="tr-settings-home-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="tr-settings-page" id="trSettingsPageExchange" style="display:none">
+      <div class="tr-select-header tr-select-header-row">
+        <button type="button" class="tr-settings-back-btn" id="trAccountBackBtn" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <span>Account</span>
+        <button type="button" class="tr-select-close-btn" id="trAccountCloseBtn" aria-label="Cancel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
@@ -641,10 +709,6 @@ button{font-family:inherit}
           <svg class="tr-exchange-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
         </button>
       </div>
-      <button type="button" class="tr-settings-nav-btn" id="trGoApiKeysBtn">
-        <span>AI Trading &middot; API Keys</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
-      </button>
     </div>
 
     <div class="tr-settings-page" id="trSettingsPageKeys" style="display:none">
@@ -746,12 +810,41 @@ button{font-family:inherit}
         </div>
 
         <div class="tr-key-instructions">
-          <div class="tr-key-instructions-title">How to get your API keys</div>
-          <p><b>Bybit:</b> there is no one-click connect, since Bybit only issues keys through a formal Broker/OAuth partner program, which this app isn't registered for. Log in to Bybit, then Profile icon, then API, then Create New Key, then System-generated, then enable "Contract: Orders &amp; Positions" only (leave withdrawal off), then copy the Key and Secret. For demo keys, switch to Bybit's "Demo Trading" mode first (top nav), then repeat the same steps; demo keys are separate from live keys.</p>
-          <p><b>WEEX:</b> log in, then Account, then API Management, then Create API Key, then enable trading permission only (leave withdrawal off), then copy the Key, Secret, and Passphrase (WEEX requires all three). Demo/simulated keys are generated from WEEX's own demo trading section the same way.</p>
-          <p>For your safety, only ever enable trading permissions on these keys, never withdrawal.</p>
+          <div class="tr-key-instructions-title">Get Your API Keys</div>
+          <a href="https://www.bybit.com/en/app/user/api-management" target="_blank" rel="noopener" class="tr-get-key-btn tr-get-key-btn-bybit">Get Your Bybit API Key</a>
+          <p>Create a new key, enable trading only (leave withdrawal off), then copy the Key and Secret. For demo keys, switch Bybit to "Demo Trading" mode first, keys are separate from live.</p>
+          <a href="https://www.weex.com/account/newapi" target="_blank" rel="noopener" class="tr-get-key-btn tr-get-key-btn-weex">Get Your WEEX API Key</a>
+          <p>Create a new key, enable trading only (leave withdrawal off), then copy the Key, Secret, and Passphrase. WEEX needs all three.</p>
+          <p class="tr-key-safety-note">Only ever enable trading permissions, never withdrawal.</p>
         </div>
 
+      </div>
+    </div>
+
+    <div class="tr-settings-page" id="trSettingsPageGuide" style="display:none">
+      <div class="tr-select-header tr-select-header-row">
+        <button type="button" class="tr-settings-back-btn" id="trGuideBackBtn" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <span>How to Use</span>
+        <button type="button" class="tr-select-close-btn" id="trGuideCloseBtn" aria-label="Cancel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="tr-keys-scroll">
+        <div class="tr-guide-block">
+          <div class="tr-guide-title">Manual Trading</div>
+          <p>Pick a pair, choose Market or Limit, set your leverage and quantity, then tap Long or Short. Your open positions, orders, and history show in the tabs above the order form.</p>
+        </div>
+        <div class="tr-guide-block">
+          <div class="tr-guide-title">Auto Trading</div>
+          <p>Switch to the Auto Trading tab at the top. Save your exchange's API key under Settings, then API Keys. Turn on Auto Trading, pick your exchange and mode (Demo to practice, Live for real funds), and set how much USDT you want per trade (3 to 1000).</p>
+          <p>Once enabled, an admin bulk operation can open a position on your account automatically, sized to your own USDT-per-trade setting.</p>
+        </div>
+        <div class="tr-guide-block">
+          <div class="tr-guide-title">Demo vs Live</div>
+          <p>Demo trades use virtual funds on the exchange's own demo environment, real money is never at risk. Live trades use your real exchange balance. Switch between them under Settings, then Account.</p>
+        </div>
       </div>
     </div>
 
@@ -1795,7 +1888,7 @@ button{font-family:inherit}
   }
   function openExchangeOverlay(){
     renderExchangeOverlay();
-    showSettingsPage('exchange');
+    showSettingsPage('home');
     document.getElementById('trExchangeOverlay').classList.add('show');
   }
   function closeExchangeOverlay(){
@@ -1853,15 +1946,77 @@ button{font-family:inherit}
   });
 
   function showSettingsPage(name){
+    document.getElementById('trSettingsPageHome').style.display = name === 'home' ? 'block' : 'none';
     document.getElementById('trSettingsPageExchange').style.display = name === 'exchange' ? 'block' : 'none';
     document.getElementById('trSettingsPageKeys').style.display = name === 'keys' ? 'block' : 'none';
+    document.getElementById('trSettingsPageGuide').style.display = name === 'guide' ? 'block' : 'none';
   }
+  document.getElementById('trGoAccountBtn').addEventListener('click', function(){ showSettingsPage('exchange'); });
   document.getElementById('trGoApiKeysBtn').addEventListener('click', function(){
     showSettingsPage('keys');
     loadKeysStatus();
   });
-  document.getElementById('trKeysBackBtn').addEventListener('click', function(){ showSettingsPage('exchange'); });
+  document.getElementById('trGoGuideBtn').addEventListener('click', function(){ showSettingsPage('guide'); });
+  document.getElementById('trAccountBackBtn').addEventListener('click', function(){ showSettingsPage('home'); });
+  document.getElementById('trAccountCloseBtn').addEventListener('click', closeExchangeOverlay);
+  document.getElementById('trKeysBackBtn').addEventListener('click', function(){ showSettingsPage('home'); });
   document.getElementById('trKeysCloseBtn').addEventListener('click', closeExchangeOverlay);
+  document.getElementById('trGuideBackBtn').addEventListener('click', function(){ showSettingsPage('home'); });
+  document.getElementById('trGuideCloseBtn').addEventListener('click', closeExchangeOverlay);
+
+  var autoExchangeValue = 'bybit';
+  var autoModeValue = 'demo';
+  var bulkSideValue = 'Buy';
+
+  function openGenericSelect(title, options, current, onSelect){
+    document.getElementById('trGenericSelectTitle').textContent = title;
+    var list = document.getElementById('trGenericSelectList');
+    list.innerHTML = '';
+    options.forEach(function(opt){
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tr-select-item' + (opt.value === current ? ' active' : '');
+      btn.textContent = opt.label;
+      btn.addEventListener('click', function(){
+        onSelect(opt.value);
+        document.getElementById('trGenericSelectOverlay').classList.remove('show');
+      });
+      list.appendChild(btn);
+    });
+    document.getElementById('trGenericSelectOverlay').classList.add('show');
+  }
+  document.getElementById('trGenericSelectOverlay').addEventListener('click', function(e){
+    if (e.target.id === 'trGenericSelectOverlay') this.classList.remove('show');
+  });
+
+  document.getElementById('trBulkSideBtn').addEventListener('click', function(){
+    openGenericSelect('Position', [{ value: 'Buy', label: 'Long' }, { value: 'Sell', label: 'Short' }], bulkSideValue, function(v){
+      bulkSideValue = v;
+      document.getElementById('trBulkSideLabel').textContent = v === 'Sell' ? 'Short' : 'Long';
+    });
+  });
+  document.getElementById('trAutoExchangeBtn').addEventListener('click', function(){
+    openGenericSelect('Exchange', [{ value: 'bybit', label: 'Bybit' }, { value: 'weex', label: 'WEEX' }], autoExchangeValue, function(v){
+      autoExchangeValue = v;
+      document.getElementById('trAutoExchangeLabel').textContent = v === 'weex' ? 'WEEX' : 'Bybit';
+    });
+  });
+  document.getElementById('trAutoModeBtn').addEventListener('click', function(){
+    openGenericSelect('Mode', [{ value: 'demo', label: 'Demo' }, { value: 'live', label: 'Live' }], autoModeValue, function(v){
+      autoModeValue = v;
+      document.getElementById('trAutoModeLabel').textContent = v === 'live' ? 'Live' : 'Demo';
+    });
+  });
+
+  function setBtnLoading(btn, label){
+    btn.dataset.originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="tr-btn-spinner"></span>' + label;
+    btn.disabled = true;
+  }
+  function clearBtnLoading(btn){
+    if (btn.dataset.originalText) btn.innerHTML = btn.dataset.originalText;
+    btn.disabled = false;
+  }
 
   async function loadKeysStatus(){
     try {
@@ -1878,8 +2033,10 @@ button{font-family:inherit}
       });
       var auto = status.autoTrading || {};
       document.getElementById('trAutoEnableToggle').classList.toggle('on', !!auto.enabled);
-      document.getElementById('trAutoExchange').value = auto.exchange === 'weex' ? 'weex' : 'bybit';
-      document.getElementById('trAutoMode').value = auto.mode === 'live' ? 'live' : 'demo';
+      autoExchangeValue = auto.exchange === 'weex' ? 'weex' : 'bybit';
+      autoModeValue = auto.mode === 'live' ? 'live' : 'demo';
+      document.getElementById('trAutoExchangeLabel').textContent = autoExchangeValue === 'weex' ? 'WEEX' : 'Bybit';
+      document.getElementById('trAutoModeLabel').textContent = autoModeValue === 'live' ? 'Live' : 'Demo';
       document.getElementById('trAutoUsdt').value = auto.usdtPerTrade || 10;
     } catch (err) {}
   }
@@ -1910,7 +2067,7 @@ button{font-family:inherit}
         toast('Please fill in all fields.');
         return;
       }
-      saveBtn.disabled = true;
+      setBtnLoading(saveBtn, 'Saving...');
       try {
         await postJSON('/api/tools/trading/keys', payload);
         toast('API keys saved.');
@@ -1920,7 +2077,7 @@ button{font-family:inherit}
       } catch (err) {
         toast(err.message || 'Could not save API keys.');
       }
-      saveBtn.disabled = false;
+      clearBtnLoading(saveBtn);
     });
   });
 
@@ -1937,12 +2094,12 @@ button{font-family:inherit}
       msg.textContent = 'USDT per trade must be between 3 and 1000.';
       return;
     }
-    btn.disabled = true;
+    setBtnLoading(btn, 'Saving...');
     try {
       await postJSON('/api/tools/trading/auto-settings', {
         enabled: document.getElementById('trAutoEnableToggle').classList.contains('on'),
-        exchange: document.getElementById('trAutoExchange').value,
-        mode: document.getElementById('trAutoMode').value,
+        exchange: autoExchangeValue,
+        mode: autoModeValue,
         usdtPerTrade: usdt,
       });
       msg.style.display = 'block';
@@ -1952,18 +2109,17 @@ button{font-family:inherit}
       msg.style.display = 'block';
       msg.textContent = err.message || 'Could not save settings.';
     }
-    btn.disabled = false;
+    clearBtnLoading(btn);
   });
 
   document.getElementById('trBulkStartBtn').addEventListener('click', async function(){
     var btn = this;
     var pair = document.getElementById('trBulkSymbol').value.trim().toUpperCase();
     var lev = Number(document.getElementById('trBulkLeverage').value || 10);
-    var side = document.getElementById('trBulkSide').value;
+    var side = bulkSideValue;
     var resultBox = document.getElementById('trBulkResult');
     if (!pair) { toast('Enter a pair, e.g. BTCUSDT.'); return; }
-    btn.disabled = true;
-    btn.textContent = 'Starting...';
+    setBtnLoading(btn, 'Starting...');
     resultBox.style.display = 'none';
     try {
       var data = await postJSON('/api/tools/trading/auto/bulk-start', { category: CATEGORY, symbol: pair, leverage: lev, side: side });
@@ -1981,8 +2137,7 @@ button{font-family:inherit}
       resultBox.style.display = 'block';
       resultBox.textContent = err.message || 'Bulk start failed.';
     }
-    btn.disabled = false;
-    btn.textContent = 'Bulk Start';
+    clearBtnLoading(btn);
   });
 
   var TR_VIEW_KEY = 'trActiveView';
