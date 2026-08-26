@@ -790,10 +790,15 @@ button{font-family:inherit}
       renderPositions();
       var equityEl = document.getElementById('trEquity');
       var availEl = document.getElementById('trAvailable');
-      if (data.equity != null) equityEl.textContent = '$' + data.equity.toFixed(2);
-      if (data.available != null) availEl.textContent = data.available.toFixed(2);
+      equityEl.textContent = data.equity != null ? '$' + data.equity.toFixed(2) : '--';
+      availEl.textContent = data.available != null ? data.available.toFixed(2) : '--';
       updateEstMargin();
     } catch (err) {
+      if (gen !== dataGen) return;
+      document.getElementById('trEquity').textContent = '--';
+      document.getElementById('trAvailable').textContent = '--';
+      positions = [];
+      renderPositions();
       console.error(err);
     }
   }
@@ -1110,11 +1115,22 @@ button{font-family:inherit}
     if (e.target.id === 'trMarginModeOverlay') document.getElementById('trMarginModeOverlay').classList.remove('show');
   });
   document.querySelectorAll('#trMarginModeOverlay [data-mode]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      MARGIN_MODE = btn.getAttribute('data-mode');
+    btn.addEventListener('click', async function(){
+      var mode = btn.getAttribute('data-mode');
+      MARGIN_MODE = mode;
       localStorage.setItem(MARGIN_MODE_KEY, MARGIN_MODE);
       renderMarginModeBtn();
       document.getElementById('trMarginModeOverlay').classList.remove('show');
+      if (EXCHANGE === 'bybit') {
+        try {
+          await postJSON('/api/tools/trading/margin-mode', { category: CATEGORY, symbol: symbol, marginMode: mode });
+          toast('Margin mode set to ' + (mode === 'cross' ? 'Cross' : 'Isolated') + '.');
+        } catch (err) {
+          toast(err.message || 'Could not update margin mode on the exchange, but new orders will use ' + mode + '.');
+        }
+      } else {
+        toast('Margin mode set to ' + (mode === 'cross' ? 'Cross' : 'Isolated') + '.');
+      }
     });
   });
 
@@ -1583,6 +1599,8 @@ button{font-family:inherit}
     instrumentInfo = null;
     positions = [];
     renderPositions();
+    document.getElementById('trEquity').textContent = '--';
+    document.getElementById('trAvailable').textContent = '--';
     if (activeTab === 'orders') document.getElementById('trOrdersList').innerHTML = '<div class="tr-positions-empty">Loading orders...</div>';
     if (activeTab === 'history') document.getElementById('trHistoryList').innerHTML = '<div class="tr-positions-empty">Loading history...</div>';
     initChart();

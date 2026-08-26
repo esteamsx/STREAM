@@ -210,19 +210,9 @@ export async function getAllPositions(category, demo = false) {
   return { equity, available, positions };
 }
 
-export async function setLeverage(category, symbol, leverage, demo = false, marginMode) {
+export async function setLeverage(category, symbol, leverage, demo = false) {
   const { apiKey, apiSecret } = requireKeys(demo);
   const lev = String(leverage);
-  if (marginMode === "cross" || marginMode === "isolated") {
-    try {
-      await signedPost(demo, apiKey, apiSecret, "/v5/position/switch-isolated", {
-        category, symbol, tradeMode: marginMode === "isolated" ? 1 : 0, buyLeverage: lev, sellLeverage: lev,
-      });
-      return;
-    } catch (err) {
-      if (!/110026/.test(err.message || "")) throw err;
-    }
-  }
   try {
     await signedPost(demo, apiKey, apiSecret, "/v5/position/set-leverage", {
       category, symbol, buyLeverage: lev, sellLeverage: lev,
@@ -232,10 +222,17 @@ export async function setLeverage(category, symbol, leverage, demo = false, marg
   }
 }
 
-export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false, marginMode }) {
+export async function setMarginMode(category, symbol, marginMode, demo = false) {
+  const { apiKey, apiSecret } = requireKeys(demo);
+  return signedPost(demo, apiKey, apiSecret, "/v5/account/set-margin-mode", {
+    setMarginMode: marginMode === "cross" ? "REGULAR_MARGIN" : "ISOLATED_MARGIN",
+  });
+}
+
+export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false }) {
   const { apiKey, apiSecret } = requireKeys(demo);
   if (leverage) {
-    await setLeverage(category, symbol, leverage, demo, marginMode);
+    await setLeverage(category, symbol, leverage, demo);
   }
   const isLimit = orderType === "Limit";
   const body = {

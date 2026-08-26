@@ -4188,6 +4188,21 @@ app.post("/api/tools/trading/order", requireAuth, requireAdmin, tradingOrderLimi
   }
 });
 
+app.post("/api/tools/trading/margin-mode", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+  try {
+    const category = String(req.body?.category || "linear");
+    const symbol = String(req.body?.symbol || "").toUpperCase();
+    const marginMode = req.body?.marginMode === "cross" ? "cross" : "isolated";
+    const service = tradingService(req);
+    if (typeof service.setMarginMode === "function") {
+      await service.setMarginMode(category, symbol, marginMode, tradingDemo(req));
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not update margin mode." });
+  }
+});
+
 app.post("/api/tools/trading/close", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
   try {
     const category = String(req.body?.category || "linear");
