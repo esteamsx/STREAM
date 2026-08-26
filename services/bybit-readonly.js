@@ -31,7 +31,7 @@ async function publicGet(demo, path, params = {}) {
   }
   const data = await res.json().catch(() => null);
   if (!data || data.retCode !== 0) {
-    throw Object.assign(new Error(`Bybit error: ${(data && data.retMsg) || `HTTP ${res.status}`}`), { status: 502 });
+    throw Object.assign(new Error(`Bybit error: ${(data && data.retMsg) || `HTTP ${res.status}`}`), { status: 502, retCode: data && data.retCode });
   }
   return data.result;
 }
@@ -57,7 +57,7 @@ async function signedGet(demo, apiKey, apiSecret, path, params = {}) {
   }
   const data = await res.json().catch(() => null);
   if (!data || data.retCode !== 0) {
-    throw Object.assign(new Error(`Bybit error: ${(data && data.retMsg) || `HTTP ${res.status}`}`), { status: 502 });
+    throw Object.assign(new Error(`Bybit error: ${(data && data.retMsg) || `HTTP ${res.status}`}`), { status: 502, retCode: data && data.retCode });
   }
   return data.result;
 }
@@ -83,7 +83,7 @@ async function signedPost(demo, apiKey, apiSecret, path, body = {}) {
   }
   const data = await res.json().catch(() => null);
   if (!data || data.retCode !== 0) {
-    throw Object.assign(new Error(`Bybit error: ${(data && data.retMsg) || `HTTP ${res.status}`}`), { status: 502 });
+    throw Object.assign(new Error(`Bybit error: ${(data && data.retMsg) || `HTTP ${res.status}`}`), { status: 502, retCode: data && data.retCode });
   }
   return data.result;
 }
@@ -219,7 +219,7 @@ export async function setLeverage(category, symbol, leverage, demo = false) {
       category, symbol, buyLeverage: lev, sellLeverage: lev,
     });
   } catch (err) {
-    if (!/110043/.test(err.message || "")) throw err;
+    if (err.retCode !== 110043 && !/leverage not modified/i.test(err.message || "")) throw err;
   }
 }
 
@@ -334,7 +334,7 @@ export async function placeOrderWithCredentials({ apiKey, apiSecret, category, s
         category, symbol, buyLeverage: lev, sellLeverage: lev,
       });
     } catch (err) {
-      if (!/110043/.test(err.message || "")) throw err;
+      if (err.retCode !== 110043 && !/leverage not modified/i.test(err.message || "")) throw err;
     }
   }
   const isLimit = orderType === "Limit";

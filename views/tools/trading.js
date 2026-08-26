@@ -180,6 +180,8 @@ button{font-family:inherit}
 .tr-order-toggle{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted);margin-bottom:10px}
 .tr-order-toggle input{accent-color:var(--accent)}
 .tr-tpsl-preview{font-size:.68rem;color:var(--muted);margin:-6px 0 12px;line-height:1.6}
+.tr-preview-group{margin-bottom:6px}
+.tr-preview-group:last-child{margin-bottom:0}
 .tr-liq-preview{font-size:.68rem;color:var(--muted);margin:-2px 0 12px;line-height:1.6}
 .tr-liq-preview b{color:var(--text);font-family:var(--font-mono)}
 .tr-positions-head{display:flex;justify-content:flex-end;margin-bottom:8px}
@@ -1274,7 +1276,7 @@ button:active{transform:scale(.96)}
       var slRoi = (slPnl / margin) * 100;
       lines.push('SL: <b class="' + (slPnl >= 0 ? 'pos' : 'neg') + '">' + (slPnl >= 0 ? '+' : '') + slPnl.toFixed(2) + ' USDT (' + (slRoi >= 0 ? '+' : '') + slRoi.toFixed(2) + '%)</b>');
     }
-    return lines.join(' &nbsp;\\u00b7&nbsp; ');
+    return lines.join('<br>');
   }
 
   function updateTpslPreview(){
@@ -1283,12 +1285,12 @@ button:active{transform:scale(.96)}
     var sl = Number(document.getElementById('trSlInput').value || 0);
     if (!tp && !sl) { box.style.display = 'none'; return; }
     var qty = Number(document.getElementById('trQtyInput').value || 0);
-    var lev = Number(document.getElementById('trLeverageValue').textContent) || 1;
+    var lev = currentLeverage();
     var entry = orderType === 'Limit' ? Number(document.getElementById('trLimitPriceInput').value || 0) || lastPrice : lastPrice;
     if (!entry || !qty) { box.style.display = 'none'; return; }
     var longPreview = computePreview(entry, qty, lev, 'Long', tp, sl);
     var shortPreview = computePreview(entry, qty, lev, 'Short', tp, sl);
-    box.innerHTML = 'If Long: ' + longPreview + '<br>If Short: ' + shortPreview;
+    box.innerHTML = '<div class="tr-preview-group">If Long:<br>' + longPreview + '</div><div class="tr-preview-group">If Short:<br>' + shortPreview + '</div>';
     box.style.display = 'block';
   }
   document.getElementById('trTpInput').addEventListener('input', updateTpslPreview);

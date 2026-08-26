@@ -29,6 +29,12 @@ import {
   removeBillingAuthorization,
   setAutoRenew,
   RENEWABLE_PRODUCTS,
+  TRADING_PLANS,
+  PURCHASABLE_TRADING_PLANS,
+  getEffectiveTradingPlan,
+  createTradingPlanPayment,
+  getTradingPlanPayment,
+  finalizeTradingPlanPayment,
 } from "../services/auth.js";
 import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
@@ -172,6 +178,80 @@ router.post("/api/plan/custom-visit-url", requireAuth, visitUrlLimiter, async (r
   }
 });
 
+router.post("/api/trading-plan/initialize", requireAuth, initLimiter, async (req, res) => {
+  try {
+    const plan = String(req.body?.plan || "").trim();
+    if (!PURCHASABLE_TRADING_PLANS.includes(plan)) return res.status(400).json({ error: "Unknown plan." });
+
+    const profile = await getUserProfile(req.uid);
+    if (!profile) return res.status(404).json({ error: "Account not found." });
+    if (!profile.email) return res.status(400).json({ error: "Add an email to your account before upgrading." });
+    if (getEffectiveTradingPlan(profile) === plan) return res.status(400).json({ error: `You're already on the ${TRADING_PLANS[plan].name} plan.` });
+
+    const amountKobo = TRADING_PLANS[plan].priceNgn * 100;
+    const data = await initializeTransaction({
+      email: profile.email,
+      amountKobo,
+      metadata: { uid: req.uid, purpose: "trading_plan", plan },
+    });
+    await createTradingPlanPayment(req.uid, data.reference, amountKobo, plan);
+
+    res.json({
+      reference: data.reference,
+      accessCode: data.access_code,
+      publicKey: PAYSTACK_PUBLIC_KEY,
+      email: profile.email,
+      amountKobo,
+      priceNgn: TRADING_PLANS[plan].priceNgn,
+      plan,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 400).json({ error: err.message || "Could not start plan payment." });
+  }
+});
+
+router.post("/api/trading-plan/confirm", requireAuth, confirmLimiter, async (req, res) => {
+  try {
+    const reference = String(req.body?.reference || "").trim();
+    if (!reference) return res.status(400).json({ error: "Missing payment reference." });
+
+    const record = await getTradingPlanPayment(reference);
+    if (!record || record.uid !== req.uid) return res.status(404).json({ error: "Payment not found." });
+
+    if (record.status === "success") {
+      const profile = await getUserProfile(req.uid);
+      return res.json({ plan: profile?.tradingPlanPaid || record.plan, expiresAt: profile?.tradingPlanExpiresAt || null, instantBonusNgn: 0 });
+    }
+
+    const paystackData = await verifyTransaction(reference);
+    const result = await finalizeTradingPlanPayment(reference, paystackData);
+    res.json({ plan: result.plan || record.plan, expiresAt: result.expiresAt || null, instantBonusNgn: result.instantBonusNgn || 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Could not confirm payment." });
+  }
+});
+
+router.get("/api/trading-plan/status", requireAuth, confirmLimiter, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.uid);
+    if (!profile) return res.status(404).json({ error: "Account not found." });
+    const effectivePlan = getEffectiveTradingPlan(profile);
+    res.json({
+      plan: effectivePlan,
+      config: TRADING_PLANS[effectivePlan],
+      expiresAt: profile.tradingPlanExpiresAt || null,
+      tradesUsed: profile.tradingWeekCount || 0,
+      tradesWindowStart: profile.tradingWeekStart || null,
+      username: profile.username || "",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load plan status." });
+  }
+});
+
 router.post("/api/devplan/initialize", requireAuth, initLimiter, async (req, res) => {
   try {
     const plan = String(req.body?.plan || "").trim();
@@ -305,6 +385,7 @@ router.post("/api/paystack/webhook", webhookLimiter, async (req, res) => {
       await finalizeDevApiPlanPayment(event.data.reference, paystackData);
       await finalizeCoinPurchasePayment(event.data.reference, paystackData);
       await finalizeCoinRequestPayment(event.data.reference, paystackData);
+      await finalizeTradingPlanPayment(event.data.reference, paystackData);
     }
     res.status(200).json({ received: true });
   } catch (err) {

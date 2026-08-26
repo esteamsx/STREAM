@@ -266,6 +266,11 @@ import {
   refundCoins,
   CHANNEL_REACT_COIN_COST,
   getEffectiveApiPlan,
+  checkAndIncrementManualTradeQuota,
+  checkPositionLimit,
+  requireAiTradingAccess,
+  requireCommunityAccess,
+  creditTradingProfitCoins,
   API_PLANS,
   SESSION_TTL_MS,
   createBonusCode,
@@ -4189,7 +4194,11 @@ app.post("/api/tools/trading/order", requireAuth, requireAdmin, tradingOrderLimi
     if (!symbol || !qty || Number(qty) <= 0) {
       return res.status(400).json({ error: "Symbol and quantity are required." });
     }
-    const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo: tradingDemo(req), marginMode: req.body.marginMode });
+    const demo = tradingDemo(req);
+    const existing = await tradingService(req).getAllPositions(category, demo);
+    await checkPositionLimit(req.uid, (existing.positions || []).length);
+    await checkAndIncrementManualTradeQuota(req.uid);
+    const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo, marginMode: req.body.marginMode });
     res.json({ ok: true, order: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not place order." });
@@ -4217,7 +4226,18 @@ app.post("/api/tools/trading/close", requireAuth, requireAdmin, tradingOrderLimi
     const symbol = String(req.body?.symbol || "").toUpperCase();
     const percent = req.body?.percent ? Number(req.body.percent) : 100;
     if (!symbol) return res.status(400).json({ error: "Symbol is required." });
-    const result = await tradingService(req).closePosition(category, symbol, percent, tradingDemo(req));
+    const demo = tradingDemo(req);
+    let roiSnapshot = null;
+    try {
+      const posData = await tradingService(req).getLivePosition(category, symbol, demo);
+      if (posData.hasPosition && posData.margin) {
+        roiSnapshot = (posData.unrealizedPnl / posData.margin) * 100;
+      }
+    } catch (err) {}
+    const result = await tradingService(req).closePosition(category, symbol, percent, demo);
+    if (roiSnapshot != null && (!percent || percent >= 100)) {
+      creditTradingProfitCoins(req.uid, roiSnapshot, demo).catch(() => {});
+    }
     res.json({ ok: true, order: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not close position." });
@@ -4321,6 +4341,9 @@ app.delete("/api/tools/trading/keys", requireAuth, requireAdmin, tradingOrderLim
 
 app.post("/api/tools/trading/auto-settings", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
   try {
+    if (req.body?.enabled) {
+      await requireAiTradingAccess(req.uid);
+    }
     await saveAutoTradingSettings(req.uid, {
       enabled: !!req.body?.enabled,
       exchange: req.body?.exchange,
@@ -4368,6 +4391,11 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
         const usdtPerTrade = Number(auto.usdtPerTrade || 0);
         if (!usdtPerTrade || usdtPerTrade < 3 || usdtPerTrade > 1000) {
           throw Object.assign(new Error("Invalid USDT per trade amount."), { uid: trader.uid });
+        }
+        try {
+          await requireAiTradingAccess(trader.uid);
+        } catch (err) {
+          throw Object.assign(new Error(err.message || "Plan no longer allows Auto Trading."), { uid: trader.uid });
         }
         const creds = await getDecryptedTradingCredentials(trader.uid, exchange, mode);
         if (!creds) {

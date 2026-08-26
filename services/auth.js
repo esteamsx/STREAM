@@ -2736,6 +2736,147 @@ const MAX_PASSKEYS_UNVERIFIED = 1;
 
 const PURCHASABLE_API_PLANS = ["standard", "pro", "max"];
 
+const TRADING_PLAN_DAYS = 7;
+
+const TRADING_PLANS = {
+  free: { name: "Free", priceNgn: 0, requiresVerification: false, manualTradesPerWeek: 3, maxPositions: 2, aiTrading: false, community: false, coinsOnProfit: 0, instantBonusNgn: 0 },
+  starter: { name: "Starter", priceNgn: 0, requiresVerification: true, manualTradesPerWeek: 5, maxPositions: 5, aiTrading: false, community: false, coinsOnProfit: 3, instantBonusNgn: 0 },
+  standard: { name: "Standard", priceNgn: 5000, requiresVerification: false, manualTradesPerWeek: 7, maxPositions: 7, aiTrading: false, community: true, coinsOnProfit: 5, instantBonusNgn: 0 },
+  pro: { name: "Pro", priceNgn: 10000, requiresVerification: false, manualTradesPerWeek: 15, maxPositions: 15, aiTrading: true, community: true, coinsOnProfit: 10, instantBonusNgn: 0 },
+  max: { name: "Max", priceNgn: 15000, requiresVerification: false, manualTradesPerWeek: 20, maxPositions: 20, aiTrading: true, community: true, coinsOnProfit: 25, instantBonusNgn: 500 },
+};
+
+const PURCHASABLE_TRADING_PLANS = ["standard", "pro", "max"];
+const TRADING_PROFIT_ROI_THRESHOLD = 100;
+
+function getEffectiveTradingPlan(data) {
+  if (!data) return "free";
+  if (data.tradingPlanPaid && TRADING_PLANS[data.tradingPlanPaid] && data.tradingPlanExpiresAt && Date.now() < data.tradingPlanExpiresAt) {
+    return data.tradingPlanPaid;
+  }
+  if (isVerificationActive(data)) return "starter";
+  return "free";
+}
+
+function getTradingPlanConfig(data) {
+  return TRADING_PLANS[getEffectiveTradingPlan(data)];
+}
+
+async function createTradingPlanPayment(uid, reference, amountKobo, plan) {
+  await db.collection("tradingPlanPayments").doc(reference).set({
+    uid,
+    plan,
+    amountKobo,
+    status: "pending",
+    createdAt: Date.now(),
+  });
+}
+
+async function getTradingPlanPayment(reference) {
+  const snap = await db.collection("tradingPlanPayments").doc(reference).get();
+  return snap.exists ? snap.data() : null;
+}
+
+async function finalizeTradingPlanPayment(reference, paystackData) {
+  const ref = db.collection("tradingPlanPayments").doc(reference);
+  const claim = await claimPendingPayment(ref, paystackData);
+  if (claim.notOurs) return { notOurs: true };
+  if (claim.alreadyProcessed) return { alreadyProcessed: true, uid: claim.uid };
+  if (claim.inProgress) return { alreadyProcessed: true };
+  if (claim.failed) throw new Error("Payment was not successful.");
+
+  const record = claim.record;
+  const plan = TRADING_PLANS[record.plan];
+  const expiresAt = Date.now() + TRADING_PLAN_DAYS * 24 * 60 * 60 * 1000;
+  await db.collection("users").doc(record.uid).update({
+    tradingPlanPaid: record.plan,
+    tradingPlanPurchasedAt: Date.now(),
+    tradingPlanExpiresAt: expiresAt,
+  });
+  if (plan.instantBonusNgn) {
+    await db.collection("users").doc(record.uid).set({ nairaBalance: admin.firestore.FieldValue.increment(plan.instantBonusNgn) }, { merge: true });
+  }
+  await ref.update({ status: "success", confirmedAt: Date.now() });
+  await saveBillingAuthorization(record.uid, paystackData);
+  await addNotification(record.uid, "trading_plan", `Your ${plan.name} Trading plan is now active`, { plan: record.plan, expiresAt });
+  await creditReferralCommission(record.uid, record.amountKobo / 100, "Trading plan purchase");
+
+  return { alreadyProcessed: false, uid: record.uid, plan: record.plan, expiresAt, instantBonusNgn: plan.instantBonusNgn || 0 };
+}
+
+function tradingWeekWindow(profile) {
+  const start = profile.tradingWeekStart || 0;
+  const now = Date.now();
+  if (!start || now - start > TRADING_PLAN_DAYS * 24 * 60 * 60 * 1000) {
+    return { start: now, count: 0, resetNeeded: true };
+  }
+  return { start, count: profile.tradingWeekCount || 0, resetNeeded: false };
+}
+
+async function checkAndIncrementManualTradeQuota(uid) {
+  const ref = db.collection("users").doc(uid);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw Object.assign(new Error("Account not found."), { status: 404 });
+    const profile = snap.data();
+    const plan = getTradingPlanConfig(profile);
+    const window = tradingWeekWindow(profile);
+    if (window.count >= plan.manualTradesPerWeek) {
+      const resetAt = window.start + TRADING_PLAN_DAYS * 24 * 60 * 60 * 1000;
+      throw Object.assign(
+        new Error(`You've used all ${plan.manualTradesPerWeek} manual trades on the ${plan.name} plan this week. Resets ${new Date(resetAt).toLocaleString("en-NG")}.`),
+        { status: 403 }
+      );
+    }
+    tx.set(ref, { tradingWeekStart: window.start, tradingWeekCount: window.count + 1 }, { merge: true });
+    return { remaining: plan.manualTradesPerWeek - (window.count + 1) };
+  });
+}
+
+async function checkPositionLimit(uid, openPositionCount) {
+  const profile = await getUserProfile(uid);
+  if (!profile) throw Object.assign(new Error("Account not found."), { status: 404 });
+  const plan = getTradingPlanConfig(profile);
+  if (openPositionCount >= plan.maxPositions) {
+    throw Object.assign(
+      new Error(`Your ${plan.name} plan allows up to ${plan.maxPositions} open positions at a time.`),
+      { status: 403 }
+    );
+  }
+  return true;
+}
+
+async function requireAiTradingAccess(uid) {
+  const profile = await getUserProfile(uid);
+  if (!profile) throw Object.assign(new Error("Account not found."), { status: 404 });
+  const plan = getTradingPlanConfig(profile);
+  if (!plan.aiTrading) {
+    throw Object.assign(new Error(`Auto Trading is a Pro and Max plan feature. You're on the ${plan.name} plan.`), { status: 403 });
+  }
+  return true;
+}
+
+async function requireCommunityAccess(uid) {
+  const profile = await getUserProfile(uid);
+  if (!profile) throw Object.assign(new Error("Account not found."), { status: 404 });
+  const plan = getTradingPlanConfig(profile);
+  if (!plan.community) {
+    throw Object.assign(new Error(`The community chat is a Standard plan and above feature. You're on the ${plan.name} plan.`), { status: 403 });
+  }
+  return { profile, plan };
+}
+
+async function creditTradingProfitCoins(uid, roiPercent, isDemo) {
+  if (isDemo || roiPercent < TRADING_PROFIT_ROI_THRESHOLD) return { credited: 0 };
+  const profile = await getUserProfile(uid);
+  if (!profile) return { credited: 0 };
+  const plan = getTradingPlanConfig(profile);
+  if (!plan.coinsOnProfit) return { credited: 0 };
+  await db.collection("users").doc(uid).set({ coinBalance: admin.firestore.FieldValue.increment(plan.coinsOnProfit) }, { merge: true });
+  await addNotification(uid, "trading_profit_coins", `You earned ${plan.coinsOnProfit} coins for a live trade closed at ${roiPercent.toFixed(0)}% ROI`, { coins: plan.coinsOnProfit, roiPercent });
+  return { credited: plan.coinsOnProfit };
+}
+
 const RENEW_LOOKAHEAD_MS = 24 * 60 * 60 * 1000;
 const RENEW_RETRY_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const RENEW_MAX_ATTEMPTS = 3;
@@ -4232,6 +4373,18 @@ export {
   API_PLANS,
   PURCHASABLE_API_PLANS,
   getEffectiveApiPlan,
+  TRADING_PLANS,
+  PURCHASABLE_TRADING_PLANS,
+  getEffectiveTradingPlan,
+  getTradingPlanConfig,
+  createTradingPlanPayment,
+  getTradingPlanPayment,
+  finalizeTradingPlanPayment,
+  checkAndIncrementManualTradeQuota,
+  checkPositionLimit,
+  requireAiTradingAccess,
+  requireCommunityAccess,
+  creditTradingProfitCoins,
   getApiPlanConfig,
   SESSION_TTL_MS,
   BONUS_CODE_AMOUNTS,
