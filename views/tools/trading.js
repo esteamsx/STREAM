@@ -12,10 +12,11 @@ ${siteHeadFor("trading")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <script nonce="__CSP_NONCE__" src="https://s3.tradingview.com/tv.js"></script>
+<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v1/inline.js"></script>
 <title>Trading - ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
 <style>
 :root{
   --red:#FF3B5C;--green:#12C48B;--accent:#00E0FF;--accent2:#7c5cff;
@@ -266,13 +267,26 @@ button{font-family:inherit}
 .tr-toggle-switch.on .tr-toggle-knob{transform:translateX(18px);background:#FFC400}
 
 .tr-settings-fab{
-  position:fixed;right:16px;bottom:22px;z-index:90;width:48px;height:48px;border-radius:50%;
+  position:fixed;right:16px;bottom:22px;z-index:92;width:48px;height:48px;border-radius:50%;
   background:var(--card);border:1px solid var(--border-strong);color:var(--text);display:flex;
   align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.28);
+  transition:transform .25s var(--ease);
 }
-.tr-settings-fab svg{width:22px;height:22px}
-.tr-settings-fab.spin svg{animation:trGearSpin .5s var(--ease)}
-@keyframes trGearSpin{from{transform:rotate(0)}to{transform:rotate(90deg)}}
+.tr-settings-fab svg{width:22px;height:22px;transition:transform .25s var(--ease),opacity .2s var(--ease)}
+.tr-settings-fab.open{transform:rotate(90deg)}
+.tr-fab-stack{
+  position:fixed;right:16px;bottom:80px;z-index:91;display:flex;flex-direction:column;gap:12px;
+  opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .22s var(--ease),transform .22s var(--ease);
+}
+.tr-fab-stack.open{opacity:1;pointer-events:auto;transform:translateY(0)}
+.tr-fab-sub{
+  width:44px;height:44px;border-radius:50%;background:var(--card);border:1px solid var(--border-strong);
+  color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.26);
+  margin-left:auto;
+}
+.tr-fab-sub svg{width:19px;height:19px}
+#trPricingFab{color:#FFC400}
+#trCommunityFab{color:#22d1ee}
 .tr-exchange-item{
   width:100%;display:flex;align-items:center;gap:12px;padding:12px;background:transparent;border:none;
   color:var(--text);font-family:var(--font-display);font-weight:700;font-size:.88rem;border-radius:12px;text-align:left;
@@ -364,6 +378,40 @@ button{font-family:inherit}
 .tr-share-canvas-wrap{display:none}
 button{transition:transform .12s ease}
 button:active{transform:scale(.96)}
+.tr-pricing-panel{max-width:340px}
+.tr-plan-current{background:var(--card2);border:1px solid var(--border-strong);border-radius:12px;padding:12px;margin-bottom:14px;font-size:.78rem;color:var(--muted);text-align:center}
+.tr-plan-current b{color:var(--text)}
+.tr-plan-scroll{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;margin-bottom:14px}
+.tr-plan-scroll::-webkit-scrollbar{display:none}
+.tr-plan-card{scroll-snap-align:start;flex-shrink:0;width:230px;background:var(--card2);border:1px solid var(--border-strong);border-radius:14px;padding:16px}
+.tr-plan-card.current{outline:2px solid var(--accent)}
+.tr-plan-name{font-family:var(--font-display);font-weight:800;font-size:1rem;margin-bottom:6px}
+.tr-plan-price{font-family:var(--font-mono);font-weight:700;font-size:1.02rem;color:var(--accent);margin-bottom:12px}
+.tr-plan-price span{font-family:var(--font-body);font-weight:500;font-size:.66rem;color:var(--muted)}
+.tr-plan-features{list-style:none;padding:0;margin:0 0 14px;display:flex;flex-direction:column;gap:7px}
+.tr-plan-features li{font-size:.72rem;color:var(--muted);padding-left:16px;position:relative;line-height:1.4}
+.tr-plan-features li::before{content:"";position:absolute;left:0;top:5px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.tr-plan-btn{width:100%;padding:11px;border-radius:10px;background:linear-gradient(135deg,#22d1ee,#7c6bff);border:none;color:#04141a;font-family:var(--font-display);font-weight:800;font-size:.8rem}
+.tr-plan-btn:disabled{background:var(--card);color:var(--muted);border:1px solid var(--border-strong)}
+.tr-plan-card.current .tr-plan-btn{background:var(--card);color:var(--accent);border:1px solid var(--accent)}
+.tr-receipt-btn{width:100%;padding:13px;border-radius:12px;background:var(--card2);border:1px solid var(--border-strong);color:var(--muted);font-family:var(--font-display);font-weight:800;font-size:.84rem}
+.tr-receipt-btn:not(:disabled){background:linear-gradient(135deg,#FFC400,#ff8a5c);color:#1a1400;border:none}
+.tr-community-panel{max-width:360px;display:flex;flex-direction:column;height:78vh;padding-bottom:14px}
+.tr-community-locked{padding:30px 10px;text-align:center}
+.tr-community-locked p{font-size:.8rem;color:var(--muted);margin:0 0 16px;line-height:1.5}
+.tr-community-messages{flex:1;overflow-y:auto;padding:4px 2px;display:flex;flex-direction:column;gap:10px}
+.tr-community-msg{max-width:78%;padding:9px 12px;border-radius:14px;background:var(--card2);font-size:.8rem;line-height:1.4}
+.tr-community-msg.own{align-self:flex-end;background:linear-gradient(135deg,#22d1ee,#7c6bff);color:#04141a}
+.tr-community-msg-name{font-size:.66rem;font-weight:700;color:var(--accent);margin-bottom:3px}
+.tr-community-msg.own .tr-community-msg-name{color:rgba(4,20,26,.7)}
+.tr-community-msg img{max-width:100%;border-radius:10px;margin-top:6px;display:block}
+.tr-community-msg-time{font-size:.6rem;color:var(--muted);margin-top:4px}
+.tr-community-msg.own .tr-community-msg-time{color:rgba(4,20,26,.55)}
+.tr-community-input-row{display:flex;align-items:center;gap:8px;margin-top:10px}
+.tr-community-photo-btn,.tr-community-send-btn{width:38px;height:38px;border-radius:50%;background:var(--card2);border:1px solid var(--border-strong);color:var(--text);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tr-community-send-btn{background:linear-gradient(135deg,#22d1ee,#7c6bff);color:#04141a;border:none}
+.tr-community-photo-btn svg,.tr-community-send-btn svg{width:17px;height:17px}
+.tr-community-input-row input[type="text"]{flex:1;padding:11px;border-radius:20px;background:var(--card2);border:1px solid var(--border-strong);color:var(--text);font-size:.82rem}
 </style>
 </head>
 <body>
@@ -642,8 +690,21 @@ button:active{transform:scale(.96)}
   </div>
 </div>
 
-<button type="button" class="tr-settings-fab" id="trSettingsFab" aria-label="Exchange settings">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+<div class="tr-fab-stack" id="trFabStack">
+  <button type="button" class="tr-fab-sub" id="trCommunityFab" aria-label="Community">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+  </button>
+  <button type="button" class="tr-fab-sub" id="trPricingFab" aria-label="Pricing and plans">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.59 13.41L13.42 20.6a2 2 0 01-2.83 0l-8-8V3h9.59l8 8a2 2 0 010 2.83z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg>
+  </button>
+  <button type="button" class="tr-fab-sub" id="trSettingsSubFab" aria-label="Settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+  </button>
+</div>
+
+<button type="button" class="tr-settings-fab" id="trSettingsFab" aria-label="Menu">
+  <svg class="tr-fab-icon-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+  <svg class="tr-fab-icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="display:none"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
 </button>
 
 <div class="tr-overlay tr-overlay-center" id="trExchangeOverlay">
@@ -853,12 +914,123 @@ button:active{transform:scale(.96)}
   </div>
 </div>
 
+<div class="tr-overlay tr-overlay-center" id="trPricingOverlay">
+  <div class="tr-select-panel tr-pricing-panel">
+    <div class="tr-select-header tr-select-header-row">
+      <span>Pricing &amp; Plans</span>
+      <button type="button" class="tr-select-close-btn" id="trPricingCloseBtn" aria-label="Cancel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="tr-plan-current" id="trPlanCurrent">Loading your plan...</div>
+    <div class="tr-plan-scroll" id="trPlanScroll">
+
+      <div class="tr-plan-card" data-plan="free">
+        <div class="tr-plan-name">Free</div>
+        <div class="tr-plan-price">&#8358;0</div>
+        <ul class="tr-plan-features">
+          <li>3 manual trades / 7 days</li>
+          <li>2 open positions max</li>
+          <li>No Auto Trading</li>
+          <li>No community chat</li>
+          <li>No coin rewards</li>
+        </ul>
+        <button type="button" class="tr-plan-btn" disabled data-role="action">Default Plan</button>
+      </div>
+
+      <div class="tr-plan-card" data-plan="starter">
+        <div class="tr-plan-name">Starter</div>
+        <div class="tr-plan-price">&#8358;0 <span>verified users</span></div>
+        <ul class="tr-plan-features">
+          <li>5 manual trades / 7 days</li>
+          <li>5 open positions max</li>
+          <li>No Auto Trading</li>
+          <li>No community chat</li>
+          <li>3 coins per live win (100%+ ROI)</li>
+        </ul>
+        <button type="button" class="tr-plan-btn" disabled data-role="action">Verify Your Account</button>
+      </div>
+
+      <div class="tr-plan-card" data-plan="standard">
+        <div class="tr-plan-name">Standard</div>
+        <div class="tr-plan-price">&#8358;5,000 <span>/ 7 days</span></div>
+        <ul class="tr-plan-features">
+          <li>7 manual trades / 7 days</li>
+          <li>7 open positions max</li>
+          <li>No Auto Trading</li>
+          <li>Community chat access</li>
+          <li>5 coins per live win (100%+ ROI)</li>
+        </ul>
+        <button type="button" class="tr-plan-btn" data-role="action">Subscribe</button>
+      </div>
+
+      <div class="tr-plan-card" data-plan="pro">
+        <div class="tr-plan-name">Pro</div>
+        <div class="tr-plan-price">&#8358;10,000 <span>/ 7 days</span></div>
+        <ul class="tr-plan-features">
+          <li>15 manual trades / 7 days</li>
+          <li>15 open positions max</li>
+          <li>Auto Trading unlocked</li>
+          <li>Community chat access</li>
+          <li>10 coins per live win (100%+ ROI)</li>
+        </ul>
+        <button type="button" class="tr-plan-btn" data-role="action">Subscribe</button>
+      </div>
+
+      <div class="tr-plan-card" data-plan="max">
+        <div class="tr-plan-name">Max</div>
+        <div class="tr-plan-price">&#8358;15,000 <span>/ 7 days</span></div>
+        <ul class="tr-plan-features">
+          <li>20 manual trades / 7 days</li>
+          <li>20 open positions max</li>
+          <li>Auto Trading unlocked</li>
+          <li>Community chat access</li>
+          <li>25 coins per live win (100%+ ROI)</li>
+          <li>&#8358;500 instant wallet bonus</li>
+        </ul>
+        <button type="button" class="tr-plan-btn" data-role="action">Subscribe</button>
+      </div>
+
+    </div>
+    <button type="button" class="tr-receipt-btn" id="trReceiptBtn" disabled>No current plan active</button>
+  </div>
+</div>
+
+<div class="tr-overlay tr-overlay-center" id="trCommunityOverlay">
+  <div class="tr-select-panel tr-community-panel">
+    <div class="tr-select-header tr-select-header-row">
+      <span id="trCommunityTitle">ES TEAMS FT SIGNALS</span>
+      <button type="button" class="tr-select-close-btn" id="trCommunityCloseBtn" aria-label="Cancel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="tr-community-locked" id="trCommunityLocked" style="display:none">
+      <p>The community chat is a Standard plan and above feature.</p>
+      <button type="button" class="tr-plan-btn" id="trCommunityUpgradeBtn">See Plans</button>
+    </div>
+    <div id="trCommunityChatArea" style="display:none">
+      <div class="tr-community-messages" id="trCommunityMessages"></div>
+      <div class="tr-community-input-row">
+        <button type="button" class="tr-community-photo-btn" id="trCommunityPhotoBtn" aria-label="Attach photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 16l-5-5-9 9"/></svg>
+        </button>
+        <input type="file" id="trCommunityPhotoInput" accept="image/*" style="display:none">
+        <input type="text" id="trCommunityTextInput" placeholder="Message the group..." autocomplete="off">
+        <button type="button" class="tr-community-send-btn" id="trCommunitySendBtn" aria-label="Send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="tr-share-canvas-wrap"><canvas id="trShareCanvas" width="680" height="600"></canvas></div>
 <div class="tr-toast" id="trToast"></div>
 
 
 <script nonce="__CSP_NONCE__">
 (function(){
+  var PAYSTACK_PUBLIC_KEY = ${JSON.stringify(cfg.paystackPublicKey || "")};
   var CATEGORY = 'linear';
   var symbol = 'BTCUSDT';
   var allSymbols = [];
@@ -1934,9 +2106,29 @@ button:active{transform:scale(.96)}
     toast(DEMO_MODE ? 'Demo trading enabled.' : 'Demo trading disabled.');
     refreshTradingData();
   }
+  function closeFabStack(){
+    document.getElementById('trFabStack').classList.remove('open');
+    document.getElementById('trSettingsFab').classList.remove('open');
+    document.querySelector('.tr-fab-icon-gear').style.display = 'block';
+    document.querySelector('.tr-fab-icon-x').style.display = 'none';
+  }
   document.getElementById('trSettingsFab').addEventListener('click', function(){
-    this.classList.remove('spin'); void this.offsetWidth; this.classList.add('spin');
+    var isOpen = document.getElementById('trFabStack').classList.toggle('open');
+    this.classList.toggle('open', isOpen);
+    document.querySelector('.tr-fab-icon-gear').style.display = isOpen ? 'none' : 'block';
+    document.querySelector('.tr-fab-icon-x').style.display = isOpen ? 'block' : 'none';
+  });
+  document.getElementById('trSettingsSubFab').addEventListener('click', function(){
+    closeFabStack();
     openExchangeOverlay();
+  });
+  document.getElementById('trPricingFab').addEventListener('click', function(){
+    closeFabStack();
+    openPricingOverlay();
+  });
+  document.getElementById('trCommunityFab').addEventListener('click', function(){
+    closeFabStack();
+    openCommunityOverlay();
   });
   document.getElementById('trExchangeCloseBtn').addEventListener('click', closeExchangeOverlay);
   document.getElementById('trDemoToggle').addEventListener('click', toggleDemoMode);
@@ -2181,6 +2373,331 @@ button:active{transform:scale(.96)}
   loadInstrumentInfo();
   startPositionsPolling();
   setInterval(loadTicker, 5000);
+
+  var PLAN_NAMES = { free: 'Free', starter: 'Starter', standard: 'Standard', pro: 'Pro', max: 'Max' };
+  var PURCHASABLE_PLANS = ['standard', 'pro', 'max'];
+  var latestPlanStatus = null;
+
+  function openPricingOverlay(){
+    document.getElementById('trPricingOverlay').classList.add('show');
+    loadPricingStatus();
+  }
+  document.getElementById('trPricingCloseBtn').addEventListener('click', function(){
+    document.getElementById('trPricingOverlay').classList.remove('show');
+  });
+  document.getElementById('trPricingOverlay').addEventListener('click', function(e){
+    if (e.target.id === 'trPricingOverlay') this.classList.remove('show');
+  });
+
+  async function loadPricingStatus(){
+    try {
+      var status = await getJSON('/api/trading-plan/status');
+      latestPlanStatus = status;
+      var expiresText = status.expiresAt ? new Date(status.expiresAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+      document.getElementById('trPlanCurrent').innerHTML = 'Current plan: <b>' + (PLAN_NAMES[status.plan] || status.plan) + '</b>' + (expiresText ? ' &middot; expires ' + expiresText : '');
+      document.querySelectorAll('.tr-plan-card').forEach(function(card){
+        var planKey = card.getAttribute('data-plan');
+        var btn = card.querySelector('[data-role="action"]');
+        card.classList.toggle('current', planKey === status.plan);
+        if (planKey === status.plan) {
+          btn.textContent = 'Current Plan';
+          btn.disabled = true;
+        } else if (PURCHASABLE_PLANS.includes(planKey)) {
+          btn.textContent = 'Subscribe';
+          btn.disabled = false;
+        }
+      });
+      var receiptBtn = document.getElementById('trReceiptBtn');
+      var hasPaidPlan = PURCHASABLE_PLANS.includes(status.plan) && status.expiresAt && status.expiresAt > Date.now();
+      receiptBtn.disabled = !hasPaidPlan;
+      receiptBtn.textContent = hasPaidPlan ? 'Download Receipt' : 'No current plan active';
+    } catch (err) {
+      document.getElementById('trPlanCurrent').textContent = 'Could not load your plan.';
+    }
+  }
+
+  document.querySelectorAll('.tr-plan-card [data-role="action"]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var planKey = btn.closest('.tr-plan-card').getAttribute('data-plan');
+      if (!PURCHASABLE_PLANS.includes(planKey) || btn.disabled) return;
+      subscribeToPlan(planKey, btn);
+    });
+  });
+
+  async function subscribeToPlan(planKey, btn){
+    if (!PAYSTACK_PUBLIC_KEY || typeof PaystackPop === 'undefined') {
+      toast('Payments are not available right now.');
+      return;
+    }
+    setBtnLoading(btn, 'Starting...');
+    try {
+      var data = await postJSON('/api/trading-plan/initialize', { plan: planKey });
+      clearBtnLoading(btn);
+      var handler = PaystackPop.setup({
+        key: data.publicKey,
+        email: data.email,
+        amount: data.amountKobo,
+        ref: data.reference,
+        onClose: function(){},
+        callback: function(){
+          confirmPlanPayment(data.reference);
+        },
+      });
+      handler.openIframe();
+    } catch (err) {
+      clearBtnLoading(btn);
+      toast(err.message || 'Could not start payment.');
+    }
+  }
+
+  async function confirmPlanPayment(reference){
+    toast('Confirming payment...');
+    try {
+      var result = await postJSON('/api/trading-plan/confirm', { reference: reference });
+      toast('You are now on the ' + (PLAN_NAMES[result.plan] || result.plan) + ' plan.' + (result.instantBonusNgn ? (' Naira' + result.instantBonusNgn + ' added to your wallet.') : ''));
+      loadPricingStatus();
+    } catch (err) {
+      toast(err.message || 'Could not confirm payment. If you were charged, contact support.');
+    }
+  }
+
+  document.getElementById('trReceiptBtn').addEventListener('click', function(){
+    if (this.disabled || !latestPlanStatus) return;
+    drawTradingReceiptCanvas(latestPlanStatus);
+  });
+
+  function trRoundRect(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  async function drawTradingReceiptCanvas(status){
+    if (document.fonts && document.fonts.load) {
+      await Promise.all([
+        document.fonts.load('700 42px "Space Grotesk"'),
+        document.fonts.load('700 46px "Dancing Script"'),
+        document.fonts.load('600 18px "Inter"'),
+        document.fonts.load('600 17px "JetBrains Mono"'),
+      ]).catch(function(){});
+    }
+    var W = 1000, H = 640;
+    var canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    var ctx = canvas.getContext('2d');
+
+    var bg = '#0A0A0F', card = '#15151F', text = '#F3F3FA', muted = 'rgba(255,255,255,.5)';
+    var accent = '#00E0FF', accent2 = '#7c5cff', green = '#12C48B';
+    var pad = 30;
+
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = card;
+    trRoundRect(ctx, pad, pad, W - pad * 2, H - pad * 2, 22);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,224,255,.25)';
+    ctx.lineWidth = 1.5;
+    trRoundRect(ctx, pad + 16, pad + 16, W - (pad + 16) * 2, H - (pad + 16) * 2, 16);
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.font = '700 26px "Space Grotesk", sans-serif';
+    var grad = ctx.createLinearGradient(pad + 50, 0, pad + 340, 0);
+    grad.addColorStop(0, accent);
+    grad.addColorStop(1, accent2);
+    ctx.fillStyle = grad;
+    ctx.fillText('ES TEAMS TRADING', pad + 50, pad + 70);
+
+    var chipText = (PLAN_NAMES[status.plan] || status.plan).toUpperCase() + ' PLAN';
+    ctx.font = '700 14px "Inter", sans-serif';
+    var chipW = ctx.measureText(chipText).width + 36;
+    var chipX = W - pad - 50 - chipW;
+    var chipY = pad + 46;
+    ctx.fillStyle = 'rgba(18,196,139,.12)';
+    trRoundRect(ctx, chipX, chipY - 24, chipW, 34, 17);
+    ctx.fill();
+    ctx.strokeStyle = green;
+    ctx.lineWidth = 1;
+    trRoundRect(ctx, chipX, chipY - 24, chipW, 34, 17);
+    ctx.stroke();
+    ctx.fillStyle = green;
+    ctx.textAlign = 'center';
+    ctx.fillText(chipText, chipX + chipW / 2, chipY);
+
+    ctx.font = '700 13px "Inter", sans-serif';
+    ctx.fillStyle = muted;
+    ctx.textAlign = 'center';
+    ctx.fillText('S U B S C R I P T I O N   R E C E I P T', W / 2, pad + 130);
+
+    ctx.font = '700 42px "Space Grotesk", sans-serif';
+    ctx.fillStyle = text;
+    ctx.fillText('@' + (status.username || 'trader'), W / 2, pad + 195);
+
+    ctx.font = '500 18px "Inter", sans-serif';
+    ctx.fillStyle = muted;
+    var config = status.config || {};
+    var offerText = (config.manualTradesPerWeek || 0) + ' trades/wk \\u00b7 ' + (config.maxPositions || 0) + ' positions' + (config.aiTrading ? ' \\u00b7 Auto Trading' : '') + (config.community ? ' \\u00b7 Community' : '');
+    ctx.fillText(offerText, W / 2, pad + 228);
+
+    ctx.strokeStyle = 'rgba(255,255,255,.13)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad + 60, pad + 270);
+    ctx.lineTo(W - pad - 60, pad + 270);
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.font = '700 12px "Inter", sans-serif';
+    ctx.fillStyle = muted;
+    ctx.fillText('PLAN', pad + 60, pad + 310);
+    ctx.font = '600 17px "JetBrains Mono", monospace';
+    ctx.fillStyle = text;
+    ctx.fillText(PLAN_NAMES[status.plan] || status.plan, pad + 60, pad + 335);
+
+    ctx.textAlign = 'right';
+    ctx.font = '700 12px "Inter", sans-serif';
+    ctx.fillStyle = muted;
+    ctx.fillText('EXPIRES', W - pad - 60, pad + 310);
+    ctx.font = '600 17px "JetBrains Mono", monospace';
+    ctx.fillStyle = text;
+    ctx.fillText(status.expiresAt ? new Date(status.expiresAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A', W - pad - 60, pad + 335);
+
+    ctx.save();
+    ctx.translate(W / 2, pad + 415);
+    ctx.rotate(-0.08);
+    ctx.transform(1, 0, -0.18, 1, 0, 0);
+    ctx.textAlign = 'center';
+    ctx.font = '700 50px "Dancing Script", cursive';
+    ctx.fillStyle = accent2;
+    ctx.fillText('Es Teams', 0, 0);
+    ctx.globalAlpha = 0.7;
+    ctx.strokeStyle = accent2;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-72, 18);
+    ctx.bezierCurveTo(-38, -2, -8, 30, 22, 8);
+    ctx.bezierCurveTo(48, -10, 68, 4, 74, -2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    ctx.font = '700 12px "Inter", sans-serif';
+    ctx.fillStyle = muted;
+    ctx.textAlign = 'center';
+    ctx.fillText('AUTHORIZED SIGNATURE \\u00b7 ES TEAMS TRADING', W / 2, pad + 450);
+
+    var blob = await new Promise(function(resolve){ canvas.toBlob(resolve, 'image/png'); });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'ES-TEAMS-TRADING-RECEIPT.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  }
+
+  var communityHasAccess = false;
+  var communityPollTimer = null;
+  var communityAttachment = null;
+
+  function openCommunityOverlay(){
+    document.getElementById('trCommunityOverlay').classList.add('show');
+    loadCommunityMessages();
+  }
+  document.getElementById('trCommunityCloseBtn').addEventListener('click', function(){
+    document.getElementById('trCommunityOverlay').classList.remove('show');
+    if (communityPollTimer) clearInterval(communityPollTimer);
+  });
+  document.getElementById('trCommunityOverlay').addEventListener('click', function(e){
+    if (e.target.id === 'trCommunityOverlay') {
+      this.classList.remove('show');
+      if (communityPollTimer) clearInterval(communityPollTimer);
+    }
+  });
+  document.getElementById('trCommunityUpgradeBtn').addEventListener('click', function(){
+    document.getElementById('trCommunityOverlay').classList.remove('show');
+    openPricingOverlay();
+  });
+
+  async function loadCommunityMessages(){
+    try {
+      var data = await getJSON('/api/community/messages');
+      communityHasAccess = true;
+      document.getElementById('trCommunityLocked').style.display = 'none';
+      document.getElementById('trCommunityChatArea').style.display = 'block';
+      renderCommunityMessages(data.messages || [], data.myUid);
+      if (!communityPollTimer) communityPollTimer = setInterval(loadCommunityMessages, 4000);
+    } catch (err) {
+      communityHasAccess = false;
+      document.getElementById('trCommunityLocked').style.display = 'block';
+      document.getElementById('trCommunityChatArea').style.display = 'none';
+      if (communityPollTimer) { clearInterval(communityPollTimer); communityPollTimer = null; }
+    }
+  }
+
+  function renderCommunityMessages(messages, myUid){
+    var box = document.getElementById('trCommunityMessages');
+    var wasAtBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+    box.innerHTML = messages.map(function(m){
+      var isOwn = m.uid === myUid;
+      var time = new Date(m.createdAt).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
+      var img = m.attachmentType === 'image' && m.attachmentDataUrl ? ('<img src="' + m.attachmentDataUrl + '" alt="photo">') : '';
+      return '<div class="tr-community-msg' + (isOwn ? ' own' : '') + '">' +
+        (isOwn ? '' : '<div class="tr-community-msg-name">' + esc(m.username || 'Trader') + '</div>') +
+        (m.text ? esc(m.text) : '') + img +
+        '<div class="tr-community-msg-time">' + time + '</div>' +
+      '</div>';
+    }).join('');
+    if (wasAtBottom || messages.length <= 1) box.scrollTop = box.scrollHeight;
+  }
+
+  document.getElementById('trCommunityPhotoBtn').addEventListener('click', function(){
+    document.getElementById('trCommunityPhotoInput').click();
+  });
+  document.getElementById('trCommunityPhotoInput').addEventListener('change', function(){
+    var file = this.files[0];
+    if (!file) return;
+    if (file.size > 900 * 1024) {
+      toast('Photo is too large, please pick one under 900KB.');
+      this.value = '';
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(){
+      communityAttachment = { type: 'image', dataUrl: reader.result };
+      toast('Photo attached, tap send.');
+    };
+    reader.readAsDataURL(file);
+    this.value = '';
+  });
+
+  async function sendCommunityChatMessage(){
+    var input = document.getElementById('trCommunityTextInput');
+    var text = input.value.trim();
+    if (!text && !communityAttachment) return;
+    var sendBtn = document.getElementById('trCommunitySendBtn');
+    sendBtn.disabled = true;
+    try {
+      await postJSON('/api/community/messages', { text: text, attachment: communityAttachment });
+      input.value = '';
+      communityAttachment = null;
+      loadCommunityMessages();
+    } catch (err) {
+      toast(err.message || 'Could not send that message.');
+    }
+    sendBtn.disabled = false;
+  }
+  document.getElementById('trCommunitySendBtn').addEventListener('click', sendCommunityChatMessage);
+  document.getElementById('trCommunityTextInput').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') sendCommunityChatMessage();
+  });
+
 })();
 </script>
 </body>

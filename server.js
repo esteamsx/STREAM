@@ -271,6 +271,9 @@ import {
   requireAiTradingAccess,
   requireCommunityAccess,
   creditTradingProfitCoins,
+  sendCommunityMessage,
+  getCommunityMessages,
+  COMMUNITY_CHAT_NAME,
   API_PLANS,
   SESSION_TTL_MS,
   createBonusCode,
@@ -5714,6 +5717,26 @@ app.get("/api/notifications/unread", requireAuth, notifPollLimiter, async (req, 
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not check notifications." });
+  }
+});
+
+const communityChatLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid, "You're sending messages too fast. Slow down.").middleware();
+
+app.get("/api/community/messages", requireAuth, async (req, res) => {
+  try {
+    const messages = await getCommunityMessages(req.uid);
+    res.json({ name: COMMUNITY_CHAT_NAME, messages, myUid: req.uid });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || "Could not load the community chat." });
+  }
+});
+
+app.post("/api/community/messages", requireAuth, communityChatLimiter, async (req, res) => {
+  try {
+    const message = await sendCommunityMessage(req.uid, req.body?.text, req.body?.attachment);
+    res.json({ message });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not send that message." });
   }
 });
 
