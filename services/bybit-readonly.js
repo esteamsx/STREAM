@@ -18,6 +18,14 @@ function buildQueryString(params) {
     .join("&");
 }
 
+function bybitErrorMessage(data, status) {
+  if (data && data.retMsg) return data.retMsg;
+  if (status === 403 || status === 401) {
+    return `HTTP ${status}. This usually means Bybit is blocking the request, most often because the API key has an IP whitelist and your server's current IP isn't on it. Check the key's IP restriction in Bybit API Management after any redeploy or host change.`;
+  }
+  return `HTTP ${status}`;
+}
+
 async function publicGet(demo, path, params = {}) {
   const qs = buildQueryString(params);
   const url = `${baseUrl(demo)}${path}${qs ? `?${qs}` : ""}`;
@@ -31,7 +39,7 @@ async function publicGet(demo, path, params = {}) {
   }
   const data = await res.json().catch(() => null);
   if (!data || data.retCode !== 0) {
-    throw Object.assign(new Error(`Bybit error: ${(data && data.retMsg) || `HTTP ${res.status}`}`), { status: 502, retCode: data && data.retCode });
+    throw Object.assign(new Error(`Bybit error: ${bybitErrorMessage(data, res.status)}`), { status: 502, retCode: data && data.retCode });
   }
   return data.result;
 }
@@ -57,7 +65,7 @@ async function signedGet(demo, apiKey, apiSecret, path, params = {}) {
   }
   const data = await res.json().catch(() => null);
   if (!data || data.retCode !== 0) {
-    throw Object.assign(new Error(`Bybit error: ${(data && data.retMsg) || `HTTP ${res.status}`}`), { status: 502, retCode: data && data.retCode });
+    throw Object.assign(new Error(`Bybit error: ${bybitErrorMessage(data, res.status)}`), { status: 502, retCode: data && data.retCode });
   }
   return data.result;
 }
@@ -83,7 +91,7 @@ async function signedPost(demo, apiKey, apiSecret, path, body = {}) {
   }
   const data = await res.json().catch(() => null);
   if (!data || data.retCode !== 0) {
-    throw Object.assign(new Error(`Bybit error: ${(data && data.retMsg) || `HTTP ${res.status}`}`), { status: 502, retCode: data && data.retCode });
+    throw Object.assign(new Error(`Bybit error: ${bybitErrorMessage(data, res.status)}`), { status: 502, retCode: data && data.retCode });
   }
   return data.result;
 }
@@ -277,12 +285,15 @@ export async function closePosition(category, symbol, percent, demo = false) {
     qty: String(qty),
     timeInForce: "IOC",
     reduceOnly: true,
+    positionIdx: pos.positionIdx || 0,
   });
 }
 
 export async function setTradingStop(category, symbol, { takeProfit, stopLoss, demo = false }) {
   const { apiKey, apiSecret } = requireKeys(demo);
-  const body = { category, symbol, tpslMode: "Full" };
+  const positionResult = await signedGet(demo, apiKey, apiSecret, "/v5/position/list", { category, symbol });
+  const pos = (positionResult.list || []).find((p) => Number(p.size) > 0);
+  const body = { category, symbol, tpslMode: "Full", positionIdx: pos ? pos.positionIdx || 0 : 0 };
   if (takeProfit) body.takeProfit = String(takeProfit);
   if (stopLoss) body.stopLoss = String(stopLoss);
   return signedPost(demo, apiKey, apiSecret, "/v5/position/trading-stop", body);
