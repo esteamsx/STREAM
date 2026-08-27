@@ -2877,6 +2877,36 @@ async function creditTradingProfitCoins(uid, roiPercent, isDemo) {
   return { credited: plan.coinsOnProfit };
 }
 
+const COMMUNITY_CHAT_NAME = "ES TEAMS FT SIGNALS";
+const COMMUNITY_CHAT_MAX_LEN = 1000;
+const COMMUNITY_CHAT_PAGE_SIZE = 50;
+
+async function sendCommunityMessage(uid, text, attachment) {
+  const { profile } = await requireCommunityAccess(uid);
+  const trimmed = String(text || "").trim();
+  const cleanAttachment = validateSupportAttachment(attachment);
+  if (!trimmed && !cleanAttachment) throw Object.assign(new Error("Type a message first."), { status: 400 });
+  if (trimmed.length > COMMUNITY_CHAT_MAX_LEN) throw Object.assign(new Error("Message is too long."), { status: 400 });
+  const now = Date.now();
+  const msgRef = db.collection("communityChat").doc();
+  const messageDoc = {
+    uid,
+    username: profile.username || "Trader",
+    text: trimmed,
+    createdAt: now,
+    attachmentDataUrl: cleanAttachment ? cleanAttachment.dataUrl : null,
+    attachmentType: cleanAttachment ? cleanAttachment.type : null,
+  };
+  await msgRef.set(messageDoc);
+  return { id: msgRef.id, ...messageDoc };
+}
+
+async function getCommunityMessages(uid, limit = COMMUNITY_CHAT_PAGE_SIZE) {
+  await requireCommunityAccess(uid);
+  const snap = await db.collection("communityChat").orderBy("createdAt", "desc").limit(limit).get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).reverse();
+}
+
 const RENEW_LOOKAHEAD_MS = 24 * 60 * 60 * 1000;
 const RENEW_RETRY_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const RENEW_MAX_ATTEMPTS = 3;
@@ -4385,6 +4415,9 @@ export {
   requireAiTradingAccess,
   requireCommunityAccess,
   creditTradingProfitCoins,
+  sendCommunityMessage,
+  getCommunityMessages,
+  COMMUNITY_CHAT_NAME,
   getApiPlanConfig,
   SESSION_TTL_MS,
   BONUS_CODE_AMOUNTS,
