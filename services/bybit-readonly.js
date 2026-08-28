@@ -20,9 +20,6 @@ function buildQueryString(params) {
 
 function bybitErrorMessage(data, status) {
   if (data && data.retMsg) return data.retMsg;
-  if (status === 403 || status === 401) {
-    return `HTTP ${status}. This usually means Bybit is blocking the request, most often because the API key has an IP whitelist and your server's current IP isn't on it. Check the key's IP restriction in Bybit API Management after any redeploy or host change.`;
-  }
   return `HTTP ${status}`;
 }
 

@@ -2736,7 +2736,7 @@ const MAX_PASSKEYS_UNVERIFIED = 1;
 
 const PURCHASABLE_API_PLANS = ["standard", "pro", "max"];
 
-const TRADING_PLAN_DAYS = 7;
+const TRADING_PLAN_DAYS = 30;
 
 const TRADING_PLANS = {
   free: { name: "Free", priceNgn: 0, requiresVerification: false, manualTradesPerWeek: 3, maxPositions: 2, aiTrading: false, community: false, coinsOnProfit: 0, instantBonusNgn: 0 },
@@ -2824,7 +2824,7 @@ async function checkAndIncrementManualTradeQuota(uid) {
     if (window.count >= plan.manualTradesPerWeek) {
       const resetAt = window.start + TRADING_PLAN_DAYS * 24 * 60 * 60 * 1000;
       throw Object.assign(
-        new Error(`You've used all ${plan.manualTradesPerWeek} manual trades on the ${plan.name} plan this week. Resets ${new Date(resetAt).toLocaleString("en-NG")}.`),
+        new Error(`You've used all ${plan.manualTradesPerWeek} manual trades on the ${plan.name} plan this period. Resets ${new Date(resetAt).toLocaleString("en-NG")}.`),
         { status: 403 }
       );
     }

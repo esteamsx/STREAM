@@ -225,7 +225,7 @@ button{font-family:inherit}
 .tr-overlay.show{display:flex}
 .tr-overlay.tr-overlay-center{justify-content:center}
 
-.tr-search-panel{width:100%;max-width:420px;max-height:80vh;margin-top:36px;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);border:1px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);border-radius:16px;display:flex;flex-direction:column;overflow:hidden}
+.tr-search-panel{width:100%;max-width:420px;max-height:80vh;margin-top:36px;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(25,25,36,.94);border:1px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);border-radius:16px;display:flex;flex-direction:column;overflow:hidden}
 .tr-overlay.tr-overlay-center .tr-select-panel{margin-top:0}
 .tr-search-input-row{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)}
 .tr-search-input-row input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:.92rem;font-family:var(--font-body)}
@@ -405,22 +405,53 @@ button{font-family:inherit}
 .tr-share-canvas-wrap{display:none}
 button{transition:transform .12s ease}
 button:active{transform:scale(.96)}
-.tr-pricing-panel{max-width:340px}
-.tr-plan-current{background:var(--card2);border:1px solid var(--border-strong);border-radius:12px;padding:12px;margin-bottom:14px;font-size:.78rem;color:var(--muted);text-align:center}
-.tr-plan-current b{color:var(--text)}
-.tr-plan-scroll{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;margin-bottom:14px}
-.tr-plan-scroll::-webkit-scrollbar{display:none}
-.tr-plan-card{scroll-snap-align:start;flex-shrink:0;width:230px;background:var(--card2);border:1px solid var(--border-strong);border-radius:14px;padding:16px}
-.tr-plan-card.current{outline:2px solid var(--accent)}
-.tr-plan-name{font-family:var(--font-display);font-weight:800;font-size:1rem;margin-bottom:6px}
-.tr-plan-price{font-family:var(--font-mono);font-weight:700;font-size:1.02rem;color:var(--accent);margin-bottom:12px}
-.tr-plan-price span{font-family:var(--font-body);font-weight:500;font-size:.66rem;color:var(--muted)}
-.tr-plan-features{list-style:none;padding:0;margin:0 0 14px;display:flex;flex-direction:column;gap:7px}
-.tr-plan-features li{font-size:.72rem;color:var(--muted);padding-left:16px;position:relative;line-height:1.4}
-.tr-plan-features li::before{content:"";position:absolute;left:0;top:5px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
-.tr-plan-btn{width:100%;padding:11px;border-radius:10px;background:linear-gradient(135deg,#22d1ee,#7c6bff);border:none;color:#04141a;font-family:var(--font-display);font-weight:800;font-size:.8rem}
-.tr-plan-btn:disabled{background:var(--card);color:var(--muted);border:1px solid var(--border-strong)}
-.tr-plan-card.current .tr-plan-btn{background:var(--card);color:var(--accent);border:1px solid var(--accent)}
+.tr-pricing-panel{max-width:520px}
+.dcard{
+  background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.16);border-radius:16px;
+  box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
+  padding:18px;position:relative;overflow:hidden;margin-bottom:14px;
+}
+:root[data-theme="light"] .dcard{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.6);
+}
+.dcard-head{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+.dcard-icon{width:28px;height:28px;border-radius:9px;background:var(--card2);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0}
+.dcard-icon svg{width:15px;height:15px}
+.dcard-title{font-family:var(--font-display);font-size:.95rem;font-weight:700}
+.dcard-sub{font-size:.72rem;color:var(--muted);margin-top:1px}
+.plans-grid{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.plans-grid::-webkit-scrollbar{display:none}
+.plan-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:16px;
+  box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
+  display:flex;flex-direction:column;gap:12px;position:relative;
+  flex:0 0 auto;width:200px;scroll-snap-align:start;
+}
+:root[data-theme="light"] .plan-card{
+  background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.6);
+}
+.plan-card.current{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.plan-card.highlight{border-color:var(--accent2);background:linear-gradient(160deg,rgba(124,92,255,.16),rgba(255,255,255,.045)),linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%)}
+.plan-name{font-family:var(--font-display);font-weight:700;font-size:1rem}
+.plan-price{font-family:var(--font-display);font-weight:700;font-size:1.4rem}
+.plan-price span{font-size:.68rem;font-weight:500;color:var(--muted)}
+.plan-note{font-size:.68rem;color:var(--muted);min-height:14px}
+.plan-features{display:flex;flex-direction:column;gap:7px;flex:1}
+.plan-feature{display:flex;align-items:center;gap:7px;font-size:.76rem;color:var(--text)}
+.plan-feature svg{width:13px;height:13px;color:var(--green);flex-shrink:0}
+.plan-feature.off{color:var(--muted)}
+.plan-feature.off svg{color:var(--muted)}
+.plan-cta{width:100%;justify-content:center;font-size:.78rem;padding:9px 10px;border-radius:10px;background:linear-gradient(135deg,#22d1ee,#7c6bff);border:none;color:#04141a;font-family:var(--font-display);font-weight:800;text-align:center;text-decoration:none;display:flex;align-items:center}
+.plan-current-badge{
+  align-self:flex-start;font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:3px 9px;border-radius:20px;background:rgba(0,224,255,.14);color:var(--accent);border:1px solid rgba(0,224,255,.3);
+}
 .tr-receipt-btn{width:100%;padding:13px;border-radius:12px;background:var(--card2);border:1px solid var(--border-strong);color:var(--muted);font-family:var(--font-display);font-weight:800;font-size:.84rem}
 .tr-receipt-btn:not(:disabled){background:linear-gradient(135deg,#FFC400,#ff8a5c);color:#1a1400;border:none}
 .tr-community-panel{max-width:360px;display:flex;flex-direction:column;height:78vh;padding-bottom:14px}
@@ -958,76 +989,92 @@ button:active{transform:scale(.96)}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
-    <div class="tr-plan-current" id="trPlanCurrent">Loading your plan...</div>
-    <div class="tr-plan-scroll" id="trPlanScroll">
 
-      <div class="tr-plan-card" data-plan="free">
-        <div class="tr-plan-name">Free</div>
-        <div class="tr-plan-price">&#8358;0</div>
-        <ul class="tr-plan-features">
-          <li>3 manual trades / 7 days</li>
-          <li>2 open positions max</li>
-          <li>No Auto Trading</li>
-          <li>No community chat</li>
-          <li>No coin rewards</li>
-        </ul>
-        <button type="button" class="tr-plan-btn" disabled data-role="action">Default Plan</button>
+    <div class="dcard" id="tradingPlansCard">
+      <div class="dcard-head">
+        <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/></svg></span>
+        <div>
+          <div class="dcard-title">Plans &amp; Pricing</div>
+          <div class="dcard-sub" id="trPlanCurrent">Loading your plan...</div>
+        </div>
       </div>
 
-      <div class="tr-plan-card" data-plan="starter">
-        <div class="tr-plan-name">Starter</div>
-        <div class="tr-plan-price">&#8358;0 <span>verified users</span></div>
-        <ul class="tr-plan-features">
-          <li>5 manual trades / 7 days</li>
-          <li>5 open positions max</li>
-          <li>No Auto Trading</li>
-          <li>No community chat</li>
-          <li>3 coins per live win (100%+ ROI)</li>
-        </ul>
-        <button type="button" class="tr-plan-btn" data-role="verify-link">GET VERIFIED</button>
-      </div>
+      <div class="plans-grid" id="trPlanScroll">
 
-      <div class="tr-plan-card" data-plan="standard">
-        <div class="tr-plan-name">Standard</div>
-        <div class="tr-plan-price">&#8358;5,000 <span>/ 7 days</span></div>
-        <ul class="tr-plan-features">
-          <li>7 manual trades / 7 days</li>
-          <li>7 open positions max</li>
-          <li>No Auto Trading</li>
-          <li>Community chat access</li>
-          <li>5 coins per live win (100%+ ROI)</li>
-        </ul>
-        <button type="button" class="tr-plan-btn" data-role="action">Subscribe</button>
-      </div>
+        <div class="plan-card" data-plan="free">
+          <div class="plan-name">Free</div>
+          <div class="plan-price">Free</div>
+          <div class="plan-note">Default plan</div>
+          <div class="plan-features">
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 manual trades / 30 days</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>2 open positions</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Community chat</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Coin rewards</div>
+          </div>
+          <div class="plan-cta-slot" data-cta></div>
+        </div>
 
-      <div class="tr-plan-card" data-plan="pro">
-        <div class="tr-plan-name">Pro</div>
-        <div class="tr-plan-price">&#8358;10,000 <span>/ 7 days</span></div>
-        <ul class="tr-plan-features">
-          <li>15 manual trades / 7 days</li>
-          <li>15 open positions max</li>
-          <li>Auto Trading unlocked</li>
-          <li>Community chat access</li>
-          <li>10 coins per live win (100%+ ROI)</li>
-        </ul>
-        <button type="button" class="tr-plan-btn" data-role="action">Subscribe</button>
-      </div>
+        <div class="plan-card" data-plan="starter">
+          <div class="plan-name">Starter</div>
+          <div class="plan-price">Free<span> &middot; with verification</span></div>
+          <div class="plan-note">Auto with account verification</div>
+          <div class="plan-features">
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 manual trades / 30 days</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 open positions</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Community chat</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 coins per live win (100%+ ROI)</div>
+          </div>
+          <div class="plan-cta-slot" data-cta></div>
+        </div>
 
-      <div class="tr-plan-card" data-plan="max">
-        <div class="tr-plan-name">Max</div>
-        <div class="tr-plan-price">&#8358;15,000 <span>/ 7 days</span></div>
-        <ul class="tr-plan-features">
-          <li>20 manual trades / 7 days</li>
-          <li>20 open positions max</li>
-          <li>Auto Trading unlocked</li>
-          <li>Community chat access</li>
-          <li>25 coins per live win (100%+ ROI)</li>
-          <li>&#8358;500 instant wallet bonus</li>
-        </ul>
-        <button type="button" class="tr-plan-btn" data-role="action">Subscribe</button>
-      </div>
+        <div class="plan-card" data-plan="standard">
+          <div class="plan-name">Standard</div>
+          <div class="plan-price">&#8358;5,000<span> / 30 days</span></div>
+          <div class="plan-note"></div>
+          <div class="plan-features">
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 manual trades / 30 days</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 open positions</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community chat</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 coins per live win (100%+ ROI)</div>
+          </div>
+          <div class="plan-cta-slot" data-cta></div>
+        </div>
 
+        <div class="plan-card highlight" data-plan="pro">
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">&#8358;10,000<span> / 30 days</span></div>
+          <div class="plan-note"></div>
+          <div class="plan-features">
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 manual trades / 30 days</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 open positions</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Auto Trading</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community chat</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>10 coins per live win (100%+ ROI)</div>
+          </div>
+          <div class="plan-cta-slot" data-cta></div>
+        </div>
+
+        <div class="plan-card" data-plan="max">
+          <div class="plan-name">Max</div>
+          <div class="plan-price">&#8358;15,000<span> / 30 days</span></div>
+          <div class="plan-note"></div>
+          <div class="plan-features">
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 manual trades / 30 days</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 open positions</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Auto Trading</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community chat</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>25 coins per live win (100%+ ROI)</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>&#8358;500 instant wallet bonus</div>
+          </div>
+          <div class="plan-cta-slot" data-cta></div>
+        </div>
+
+      </div>
     </div>
+
     <button type="button" class="tr-receipt-btn" id="trReceiptBtn" disabled>No current plan active</button>
   </div>
 </div>
@@ -1042,7 +1089,7 @@ button:active{transform:scale(.96)}
     </div>
     <div class="tr-community-locked" id="trCommunityLocked" style="display:none">
       <p>The community chat is a Standard plan and above feature.</p>
-      <button type="button" class="tr-plan-btn" id="trCommunityUpgradeBtn">See Plans</button>
+      <button type="button" class="plan-cta" id="trCommunityUpgradeBtn">See Plans</button>
     </div>
     <div id="trCommunityChatArea" style="display:none">
       <div class="tr-community-messages" id="trCommunityMessages"></div>
@@ -2328,8 +2375,24 @@ button:active{transform:scale(.96)}
     });
   });
 
-  document.getElementById('trAutoEnableToggle').addEventListener('click', function(){
-    this.classList.toggle('on');
+  document.getElementById('trAutoEnableToggle').addEventListener('click', async function(){
+    var toggle = this;
+    var wasOn = toggle.classList.contains('on');
+    var nextOn = !wasOn;
+    toggle.classList.toggle('on', nextOn);
+    var usdt = Number(document.getElementById('trAutoUsdt').value || 10);
+    try {
+      await postJSON('/api/tools/trading/auto-settings', {
+        enabled: nextOn,
+        exchange: autoExchangeValue,
+        mode: autoModeValue,
+        usdtPerTrade: usdt >= 3 && usdt <= 1000 ? usdt : 10,
+      });
+      toast(nextOn ? 'Auto Trading enabled.' : 'Auto Trading disabled.');
+    } catch (err) {
+      toggle.classList.toggle('on', wasOn);
+      toast(err.message || 'Could not update Auto Trading.');
+    }
   });
 
   document.getElementById('trAutoSaveBtn').addEventListener('click', async function(){
@@ -2442,23 +2505,25 @@ button:active{transform:scale(.96)}
     if (e.target.id === 'trPricingOverlay') this.classList.remove('show');
   });
 
+  function planCtaHtml(planKey, isCurrent){
+    if (isCurrent) return '<span class="plan-current-badge">Current Plan</span>';
+    if (planKey === 'starter') return '<a href="/account" class="plan-cta" data-role="verify-link">Get Verified</a>';
+    if (PURCHASABLE_PLANS.includes(planKey)) return '<button type="button" class="plan-cta" data-role="action">Upgrade</button>';
+    return '';
+  }
+
   async function loadPricingStatus(){
     try {
       var status = await getJSON('/api/trading-plan/status');
       latestPlanStatus = status;
       var expiresText = status.expiresAt ? new Date(status.expiresAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
       document.getElementById('trPlanCurrent').innerHTML = 'Current plan: <b>' + (PLAN_NAMES[status.plan] || status.plan) + '</b>' + (expiresText ? ' &middot; expires ' + expiresText : '');
-      document.querySelectorAll('.tr-plan-card').forEach(function(card){
+      document.querySelectorAll('.plan-card').forEach(function(card){
         var planKey = card.getAttribute('data-plan');
-        var btn = card.querySelector('[data-role="action"]');
-        card.classList.toggle('current', planKey === status.plan);
-        if (planKey === status.plan) {
-          btn.textContent = 'Current Plan';
-          btn.disabled = true;
-        } else if (PURCHASABLE_PLANS.includes(planKey)) {
-          btn.textContent = 'Subscribe';
-          btn.disabled = false;
-        }
+        var isCurrent = planKey === status.plan;
+        card.classList.toggle('current', isCurrent);
+        var slot = card.querySelector('[data-cta]');
+        if (slot) slot.innerHTML = planCtaHtml(planKey, isCurrent);
       });
       var receiptBtn = document.getElementById('trReceiptBtn');
       var hasPaidPlan = PURCHASABLE_PLANS.includes(status.plan) && status.expiresAt && status.expiresAt > Date.now();
@@ -2469,18 +2534,18 @@ button:active{transform:scale(.96)}
     }
   }
 
-  document.querySelectorAll('.tr-plan-card [data-role="action"]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var planKey = btn.closest('.tr-plan-card').getAttribute('data-plan');
-      if (!PURCHASABLE_PLANS.includes(planKey) || btn.disabled) return;
-      subscribeToPlan(planKey, btn);
-    });
-  });
-
-  document.querySelectorAll('.tr-plan-card [data-role="verify-link"]').forEach(function(btn){
-    btn.addEventListener('click', function(){
+  document.getElementById('trPlanScroll').addEventListener('click', function(e){
+    var actionBtn = e.target.closest('[data-role="action"]');
+    if (actionBtn) {
+      var planKey = actionBtn.closest('.plan-card').getAttribute('data-plan');
+      if (PURCHASABLE_PLANS.includes(planKey) && !actionBtn.disabled) subscribeToPlan(planKey, actionBtn);
+      return;
+    }
+    var verifyBtn = e.target.closest('[data-role="verify-link"]');
+    if (verifyBtn) {
+      e.preventDefault();
       window.location.href = '/account';
-    });
+    }
   });
 
   async function subscribeToPlan(planKey, btn){
@@ -2599,7 +2664,7 @@ button:active{transform:scale(.96)}
     ctx.font = '500 18px "Inter", sans-serif';
     ctx.fillStyle = muted;
     var config = status.config || {};
-    var offerText = (config.manualTradesPerWeek || 0) + ' trades/wk \\u00b7 ' + (config.maxPositions || 0) + ' positions' + (config.aiTrading ? ' \\u00b7 Auto Trading' : '') + (config.community ? ' \\u00b7 Community' : '');
+    var offerText = (config.manualTradesPerWeek || 0) + ' trades/30d \\u00b7 ' + (config.maxPositions || 0) + ' positions' + (config.aiTrading ? ' \\u00b7 Auto Trading' : '') + (config.community ? ' \\u00b7 Community' : '');
     ctx.fillText(offerText, W / 2, pad + 228);
 
     ctx.strokeStyle = 'rgba(255,255,255,.13)';

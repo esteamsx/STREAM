@@ -353,6 +353,16 @@ app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
 
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
+app.get("/outbound-ip", async (req, res) => {
+  try {
+    const r = await fetch("https://api.ipify.org?format=json");
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js"]);
 
 app.use(
