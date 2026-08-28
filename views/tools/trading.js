@@ -258,8 +258,25 @@ button{font-family:inherit}
 .tr-key-block-status{font-size:.68rem;color:var(--muted)}
 .tr-key-block-status.connected{color:#12c48b}
 .tr-key-block-view{display:flex;align-items:center;justify-content:space-between;font-family:var(--font-mono);font-size:.8rem;color:var(--muted)}
+.tr-key-icon-group{display:flex;gap:8px;flex-shrink:0}
 .tr-key-pencil{width:28px;height:28px;border-radius:8px;background:var(--card);border:1px solid var(--border-strong);color:var(--text);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .tr-key-pencil svg{width:14px;height:14px}
+.tr-key-delete{color:var(--red)}
+.tr-key-delete:disabled{color:var(--muted);opacity:.4;background:var(--card2);cursor:not-allowed}
+.signup-blur-target{filter:blur(6px);pointer-events:none;user-select:none}
+.tr-lock-overlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;padding:20px;text-align:center;z-index:5;background:rgba(10,10,15,.35);border-radius:16px;
+}
+.tr-lock-overlay svg{width:30px;height:30px;color:var(--accent)}
+.tr-lock-overlay b{font-family:var(--font-display);font-size:.9rem}
+.tr-lock-overlay p{font-size:.76rem;color:var(--muted);margin:0 0 4px;max-width:260px}
+.tr-lock-overlay .plan-cta{max-width:220px}
+.tr-onboard-panel{max-width:340px;text-align:center}
+.tr-onboard-icon{width:52px;height:52px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:var(--accent)}
+.tr-onboard-icon svg{width:26px;height:26px}
+.tr-onboard-title{font-family:var(--font-display);font-weight:800;font-size:1.05rem;margin-bottom:8px}
+.tr-onboard-sub{font-size:.8rem;color:var(--muted);line-height:1.5;margin-bottom:16px}
 .tr-key-block-form input{width:100%;padding:11px;border-radius:9px;background:var(--card);border:1px solid var(--border-strong);color:var(--text);font-family:var(--font-mono);font-size:.82rem;margin-bottom:8px}
 .tr-key-form-actions{display:flex;gap:8px}
 .tr-key-cancel{flex:1;padding:10px;border-radius:9px;background:var(--card);border:1px solid var(--border-strong);color:var(--muted);font-family:var(--font-display);font-weight:700;font-size:.78rem}
@@ -448,6 +465,7 @@ button:active{transform:scale(.96)}
 .plan-feature.off{color:var(--muted)}
 .plan-feature.off svg{color:var(--muted)}
 .plan-cta{width:100%;justify-content:center;font-size:.78rem;padding:9px 10px;border-radius:10px;background:linear-gradient(135deg,#22d1ee,#7c6bff);border:none;color:#04141a;font-family:var(--font-display);font-weight:800;text-align:center;text-decoration:none;display:flex;align-items:center}
+.plan-cta.muted{background:var(--card2);color:var(--text);border:1px solid var(--border-strong)}
 .plan-current-badge{
   align-self:flex-start;font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   padding:3px 9px;border-radius:20px;background:rgba(0,224,255,.14);color:var(--accent);border:1px solid rgba(0,224,255,.3);
@@ -621,31 +639,39 @@ button:active{transform:scale(.96)}
     <div class="tr-bulk-result" id="trBulkResult" style="display:none"></div>
   </div>
 
-  <div class="tr-auto-card">
+  <div class="tr-auto-card" id="trAutoSettingsCard" style="position:relative">
     <div class="tr-auto-card-title">Your Auto Trading Settings</div>
-    <div class="tr-auto-toggle-row">
-      <div>Enable Auto Trading<span class="tr-exchange-sub">Let bulk operations trade on your account</span></div>
-      <button type="button" class="tr-toggle-switch" id="trAutoEnableToggle" aria-label="Toggle auto trading"><span class="tr-toggle-knob"></span></button>
-    </div>
-    <div class="tr-order-row">
-      <div class="tr-order-field">
-        <label>Exchange</label>
-        <button type="button" class="tr-select-btn" id="trAutoExchangeBtn" data-value="bybit">
-          <span id="trAutoExchangeLabel">Bybit</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
-        </button>
+    <div class="signup-blur-target" id="trAutoSettingsBlurTarget">
+      <div class="tr-auto-toggle-row">
+        <div>Enable Auto Trading<span class="tr-exchange-sub">Let bulk operations trade on your account</span></div>
+        <button type="button" class="tr-toggle-switch" id="trAutoEnableToggle" aria-label="Toggle auto trading"><span class="tr-toggle-knob"></span></button>
       </div>
-      <div class="tr-order-field">
-        <label>Mode</label>
-        <button type="button" class="tr-select-btn" id="trAutoModeBtn" data-value="demo">
-          <span id="trAutoModeLabel">Demo</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
-        </button>
+      <div class="tr-order-row">
+        <div class="tr-order-field">
+          <label>Exchange</label>
+          <button type="button" class="tr-select-btn" id="trAutoExchangeBtn" data-value="bybit">
+            <span id="trAutoExchangeLabel">Bybit</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
+        <div class="tr-order-field">
+          <label>Mode</label>
+          <button type="button" class="tr-select-btn" id="trAutoModeBtn" data-value="demo">
+            <span id="trAutoModeLabel">Demo</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
       </div>
+      <div class="tr-order-field"><label>USDT per Trade (3 to 1000)</label><input type="number" id="trAutoUsdt" min="3" max="1000" value="10"></div>
+      <button type="button" class="tr-auto-save-btn" id="trAutoSaveBtn">Save Settings</button>
+      <div class="tr-auto-save-msg" id="trAutoSaveMsg" style="display:none"></div>
     </div>
-    <div class="tr-order-field"><label>USDT per Trade (3 to 1000)</label><input type="number" id="trAutoUsdt" min="3" max="1000" value="10"></div>
-    <button type="button" class="tr-auto-save-btn" id="trAutoSaveBtn">Save Settings</button>
-    <div class="tr-auto-save-msg" id="trAutoSaveMsg" style="display:none"></div>
+    <div class="tr-lock-overlay" id="trAutoLockOverlay" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+      <b>Auto Trading is a Pro and Max feature</b>
+      <p>Upgrade your plan to unlock automated trading.</p>
+      <button type="button" class="plan-cta" id="trAutoLockUpgradeBtn">See Pricing &amp; Plans</button>
+    </div>
   </div>
 </div>
 
@@ -860,9 +886,14 @@ button:active{transform:scale(.96)}
           </div>
           <div class="tr-key-block-view" data-view>
             <span data-masked>--</span>
-            <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-            </button>
+            <div class="tr-key-icon-group">
+              <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button type="button" class="tr-key-pencil tr-key-delete" data-delete aria-label="Delete" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16z"/></svg>
+              </button>
+            </div>
           </div>
           <div class="tr-key-block-form" data-form style="display:none">
             <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
@@ -881,9 +912,14 @@ button:active{transform:scale(.96)}
           </div>
           <div class="tr-key-block-view" data-view>
             <span data-masked>--</span>
-            <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-            </button>
+            <div class="tr-key-icon-group">
+              <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button type="button" class="tr-key-pencil tr-key-delete" data-delete aria-label="Delete" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16z"/></svg>
+              </button>
+            </div>
           </div>
           <div class="tr-key-block-form" data-form style="display:none">
             <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
@@ -902,9 +938,14 @@ button:active{transform:scale(.96)}
           </div>
           <div class="tr-key-block-view" data-view>
             <span data-masked>--</span>
-            <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-            </button>
+            <div class="tr-key-icon-group">
+              <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button type="button" class="tr-key-pencil tr-key-delete" data-delete aria-label="Delete" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16z"/></svg>
+              </button>
+            </div>
           </div>
           <div class="tr-key-block-form" data-form style="display:none">
             <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
@@ -924,9 +965,14 @@ button:active{transform:scale(.96)}
           </div>
           <div class="tr-key-block-view" data-view>
             <span data-masked>--</span>
-            <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-            </button>
+            <div class="tr-key-icon-group">
+              <button type="button" class="tr-key-pencil" data-pencil aria-label="Edit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button type="button" class="tr-key-pencil tr-key-delete" data-delete aria-label="Delete" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16z"/></svg>
+              </button>
+            </div>
           </div>
           <div class="tr-key-block-form" data-form style="display:none">
             <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
@@ -1006,7 +1052,7 @@ button:active{transform:scale(.96)}
           <div class="plan-price">Free</div>
           <div class="plan-note">Default plan</div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 manual trades / 30 days</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 manual trades</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>2 open positions</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Community chat</div>
@@ -1020,11 +1066,11 @@ button:active{transform:scale(.96)}
           <div class="plan-price">Free<span> &middot; with verification</span></div>
           <div class="plan-note">Auto with account verification</div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 manual trades / 30 days</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 manual trades</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 open positions</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 coins per live win (100%+ ROI)</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Community chat</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 coins per live win (100%+ ROI)</div>
           </div>
           <div class="plan-cta-slot" data-cta></div>
         </div>
@@ -1034,11 +1080,11 @@ button:active{transform:scale(.96)}
           <div class="plan-price">&#8358;5,000<span> / 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 manual trades / 30 days</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 manual trades</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 open positions</div>
-            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community chat</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 coins per live win (100%+ ROI)</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
           </div>
           <div class="plan-cta-slot" data-cta></div>
         </div>
@@ -1048,7 +1094,7 @@ button:active{transform:scale(.96)}
           <div class="plan-price">&#8358;10,000<span> / 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 manual trades / 30 days</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 manual trades</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 open positions</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Auto Trading</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community chat</div>
@@ -1062,7 +1108,7 @@ button:active{transform:scale(.96)}
           <div class="plan-price">&#8358;15,000<span> / 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 manual trades / 30 days</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 manual trades</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 open positions</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Auto Trading</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community chat</div>
@@ -1076,6 +1122,23 @@ button:active{transform:scale(.96)}
     </div>
 
     <button type="button" class="tr-receipt-btn" id="trReceiptBtn" disabled>No current plan active</button>
+  </div>
+</div>
+
+<div class="tr-overlay tr-overlay-center" id="trOnboardOverlay">
+  <div class="tr-select-panel tr-onboard-panel">
+    <div class="tr-onboard-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
+    </div>
+    <div class="tr-onboard-title">Get More From Trading</div>
+    <div class="tr-onboard-sub">Verify your account or grab a plan to unlock higher trade limits, Auto Trading, and the community.</div>
+    <div class="plan-features" style="text-align:left;margin-bottom:18px">
+      <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>More manual trades per period</div>
+      <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Higher open-position limits</div>
+      <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Auto Trading and community access on Pro and Max</div>
+    </div>
+    <button type="button" class="plan-cta" id="trOnboardSeePlansBtn">See Pricing &amp; Plans</button>
+    <button type="button" class="tr-key-cancel" id="trOnboardSkipBtn" style="width:100%;margin-top:10px" disabled>Skip (5)</button>
   </div>
 </div>
 
@@ -1162,6 +1225,12 @@ button:active{transform:scale(.96)}
   async function postJSON(url, body){
     var payload = Object.assign({ exchange: EXCHANGE, demo: DEMO_MODE }, body || {});
     var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    var data = await res.json().catch(function(){ return {}; });
+    if (!res.ok) throw new Error(data.error || 'Request failed.');
+    return data;
+  }
+  async function deleteJSON(url, body){
+    var res = await fetch(url, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
     var data = await res.json().catch(function(){ return {}; });
     if (!res.ok) throw new Error(data.error || 'Request failed.');
     return data;
@@ -2321,9 +2390,11 @@ button:active{transform:scale(.96)}
         var info = (status[ex] || {})[mode] || { saved: false };
         var statusEl = block.querySelector('[data-status]');
         var maskedEl = block.querySelector('[data-masked]');
+        var deleteBtn = block.querySelector('[data-delete]');
         statusEl.textContent = info.saved ? 'Connected' : 'Not connected';
         statusEl.classList.toggle('connected', !!info.saved);
         maskedEl.textContent = info.saved ? ('•••• ' + (info.last4 || '----')) : 'Not connected';
+        deleteBtn.disabled = !info.saved;
       });
       var auto = status.autoTrading || {};
       document.getElementById('trAutoEnableToggle').classList.toggle('on', !!auto.enabled);
@@ -2339,12 +2410,27 @@ button:active{transform:scale(.96)}
     var view = block.querySelector('[data-view]');
     var form = block.querySelector('[data-form]');
     var pencil = block.querySelector('[data-pencil]');
+    var deleteBtn = block.querySelector('[data-delete]');
     var cancelBtn = block.querySelector('[data-cancel]');
     var saveBtn = block.querySelector('[data-save]');
     pencil.addEventListener('click', function(){
       form.querySelectorAll('input').forEach(function(inp){ inp.value = ''; });
       view.style.display = 'none';
       form.style.display = 'block';
+    });
+    deleteBtn.addEventListener('click', async function(){
+      if (deleteBtn.disabled) return;
+      var exchange = block.getAttribute('data-exchange');
+      var mode = block.getAttribute('data-mode');
+      setBtnLoading(deleteBtn, '');
+      try {
+        await deleteJSON('/api/tools/trading/keys', { exchange: exchange, mode: mode });
+        toast('API keys removed.');
+        loadKeysStatus();
+      } catch (err) {
+        toast(err.message || 'Could not remove API keys.');
+      }
+      clearBtnLoading(deleteBtn);
     });
     cancelBtn.addEventListener('click', function(){
       form.style.display = 'none';
@@ -2507,7 +2593,7 @@ button:active{transform:scale(.96)}
 
   function planCtaHtml(planKey, isCurrent){
     if (isCurrent) return '<span class="plan-current-badge">Current Plan</span>';
-    if (planKey === 'starter') return '<a href="/account" class="plan-cta" data-role="verify-link">Get Verified</a>';
+    if (planKey === 'starter') return '<a href="/account" class="plan-cta muted" data-role="verify-link">Get Verified</a>';
     if (PURCHASABLE_PLANS.includes(planKey)) return '<button type="button" class="plan-cta" data-role="action">Upgrade</button>';
     return '';
   }
@@ -2821,6 +2907,50 @@ button:active{transform:scale(.96)}
   document.getElementById('trCommunityTextInput').addEventListener('keydown', function(e){
     if (e.key === 'Enter') sendCommunityChatMessage();
   });
+
+  document.getElementById('trAutoLockUpgradeBtn').addEventListener('click', function(){
+    openPricingOverlay();
+  });
+
+  function openOnboardOverlay(){
+    document.getElementById('trOnboardOverlay').classList.add('show');
+    var seconds = 5;
+    var skipBtn = document.getElementById('trOnboardSkipBtn');
+    skipBtn.disabled = true;
+    skipBtn.textContent = 'Skip (' + seconds + ')';
+    var timer = setInterval(function(){
+      seconds--;
+      if (seconds <= 0) {
+        clearInterval(timer);
+        skipBtn.disabled = false;
+        skipBtn.textContent = 'Skip';
+      } else {
+        skipBtn.textContent = 'Skip (' + seconds + ')';
+      }
+    }, 1000);
+  }
+  document.getElementById('trOnboardSkipBtn').addEventListener('click', function(){
+    if (this.disabled) return;
+    document.getElementById('trOnboardOverlay').classList.remove('show');
+  });
+  document.getElementById('trOnboardSeePlansBtn').addEventListener('click', function(){
+    document.getElementById('trOnboardOverlay').classList.remove('show');
+    openPricingOverlay();
+  });
+
+  async function initPlanGatingAndOnboarding(){
+    try {
+      var status = await getJSON('/api/trading-plan/status');
+      latestPlanStatus = status;
+      var aiOk = !!(status.config && status.config.aiTrading);
+      document.getElementById('trAutoSettingsBlurTarget').classList.toggle('signup-blur-target', !aiOk);
+      document.getElementById('trAutoLockOverlay').style.display = aiOk ? 'none' : 'flex';
+      if (status.plan === 'free') {
+        openOnboardOverlay();
+      }
+    } catch (err) {}
+  }
+  initPlanGatingAndOnboarding();
 
 })();
 </script>
