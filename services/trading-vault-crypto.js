@@ -31,3 +31,8 @@ export function decryptSecret(payload) {
 export function last4(value) {
   return value ? String(value).slice(-4) : null;
 }
+
+export function hashForLookup(value) {
+  if (!value) return null;
+  return crypto.createHash("sha256").update(String(value)).digest("hex");
+}

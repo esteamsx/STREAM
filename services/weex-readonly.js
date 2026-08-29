@@ -218,11 +218,11 @@ export async function getInstrumentInfo(category, symbol, demo = false) {
   };
 }
 
-export async function getLivePosition(category, symbol, demo = false) {
+export async function getLivePosition(category, symbol, demo = false, override) {
   const wSymbol = toWeexSymbol(symbol);
   const [posResult, assetsResult] = await Promise.all([
-    signedGet(demo, singlePositionPath(demo), { symbol: wSymbol }),
-    signedGet(demo, balancePath(demo), {}).catch(() => null),
+    signedGet(demo, singlePositionPath(demo), { symbol: wSymbol }, override),
+    signedGet(demo, balancePath(demo), {}, override).catch(() => null),
   ]);
   const rows = Array.isArray(posResult) ? posResult : posResult ? [posResult] : [];
   const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
@@ -252,10 +252,10 @@ export async function getLivePosition(category, symbol, demo = false) {
   };
 }
 
-export async function getAllPositions(category, demo = false) {
+export async function getAllPositions(category, demo = false, override) {
   const [posResult, assetsResult] = await Promise.all([
-    signedGet(demo, positionPath(demo), {}),
-    signedGet(demo, balancePath(demo), {}).catch(() => null),
+    signedGet(demo, positionPath(demo), {}, override),
+    signedGet(demo, balancePath(demo), {}, override).catch(() => null),
   ]);
   const rows = Array.isArray(posResult) ? posResult : (posResult && posResult.list) || [];
   const positions = rows
@@ -289,20 +289,20 @@ export async function getAllPositions(category, demo = false) {
   return { equity, available, positions };
 }
 
-export async function setLeverage(category, symbol, leverage, demo = false, marginMode = "isolated") {
+export async function setLeverage(category, symbol, leverage, demo = false, marginMode = "isolated", override) {
   const wSymbol = toWeexSymbol(symbol);
   const lev = String(leverage);
   const mode = marginMode === "cross" ? "cross" : "isolated";
   for (const side of ["long", "short"]) {
     try {
-      await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side, marginMode: mode });
+      await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side, marginMode: mode }, override);
     } catch (err) {}
   }
 }
 
-export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false, marginMode }) {
+export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false, marginMode, override }) {
   if (leverage) {
-    await setLeverage(category, symbol, leverage, demo, marginMode);
+    await setLeverage(category, symbol, leverage, demo, marginMode, override);
   }
   const isLimit = orderType === "Limit";
   const isBuy = side !== "Sell";
@@ -321,12 +321,12 @@ export async function placeOrder({ category, symbol, side, qty, leverage, orderT
     }
     body.price = String(price);
   }
-  return signedPost(demo, orderPath(demo), body);
+  return signedPost(demo, orderPath(demo), body, override);
 }
 
-export async function closePosition(category, symbol, percent, demo = false) {
+export async function closePosition(category, symbol, percent, demo = false, override) {
   const wSymbol = toWeexSymbol(symbol);
-  const posResult = await signedGet(demo, singlePositionPath(demo), { symbol: wSymbol });
+  const posResult = await signedGet(demo, singlePositionPath(demo), { symbol: wSymbol }, override);
   const rows = Array.isArray(posResult) ? posResult : posResult ? [posResult] : [];
   const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
   if (!pos) {
@@ -348,12 +348,12 @@ export async function closePosition(category, symbol, percent, demo = false) {
     quantity: String(qty),
     reduceOnly: true,
     newClientOrderId: `estv${Date.now()}`,
-  });
+  }, override);
 }
 
-export async function setTradingStop(category, symbol, { takeProfit, stopLoss, demo = false }) {
+export async function setTradingStop(category, symbol, { takeProfit, stopLoss, demo = false, override }) {
   const wSymbol = toWeexSymbol(symbol);
-  const posResult = await signedGet(demo, singlePositionPath(demo), { symbol: wSymbol });
+  const posResult = await signedGet(demo, singlePositionPath(demo), { symbol: wSymbol }, override);
   const rows = Array.isArray(posResult) ? posResult : posResult ? [posResult] : [];
   const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
   const positionSide = pos && String(pos.side).toUpperCase() === "SHORT" ? "short" : "long";
@@ -369,7 +369,7 @@ export async function setTradingStop(category, symbol, { takeProfit, stopLoss, d
       size,
       positionSide,
       marginMode: 1,
-    }));
+    }, override));
   }
   if (stopLoss) {
     tasks.push(signedPost(demo, tpSlPath(demo), {
@@ -381,13 +381,13 @@ export async function setTradingStop(category, symbol, { takeProfit, stopLoss, d
       size,
       positionSide,
       marginMode: 1,
-    }));
+    }, override));
   }
   return Promise.all(tasks);
 }
 
-export async function getOpenOrders(category, demo = false) {
-  const result = await signedGet(demo, currentOrdersPath(demo), {});
+export async function getOpenOrders(category, demo = false, override) {
+  const result = await signedGet(demo, currentOrdersPath(demo), {}, override);
   const rows = Array.isArray(result) ? result : (result && result.list) || [];
   return rows.map((o) => ({
     orderId: o.order_id || o.orderId,
@@ -403,12 +403,12 @@ export async function getOpenOrders(category, demo = false) {
   }));
 }
 
-export async function cancelOrder(category, symbol, orderId, demo = false) {
-  return signedPost(demo, cancelOrderPath(demo), { symbol: toWeexSymbol(symbol), orderId });
+export async function cancelOrder(category, symbol, orderId, demo = false, override) {
+  return signedPost(demo, cancelOrderPath(demo), { symbol: toWeexSymbol(symbol), orderId }, override);
 }
 
-export async function getClosedPnl(category, limit, demo = false) {
-  const result = await signedGet(demo, fillsPath(demo), { symbol: undefined, limit: limit || 30 });
+export async function getClosedPnl(category, limit, demo = false, override) {
+  const result = await signedGet(demo, fillsPath(demo), { symbol: undefined, limit: limit || 30 }, override);
   const rows = Array.isArray(result) ? result : (result && result.list) || [];
   return rows.map((p) => ({
     symbol: fromWeexSymbol(p.symbol),

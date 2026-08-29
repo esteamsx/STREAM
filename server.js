@@ -142,6 +142,7 @@ import {
   deleteCredentials as deleteTradingCredentials,
   getCredentialsStatus as getTradingCredentialsStatus,
   getDecryptedCredentials as getDecryptedTradingCredentials,
+  findDuplicateCredentialOwner,
   saveAutoTradingSettings,
   getAllOptedInAutoTraders,
 } from "./services/trading-credentials.js";
@@ -408,6 +409,16 @@ function tradingService(req) {
 }
 function tradingDemo(req) {
   return String(req.query?.demo || req.body?.demo || "") === "1" || req.body?.demo === true;
+}
+async function getTradingCreds(req) {
+  try {
+    const exchange = String(req.query?.exchange || req.body?.exchange || "bybit").toLowerCase() === "weex" ? "weex" : "bybit";
+    const mode = tradingDemo(req) ? "demo" : "live";
+    const creds = await getDecryptedTradingCredentials(req.uid, exchange, mode);
+    return creds || undefined;
+  } catch (err) {
+    return undefined;
+  }
 }
 const channelReactLimiter = new SimpleRateLimiter(
   10,
@@ -4167,7 +4178,8 @@ app.get("/api/tools/trading/position", requireAuth, requireAdmin, async (req, re
   try {
     const category = String(req.query.category || "linear");
     const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
-    const result = await tradingService(req).getLivePosition(category, symbol, tradingDemo(req));
+    const creds = await getTradingCreds(req);
+    const result = await tradingService(req).getLivePosition(category, symbol, tradingDemo(req), creds);
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load your position." });
@@ -4177,7 +4189,8 @@ app.get("/api/tools/trading/position", requireAuth, requireAdmin, async (req, re
 app.get("/api/tools/trading/positions", requireAuth, requireAdmin, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
-    const result = await tradingService(req).getAllPositions(category, tradingDemo(req));
+    const creds = await getTradingCreds(req);
+    const result = await tradingService(req).getAllPositions(category, tradingDemo(req), creds);
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load your positions." });
@@ -4208,10 +4221,11 @@ app.post("/api/tools/trading/order", requireAuth, requireAdmin, tradingOrderLimi
       return res.status(400).json({ error: "Symbol and quantity are required." });
     }
     const demo = tradingDemo(req);
-    const existing = await tradingService(req).getAllPositions(category, demo);
+    const creds = await getTradingCreds(req);
+    const existing = await tradingService(req).getAllPositions(category, demo, creds);
     await checkPositionLimit(req.uid, (existing.positions || []).length);
     await checkAndIncrementManualTradeQuota(req.uid);
-    const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo, marginMode: req.body.marginMode });
+    const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo, marginMode: req.body.marginMode, override: creds });
     res.json({ ok: true, order: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not place order." });
@@ -4225,7 +4239,8 @@ app.post("/api/tools/trading/margin-mode", requireAuth, requireAdmin, tradingOrd
     const marginMode = req.body?.marginMode === "cross" ? "cross" : "isolated";
     const service = tradingService(req);
     if (typeof service.setMarginMode === "function") {
-      await service.setMarginMode(category, symbol, marginMode, tradingDemo(req));
+      const creds = await getTradingCreds(req);
+      await service.setMarginMode(category, symbol, marginMode, tradingDemo(req), creds);
     }
     res.json({ ok: true });
   } catch (err) {
@@ -4240,14 +4255,15 @@ app.post("/api/tools/trading/close", requireAuth, requireAdmin, tradingOrderLimi
     const percent = req.body?.percent ? Number(req.body.percent) : 100;
     if (!symbol) return res.status(400).json({ error: "Symbol is required." });
     const demo = tradingDemo(req);
+    const creds = await getTradingCreds(req);
     let roiSnapshot = null;
     try {
-      const posData = await tradingService(req).getLivePosition(category, symbol, demo);
+      const posData = await tradingService(req).getLivePosition(category, symbol, demo, creds);
       if (posData.hasPosition && posData.margin) {
         roiSnapshot = (posData.unrealizedPnl / posData.margin) * 100;
       }
     } catch (err) {}
-    const result = await tradingService(req).closePosition(category, symbol, percent, demo);
+    const result = await tradingService(req).closePosition(category, symbol, percent, demo, creds);
     if (roiSnapshot != null && (!percent || percent >= 100)) {
       creditTradingProfitCoins(req.uid, roiSnapshot, demo).catch(() => {});
     }
@@ -4264,7 +4280,8 @@ app.post("/api/tools/trading/tpsl", requireAuth, requireAdmin, tradingOrderLimit
     const takeProfit = req.body?.takeProfit ? String(req.body.takeProfit) : "";
     const stopLoss = req.body?.stopLoss ? String(req.body.stopLoss) : "";
     if (!symbol) return res.status(400).json({ error: "Symbol is required." });
-    await tradingService(req).setTradingStop(category, symbol, { takeProfit, stopLoss, demo: tradingDemo(req) });
+    const creds = await getTradingCreds(req);
+    await tradingService(req).setTradingStop(category, symbol, { takeProfit, stopLoss, demo: tradingDemo(req), override: creds });
     res.json({ ok: true });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not update TP/SL." });
@@ -4288,7 +4305,8 @@ app.get("/api/tools/trading/symbols", requireAuth, requireAdmin, async (req, res
 app.get("/api/tools/trading/orders", requireAuth, requireAdmin, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
-    const result = await tradingService(req).getOpenOrders(category, tradingDemo(req));
+    const creds = await getTradingCreds(req);
+    const result = await tradingService(req).getOpenOrders(category, tradingDemo(req), creds);
     res.json({ orders: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load open orders." });
@@ -4301,7 +4319,8 @@ app.post("/api/tools/trading/orders/cancel", requireAuth, requireAdmin, tradingO
     const symbol = String(req.body?.symbol || "").toUpperCase();
     const orderId = String(req.body?.orderId || "");
     if (!symbol || !orderId) return res.status(400).json({ error: "Symbol and orderId are required." });
-    await tradingService(req).cancelOrder(category, symbol, orderId, tradingDemo(req));
+    const creds = await getTradingCreds(req);
+    await tradingService(req).cancelOrder(category, symbol, orderId, tradingDemo(req), creds);
     res.json({ ok: true });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not cancel order." });
@@ -4311,7 +4330,8 @@ app.post("/api/tools/trading/orders/cancel", requireAuth, requireAdmin, tradingO
 app.get("/api/tools/trading/closed-pnl", requireAuth, requireAdmin, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
-    const result = await tradingService(req).getClosedPnl(category, 30, tradingDemo(req));
+    const creds = await getTradingCreds(req);
+    const result = await tradingService(req).getClosedPnl(category, 30, tradingDemo(req), creds);
     res.json({ trades: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load closed trades." });
@@ -4334,10 +4354,43 @@ app.post("/api/tools/trading/keys", requireAuth, requireAdmin, tradingOrderLimit
     const apiKey = String(req.body?.apiKey || "").trim();
     const apiSecret = String(req.body?.apiSecret || "").trim();
     const passphrase = req.body?.passphrase ? String(req.body.passphrase).trim() : undefined;
+
+    if (await findDuplicateCredentialOwner(req.uid, "apiKey", apiKey)) {
+      return res.status(409).json({ error: "This API key is already saved on another account." });
+    }
+    if (await findDuplicateCredentialOwner(req.uid, "apiSecret", apiSecret)) {
+      return res.status(409).json({ error: "This API secret is already saved on another account." });
+    }
+    if (passphrase && (await findDuplicateCredentialOwner(req.uid, "passphrase", passphrase))) {
+      return res.status(409).json({ error: "This API passphrase is already saved on another account." });
+    }
+
+    const demo = mode === "demo";
+    const service = exchange === "weex" ? weexReadonly : bybitReadonly;
+    try {
+      await service.getAllPositions("linear", demo, { apiKey, apiSecret, passphrase });
+    } catch (err) {
+      return res.status(400).json({ error: "Could not verify these keys with " + (exchange === "weex" ? "WEEX" : "Bybit") + ": " + (err.message || "invalid keys.") });
+    }
+
     await saveTradingCredentials(req.uid, exchange, mode, { apiKey, apiSecret, passphrase });
     res.json({ ok: true });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not save API keys." });
+  }
+});
+
+app.post("/api/tools/trading/keys/check-duplicate", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+  try {
+    const field = String(req.body?.field || "");
+    const value = String(req.body?.value || "").trim();
+    if (!["apiKey", "apiSecret", "passphrase"].includes(field) || !value) {
+      return res.json({ duplicate: false });
+    }
+    const duplicate = await findDuplicateCredentialOwner(req.uid, field, value);
+    res.json({ duplicate });
+  } catch (err) {
+    res.json({ duplicate: false });
   }
 });
 

@@ -1,9 +1,14 @@
 import { db } from "../config/firebase.js";
-import { encryptSecret, decryptSecret, last4 } from "./trading-vault-crypto.js";
+import { encryptSecret, decryptSecret, last4, hashForLookup } from "./trading-vault-crypto.js";
 
 const COLLECTION = "tradingCredentials";
 const VALID_EXCHANGES = ["bybit", "weex"];
 const VALID_MODES = ["live", "demo"];
+const HASH_PATHS_BY_FIELD = {
+  apiKey: ["bybit.live.apiKeyHash", "bybit.demo.apiKeyHash", "weex.live.apiKeyHash", "weex.demo.apiKeyHash"],
+  apiSecret: ["bybit.live.apiSecretHash", "bybit.demo.apiSecretHash", "weex.live.apiSecretHash", "weex.demo.apiSecretHash"],
+  passphrase: ["weex.live.passphraseHash", "weex.demo.passphraseHash"],
+};
 
 function assertExchangeMode(exchange, mode) {
   if (!VALID_EXCHANGES.includes(exchange)) {
@@ -25,11 +30,14 @@ export async function saveCredentials(uid, exchange, mode, fields) {
   const entry = {
     apiKey: encryptSecret(fields.apiKey),
     apiSecret: encryptSecret(fields.apiSecret),
+    apiKeyHash: hashForLookup(fields.apiKey),
+    apiSecretHash: hashForLookup(fields.apiSecret),
     last4: last4(fields.apiKey),
     savedAt: Date.now(),
   };
   if (exchange === "weex") {
     entry.passphrase = encryptSecret(fields.passphrase);
+    entry.passphraseHash = hashForLookup(fields.passphrase);
   }
   const ref = db.collection(COLLECTION).doc(uid);
   await ref.set({ [exchange]: { [mode]: entry } }, { merge: true });
@@ -39,6 +47,21 @@ export async function deleteCredentials(uid, exchange, mode) {
   assertExchangeMode(exchange, mode);
   const ref = db.collection(COLLECTION).doc(uid);
   await ref.set({ [exchange]: { [mode]: null } }, { merge: true });
+}
+
+export async function findDuplicateCredentialOwner(uid, field, value) {
+  const paths = HASH_PATHS_BY_FIELD[field];
+  if (!paths || !value) return false;
+  const hash = hashForLookup(value);
+  const results = await Promise.all(
+    paths.map((path) => db.collection(COLLECTION).where(path, "==", hash).limit(5).get())
+  );
+  for (const snap of results) {
+    for (const doc of snap.docs) {
+      if (doc.id !== uid) return true;
+    }
+  }
+  return false;
 }
 
 function statusFor(data, exchange, mode) {

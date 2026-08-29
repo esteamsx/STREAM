@@ -278,6 +278,11 @@ button{font-family:inherit}
 .tr-onboard-title{font-family:var(--font-display);font-weight:800;font-size:1.05rem;margin-bottom:8px}
 .tr-onboard-sub{font-size:.8rem;color:var(--muted);line-height:1.5;margin-bottom:16px}
 .tr-key-block-form input{width:100%;padding:11px;border-radius:9px;background:var(--card);border:1px solid var(--border-strong);color:var(--text);font-family:var(--font-mono);font-size:.82rem;margin-bottom:8px}
+.tr-key-field-status{font-size:.72rem;color:var(--muted);display:flex;align-items:center;gap:6px;min-height:14px;margin:-4px 0 8px}
+.tr-key-field-status.ok{color:var(--green)}
+.tr-key-field-status.taken{color:var(--red)}
+.tr-key-field-spinner{width:11px;height:11px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;animation:trKeySpin .6s linear infinite;flex-shrink:0}
+@keyframes trKeySpin{to{transform:rotate(360deg)}}
 .tr-key-form-actions{display:flex;gap:8px}
 .tr-key-cancel{flex:1;padding:10px;border-radius:9px;background:var(--card);border:1px solid var(--border-strong);color:var(--muted);font-family:var(--font-display);font-weight:700;font-size:.78rem}
 .tr-key-save{flex:1;padding:10px;border-radius:9px;background:linear-gradient(135deg,#22d1ee,#7c6bff);border:none;color:#04141a;font-family:var(--font-display);font-weight:800;font-size:.78rem}
@@ -897,7 +902,9 @@ button:active{transform:scale(.96)}
           </div>
           <div class="tr-key-block-form" data-form style="display:none">
             <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
+            <div class="tr-key-field-status" data-status-for="apiKey"></div>
             <input type="password" placeholder="API Secret" data-field="apiSecret" autocomplete="off">
+            <div class="tr-key-field-status" data-status-for="apiSecret"></div>
             <div class="tr-key-form-actions">
               <button type="button" class="tr-key-cancel" data-cancel>Cancel</button>
               <button type="button" class="tr-key-save" data-save>Save</button>
@@ -923,7 +930,9 @@ button:active{transform:scale(.96)}
           </div>
           <div class="tr-key-block-form" data-form style="display:none">
             <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
+            <div class="tr-key-field-status" data-status-for="apiKey"></div>
             <input type="password" placeholder="API Secret" data-field="apiSecret" autocomplete="off">
+            <div class="tr-key-field-status" data-status-for="apiSecret"></div>
             <div class="tr-key-form-actions">
               <button type="button" class="tr-key-cancel" data-cancel>Cancel</button>
               <button type="button" class="tr-key-save" data-save>Save</button>
@@ -949,8 +958,11 @@ button:active{transform:scale(.96)}
           </div>
           <div class="tr-key-block-form" data-form style="display:none">
             <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
+            <div class="tr-key-field-status" data-status-for="apiKey"></div>
             <input type="password" placeholder="API Secret" data-field="apiSecret" autocomplete="off">
+            <div class="tr-key-field-status" data-status-for="apiSecret"></div>
             <input type="password" placeholder="API Passphrase" data-field="passphrase" autocomplete="off">
+            <div class="tr-key-field-status" data-status-for="passphrase"></div>
             <div class="tr-key-form-actions">
               <button type="button" class="tr-key-cancel" data-cancel>Cancel</button>
               <button type="button" class="tr-key-save" data-save>Save</button>
@@ -976,8 +988,11 @@ button:active{transform:scale(.96)}
           </div>
           <div class="tr-key-block-form" data-form style="display:none">
             <input type="text" placeholder="API Key" data-field="apiKey" autocomplete="off">
+            <div class="tr-key-field-status" data-status-for="apiKey"></div>
             <input type="password" placeholder="API Secret" data-field="apiSecret" autocomplete="off">
+            <div class="tr-key-field-status" data-status-for="apiSecret"></div>
             <input type="password" placeholder="API Passphrase" data-field="passphrase" autocomplete="off">
+            <div class="tr-key-field-status" data-status-for="passphrase"></div>
             <div class="tr-key-form-actions">
               <button type="button" class="tr-key-cancel" data-cancel>Cancel</button>
               <button type="button" class="tr-key-save" data-save>Save</button>
@@ -2413,8 +2428,11 @@ button:active{transform:scale(.96)}
     var deleteBtn = block.querySelector('[data-delete]');
     var cancelBtn = block.querySelector('[data-cancel]');
     var saveBtn = block.querySelector('[data-save]');
+    var duplicateFlags = {};
     pencil.addEventListener('click', function(){
       form.querySelectorAll('input').forEach(function(inp){ inp.value = ''; });
+      form.querySelectorAll('[data-status-for]').forEach(function(s){ s.className = 'tr-key-field-status'; s.innerHTML = ''; });
+      duplicateFlags = {};
       view.style.display = 'none';
       form.style.display = 'block';
     });
@@ -2436,6 +2454,42 @@ button:active{transform:scale(.96)}
       form.style.display = 'none';
       view.style.display = 'flex';
     });
+
+    var checkSeq = 0;
+    form.querySelectorAll('input[data-field]').forEach(function(inp){
+      var field = inp.getAttribute('data-field');
+      var statusEl = form.querySelector('[data-status-for="' + field + '"]');
+      if (!statusEl) return;
+      inp.addEventListener('input', function(){
+        var val = inp.value.trim();
+        var seq = ++checkSeq;
+        duplicateFlags[field] = false;
+        if (!val) { statusEl.className = 'tr-key-field-status'; statusEl.innerHTML = ''; return; }
+        statusEl.className = 'tr-key-field-status';
+        statusEl.innerHTML = '<span class="tr-key-field-spinner"></span>Checking...';
+        setTimeout(async function(){
+          if (seq !== checkSeq) return;
+          try {
+            var data = await postJSON('/api/tools/trading/keys/check-duplicate', { field: field, value: val });
+            if (seq !== checkSeq) return;
+            if (data.duplicate) {
+              duplicateFlags[field] = true;
+              statusEl.className = 'tr-key-field-status taken';
+              statusEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Already used on another account';
+            } else {
+              duplicateFlags[field] = false;
+              statusEl.className = 'tr-key-field-status ok';
+              statusEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Looks unique';
+            }
+          } catch (err) {
+            if (seq !== checkSeq) return;
+            statusEl.className = 'tr-key-field-status';
+            statusEl.innerHTML = '';
+          }
+        }, 450);
+      });
+    });
+
     saveBtn.addEventListener('click', async function(){
       var exchange = block.getAttribute('data-exchange');
       var mode = block.getAttribute('data-mode');
@@ -2445,6 +2499,10 @@ button:active{transform:scale(.96)}
       });
       if (!payload.apiKey || !payload.apiSecret || (exchange === 'weex' && !payload.passphrase)) {
         toast('Please fill in all fields.');
+        return;
+      }
+      if (Object.keys(duplicateFlags).some(function(k){ return duplicateFlags[k]; })) {
+        toast('One of these values is already used on another account.');
         return;
       }
       setBtnLoading(saveBtn, 'Saving...');

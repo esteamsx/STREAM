@@ -93,7 +93,8 @@ async function signedPost(demo, apiKey, apiSecret, path, body = {}) {
   return data.result;
 }
 
-function requireKeys(demo) {
+function requireKeys(demo, override) {
+  if (override) return override;
   const apiKey = demo ? process.env.BYBIT_DEMO_API_KEY : process.env.BYBIT_API_KEY;
   const apiSecret = demo ? process.env.BYBIT_DEMO_API_SECRET : process.env.BYBIT_API_SECRET;
   if (!apiKey || !apiSecret) {
@@ -147,8 +148,16 @@ export async function getInstrumentInfo(category, symbol, demo = false) {
   };
 }
 
-export async function getLivePosition(category, symbol, demo = false) {
-  const { apiKey, apiSecret } = requireKeys(demo);
+function bybitAvailableBalance(walletRow) {
+  const raw = Number(walletRow.totalAvailableBalance || "");
+  if (raw) return raw;
+  const wallet = Number(walletRow.totalWalletBalance || 0);
+  const im = Number(walletRow.totalInitialMargin || 0);
+  return wallet ? wallet - im : 0;
+}
+
+export async function getLivePosition(category, symbol, demo = false, override) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
   const [positionResult, balanceResult] = await Promise.all([
     signedGet(demo, apiKey, apiSecret, "/v5/position/list", { category, symbol }),
     signedGet(demo, apiKey, apiSecret, "/v5/account/wallet-balance", { accountType: "UNIFIED" }).catch(() => null),
@@ -181,8 +190,8 @@ export async function getLivePosition(category, symbol, demo = false) {
   };
 }
 
-export async function getAllPositions(category, demo = false) {
-  const { apiKey, apiSecret } = requireKeys(demo);
+export async function getAllPositions(category, demo = false, override) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
   const [positionResult, balanceResult] = await Promise.all([
     signedGet(demo, apiKey, apiSecret, "/v5/position/list", { category, settleCoin: "USDT" }),
     signedGet(demo, apiKey, apiSecret, "/v5/account/wallet-balance", { accountType: "UNIFIED" }).catch(() => null),
@@ -210,14 +219,14 @@ export async function getAllPositions(category, demo = false) {
   let available = null;
   if (balanceResult && balanceResult.list && balanceResult.list[0]) {
     equity = Number(balanceResult.list[0].totalEquity || 0);
-    available = Number(balanceResult.list[0].totalAvailableBalance || 0);
+    available = bybitAvailableBalance(balanceResult.list[0]);
   }
 
   return { equity, available, positions };
 }
 
-export async function setLeverage(category, symbol, leverage, demo = false) {
-  const { apiKey, apiSecret } = requireKeys(demo);
+export async function setLeverage(category, symbol, leverage, demo = false, override) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
   const lev = String(leverage);
   try {
     await signedPost(demo, apiKey, apiSecret, "/v5/position/set-leverage", {
@@ -228,17 +237,17 @@ export async function setLeverage(category, symbol, leverage, demo = false) {
   }
 }
 
-export async function setMarginMode(category, symbol, marginMode, demo = false) {
-  const { apiKey, apiSecret } = requireKeys(demo);
+export async function setMarginMode(category, symbol, marginMode, demo = false, override) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
   return signedPost(demo, apiKey, apiSecret, "/v5/account/set-margin-mode", {
     setMarginMode: marginMode === "cross" ? "REGULAR_MARGIN" : "ISOLATED_MARGIN",
   });
 }
 
-export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false }) {
-  const { apiKey, apiSecret } = requireKeys(demo);
+export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false, override }) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
   if (leverage) {
-    await setLeverage(category, symbol, leverage, demo);
+    await setLeverage(category, symbol, leverage, demo, override);
   }
   const isLimit = orderType === "Limit";
   const body = {
@@ -259,8 +268,8 @@ export async function placeOrder({ category, symbol, side, qty, leverage, orderT
   return signedPost(demo, apiKey, apiSecret, "/v5/order/create", body);
 }
 
-export async function closePosition(category, symbol, percent, demo = false) {
-  const { apiKey, apiSecret } = requireKeys(demo);
+export async function closePosition(category, symbol, percent, demo = false, override) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
   const positionResult = await signedGet(demo, apiKey, apiSecret, "/v5/position/list", { category, symbol });
   const pos = (positionResult.list || []).find((p) => Number(p.size) > 0);
   if (!pos) {
@@ -286,8 +295,8 @@ export async function closePosition(category, symbol, percent, demo = false) {
   });
 }
 
-export async function setTradingStop(category, symbol, { takeProfit, stopLoss, demo = false }) {
-  const { apiKey, apiSecret } = requireKeys(demo);
+export async function setTradingStop(category, symbol, { takeProfit, stopLoss, demo = false, override }) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
   const positionResult = await signedGet(demo, apiKey, apiSecret, "/v5/position/list", { category, symbol });
   const pos = (positionResult.list || []).find((p) => Number(p.size) > 0);
   const body = { category, symbol, tpslMode: "Full", positionIdx: pos ? pos.positionIdx || 0 : 0 };
@@ -296,8 +305,8 @@ export async function setTradingStop(category, symbol, { takeProfit, stopLoss, d
   return signedPost(demo, apiKey, apiSecret, "/v5/position/trading-stop", body);
 }
 
-export async function getOpenOrders(category, demo = false) {
-  const { apiKey, apiSecret } = requireKeys(demo);
+export async function getOpenOrders(category, demo = false, override) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
   const result = await signedGet(demo, apiKey, apiSecret, "/v5/order/realtime", { category, settleCoin: "USDT" });
   return (result.list || []).map((o) => ({
     orderId: o.orderId,
@@ -313,13 +322,13 @@ export async function getOpenOrders(category, demo = false) {
   }));
 }
 
-export async function cancelOrder(category, symbol, orderId, demo = false) {
-  const { apiKey, apiSecret } = requireKeys(demo);
+export async function cancelOrder(category, symbol, orderId, demo = false, override) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
   return signedPost(demo, apiKey, apiSecret, "/v5/order/cancel", { category, symbol, orderId });
 }
 
-export async function getClosedPnl(category, limit, demo = false) {
-  const { apiKey, apiSecret } = requireKeys(demo);
+export async function getClosedPnl(category, limit, demo = false, override) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
   const result = await signedGet(demo, apiKey, apiSecret, "/v5/position/closed-pnl", { category, limit: limit || 30 });
   return (result.list || []).map((p) => ({
     symbol: p.symbol,
