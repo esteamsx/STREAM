@@ -20,6 +20,7 @@ import { renderDevelopersApi } from "./views/developers-api.js";
 import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
+import { pageLockGate } from "./middleware/page-lock.js";
 import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
 import { devApiRouter } from "./routes/dev-api.js";
@@ -250,6 +251,9 @@ import {
   adminResetPassword,
   getMaintenanceMode,
   getMaintenanceStatus,
+  LOCKABLE_PAGES,
+  getPageLockStatus,
+  setPageLock,
   setMaintenanceMode,
   sendSupportMessage,
   editSupportMessage,
@@ -467,6 +471,7 @@ app.use((req, res, next) => {
 });
 
 app.use(maintenanceGate);
+app.use(pageLockGate);
 app.use(apiRouter);
 app.use(devApiRouter);
 app.use(toolsRouter);
@@ -3859,6 +3864,30 @@ app.post("/api/admin/maintenance", requireAuth, requireAdmin, async (req, res) =
   }
 });
 
+app.get("/api/admin/page-locks", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const active = await getPageLockStatus();
+    res.json({
+      pages: Object.keys(LOCKABLE_PAGES).map((key) => ({ key, label: LOCKABLE_PAGES[key].label })),
+      active,
+      serverNow: Date.now(),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load page lock status." });
+  }
+});
+
+app.post("/api/admin/page-locks", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const pageKey = String(req.body?.pageKey || "");
+    const result = await setPageLock(pageKey, !!req.body?.enabled, req.body?.until);
+    res.json({ ...result, serverNow: Date.now() });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not update page lock." });
+  }
+});
+
 app.get("/api/push/vapid-public-key", (req, res) => {
   res.json({ publicKey: PUSH_ENABLED ? VAPID_PUBLIC_KEY : null });
 });
@@ -4158,11 +4187,10 @@ app.get("/tools/trading", scrapeGate, async (req, res) => {
   if (!uid) return res.redirect("/login");
   const profile = await getUserProfile(uid);
   if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.redirect("/login");
-  if (!isAdminEmail(profile.email)) return res.redirect("/");
   res.send(cachedToolsTradingHtml);
 });
 
-app.get("/api/tools/trading/klines", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/tools/trading/klines", requireAuth, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
     const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
@@ -4174,7 +4202,7 @@ app.get("/api/tools/trading/klines", requireAuth, requireAdmin, async (req, res)
   }
 });
 
-app.get("/api/tools/trading/position", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/tools/trading/position", requireAuth, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
     const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
@@ -4186,7 +4214,7 @@ app.get("/api/tools/trading/position", requireAuth, requireAdmin, async (req, re
   }
 });
 
-app.get("/api/tools/trading/positions", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/tools/trading/positions", requireAuth, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
     const creds = await getTradingCreds(req);
@@ -4197,7 +4225,7 @@ app.get("/api/tools/trading/positions", requireAuth, requireAdmin, async (req, r
   }
 });
 
-app.get("/api/tools/trading/instrument", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/tools/trading/instrument", requireAuth, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
     const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
@@ -4208,7 +4236,7 @@ app.get("/api/tools/trading/instrument", requireAuth, requireAdmin, async (req, 
   }
 });
 
-app.post("/api/tools/trading/order", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+app.post("/api/tools/trading/order", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
     const category = String(req.body?.category || "linear");
     const symbol = String(req.body?.symbol || "").toUpperCase();
@@ -4232,7 +4260,7 @@ app.post("/api/tools/trading/order", requireAuth, requireAdmin, tradingOrderLimi
   }
 });
 
-app.post("/api/tools/trading/margin-mode", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+app.post("/api/tools/trading/margin-mode", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
     const category = String(req.body?.category || "linear");
     const symbol = String(req.body?.symbol || "").toUpperCase();
@@ -4248,7 +4276,7 @@ app.post("/api/tools/trading/margin-mode", requireAuth, requireAdmin, tradingOrd
   }
 });
 
-app.post("/api/tools/trading/close", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+app.post("/api/tools/trading/close", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
     const category = String(req.body?.category || "linear");
     const symbol = String(req.body?.symbol || "").toUpperCase();
@@ -4273,7 +4301,7 @@ app.post("/api/tools/trading/close", requireAuth, requireAdmin, tradingOrderLimi
   }
 });
 
-app.post("/api/tools/trading/tpsl", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+app.post("/api/tools/trading/tpsl", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
     const category = String(req.body?.category || "linear");
     const symbol = String(req.body?.symbol || "").toUpperCase();
@@ -4288,7 +4316,7 @@ app.post("/api/tools/trading/tpsl", requireAuth, requireAdmin, tradingOrderLimit
   }
 });
 
-app.get("/api/tools/trading/symbols", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/tools/trading/symbols", requireAuth, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
     const result = await tradingService(req).getAllInstruments(category, tradingDemo(req));
@@ -4302,7 +4330,7 @@ app.get("/api/tools/trading/symbols", requireAuth, requireAdmin, async (req, res
   }
 });
 
-app.get("/api/tools/trading/orders", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/tools/trading/orders", requireAuth, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
     const creds = await getTradingCreds(req);
@@ -4313,7 +4341,7 @@ app.get("/api/tools/trading/orders", requireAuth, requireAdmin, async (req, res)
   }
 });
 
-app.post("/api/tools/trading/orders/cancel", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+app.post("/api/tools/trading/orders/cancel", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
     const category = String(req.body?.category || "linear");
     const symbol = String(req.body?.symbol || "").toUpperCase();
@@ -4327,7 +4355,7 @@ app.post("/api/tools/trading/orders/cancel", requireAuth, requireAdmin, tradingO
   }
 });
 
-app.get("/api/tools/trading/closed-pnl", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/tools/trading/closed-pnl", requireAuth, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
     const creds = await getTradingCreds(req);
@@ -4338,7 +4366,7 @@ app.get("/api/tools/trading/closed-pnl", requireAuth, requireAdmin, async (req, 
   }
 });
 
-app.get("/api/tools/trading/keys/status", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/tools/trading/keys/status", requireAuth, async (req, res) => {
   try {
     const status = await getTradingCredentialsStatus(req.uid);
     res.json(status);
@@ -4347,7 +4375,7 @@ app.get("/api/tools/trading/keys/status", requireAuth, requireAdmin, async (req,
   }
 });
 
-app.post("/api/tools/trading/keys", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+app.post("/api/tools/trading/keys", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
     const exchange = String(req.body?.exchange || "").toLowerCase();
     const mode = String(req.body?.mode || "").toLowerCase();
@@ -4380,7 +4408,7 @@ app.post("/api/tools/trading/keys", requireAuth, requireAdmin, tradingOrderLimit
   }
 });
 
-app.post("/api/tools/trading/keys/check-duplicate", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+app.post("/api/tools/trading/keys/check-duplicate", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
     const field = String(req.body?.field || "");
     const value = String(req.body?.value || "").trim();
@@ -4394,7 +4422,7 @@ app.post("/api/tools/trading/keys/check-duplicate", requireAuth, requireAdmin, t
   }
 });
 
-app.delete("/api/tools/trading/keys", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+app.delete("/api/tools/trading/keys", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
     const exchange = String(req.body?.exchange || "").toLowerCase();
     const mode = String(req.body?.mode || "").toLowerCase();
@@ -4405,7 +4433,7 @@ app.delete("/api/tools/trading/keys", requireAuth, requireAdmin, tradingOrderLim
   }
 });
 
-app.post("/api/tools/trading/auto-settings", requireAuth, requireAdmin, tradingOrderLimiter, async (req, res) => {
+app.post("/api/tools/trading/auto-settings", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
     if (req.body?.enabled) {
       await requireAiTradingAccess(req.uid);

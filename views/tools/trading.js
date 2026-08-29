@@ -157,6 +157,7 @@ button{font-family:inherit}
 .tr-positions-empty{color:var(--muted);font-size:.82rem;padding:16px;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);border:1px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);border-radius:14px;text-align:center}
 
 .tr-list-item{background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);border:1px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);border-radius:14px;padding:13px 14px;margin-bottom:10px}
+#trHistoryList{max-height:500px;overflow-y:auto;padding-right:2px}
 .tr-list-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .tr-list-symbol{font-family:var(--font-display);font-weight:700;font-size:.88rem}
 .tr-list-meta{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted)}

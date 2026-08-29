@@ -138,6 +138,8 @@ input{font-family:inherit}
 .sc-bubble-them{align-self:flex-start;background:var(--card2);color:var(--text);border:1px solid var(--border-strong);border-bottom-left-radius:4px}
 .sc-bubble-them::after{content:"";position:absolute;left:-6px;bottom:-1px;width:12px;height:12px;background:var(--card2);border-left:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);clip-path:polygon(100% 0,0% 100%,100% 100%)}
 .sc-bubble-time{font-size:.63rem;opacity:.7;margin-top:3px;display:flex;align-items:center;gap:5px}
+.sc-seen-tag{display:inline-flex;align-items:center;gap:2px;font-weight:600}
+.sc-seen-tag svg{width:11px;height:11px}
 .sc-edited-tag{font-style:italic;opacity:.85}
 .sc-chat-empty{margin:auto;color:var(--muted);font-size:.83rem;text-align:center}
 .sc-msg-row{position:relative;display:flex;flex-direction:column;touch-action:pan-y}
@@ -3919,10 +3921,13 @@ function renderReplyQuoteHtml(replyTo){
 
 function renderSupportBubble(m){
   const mine = supportChatIsAdminView ? m.fromAdmin : !m.fromAdmin;
+  const showSeen = !supportChatIsAdminView && mine && m.seenByAdmin;
   const bubble = '<div class="sc-bubble ' + (mine ? 'sc-bubble-me' : 'sc-bubble-them') + '">' +
     renderReplyQuoteHtml(m.replyTo) +
     (m.text ? esc(m.text) : '') + renderAttachmentHtml(m) +
-    '<span class="sc-bubble-time">' + (m.editedAt ? '<span class="sc-edited-tag">edited</span>' : '') + timeAgo(m.createdAt) + '</span>' +
+    '<span class="sc-bubble-time">' + (m.editedAt ? '<span class="sc-edited-tag">edited</span>' : '') + timeAgo(m.createdAt) +
+    (showSeen ? '<span class="sc-seen-tag">' + SC_CHECK_ICON + 'Seen</span>' : '') +
+    '</span>' +
   '</div>';
   return '<div class="sc-msg-row ' + (mine ? 'sc-row-me' : 'sc-row-them') + '" id="scmsg-' + esc(m.id) + '" data-msg-id="' + esc(m.id) + '" data-mine="' + (mine ? '1' : '0') + '" data-created-at="' + m.createdAt + '">' +
     '<div class="sc-reply-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17l-5-5 5-5M4 12h11a5 5 0 015 5v1"/></svg></div>' +

@@ -278,12 +278,12 @@ body:has(.ad-overlay.show){overflow:hidden}
 .mt-hint{font-size:.68rem;color:var(--muted2);letter-spacing:.02em}
 .mt-field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
 .mt-field label{font-size:.72rem;font-weight:600;color:var(--muted);letter-spacing:.02em}
-.mt-field input{
+.mt-field input,.mt-field select{
   width:100%;background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
   padding:11px 13px;color:var(--text);font-size:.9rem;font-family:inherit;outline:none;
   transition:border-color .2s var(--ease);
 }
-.mt-field input:focus{border-color:var(--accent)}
+.mt-field input:focus,.mt-field select:focus{border-color:var(--accent)}
 .mt-preview{
   font-size:.76rem;color:var(--muted);line-height:1.55;margin-bottom:12px;text-align:center;
   min-height:38px;display:flex;flex-direction:column;justify-content:center;
@@ -503,6 +503,27 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div>
   </div>
 
+  <div class="ad-card open accent-blue" id="pageLocksCard">
+    <div class="ad-card-header" style="cursor:default">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+      <div class="ad-card-header-title">Page Locks</div>
+    </div>
+    <div class="ad-card-body" style="max-height:none">
+      <div class="ad-card-body-inner">
+        <div class="mt-row">
+          <button type="button" class="mt-icon-btn" id="pageLockOpenBtn" aria-label="Lock a page">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7.4v5l3.2 2"/></svg>
+          </button>
+          <div style="min-width:0;flex:1">
+            <div style="font-size:.85rem;font-weight:600">Lock a single page</div>
+            <div style="font-size:.74rem;color:var(--muted);margin-top:3px;line-height:1.5">Block one page and its requests without taking the whole site down.</div>
+          </div>
+        </div>
+        <div id="pageLocksList" style="margin-top:12px;display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="ad-card open accent-blue" id="pushCard">
     <div class="ad-card-header" style="cursor:default">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -658,9 +679,14 @@ body:has(.ad-overlay.show){overflow:hidden}
   <div class="ad-modal" style="max-width:344px">
     <div class="ad-modal-title">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7.4v5l3.2 2"/></svg>
-      Schedule Maintenance
+      <span id="mtModalTitle">Schedule Maintenance</span>
     </div>
-    <div class="ad-modal-sub">Drag the hands to set the time the site should come back, then pick the date.</div>
+    <div class="ad-modal-sub" id="mtModalSub">Drag the hands to set the time the site should come back, then pick the date.</div>
+
+    <div class="mt-field" id="mtPageFieldWrap" style="display:none">
+      <label for="mtPageSelect">Page to lock</label>
+      <select id="mtPageSelect"></select>
+    </div>
 
     <div class="mt-clock-wrap">
       <div class="mt-clock" id="mtClock">
@@ -2041,7 +2067,30 @@ async function loadMaintenanceStatus(){
   }
 }
 
+let mtMode = 'maintenance';
+
 document.getElementById('maintenanceOpenBtn').addEventListener('click', () => {
+  mtMode = 'maintenance';
+  document.getElementById('mtModalTitle').textContent = 'Schedule Maintenance';
+  document.getElementById('mtModalSub').textContent = 'Drag the hands to set the time the site should come back, then pick the date.';
+  document.getElementById('mtPageFieldWrap').style.display = 'none';
+  const now = new Date();
+  mtHour = now.getHours();
+  mtMinute = now.getMinutes();
+  mtSetActiveHand('hour');
+  mtDateInput.value = now.getFullYear() + '-' + mtPad(now.getMonth() + 1) + '-' + mtPad(now.getDate());
+  mtDateInput.min = now.getFullYear() + '-' + mtPad(now.getMonth() + 1) + '-' + mtPad(now.getDate());
+  maintenanceMsg.className = 'ad-modal-msg';
+  maintenanceMsg.textContent = '';
+  mtRenderHands();
+  maintenanceOverlay.classList.add('show');
+});
+
+document.getElementById('pageLockOpenBtn').addEventListener('click', () => {
+  mtMode = 'pageLock';
+  document.getElementById('mtModalTitle').textContent = 'Lock a Page';
+  document.getElementById('mtModalSub').textContent = 'Pick a page, then drag the hands to set when it should unlock.';
+  document.getElementById('mtPageFieldWrap').style.display = 'flex';
   const now = new Date();
   mtHour = now.getHours();
   mtMinute = now.getMinutes();
@@ -2074,6 +2123,29 @@ document.getElementById('maintenanceSetBtn').addEventListener('click', async () 
     maintenanceMsg.textContent = 'Pick a time at least a minute from now.';
     return;
   }
+  if (mtMode === 'pageLock') {
+    const pageKey = document.getElementById('mtPageSelect').value;
+    if (!pageKey) {
+      maintenanceMsg.className = 'ad-modal-msg err';
+      maintenanceMsg.textContent = 'Pick a page to lock.';
+      return;
+    }
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Setting…';
+    try {
+      await postJSON('/api/admin/page-locks', { pageKey: pageKey, enabled: true, until: target.getTime() });
+      maintenanceOverlay.classList.remove('show');
+      showToast('Page locked.');
+      loadPageLocksStatus();
+    } catch (err) {
+      maintenanceMsg.className = 'ad-modal-msg err';
+      maintenanceMsg.textContent = err.message || 'Could not lock that page.';
+    }
+    btn.disabled = false;
+    btn.textContent = original;
+    return;
+  }
   const original = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Setting…';
@@ -2089,6 +2161,49 @@ document.getElementById('maintenanceSetBtn').addEventListener('click', async () 
   btn.disabled = false;
   btn.textContent = original;
 });
+
+async function loadPageLocksStatus(){
+  const list = document.getElementById('pageLocksList');
+  const select = document.getElementById('mtPageSelect');
+  try {
+    const data = await getJSON('/api/admin/page-locks');
+    select.innerHTML = data.pages.map((p) => '<option value="' + p.key + '">' + p.label + '</option>').join('');
+    const activeKeys = Object.keys(data.active || {});
+    if (!activeKeys.length) {
+      list.innerHTML = '<div style="font-size:.76rem;color:var(--muted)">No pages are currently locked.</div>';
+      return;
+    }
+    list.innerHTML = activeKeys.map((key) => {
+      const entry = data.active[key];
+      const pageInfo = data.pages.find((p) => p.key === key);
+      const label = pageInfo ? pageInfo.label : key;
+      const untilText = entry.until ? new Date(entry.until).toLocaleString() : 'no end time';
+      return '<div class="mt-live-countdown" style="display:flex" data-page-key="' + key + '">' +
+        '<span class="mt-live-dot"></span>' +
+        '<span>' + label + ' locked until <b>' + untilText + '</b></span>' +
+        '<button type="button" class="mt-end-btn" data-unlock="' + key + '">Unlock now</button>' +
+      '</div>';
+    }).join('');
+  } catch (err) {
+    list.innerHTML = '<div style="font-size:.76rem;color:var(--muted)">Could not load page locks.</div>';
+  }
+}
+document.getElementById('pageLocksList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-unlock]');
+  if (!btn) return;
+  const pageKey = btn.getAttribute('data-unlock');
+  btn.disabled = true;
+  try {
+    await postJSON('/api/admin/page-locks', { pageKey: pageKey, enabled: false });
+    showToast('Page unlocked.');
+    loadPageLocksStatus();
+  } catch (err) {
+    showToast(err.message || 'Could not unlock that page.');
+    btn.disabled = false;
+  }
+});
+loadPageLocksStatus();
+
 
 document.getElementById('maintenanceEndBtn').addEventListener('click', async () => {
   const btn = document.getElementById('maintenanceEndBtn');

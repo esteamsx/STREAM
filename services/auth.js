@@ -3933,6 +3933,120 @@ function primeMaintenanceCache(status) {
   return status;
 }
 
+const LOCKABLE_PAGES = {
+  "/login": { label: "/login", apiPrefixes: ["/api/session", "/api/2fa", "/api/resolve-login-identifier", "/api/passkey", "/api/telegram-auth", "/api/github-auth"] },
+  "/main": { label: "/main", pagePaths: ["/"], apiPrefixes: ["/api/channels", "/api/notifications"] },
+  "/account": { label: "/account", pagePaths: ["/account", "/profile", "/u/"], apiPrefixes: ["/api/account", "/api/support", "/api/users", "/api/plan", "/api/coins", "/api/withdraw", "/api/referral"] },
+  "/api": { label: "/api", pagePaths: ["/developers/api"], apiPrefixes: ["/api/dev"] },
+  "/tools": { label: "/tools", pagePaths: ["/tools"], apiPrefixes: ["/api/tools"] },
+  "/bots": { label: "/bots", pagePaths: ["/deploy-bot"], apiPrefixes: ["/api/bots", "/api/deploy-bot"] },
+  "/chreact": { label: "/chreact", pagePaths: ["/channel-react"], apiPrefixes: ["/api/channel-react"] },
+};
+
+const PAGE_LOCK_CACHE_TTL_MS = 10 * 1000;
+let pageLockCache = null;
+let pageLockCacheExpiry = 0;
+let pageLockInflight = null;
+
+async function readPageLockStatus() {
+  const snap = await db.collection("settings").doc("pageLocks").get();
+  const data = snap.exists ? snap.data() : {};
+  const now = Date.now();
+  const active = {};
+  const expiredKeys = [];
+  for (const key of Object.keys(LOCKABLE_PAGES)) {
+    const entry = data[key];
+    if (entry && entry.enabled) {
+      if (entry.until && now >= entry.until) {
+        expiredKeys.push(key);
+        continue;
+      }
+      active[key] = { enabled: true, until: entry.until || null, updatedAt: entry.updatedAt || null };
+    }
+  }
+  if (expiredKeys.length) {
+    clearExpiredPageLocks(expiredKeys).catch(() => {});
+  }
+  return active;
+}
+
+async function clearExpiredPageLocks(keys) {
+  const updates = {};
+  for (const key of keys) {
+    updates[key] = { enabled: false, until: null, updatedAt: Date.now() };
+  }
+  await db.collection("settings").doc("pageLocks").set(updates, { merge: true });
+}
+
+function primePageLockCache(status) {
+  pageLockCache = status;
+  pageLockCacheExpiry = Date.now() + PAGE_LOCK_CACHE_TTL_MS;
+  return status;
+}
+
+async function getPageLockStatus() {
+  if (pageLockCache && Date.now() < pageLockCacheExpiry) return pageLockCache;
+  if (pageLockInflight) return pageLockInflight;
+
+  pageLockInflight = readPageLockStatus()
+    .then(primePageLockCache)
+    .catch((err) => {
+      if (pageLockCache) return pageLockCache;
+      throw err;
+    })
+    .finally(() => {
+      pageLockInflight = null;
+    });
+
+  return pageLockInflight;
+}
+
+async function setPageLock(pageKey, enabled, untilInput) {
+  if (!LOCKABLE_PAGES[pageKey]) {
+    throw Object.assign(new Error("Unknown page."), { status: 400 });
+  }
+  const updatedAt = Date.now();
+  const on = !!enabled;
+  let until = null;
+
+  if (on) {
+    const parsed = Number(untilInput);
+    if (!Number.isFinite(parsed)) {
+      throw Object.assign(new Error("Pick the date and time this lock should end."), { status: 400 });
+    }
+    const span = parsed - updatedAt;
+    if (span < MAINTENANCE_MIN_MS) {
+      throw Object.assign(new Error("That end time is in the past. Pick a time at least a minute from now."), { status: 400 });
+    }
+    if (span > MAINTENANCE_MAX_MS) {
+      throw Object.assign(new Error("A page lock cannot be scheduled more than 30 days out."), { status: 400 });
+    }
+    until = Math.round(parsed);
+  }
+
+  await db.collection("settings").doc("pageLocks").set(
+    { [pageKey]: { enabled: on, until, updatedAt } },
+    { merge: true }
+  );
+
+  pageLockCache = null;
+  pageLockCacheExpiry = 0;
+  return { pageKey, enabled: on, until, updatedAt };
+}
+
+function findLockedPageForPath(activeLocks, pathname) {
+  for (const key of Object.keys(activeLocks)) {
+    const config = LOCKABLE_PAGES[key];
+    if (!config) continue;
+    const pagePaths = config.pagePaths || [key];
+    const apiPrefixes = config.apiPrefixes || [];
+    const matchesPage = pagePaths.some((p) => (p === "/" ? pathname === "/" : (pathname === p || pathname.startsWith(p + "/"))));
+    const matchesApi = apiPrefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
+    if (matchesPage || matchesApi) return key;
+  }
+  return null;
+}
+
 async function getMaintenanceStatus() {
   if (maintenanceCache && Date.now() < maintenanceCacheExpiry) return maintenanceCache;
   if (maintenanceInflight) return maintenanceInflight;
@@ -4160,10 +4274,17 @@ async function getSupportMessages(uid, asAdmin) {
     threadRef.get(),
   ]);
   const messages = msgSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const now = Date.now();
   if (threadSnap.exists) {
-    await threadRef.update({ [asAdmin ? "unreadForAdmin" : "unreadForUser"]: 0 }).catch(() => {});
+    const update = { [asAdmin ? "unreadForAdmin" : "unreadForUser"]: 0 };
+    if (asAdmin) update.adminSeenAt = now;
+    await threadRef.update(update).catch(() => {});
   }
-  return messages;
+  const adminSeenAt = threadSnap.exists ? threadSnap.data().adminSeenAt || 0 : 0;
+  return messages.map((m) => ({
+    ...m,
+    seenByAdmin: !m.fromAdmin && !!m.createdAt && m.createdAt <= (asAdmin ? now : adminSeenAt),
+  }));
 }
 
 async function getSupportUnreadCountForUser(uid) {
@@ -4213,6 +4334,10 @@ export {
   getMaintenanceMode,
   getMaintenanceStatus,
   setMaintenanceMode,
+  LOCKABLE_PAGES,
+  getPageLockStatus,
+  setPageLock,
+  findLockedPageForPath,
   createVerificationPayment,
   getVerificationPayment,
   finalizeVerificationPayment,
