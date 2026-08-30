@@ -46,11 +46,6 @@ function pageLockHtml(pageKey, untilMs) {
   }
   .back-btn:hover{color:#fff;border-color:rgba(255,255,255,.3)}
   .back-btn svg{width:14px;height:14px}
-  .page-note{
-    margin-top:14px;display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:20px;
-    background:rgba(0,224,255,.09);border:1px solid rgba(0,224,255,.25);color:#00E0FF;
-    font-size:.76rem;font-weight:600;
-  }
   .cd-wrap{margin-top:24px;width:100%}
   .cd-label{
     font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
@@ -82,10 +77,6 @@ function pageLockHtml(pageKey, untilMs) {
     <div class="ring"></div>
     <h1>This Page Is Locked</h1>
     <p>${label} is temporarily unavailable while we work on it. Please try again later.</p>
-    <div class="page-note">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-      Admins keep full access
-    </div>
     <div class="cd-wrap" id="countdown">
       <div class="cd-label">Back online in</div>
       <div class="cd-grid">

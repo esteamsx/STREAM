@@ -273,13 +273,22 @@ button{font-family:inherit}
 .tr-lock-overlay b{font-family:var(--font-display);font-size:.9rem}
 .tr-lock-overlay p{font-size:.76rem;color:var(--muted);margin:0 0 4px;max-width:260px}
 .tr-lock-overlay .plan-cta{max-width:220px}
-.tr-onboard-panel{max-width:340px;text-align:center}
-.tr-onboard-icon{width:52px;height:52px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:var(--accent)}
+.tr-onboard-panel{
+  max-width:340px;text-align:center;padding:26px 22px;
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.22);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);
+}
+:root[data-theme="light"] .tr-onboard-panel{
+  background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);
+  border:1px solid rgba(255,255,255,.65);box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
+}
+.tr-onboard-icon{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:#04141a}
 .tr-onboard-icon svg{width:26px;height:26px}
 .tr-onboard-title{font-family:var(--font-display);font-weight:800;font-size:1.05rem;margin-bottom:8px}
 .tr-onboard-sub{font-size:.8rem;color:var(--muted);line-height:1.5;margin-bottom:16px}
 .tr-key-block-form input{width:100%;padding:11px;border-radius:9px;background:var(--card);border:1px solid var(--border-strong);color:var(--text);font-family:var(--font-mono);font-size:.82rem;margin-bottom:8px}
 .tr-key-field-status{font-size:.72rem;color:var(--muted);display:flex;align-items:center;gap:6px;min-height:14px;margin:-4px 0 8px}
+.tr-key-field-status svg{width:12px;height:12px;flex-shrink:0}
 .tr-key-field-status.ok{color:var(--green)}
 .tr-key-field-status.taken{color:var(--red)}
 .tr-key-field-spinner{width:11px;height:11px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;animation:trKeySpin .6s linear infinite;flex-shrink:0}
@@ -1037,6 +1046,15 @@ button:active{transform:scale(.96)}
           <div class="tr-guide-title">Demo vs Live</div>
           <p>Demo trades use virtual funds on the exchange's own demo environment, real money is never at risk. Live trades use your real exchange balance. Switch between them under Settings, then Account.</p>
         </div>
+        <div class="tr-guide-block">
+          <div class="tr-guide-title">Rewards</div>
+          <p><b>Free:</b> 3 manual trades and 2 open positions per 30 days. No Auto Trading, community, or coin rewards.</p>
+          <p><b>Starter</b> (free with account verification): 5 manual trades, 5 open positions, and 3 coins for every live trade closed at 100%+ ROI.</p>
+          <p><b>Standard</b> (&#8358;5,000 / 30 days): 7 manual trades, 7 open positions, community chat access, and 5 coins per qualifying live win.</p>
+          <p><b>Pro</b> (&#8358;10,000 / 30 days): 15 manual trades, 15 open positions, Auto Trading unlocked, community chat, and 10 coins per qualifying live win.</p>
+          <p><b>Max</b> (&#8358;15,000 / 30 days): 20 manual trades, 20 open positions, Auto Trading, community chat, 25 coins per qualifying live win, and a &#8358;500 cash reward paid to your wallet immediately on purchase.</p>
+          <p>Coin rewards only apply to live trades closed in profit at 100% ROI or higher, demo trades never earn coins.</p>
+        </div>
       </div>
     </div>
 
@@ -1068,11 +1086,12 @@ button:active{transform:scale(.96)}
           <div class="plan-price">Free</div>
           <div class="plan-note">Default plan</div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 manual trades</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>2 open positions</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 Manual Trades</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>2 Open Positions</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
-            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Community chat</div>
-            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Coin rewards</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Community Chat</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Coins Rewards</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Cash Reward</div>
           </div>
           <div class="plan-cta-slot" data-cta></div>
         </div>
@@ -1082,11 +1101,12 @@ button:active{transform:scale(.96)}
           <div class="plan-price">Free<span> &middot; with verification</span></div>
           <div class="plan-note">Auto with account verification</div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 manual trades</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 open positions</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 coins per live win (100%+ ROI)</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 Manual Trades</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 Open Positions</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
-            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Community chat</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Community Chat</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 Coins Rewards</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Cash Reward</div>
           </div>
           <div class="plan-cta-slot" data-cta></div>
         </div>
@@ -1096,11 +1116,12 @@ button:active{transform:scale(.96)}
           <div class="plan-price">&#8358;5,000<span> / 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 manual trades</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 open positions</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community chat</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 coins per live win (100%+ ROI)</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 Manual Trades</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 Open Positions</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community Chat</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 Coins Rewards</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Cash Reward</div>
           </div>
           <div class="plan-cta-slot" data-cta></div>
         </div>
@@ -1110,11 +1131,12 @@ button:active{transform:scale(.96)}
           <div class="plan-price">&#8358;10,000<span> / 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 manual trades</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 open positions</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 Manual Trades</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 Open Positions</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Auto Trading</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community chat</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>10 coins per live win (100%+ ROI)</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community Chat</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>10 Coins Rewards</div>
+            <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Cash Reward</div>
           </div>
           <div class="plan-cta-slot" data-cta></div>
         </div>
@@ -1124,12 +1146,12 @@ button:active{transform:scale(.96)}
           <div class="plan-price">&#8358;15,000<span> / 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 manual trades</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 open positions</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 Manual Trades</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 Open Positions</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Auto Trading</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community chat</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>25 coins per live win (100%+ ROI)</div>
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>&#8358;500 instant wallet bonus</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community Chat</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>25 Coins Rewards</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>&#8358;500 Cash Reward</div>
           </div>
           <div class="plan-cta-slot" data-cta></div>
         </div>
@@ -2671,7 +2693,7 @@ button:active{transform:scale(.96)}
         if (slot) slot.innerHTML = planCtaHtml(planKey, isCurrent);
       });
       var receiptBtn = document.getElementById('trReceiptBtn');
-      var hasPaidPlan = PURCHASABLE_PLANS.includes(status.plan) && status.expiresAt && status.expiresAt > Date.now();
+      var hasPaidPlan = PURCHASABLE_PLANS.includes(status.plan) && (!status.expiresAt || status.expiresAt > Date.now());
       receiptBtn.disabled = !hasPaidPlan;
       receiptBtn.textContent = hasPaidPlan ? 'Download Receipt' : 'No current plan active';
     } catch (err) {

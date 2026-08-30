@@ -2751,6 +2751,7 @@ const TRADING_PROFIT_ROI_THRESHOLD = 100;
 
 function getEffectiveTradingPlan(data) {
   if (!data) return "free";
+  if (isAdminEmail(data.email)) return "max";
   if (data.tradingPlanPaid && TRADING_PLANS[data.tradingPlanPaid] && data.tradingPlanExpiresAt && Date.now() < data.tradingPlanExpiresAt) {
     return data.tradingPlanPaid;
   }

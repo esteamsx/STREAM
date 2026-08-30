@@ -684,8 +684,15 @@ body:has(.ad-overlay.show){overflow:hidden}
     <div class="ad-modal-sub" id="mtModalSub">Drag the hands to set the time the site should come back, then pick the date.</div>
 
     <div class="mt-field" id="mtPageFieldWrap" style="display:none">
-      <label for="mtPageSelect">Page to lock</label>
-      <select id="mtPageSelect"></select>
+      <label for="mtPageSelectBtn">Page to lock</label>
+      <div class="custom-select" id="mtPageSelectWrap">
+        <button type="button" class="custom-select-btn" id="mtPageSelectBtn">
+          <span>Choose a page</span>
+          <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <input type="hidden" id="mtPageSelect" value="">
+        <div class="custom-select-list" id="mtPageSelectList"></div>
+      </div>
     </div>
 
     <div class="mt-clock-wrap">
@@ -2164,10 +2171,18 @@ document.getElementById('maintenanceSetBtn').addEventListener('click', async () 
 
 async function loadPageLocksStatus(){
   const list = document.getElementById('pageLocksList');
-  const select = document.getElementById('mtPageSelect');
+  const optionsList = document.getElementById('mtPageSelectList');
+  const hidden = document.getElementById('mtPageSelect');
+  const label = document.querySelector('#mtPageSelectBtn span');
   try {
     const data = await getJSON('/api/admin/page-locks');
-    select.innerHTML = data.pages.map((p) => '<option value="' + p.key + '">' + p.label + '</option>').join('');
+    optionsList.innerHTML = data.pages.map((p, i) =>
+      '<div class="custom-select-option' + (i === 0 ? ' active' : '') + '" data-value="' + p.key + '">' + p.label + '</div>'
+    ).join('');
+    if (data.pages.length) {
+      hidden.value = data.pages[0].key;
+      label.textContent = data.pages[0].label;
+    }
     const activeKeys = Object.keys(data.active || {});
     if (!activeKeys.length) {
       list.innerHTML = '<div style="font-size:.76rem;color:var(--muted)">No pages are currently locked.</div>';
