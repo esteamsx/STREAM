@@ -486,6 +486,7 @@ button:active{transform:scale(.96)}
   padding:3px 9px;border-radius:20px;background:rgba(0,224,255,.14);color:var(--accent);border:1px solid rgba(0,224,255,.3);
 }
 .tr-receipt-btn{width:100%;padding:13px;border-radius:12px;background:var(--card2);border:1px solid var(--border-strong);color:var(--muted);font-family:var(--font-display);font-weight:800;font-size:.84rem;display:flex;align-items:center;justify-content:center;gap:8px}
+.tr-receipt-btn svg{width:16px;height:16px;flex-shrink:0}
 .tr-receipt-btn:not(:disabled){background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;border:none}
 .tr-btn-spinner-dark{width:15px;height:15px;border:2px solid rgba(4,20,26,.35);border-top-color:#04141a;border-radius:50%;display:inline-block;animation:trBtnSpin .6s linear infinite}
 .tr-community-panel{max-width:360px;display:flex;flex-direction:column;height:78vh;padding-bottom:14px}
