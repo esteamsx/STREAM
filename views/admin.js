@@ -382,7 +382,7 @@ body:has(.ad-overlay.show){overflow:hidden}
 .custom-select-chevron{width:15px;height:15px;color:var(--muted);flex-shrink:0;transition:transform .2s var(--ease)}
 .custom-select.open .custom-select-chevron{transform:rotate(180deg)}
 .custom-select-list{
-  display:none;position:fixed;z-index:200;max-height:220px;overflow-y:auto;
+  display:none;position:fixed;z-index:200;max-height:220px;overflow-y:auto;overscroll-behavior:contain;
   background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(18,18,28,.72);
   backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);
   border:1px solid rgba(255,255,255,.18);border-radius:12px;

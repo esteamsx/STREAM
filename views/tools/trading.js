@@ -485,12 +485,14 @@ button:active{transform:scale(.96)}
   align-self:flex-start;font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   padding:3px 9px;border-radius:20px;background:rgba(0,224,255,.14);color:var(--accent);border:1px solid rgba(0,224,255,.3);
 }
-.tr-receipt-btn{width:100%;padding:13px;border-radius:12px;background:var(--card2);border:1px solid var(--border-strong);color:var(--muted);font-family:var(--font-display);font-weight:800;font-size:.84rem}
-.tr-receipt-btn:not(:disabled){background:linear-gradient(135deg,#FFC400,#ff8a5c);color:#1a1400;border:none}
+.tr-receipt-btn{width:100%;padding:13px;border-radius:12px;background:var(--card2);border:1px solid var(--border-strong);color:var(--muted);font-family:var(--font-display);font-weight:800;font-size:.84rem;display:flex;align-items:center;justify-content:center;gap:8px}
+.tr-receipt-btn:not(:disabled){background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;border:none}
+.tr-btn-spinner-dark{width:15px;height:15px;border:2px solid rgba(4,20,26,.35);border-top-color:#04141a;border-radius:50%;display:inline-block;animation:trBtnSpin .6s linear infinite}
 .tr-community-panel{max-width:360px;display:flex;flex-direction:column;height:78vh;padding-bottom:14px}
 .tr-community-locked{padding:30px 10px;text-align:center}
 .tr-community-locked p{font-size:.8rem;color:var(--muted);margin:0 0 16px;line-height:1.5}
-.tr-community-messages{flex:1;overflow-y:auto;padding:4px 2px;display:flex;flex-direction:column;gap:10px}
+#trCommunityChatArea{flex:1;display:flex;flex-direction:column;min-height:0}
+.tr-community-messages{flex:1;overflow-y:auto;padding:4px 2px;display:flex;flex-direction:column;gap:10px;min-height:0}
 .tr-community-msg{max-width:78%;padding:9px 12px;border-radius:14px;background:var(--card2);font-size:.8rem;line-height:1.4}
 .tr-community-msg.own{align-self:flex-end;background:linear-gradient(135deg,#22d1ee,#7c6bff);color:#04141a}
 .tr-community-msg-name{font-size:.66rem;font-weight:700;color:var(--accent);margin-bottom:3px}
@@ -2695,7 +2697,9 @@ button:active{transform:scale(.96)}
       var receiptBtn = document.getElementById('trReceiptBtn');
       var hasPaidPlan = PURCHASABLE_PLANS.includes(status.plan) && (!status.expiresAt || status.expiresAt > Date.now());
       receiptBtn.disabled = !hasPaidPlan;
-      receiptBtn.textContent = hasPaidPlan ? 'Download Receipt' : 'No current plan active';
+      receiptBtn.innerHTML = hasPaidPlan
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>Download Receipt'
+        : 'No current plan active';
     } catch (err) {
       document.getElementById('trPlanCurrent').textContent = 'Could not load your plan.';
     }
@@ -2752,9 +2756,19 @@ button:active{transform:scale(.96)}
     }
   }
 
-  document.getElementById('trReceiptBtn').addEventListener('click', function(){
-    if (this.disabled || !latestPlanStatus) return;
-    drawTradingReceiptCanvas(latestPlanStatus);
+  document.getElementById('trReceiptBtn').addEventListener('click', async function(){
+    var btn = this;
+    if (btn.disabled || !latestPlanStatus) return;
+    var originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="tr-btn-spinner-dark"></span>Preparing...';
+    try {
+      await drawTradingReceiptCanvas(latestPlanStatus);
+    } catch (err) {
+      toast('Could not generate receipt image.');
+    }
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
   });
 
   function trRoundRect(ctx, x, y, w, h, r){
