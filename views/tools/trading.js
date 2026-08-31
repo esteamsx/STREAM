@@ -492,8 +492,9 @@ button:active{transform:scale(.96)}
 .tr-community-panel{max-width:360px;display:flex;flex-direction:column;height:78vh;padding-bottom:14px}
 .tr-community-locked{padding:30px 10px;text-align:center}
 .tr-community-locked p{font-size:.8rem;color:var(--muted);margin:0 0 16px;line-height:1.5}
-#trCommunityChatArea{flex:1;display:flex;flex-direction:column;min-height:0}
-.tr-community-messages{flex:1;overflow-y:auto;padding:4px 2px;display:flex;flex-direction:column;gap:10px;min-height:0}
+#trCommunityChatArea{display:none;flex:1;flex-direction:column;min-height:0}
+#trCommunityChatArea.show{display:flex}
+.tr-community-messages{flex:1;overflow-y:auto;padding:4px 2px;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;min-height:0}
 .tr-community-msg{max-width:78%;padding:9px 12px;border-radius:14px;background:var(--card2);font-size:.8rem;line-height:1.4}
 .tr-community-msg.own{align-self:flex-end;background:linear-gradient(135deg,#22d1ee,#7c6bff);color:#04141a}
 .tr-community-msg-name{font-size:.66rem;font-weight:700;color:var(--accent);margin-bottom:3px}
@@ -1195,7 +1196,7 @@ button:active{transform:scale(.96)}
       <p>The community chat is a Standard plan and above feature.</p>
       <button type="button" class="plan-cta" id="trCommunityUpgradeBtn">See Plans</button>
     </div>
-    <div id="trCommunityChatArea" style="display:none">
+    <div id="trCommunityChatArea">
       <div class="tr-community-messages" id="trCommunityMessages"></div>
       <div class="tr-community-input-row">
         <button type="button" class="tr-community-photo-btn" id="trCommunityPhotoBtn" aria-label="Attach photo">
@@ -2936,13 +2937,13 @@ button:active{transform:scale(.96)}
       var data = await getJSON('/api/community/messages');
       communityHasAccess = true;
       document.getElementById('trCommunityLocked').style.display = 'none';
-      document.getElementById('trCommunityChatArea').style.display = 'block';
+      document.getElementById('trCommunityChatArea').classList.add('show');
       renderCommunityMessages(data.messages || [], data.myUid);
       if (!communityPollTimer) communityPollTimer = setInterval(loadCommunityMessages, 4000);
     } catch (err) {
       communityHasAccess = false;
       document.getElementById('trCommunityLocked').style.display = 'block';
-      document.getElementById('trCommunityChatArea').style.display = 'none';
+      document.getElementById('trCommunityChatArea').classList.remove('show');
       if (communityPollTimer) { clearInterval(communityPollTimer); communityPollTimer = null; }
     }
   }
