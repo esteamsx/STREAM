@@ -415,14 +415,26 @@ function tradingDemo(req) {
   return String(req.query?.demo || req.body?.demo || "") === "1" || req.body?.demo === true;
 }
 async function getTradingCreds(req) {
+  const exchange = String(req.query?.exchange || req.body?.exchange || "bybit").toLowerCase() === "weex" ? "weex" : "bybit";
+  const mode = tradingDemo(req) ? "demo" : "live";
+
+  let creds = null;
   try {
-    const exchange = String(req.query?.exchange || req.body?.exchange || "bybit").toLowerCase() === "weex" ? "weex" : "bybit";
-    const mode = tradingDemo(req) ? "demo" : "live";
-    const creds = await getDecryptedTradingCredentials(req.uid, exchange, mode);
-    return creds || undefined;
+    creds = await getDecryptedTradingCredentials(req.uid, exchange, mode);
   } catch (err) {
+    creds = null;
+  }
+  if (creds) return creds;
+
+  const profile = await getUserProfile(req.uid).catch(() => null);
+  if (profile && isAdminEmail(profile.email)) {
     return undefined;
   }
+
+  throw Object.assign(
+    new Error("Connect your own " + (exchange === "weex" ? "WEEX" : "Bybit") + " API keys in Settings, then API Keys, before trading."),
+    { status: 400 }
+  );
 }
 const channelReactLimiter = new SimpleRateLimiter(
   10,
