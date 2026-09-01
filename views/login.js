@@ -743,6 +743,18 @@ async function postJSON(url, body){
   return data;
 }
 
+async function firebaseSignInResilient({ direct, relay, label }){
+  try {
+    const cred = await withRetry(() => withTimeout(direct(), label));
+    return await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+  } catch (err) {
+    if (!isRetryableAuthError(err)) throw err;
+    console.warn('[' + label + '] direct sign-in failed, retrying via server relay:', err.message);
+    const { idToken } = await postJSON('/api/session/exchange', relay);
+    return idToken;
+  }
+}
+
 function postSignInTarget(){
   try{
     var next = new URLSearchParams(window.location.search).get('next');
@@ -918,16 +930,18 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   try {
     const { email } = await postJSON('/api/resolve-login-identifier', { identifier });
     stage = 'firebase-sign-in';
-    const cred = await withRetry(() => withTimeout(signInWithEmailAndPassword(fbAuth, email, password), 'Firebase sign-in'));
-    stage = 'get-id-token';
-    const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+    const idToken = await firebaseSignInResilient({
+      direct: () => signInWithEmailAndPassword(fbAuth, email, password),
+      relay: { type: 'password', email, password },
+      label: 'Firebase sign-in',
+    });
     stage = 'establish-session';
     await establishSession(idToken, remember, loginCaptchaValue);
   } catch (err) {
     console.error('[password-signin] failed at stage "' + stage + '":', err);
     btn.disabled = false;
     btn.textContent = 'Sign In';
-    const msg = err.code === 'auth/user-disabled' 
+    const msg = err.code === 'auth/user-disabled' || err.message.includes('user-disabled')
       ? 'This account has been recently deactivated.'
       : err.message.includes('invalid-credential') || err.message.includes('wrong-password') || err.message.includes('user-not-found')
       ? 'Incorrect email or password.' : err.message;
@@ -965,8 +979,11 @@ document.getElementById('signupForm').addEventListener('submit', async (e) => {
       btn.textContent = 'Create Account';
       return;
     }
-    const cred = await signInWithCustomToken(fbAuth, customToken);
-    const idToken = await cred.user.getIdToken();
+    const idToken = await firebaseSignInResilient({
+      direct: () => signInWithCustomToken(fbAuth, customToken),
+      relay: { type: 'customToken', customToken },
+      label: 'Firebase sign-in',
+    });
     await postJSON('/api/session', { idToken, remember: true });
     window.location.href = postSignInTarget();
   } catch (err) {
@@ -986,9 +1003,11 @@ if (${JSON.stringify(!!cfg.googleClientId)}) {
     try {
       const credential = GoogleAuthProvider.credential(response.credential);
       stage = 'firebase-sign-in';
-      const cred = await withRetry(() => withTimeout(signInWithCredential(fbAuth, credential), 'Firebase sign-in'));
-      stage = 'get-id-token';
-      const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+      const idToken = await firebaseSignInResilient({
+        direct: () => signInWithCredential(fbAuth, credential),
+        relay: { type: 'googleCredential', googleCredential: response.credential },
+        label: 'Firebase sign-in',
+      });
       stage = 'establish-session';
       await establishSession(idToken, true);
     } catch (err) {
@@ -1054,9 +1073,11 @@ document.getElementById('ghSquareBtn').addEventListener('click', signInWithGithu
     overlay.classList.add('show');
     let stage = 'firebase-sign-in';
     try {
-      const cred = await withRetry(() => withTimeout(signInWithCustomToken(fbAuth, tgToken), 'Firebase sign-in'));
-      stage = 'get-id-token';
-      const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+      const idToken = await firebaseSignInResilient({
+        direct: () => signInWithCustomToken(fbAuth, tgToken),
+        relay: { type: 'customToken', customToken: tgToken },
+        label: 'Firebase sign-in',
+      });
       stage = 'establish-session';
       await establishSession(idToken, true);
     } catch (err) {
@@ -1088,9 +1109,11 @@ document.getElementById('ghSquareBtn').addEventListener('click', signInWithGithu
     overlay.classList.add('show');
     let stage = 'firebase-sign-in';
     try {
-      const cred = await withRetry(() => withTimeout(signInWithCustomToken(fbAuth, ghToken), 'Firebase sign-in'));
-      stage = 'get-id-token';
-      const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+      const idToken = await firebaseSignInResilient({
+        direct: () => signInWithCustomToken(fbAuth, ghToken),
+        relay: { type: 'customToken', customToken: ghToken },
+        label: 'Firebase sign-in',
+      });
       stage = 'establish-session';
       await establishSession(idToken, true);
     } catch (err) {
@@ -1165,9 +1188,11 @@ async function signInWithPasskey(){
     const { customToken } = await postJSON('/api/passkey/authentication-verify', { token, ...response });
 
     stage = 'firebase-sign-in';
-    const cred = await withRetry(() => withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in'));
-    stage = 'get-id-token';
-    const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+    const idToken = await firebaseSignInResilient({
+      direct: () => signInWithCustomToken(fbAuth, customToken),
+      relay: { type: 'customToken', customToken },
+      label: 'Firebase sign-in',
+    });
     stage = 'establish-session';
     await establishSession(idToken, true);
   } catch (err) {
@@ -1225,11 +1250,12 @@ async function signInWithFaceId(){
     overlay.classList.add('show');
 
     stage = 'firebase-sign-in';
-    const cred = await withRetry(() => withTimeout(signInWithCustomToken(fbAuth, customToken), 'Firebase sign-in'));
+    const idToken = await firebaseSignInResilient({
+      direct: () => signInWithCustomToken(fbAuth, customToken),
+      relay: { type: 'customToken', customToken },
+      label: 'Firebase sign-in',
+    });
     lap('firebase sign-in done');
-    stage = 'get-id-token';
-    const idToken = await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
-    lap('got id token');
     stage = 'establish-session';
     await establishSession(idToken, true);
     lap('session established, fully logged in');

@@ -323,7 +323,7 @@ import {
 } from "./middleware/security-middleware.js";
 import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
 import { canonicalPath, pageGuards } from "./middleware/navigation.js";
-import { WEB_MANIFEST, siteHeadFor } from "./config/site.js";
+import { WEB_MANIFEST, siteHeadFor, siteOrigin } from "./config/site.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -389,6 +389,7 @@ app.use(canonicalPath);
 
 const signupLimiter = new DurableRateLimiter(8, 15 * 60 * 1000, undefined, undefined, { bucket: "signup", getDb: () => db }).middleware();
 const passwordLoginLimiter = new DurableRateLimiter(10, 15 * 60 * 1000, undefined, undefined, { bucket: "login", getDb: () => db }).middleware();
+const authExchangeLimiter = new DurableRateLimiter(15, 15 * 60 * 1000, undefined, undefined, { bucket: "authexchange", getDb: () => db }).middleware();
 const twoFactorLoginLimiter = new DurableRateLimiter(10, 15 * 60 * 1000, undefined, undefined, { bucket: "twofactor", getDb: () => db }).middleware();
 const passkeyOptionsLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware();
 const passkeyVerifyLimiter = new DurableRateLimiter(10, 15 * 60 * 1000, undefined, undefined, { bucket: "passkey", getDb: () => db }).middleware();
@@ -5570,6 +5571,71 @@ app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, re
     }
     console.error("[/api/session] failed:", err);
     res.status(401).json({ error: "Could not sign in." });
+  }
+});
+
+app.post("/api/session/exchange", requireSiteOrigin, authExchangeLimiter, async (req, res) => {
+  try {
+    const apiKey = process.env.FIREBASE_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "Sign-in relay isn't configured." });
+    }
+    const { type, customToken, googleCredential, email, password } = req.body || {};
+
+    let endpoint, payload;
+    if (type === "customToken") {
+      if (!customToken || typeof customToken !== "string") {
+        return res.status(400).json({ error: "Missing token." });
+      }
+      endpoint = "signInWithCustomToken";
+      payload = { token: customToken, returnSecureToken: true };
+    } else if (type === "googleCredential") {
+      if (!googleCredential || typeof googleCredential !== "string") {
+        return res.status(400).json({ error: "Missing credential." });
+      }
+      endpoint = "signInWithIdp";
+      payload = {
+        postBody: `id_token=${encodeURIComponent(googleCredential)}&providerId=google.com`,
+        requestUri: `${siteOrigin()}/login`,
+        returnSecureToken: true,
+      };
+    } else if (type === "password") {
+      if (!email || typeof email !== "string" || !password || typeof password !== "string") {
+        return res.status(400).json({ error: "Missing email or password." });
+      }
+      endpoint = "signInWithPassword";
+      payload = { email, password, returnSecureToken: true };
+    } else {
+      return res.status(400).json({ error: "Unsupported exchange type." });
+    }
+
+    const upstream = await withDeadline(
+      fetch(`https://identitytoolkit.googleapis.com/v1/accounts:${endpoint}?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+      "identitytoolkit." + endpoint,
+      15000
+    );
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok || !data.idToken) {
+      const code = data?.error?.message || "";
+      if (type === "password" && /INVALID_PASSWORD|EMAIL_NOT_FOUND|INVALID_LOGIN_CREDENTIALS/.test(code)) {
+        return res.status(400).json({ error: "auth/invalid-credential" });
+      }
+      if (type === "password" && /USER_DISABLED/.test(code)) {
+        return res.status(400).json({ error: "auth/user-disabled" });
+      }
+      return res.status(400).json({ error: code || "Could not complete sign-in." });
+    }
+    res.json({ idToken: data.idToken });
+  } catch (err) {
+    if (err instanceof AuthOpTimeout) {
+      return res.status(503).json({ error: "Sign-in relay is temporarily unavailable. Please try again shortly." });
+    }
+    console.error("[/api/session/exchange] failed:", err);
+    res.status(502).json({ error: "Sign-in relay is temporarily unavailable. Please try again shortly." });
   }
 });
 
