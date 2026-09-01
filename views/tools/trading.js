@@ -1235,6 +1235,7 @@ button:active{transform:scale(.96)}
   var symbol = 'BTCUSDT';
   var allSymbols = [];
   var instrumentInfo = null;
+  var lastAvailableRaw = 0;
   var tvWidget = null;
   var positionsTimer = null;
   var dataGen = 0;
@@ -1478,6 +1479,7 @@ button:active{transform:scale(.96)}
       var equityEl = document.getElementById('trEquity');
       var availEl = document.getElementById('trAvailable');
       equityEl.textContent = data.equity != null ? '$' + data.equity.toFixed(2) : '--';
+      lastAvailableRaw = data.available != null ? data.available : 0;
       availEl.textContent = data.available != null ? data.available.toFixed(2) : '--';
       updateEstMargin();
     } catch (err) {
@@ -1858,10 +1860,11 @@ button:active{transform:scale(.96)}
     });
   });
   function applySizePct(pct){
-    var available = Number((document.getElementById('trAvailable').textContent || '0').replace(/,/g, '')) || 0;
+    var available = lastAvailableRaw || 0;
     var lev = currentLeverage();
     if (!lastPrice || !available || !lev) { updateEstMargin(); return; }
-    var marginToUse = (available * pct) / 100;
+    var safeAvailable = available * 0.99;
+    var marginToUse = (safeAvailable * pct) / 100;
     var notional = marginToUse * lev;
     var qty = notional / lastPrice;
     if (instrumentInfo && instrumentInfo.qtyStep) {
@@ -2299,6 +2302,7 @@ button:active{transform:scale(.96)}
     firstPrice = null;
     instrumentInfo = null;
     positions = [];
+    lastAvailableRaw = 0;
     renderPositions();
     document.getElementById('trEquity').textContent = '--';
     document.getElementById('trAvailable').textContent = '--';

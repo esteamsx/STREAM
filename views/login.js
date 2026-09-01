@@ -760,9 +760,6 @@ async function firebaseSignInResilient({ direct, relay, label }){
     return idToken;
   }
 
-  // We already have an authenticated Firebase user at this point — only the
-  // token fetch is slow/stalled. Retry that locally a couple of times
-  // instead of re-authenticating from scratch through the relay.
   try {
     return await withRetry(
       () => withTimeout(cred.user.getIdToken(), 'Fetching ID token', DIRECT_SIGNIN_TIMEOUT_MS),
