@@ -743,10 +743,12 @@ async function postJSON(url, body){
   return data;
 }
 
+const DIRECT_SIGNIN_TIMEOUT_MS = 6000;
+
 async function firebaseSignInResilient({ direct, relay, label }){
   try {
-    const cred = await withRetry(() => withTimeout(direct(), label));
-    return await withTimeout(cred.user.getIdToken(), 'Fetching ID token');
+    const cred = await withTimeout(direct(), label, DIRECT_SIGNIN_TIMEOUT_MS);
+    return await withTimeout(cred.user.getIdToken(), 'Fetching ID token', DIRECT_SIGNIN_TIMEOUT_MS);
   } catch (err) {
     if (!isRetryableAuthError(err)) throw err;
     console.warn('[' + label + '] direct sign-in failed, retrying via server relay:', err.message);

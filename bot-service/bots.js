@@ -426,6 +426,31 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   });
   entry.proc = proc;
 
+  const scheduleAutoRepairRestart = () => {
+    if (entry.repairRestartScheduled) return;
+    entry.repairRestartScheduled = true;
+    const attempts = (crashRestartCounts.get(botId) || 0) + 1;
+    crashRestartCounts.set(botId, attempts);
+    if (attempts > MAX_AUTO_RESTARTS) {
+      ref.update({ lastError: `Needed repair ${attempts} times in a row, stopped auto-restarting. Restart manually once it's fixed.` }).catch(() => {});
+      return;
+    }
+    pushLog(entry, "Auto-restarting to clear the repair state…");
+    if (entry.proc && entry.proc.exitCode === null && entry.proc.signalCode === null) {
+      entry.proc.kill("SIGTERM");
+    }
+    entry.exited.then(() => {
+      setTimeout(() => {
+        db.collection("botDeployments").doc(botId).get().then((freshSnap) => {
+          if (!freshSnap.exists) return;
+          const d = freshSnap.data();
+          if (running.has(botId)) return;
+          runDeployment(botId, d.uid, d.phoneNumber, { isRestore: true }).catch(() => {});
+        }).catch(() => {});
+      }, AUTO_RESTART_DELAY_MS);
+    });
+  };
+
   const onOutput = (buf, type) => {
     const clean = stripAnsi(buf.toString());
     clean.split(/\r?\n/).filter(Boolean).forEach((line) => {
@@ -458,6 +483,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         entry.deleteSessionCount = (entry.deleteSessionCount || 0) + 1;
         if (entry.deleteSessionCount >= 3) {
           setStatus("needs_repair", { lastError: "Session invalid, restart to get a new pairing code." });
+          scheduleAutoRepairRestart();
         }
         return;
       }
@@ -465,6 +491,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         entry.badMacCount = (entry.badMacCount || 0) + 1;
         if (entry.badMacCount >= 3) {
           setStatus("needs_repair", { lastError: "Session out of sync with WhatsApp (messages failing to decrypt), restart to get a new pairing code." });
+          scheduleAutoRepairRestart();
         }
         return;
       }

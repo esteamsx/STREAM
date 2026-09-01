@@ -172,6 +172,12 @@ button{font-family:inherit}
 .tr-auto-card{background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);border:1px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);border-radius:16px;padding:16px;margin-bottom:14px}
 .tr-auto-card-title{font-family:var(--font-display);font-weight:800;font-size:.94rem;margin-bottom:6px;display:flex;align-items:center;gap:8px}
 .tr-auto-admin-tag{font-size:.6rem;font-weight:800;letter-spacing:.06em;color:#FFC400;background:rgba(255,196,0,.14);border:1px solid rgba(255,196,0,.35);border-radius:6px;padding:2px 6px}
+.tr-admin-locked{position:relative}
+.tr-admin-locked .tr-admin-blur-content{filter:blur(6px);pointer-events:none;user-select:none}
+.tr-admin-lock-overlay{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(10,10,15,.6);border-radius:16px;z-index:2;text-align:center;padding:16px}
+.tr-admin-locked .tr-admin-lock-overlay{display:flex}
+.tr-admin-lock-overlay svg{width:26px;height:26px;color:var(--text)}
+.tr-admin-lock-overlay span{font-size:.78rem;font-weight:800;letter-spacing:.05em;color:var(--text)}
 .tr-auto-help{font-size:.74rem;color:var(--muted);line-height:1.5;margin:0 0 14px}
 .tr-bulk-start-btn{width:100%;padding:14px;border-radius:12px;background:linear-gradient(135deg,#ff5c7a,#ff8a5c);border:none;color:#1a0508;font-family:var(--font-display);font-weight:800;font-size:.92rem;margin-top:6px}
 .tr-bulk-result{margin-top:12px;font-size:.76rem;color:var(--muted);background:var(--card2);border-radius:10px;padding:10px;line-height:1.6;max-height:180px;overflow-y:auto}
@@ -640,22 +646,28 @@ button:active{transform:scale(.96)}
 <div class="tr-view-panel" id="trViewAuto">
 
 <div class="tr-wrap">
-  <div class="tr-auto-card">
+  <div class="tr-auto-card tr-admin-locked" id="trBulkCard">
     <div class="tr-auto-card-title">Bulk Operation <span class="tr-auto-admin-tag">Admin</span></div>
-    <p class="tr-auto-help">Opens a position for every user who has enabled Auto Trading and saved their own API keys, sized by each user's own USDT-per-trade setting.</p>
-    <div class="tr-order-field"><label>Pair</label><input type="text" id="trBulkSymbol" placeholder="e.g. BTCUSDT" autocomplete="off"></div>
-    <div class="tr-order-row">
-      <div class="tr-order-field"><label>Leverage</label><input type="number" id="trBulkLeverage" min="1" max="125" value="10"></div>
-      <div class="tr-order-field">
-        <label>Position</label>
-        <button type="button" class="tr-select-btn" id="trBulkSideBtn" data-value="Buy">
-          <span id="trBulkSideLabel">Long</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
-        </button>
+    <div class="tr-admin-blur-content">
+      <p class="tr-auto-help">Opens a position for every user who has enabled Auto Trading and saved their own API keys, sized by each user's own USDT-per-trade setting.</p>
+      <div class="tr-order-field"><label>Pair</label><input type="text" id="trBulkSymbol" placeholder="e.g. BTCUSDT" autocomplete="off"></div>
+      <div class="tr-order-row">
+        <div class="tr-order-field"><label>Leverage</label><input type="number" id="trBulkLeverage" min="1" max="125" value="10"></div>
+        <div class="tr-order-field">
+          <label>Position</label>
+          <button type="button" class="tr-select-btn" id="trBulkSideBtn" data-value="Buy">
+            <span id="trBulkSideLabel">Long</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
       </div>
+      <button type="button" class="tr-bulk-start-btn" id="trBulkStartBtn">Bulk Start</button>
+      <div class="tr-bulk-result" id="trBulkResult" style="display:none"></div>
     </div>
-    <button type="button" class="tr-bulk-start-btn" id="trBulkStartBtn">Bulk Start</button>
-    <div class="tr-bulk-result" id="trBulkResult" style="display:none"></div>
+    <div class="tr-admin-lock-overlay">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 018 0v4"/></svg>
+      <span>Admin Only</span>
+    </div>
   </div>
 
   <div class="tr-auto-card" id="trAutoSettingsCard" style="position:relative">
@@ -1579,7 +1591,7 @@ button:active{transform:scale(.96)}
     okBtn.className = 'tr-confirm-ok ' + (pos.side === 'Buy' ? 'short' : 'long');
     okBtn.textContent = 'Close Position';
     okBtn.onclick = async function(){
-      okBtn.disabled = true;
+      setBtnLoading(okBtn, 'Closing...');
       try {
         await postJSON('/api/tools/trading/close', { category: CATEGORY, symbol: sym, percent: 100 });
         toast('Position closed.');
@@ -1588,7 +1600,7 @@ button:active{transform:scale(.96)}
       } catch (err) {
         toast(err.message || 'Could not close position.');
       } finally {
-        okBtn.disabled = false;
+        clearBtnLoading(okBtn);
       }
     };
     document.getElementById('trConfirmOverlay').classList.add('show');
@@ -1605,7 +1617,7 @@ button:active{transform:scale(.96)}
     okBtn.className = 'tr-confirm-ok short';
     okBtn.textContent = 'Close All';
     okBtn.onclick = async function(){
-      okBtn.disabled = true;
+      setBtnLoading(okBtn, 'Closing...');
       var syms = positions.map(function(p){ return p.symbol; });
       var failed = 0;
       for (var i = 0; i < syms.length; i++) {
@@ -1618,7 +1630,7 @@ button:active{transform:scale(.96)}
       toast(failed ? ('Closed ' + (syms.length - failed) + ' of ' + syms.length + '.') : 'All positions closed.');
       closeConfirmOverlay();
       pollPositions();
-      okBtn.disabled = false;
+      clearBtnLoading(okBtn);
     };
     document.getElementById('trConfirmOverlay').classList.add('show');
   }
@@ -1704,7 +1716,7 @@ button:active{transform:scale(.96)}
       var tp = document.getElementById('trEditTpInput').value;
       var sl = document.getElementById('trEditSlInput').value;
       var btn = document.getElementById('trTpslSaveBtn');
-      btn.disabled = true;
+      setBtnLoading(btn, 'Saving...');
       try {
         await postJSON('/api/tools/trading/tpsl', { category: CATEGORY, symbol: sym, takeProfit: tp, stopLoss: sl });
         toast('TP/SL updated.');
@@ -1713,7 +1725,7 @@ button:active{transform:scale(.96)}
       } catch (err) {
         toast(err.message || 'Could not update TP/SL.');
       } finally {
-        btn.disabled = false;
+        clearBtnLoading(btn);
       }
     };
   }
@@ -1885,7 +1897,7 @@ button:active{transform:scale(.96)}
     okBtn.className = 'tr-confirm-ok ' + (side === 'Buy' ? 'long' : 'short');
     okBtn.textContent = side === 'Buy' ? 'Confirm Long' : 'Confirm Short';
     okBtn.onclick = async function(){
-      okBtn.disabled = true;
+      setBtnLoading(okBtn, 'Placing...');
       try {
         await postJSON('/api/tools/trading/order', { category: CATEGORY, symbol: symbol, side: side, qty: qty, leverage: lev, orderType: orderType, price: limitPrice, marginMode: MARGIN_MODE });
         if (tp || sl) {
@@ -1901,7 +1913,7 @@ button:active{transform:scale(.96)}
       } catch (err) {
         toast(err.message || 'Could not place order.');
       } finally {
-        okBtn.disabled = false;
+        clearBtnLoading(okBtn);
       }
     };
     document.getElementById('trConfirmOverlay').classList.add('show');
@@ -2445,6 +2457,8 @@ button:active{transform:scale(.96)}
       document.getElementById('trAutoExchangeLabel').textContent = autoExchangeValue === 'weex' ? 'WEEX' : 'Bybit';
       document.getElementById('trAutoModeLabel').textContent = autoModeValue === 'live' ? 'Live' : 'Demo';
       document.getElementById('trAutoUsdt').value = auto.usdtPerTrade || 10;
+      var bulkCard = document.getElementById('trBulkCard');
+      if (bulkCard) bulkCard.classList.toggle('tr-admin-locked', !status.isAdmin);
     } catch (err) {}
   }
 

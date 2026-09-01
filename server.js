@@ -4382,6 +4382,7 @@ app.get("/api/tools/trading/closed-pnl", requireAuth, async (req, res) => {
 app.get("/api/tools/trading/keys/status", requireAuth, async (req, res) => {
   try {
     const status = await getTradingCredentialsStatus(req.uid);
+    status.isAdmin = isAdminEmail(req.userProfile?.email);
     res.json(status);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load API key status." });
