@@ -694,7 +694,11 @@ const NET_TIMEOUT_MS = 45000;
 function withTimeout(promise, label, ms = NET_TIMEOUT_MS){
   let timer;
   const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(label + ' timed out after ' + Math.round(ms / 1000) + 's.')), ms);
+    timer = setTimeout(() => {
+      const e = new Error(label + ' timed out after ' + Math.round(ms / 1000) + 's.');
+      e.code = 'auth/timeout';
+      reject(e);
+    }, ms);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
@@ -702,7 +706,7 @@ function withTimeout(promise, label, ms = NET_TIMEOUT_MS){
 function isRetryableAuthError(err){
   const code = err && err.code;
   const msg = (err && err.message) || '';
-  return code === 'auth/network-request-failed' || code === 'auth/timeout' || /network/i.test(msg);
+  return code === 'auth/network-request-failed' || code === 'auth/timeout' || /network|timed out/i.test(msg);
 }
 
 async function withRetry(fn, attempts = 3, delayMs = 1200){
@@ -746,12 +750,28 @@ async function postJSON(url, body){
 const DIRECT_SIGNIN_TIMEOUT_MS = 6000;
 
 async function firebaseSignInResilient({ direct, relay, label }){
+  let cred;
   try {
-    const cred = await withTimeout(direct(), label, DIRECT_SIGNIN_TIMEOUT_MS);
-    return await withTimeout(cred.user.getIdToken(), 'Fetching ID token', DIRECT_SIGNIN_TIMEOUT_MS);
+    cred = await withTimeout(direct(), label, DIRECT_SIGNIN_TIMEOUT_MS);
   } catch (err) {
     if (!isRetryableAuthError(err)) throw err;
     console.warn('[' + label + '] direct sign-in failed, retrying via server relay:', err.message);
+    const { idToken } = await postJSON('/api/session/exchange', relay);
+    return idToken;
+  }
+
+  // We already have an authenticated Firebase user at this point — only the
+  // token fetch is slow/stalled. Retry that locally a couple of times
+  // instead of re-authenticating from scratch through the relay.
+  try {
+    return await withRetry(
+      () => withTimeout(cred.user.getIdToken(), 'Fetching ID token', DIRECT_SIGNIN_TIMEOUT_MS),
+      3,
+      800
+    );
+  } catch (err) {
+    if (!isRetryableAuthError(err)) throw err;
+    console.warn('[' + label + '] local token fetch failed, retrying via server relay:', err.message);
     const { idToken } = await postJSON('/api/session/exchange', relay);
     return idToken;
   }
