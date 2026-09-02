@@ -437,6 +437,43 @@ async function getTradingCreds(req) {
     { status: 400 }
   );
 }
+
+const BULK_GROUPS_COLLECTION = "bulkPositionGroups";
+function bulkGroupId(category, symbol) {
+  return `${category}_${symbol}`;
+}
+async function getActiveBulkGroup(category, symbol) {
+  const snap = await db.collection(BULK_GROUPS_COLLECTION).doc(bulkGroupId(category, symbol)).get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  return data.active ? { id: snap.id, ...data } : null;
+}
+async function saveBulkGroup({ category, symbol, side, leverage, createdBy, participants }) {
+  await db.collection(BULK_GROUPS_COLLECTION).doc(bulkGroupId(category, symbol)).set({
+    category, symbol, side, leverage, createdBy, participants, active: true, updatedAt: Date.now(),
+  });
+}
+// Cascades a close/TP-SL action from the admin who started a bulk operation to
+// every other participant's own account, using each participant's own saved
+// API keys. Only the admin who created the group can trigger this - a regular
+// participant closing/editing their own position never cascades to others.
+async function cascadeBulkAction({ category, symbol, adminUid, perParticipant, deactivateAfter }) {
+  const group = await getActiveBulkGroup(category, symbol);
+  if (!group || group.createdBy !== adminUid) return 0;
+  const others = (group.participants || []).filter((p) => p.uid !== adminUid);
+  let succeeded = 0;
+  await Promise.allSettled(others.map(async (p) => {
+    const creds = await getDecryptedTradingCredentials(p.uid, p.exchange, p.mode).catch(() => null);
+    if (!creds) return;
+    const service = p.exchange === "weex" ? weexReadonly : bybitReadonly;
+    await perParticipant(service, creds, p);
+    succeeded++;
+  }));
+  if (deactivateAfter) {
+    await db.collection(BULK_GROUPS_COLLECTION).doc(group.id).update({ active: false, closedAt: Date.now() }).catch(() => {});
+  }
+  return succeeded;
+}
 const channelReactLimiter = new SimpleRateLimiter(
   10,
   10 * 60 * 1000,
@@ -4221,6 +4258,16 @@ app.get("/api/tools/trading/position", requireAuth, async (req, res) => {
     const symbol = String(req.query.symbol || "BTCUSDT").toUpperCase();
     const creds = await getTradingCreds(req);
     const result = await tradingService(req).getLivePosition(category, symbol, tradingDemo(req), creds);
+    if (result.hasPosition) {
+      try {
+        const group = await getActiveBulkGroup(category, symbol);
+        const isParticipant = !!group && (group.participants || []).some((p) => p.uid === req.uid);
+        if (isParticipant) {
+          result.isBulk = true;
+          result.bulkIsAdmin = group.createdBy === req.uid;
+        }
+      } catch (err) {}
+    }
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load your position." });
@@ -4232,6 +4279,18 @@ app.get("/api/tools/trading/positions", requireAuth, async (req, res) => {
     const category = String(req.query.category || "linear");
     const creds = await getTradingCreds(req);
     const result = await tradingService(req).getAllPositions(category, tradingDemo(req), creds);
+    if (Array.isArray(result.positions) && result.positions.length) {
+      await Promise.all(result.positions.map(async (pos) => {
+        try {
+          const group = await getActiveBulkGroup(category, pos.symbol);
+          const isParticipant = !!group && (group.participants || []).some((p) => p.uid === req.uid);
+          if (isParticipant) {
+            pos.isBulk = true;
+            pos.bulkIsAdmin = group.createdBy === req.uid;
+          }
+        } catch (err) {}
+      }));
+    }
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load your positions." });
@@ -4337,7 +4396,15 @@ app.post("/api/tools/trading/close", requireAuth, tradingOrderLimiter, async (re
     if (roiSnapshot != null && (!percent || percent >= 100)) {
       creditTradingProfitCoins(req.uid, roiSnapshot, demo).catch(() => {});
     }
-    res.json({ ok: true, order: result });
+    let bulkClosed = 0;
+    try {
+      bulkClosed = await cascadeBulkAction({
+        category, symbol, adminUid: req.uid,
+        perParticipant: (service, override, p) => service.closePosition(category, symbol, percent, p.mode === "demo", override),
+        deactivateAfter: !percent || percent >= 100,
+      });
+    } catch (err) {}
+    res.json({ ok: true, order: result, bulkClosed });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not close position." });
   }
@@ -4352,7 +4419,14 @@ app.post("/api/tools/trading/tpsl", requireAuth, tradingOrderLimiter, async (req
     if (!symbol) return res.status(400).json({ error: "Symbol is required." });
     const creds = await getTradingCreds(req);
     await tradingService(req).setTradingStop(category, symbol, { takeProfit, stopLoss, demo: tradingDemo(req), override: creds });
-    res.json({ ok: true });
+    let bulkUpdated = 0;
+    try {
+      bulkUpdated = await cascadeBulkAction({
+        category, symbol, adminUid: req.uid,
+        perParticipant: (service, override, p) => service.setTradingStop(category, symbol, { takeProfit, stopLoss, demo: p.mode === "demo", override }),
+      });
+    } catch (err) {}
+    res.json({ ok: true, bulkUpdated });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not update TP/SL." });
   }
@@ -4369,6 +4443,48 @@ app.get("/api/tools/trading/symbols", requireAuth, async (req, res) => {
     res.json({ symbols });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load the symbol list." });
+  }
+});
+
+// Bulk operations can land on either exchange depending on each opted-in
+// user's own settings, so the admin can only pick a pair that's tradeable on
+// both - this returns the intersection instead of either exchange alone.
+app.get("/api/tools/trading/bulk-symbols", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const category = String(req.query.category || "linear");
+    const demo = tradingDemo(req);
+    const [bybitList, weexList] = await Promise.all([
+      bybitReadonly.getAllInstruments(category, demo).catch(() => ({ list: [] })),
+      weexReadonly.getAllInstruments(category, demo).catch(() => ({ list: [] })),
+    ]);
+    const bybitSymbols = new Set(
+      (bybitList.list || []).filter((s) => s.quoteCoin === "USDT" && s.status === "Trading").map((s) => s.symbol)
+    );
+    const weexSymbols = new Set(
+      (weexList.list || []).filter((s) => s.quoteCoin === "USDT" && s.status === "Trading").map((s) => s.symbol)
+    );
+    const symbols = [...bybitSymbols].filter((s) => weexSymbols.has(s)).sort();
+    res.json({ symbols });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load the symbol list." });
+  }
+});
+
+app.get("/api/tools/trading/bulk-instrument", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const category = String(req.query.category || "linear");
+    const symbol = String(req.query.symbol || "").toUpperCase();
+    const demo = tradingDemo(req);
+    if (!symbol) return res.status(400).json({ error: "Symbol is required." });
+    const [bybitInfo, weexInfo] = await Promise.all([
+      bybitReadonly.getInstrumentInfo(category, symbol, demo).catch(() => null),
+      weexReadonly.getInstrumentInfo(category, symbol, demo).catch(() => null),
+    ]);
+    if (!bybitInfo || !weexInfo) return res.status(502).json({ error: "This pair isn't available on both exchanges." });
+    const maxLeverage = Math.min(Number(bybitInfo.maxLeverage) || 1, Number(weexInfo.maxLeverage) || 1);
+    res.json({ maxLeverage });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not load instrument info." });
   }
 });
 
@@ -4568,6 +4684,12 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
       }
       return { uid: r.reason?.uid || traders[i].uid, ok: false, error: r.reason?.message || "Failed." };
     });
+
+    const succeededList = summary.filter((s) => s.ok).map((s) => ({ uid: s.uid, exchange: s.exchange, mode: s.mode }));
+    if (succeededList.length) {
+      await saveBulkGroup({ category, symbol, side, leverage, createdBy: req.uid, participants: succeededList }).catch(() => {});
+    }
+
     res.json({
       total: summary.length,
       succeeded: summary.filter((s) => s.ok).length,

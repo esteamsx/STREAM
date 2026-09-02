@@ -136,6 +136,7 @@ button{font-family:inherit}
 .tr-pc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .tr-pc-symbol{font-family:var(--font-display);font-weight:700;font-size:.88rem}
 .tr-pc-margin-mode{margin-left:7px;font-family:var(--font-body);font-weight:600;font-size:.64rem;color:var(--muted);background:var(--card2);border:1px solid var(--border-strong);border-radius:6px;padding:2px 6px;vertical-align:middle}
+.tr-pc-bulk-tag{margin-left:5px;font-family:var(--font-body);font-weight:700;font-size:.64rem;color:#1a0508;background:linear-gradient(135deg,#ff5c7a,#ff8a5c);border-radius:6px;padding:2px 6px;vertical-align:middle}
 .tr-pc-side{font-family:var(--font-display);font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:7px}
 .tr-pc-side.long{background:rgba(18,196,139,.15);color:var(--green)}
 .tr-pc-side.short{background:rgba(255,59,92,.15);color:var(--red)}
@@ -650,9 +651,21 @@ button:active{transform:scale(.96)}
     <div class="tr-auto-card-title">Bulk Operation <span class="tr-auto-admin-tag">Admin</span></div>
     <div class="tr-admin-blur-content">
       <p class="tr-auto-help">Opens a position for every user who has enabled Auto Trading and saved their own API keys, sized by each user's own USDT-per-trade setting.</p>
-      <div class="tr-order-field"><label>Pair</label><input type="text" id="trBulkSymbol" placeholder="e.g. BTCUSDT" autocomplete="off"></div>
+      <div class="tr-order-field">
+        <label>Pair</label>
+        <button type="button" class="tr-select-btn" id="trBulkPairBtn">
+          <span id="trBulkPairLabel">Select pair</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+        </button>
+      </div>
       <div class="tr-order-row">
-        <div class="tr-order-field"><label>Leverage</label><input type="number" id="trBulkLeverage" min="1" max="125" value="10"></div>
+        <div class="tr-order-field">
+          <label>Leverage</label>
+          <button type="button" class="tr-select-btn" id="trBulkLeverageBtn" disabled>
+            <span id="trBulkLeverageLabel">--</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
         <div class="tr-order-field">
           <label>Position</label>
           <button type="button" class="tr-select-btn" id="trBulkSideBtn" data-value="Buy">
@@ -722,6 +735,18 @@ button:active{transform:scale(.96)}
   </div>
 </div>
 
+<div class="tr-overlay" id="trBulkSearchOverlay">
+  <div class="tr-search-panel">
+    <div class="tr-search-input-row">
+      <input type="text" id="trBulkSearchInput" placeholder="Search pair, e.g. ETH" autocomplete="off">
+      <button type="button" class="tr-search-close" id="trBulkSearchCloseBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="tr-search-list" id="trBulkSearchList"></div>
+  </div>
+</div>
+
 <div class="tr-overlay tr-overlay-center" id="trLeverageOverlay">
   <div class="tr-select-panel">
     <div class="tr-select-header">Select Leverage</div>
@@ -763,6 +788,7 @@ button:active{transform:scale(.96)}
     <div class="tr-order-field"><label>Take Profit</label><input type="number" id="trEditTpInput" step="any" placeholder="Optional"></div>
     <div class="tr-order-field"><label>Stop Loss</label><input type="number" id="trEditSlInput" step="any" placeholder="Optional"></div>
     <div class="tr-tpsl-preview" id="trEditTpslPreview"></div>
+    <div class="tr-bulk-result" id="trTpslBulkNote" style="display:none;color:var(--red);margin-bottom:10px">This is a bulk position &middot; saving also updates it for every other opted-in user.</div>
     <div class="tr-confirm-actions">
       <button type="button" class="tr-confirm-cancel" id="trTpslCancelBtn">Cancel</button>
       <button type="button" class="tr-tpsl-save" id="trTpslSaveBtn" style="flex:1">Save</button>
@@ -1252,10 +1278,6 @@ button:active{transform:scale(.96)}
   var DEMO_MODE = localStorage.getItem(DEMO_KEY) === '1';
   var MARGIN_MODE_KEY = 'trMarginMode';
   var MARGIN_MODE = localStorage.getItem(MARGIN_MODE_KEY) === 'cross' ? 'cross' : 'isolated';
-  // Favorites and last-open pair are per-account, not per-browser: they're
-  // loaded from and saved to the server (see loadTradingPrefs below) so one
-  // user's saved pairs never show up under a different account on the same
-  // device/browser, which is what localStorage was doing before.
 
   function esc(s){
     return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
@@ -1445,7 +1467,7 @@ button:active{transform:scale(.96)}
       }
       return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + (positions.length === 1 ? ' single' : '') + '" data-symbol="' + esc(pos.symbol) + '">' +
         '<div class="tr-pc-head">' +
-          '<span class="tr-pc-symbol">' + esc(pos.symbol) + '<span class="tr-pc-margin-mode">' + (pos.marginMode === 'cross' ? 'Cross' : 'Isolated') + '</span></span>' +
+          '<span class="tr-pc-symbol">' + esc(pos.symbol) + '<span class="tr-pc-margin-mode">' + (pos.marginMode === 'cross' ? 'Cross' : 'Isolated') + '</span>' + (pos.isBulk ? '<span class="tr-pc-bulk-tag">Bulk</span>' : '') + '</span>' +
           '<span><span class="tr-pc-side ' + sideLower + '">' + sideLabel + '</span><span class="tr-pc-lev">' + pos.leverage + 'x</span></span>' +
         '</div>' +
         '<div class="tr-pc-pnl-row">' +
@@ -1601,15 +1623,16 @@ button:active{transform:scale(.96)}
     document.getElementById('trConfirmBody').innerHTML =
       '<div class="tr-confirm-row"><span>Symbol</span><span>' + esc(sym) + '</span></div>' +
       '<div class="tr-confirm-row"><span>Side</span><span>' + (pos.side === 'Buy' ? 'Long' : 'Short') + '</span></div>' +
-      '<div class="tr-confirm-row"><span>Size</span><span>' + pos.size + '</span></div>';
+      '<div class="tr-confirm-row"><span>Size</span><span>' + pos.size + '</span></div>' +
+      (pos.isBulk && pos.bulkIsAdmin ? '<div class="tr-confirm-row"><span colspan="2" style="color:var(--red)">This is a bulk position - closing it also closes it for every other opted-in user.</span></div>' : '');
     var okBtn = document.getElementById('trConfirmOkBtn');
     okBtn.className = 'tr-confirm-ok ' + (pos.side === 'Buy' ? 'short' : 'long');
     okBtn.textContent = 'Close Position';
     okBtn.onclick = async function(){
       setBtnLoading(okBtn, 'Closing...');
       try {
-        await postJSON('/api/tools/trading/close', { category: CATEGORY, symbol: sym, percent: 100 });
-        toast('Position closed.');
+        var result = await postJSON('/api/tools/trading/close', { category: CATEGORY, symbol: sym, percent: 100 });
+        toast(result.bulkClosed ? ('Position closed for you and ' + result.bulkClosed + ' other user(s).') : 'Position closed.');
         closeConfirmOverlay();
         pollPositions();
       } catch (err) {
@@ -1726,6 +1749,8 @@ button:active{transform:scale(.96)}
     updateEditTpslPreview(pos);
     document.getElementById('trEditTpInput').oninput = function(){ updateEditTpslPreview(pos); };
     document.getElementById('trEditSlInput').oninput = function(){ updateEditTpslPreview(pos); };
+    var bulkNote = document.getElementById('trTpslBulkNote');
+    if (bulkNote) bulkNote.style.display = (pos.isBulk && pos.bulkIsAdmin) ? 'block' : 'none';
     document.getElementById('trTpslOverlay').classList.add('show');
     document.getElementById('trTpslSaveBtn').onclick = async function(){
       var tp = document.getElementById('trEditTpInput').value;
@@ -1733,8 +1758,8 @@ button:active{transform:scale(.96)}
       var btn = document.getElementById('trTpslSaveBtn');
       setBtnLoading(btn, 'Saving...');
       try {
-        await postJSON('/api/tools/trading/tpsl', { category: CATEGORY, symbol: sym, takeProfit: tp, stopLoss: sl });
-        toast('TP/SL updated.');
+        var result = await postJSON('/api/tools/trading/tpsl', { category: CATEGORY, symbol: sym, takeProfit: tp, stopLoss: sl });
+        toast(result.bulkUpdated ? ('TP/SL updated for you and ' + result.bulkUpdated + ' other user(s).') : 'TP/SL updated.');
         document.getElementById('trTpslOverlay').classList.remove('show');
         pollPositions();
       } catch (err) {
@@ -2401,6 +2426,92 @@ button:active{transform:scale(.96)}
   var autoExchangeValue = 'bybit';
   var autoModeValue = 'demo';
   var bulkSideValue = 'Buy';
+  var bulkSymbols = null;
+  var bulkSymbol = '';
+  var bulkLeverageValue = null;
+
+  async function loadBulkSymbols(){
+    if (bulkSymbols) return bulkSymbols;
+    try {
+      var data = await getJSON('/api/tools/trading/bulk-symbols?category=' + CATEGORY);
+      bulkSymbols = data.symbols || [];
+    } catch (err) {
+      bulkSymbols = [];
+    }
+    return bulkSymbols;
+  }
+
+  function bulkSearchItemHtml(sym){
+    return '<button type="button" class="tr-search-item" data-symbol="' + esc(sym) + '"><span>' + esc(sym) + '</span></button>';
+  }
+
+  function renderBulkSearchList(filter){
+    var list = document.getElementById('trBulkSearchList');
+    var f = (filter || '').toUpperCase();
+    var pool = f ? (bulkSymbols || []).filter(function(s){ return s.indexOf(f) !== -1; }) : (bulkSymbols || []);
+    var matches = pool.slice(0, 80);
+    if (!matches.length) {
+      list.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:.82rem">No matches.</div>';
+      return;
+    }
+    list.innerHTML = matches.map(bulkSearchItemHtml).join('');
+    list.querySelectorAll('[data-symbol]').forEach(function(item){
+      item.addEventListener('click', function(){
+        selectBulkSymbol(item.getAttribute('data-symbol'));
+      });
+    });
+  }
+
+  async function selectBulkSymbol(sym){
+    bulkSymbol = sym;
+    document.getElementById('trBulkPairLabel').textContent = sym;
+    document.getElementById('trBulkSearchOverlay').classList.remove('show');
+    var leverageBtn = document.getElementById('trBulkLeverageBtn');
+    var leverageLabel = document.getElementById('trBulkLeverageLabel');
+    leverageBtn.disabled = true;
+    leverageLabel.textContent = 'Loading...';
+    bulkLeverageValue = null;
+    try {
+      var info = await getJSON('/api/tools/trading/bulk-instrument?category=' + CATEGORY + '&symbol=' + sym);
+      var maxLev = Math.max(1, Math.floor(Number(info.maxLeverage) || 1));
+      var options = [1, 2, 3, 5, 10, 15, 20, 25, 35, 50, 75, 100].filter(function(l){ return l <= maxLev; });
+      if (!options.length) options = [1];
+      if (options[options.length - 1] !== maxLev) options.push(maxLev);
+      bulkLeverageOptions = options;
+      bulkLeverageValue = options[Math.min(2, options.length - 1)];
+      leverageLabel.textContent = bulkLeverageValue + 'x';
+      leverageBtn.disabled = false;
+    } catch (err) {
+      leverageLabel.textContent = '--';
+      toast(err.message || 'This pair is not available on both exchanges.');
+    }
+  }
+
+  var bulkLeverageOptions = [];
+  function openBulkSearch(){
+    document.getElementById('trBulkSearchOverlay').classList.add('show');
+    document.getElementById('trBulkSearchInput').value = '';
+    loadBulkSymbols().then(function(){ renderBulkSearchList(''); });
+    document.getElementById('trBulkSearchInput').focus();
+  }
+  document.getElementById('trBulkPairBtn').addEventListener('click', openBulkSearch);
+  document.getElementById('trBulkSearchCloseBtn').addEventListener('click', function(){
+    document.getElementById('trBulkSearchOverlay').classList.remove('show');
+  });
+  document.getElementById('trBulkSearchOverlay').addEventListener('click', function(e){
+    if (e.target.id === 'trBulkSearchOverlay') this.classList.remove('show');
+  });
+  document.getElementById('trBulkSearchInput').addEventListener('input', function(e){
+    renderBulkSearchList(e.target.value);
+  });
+  document.getElementById('trBulkLeverageBtn').addEventListener('click', function(){
+    if (this.disabled) return;
+    var options = bulkLeverageOptions.map(function(l){ return { value: l, label: l + 'x' }; });
+    openGenericSelect('Leverage', options, bulkLeverageValue, function(v){
+      bulkLeverageValue = v;
+      document.getElementById('trBulkLeverageLabel').textContent = v + 'x';
+    });
+  });
 
   function openGenericSelect(title, options, current, onSelect){
     document.getElementById('trGenericSelectTitle').textContent = title;
@@ -2626,11 +2737,11 @@ button:active{transform:scale(.96)}
 
   document.getElementById('trBulkStartBtn').addEventListener('click', async function(){
     var btn = this;
-    var pair = document.getElementById('trBulkSymbol').value.trim().toUpperCase();
-    var lev = Number(document.getElementById('trBulkLeverage').value || 10);
+    var pair = bulkSymbol;
+    var lev = Number(bulkLeverageValue || 10);
     var side = bulkSideValue;
     var resultBox = document.getElementById('trBulkResult');
-    if (!pair) { toast('Enter a pair, e.g. BTCUSDT.'); return; }
+    if (!pair) { toast('Select a pair first.'); return; }
     setBtnLoading(btn, 'Starting...');
     resultBox.style.display = 'none';
     try {
