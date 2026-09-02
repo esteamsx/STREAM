@@ -4249,6 +4249,35 @@ app.get("/api/tools/trading/instrument", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/tools/trading/prefs", requireAuth, async (req, res) => {
+  try {
+    const profile = req.userProfile || (await getUserProfile(req.uid));
+    res.json(profile?.tradingPrefs || {});
+  } catch (err) {
+    res.status(500).json({ error: "Could not load your trading preferences." });
+  }
+});
+
+app.post("/api/tools/trading/prefs", requireAuth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const prefs = {};
+    if (Array.isArray(body.favorites)) prefs.favorites = body.favorites.map((s) => String(s).toUpperCase()).slice(0, 100);
+    if (typeof body.lastSymbol === "string") prefs.lastSymbol = body.lastSymbol.toUpperCase();
+    if (body.exchange === "weex" || body.exchange === "bybit") prefs.exchange = body.exchange;
+    if (typeof body.demoMode === "boolean") prefs.demoMode = body.demoMode;
+    if (body.marginMode === "cross" || body.marginMode === "isolated") prefs.marginMode = body.marginMode;
+    if (body.viewMode === "manual" || body.viewMode === "auto") prefs.viewMode = body.viewMode;
+    if (!Object.keys(prefs).length) return res.status(400).json({ error: "No valid preference fields provided." });
+
+    const existing = req.userProfile || (await getUserProfile(req.uid));
+    await updateUserProfile(req.uid, { tradingPrefs: { ...(existing?.tradingPrefs || {}), ...prefs } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Could not save your trading preferences." });
+  }
+});
+
 app.post("/api/tools/trading/order", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
     const category = String(req.body?.category || "linear");

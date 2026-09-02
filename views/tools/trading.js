@@ -1236,6 +1236,7 @@ button:active{transform:scale(.96)}
   var allSymbols = [];
   var instrumentInfo = null;
   var lastAvailableRaw = 0;
+  var favoritesCache = null;
   var tvWidget = null;
   var positionsTimer = null;
   var dataGen = 0;
@@ -1245,17 +1246,16 @@ button:active{transform:scale(.96)}
   var shareUsdt = false;
   var orderType = 'Market';
   var activeTab = 'positions';
-  var FAVORITES_KEY = 'trFavoritePairs';
-  var LAST_SYMBOL_KEY = 'trLastSymbol';
   var EXCHANGE_KEY = 'trExchange';
   var EXCHANGE = localStorage.getItem(EXCHANGE_KEY) === 'weex' ? 'weex' : 'bybit';
   var DEMO_KEY = 'trDemoMode';
   var DEMO_MODE = localStorage.getItem(DEMO_KEY) === '1';
   var MARGIN_MODE_KEY = 'trMarginMode';
   var MARGIN_MODE = localStorage.getItem(MARGIN_MODE_KEY) === 'cross' ? 'cross' : 'isolated';
-
-  var saved = localStorage.getItem(LAST_SYMBOL_KEY);
-  if (saved) symbol = saved;
+  // Favorites and last-open pair are per-account, not per-browser: they're
+  // loaded from and saved to the server (see loadTradingPrefs below) so one
+  // user's saved pairs never show up under a different account on the same
+  // device/browser, which is what localStorage was doing before.
 
   function esc(s){
     return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
@@ -1292,10 +1292,23 @@ button:active{transform:scale(.96)}
   }
 
   function getFavorites(){
-    try { return JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'); } catch (e) { return []; }
+    return favoritesCache || [];
   }
   function setFavorites(list){
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(list));
+    favoritesCache = list;
+    postJSON('/api/tools/trading/prefs', { favorites: list }).catch(function(){});
+  }
+  async function loadTradingPrefs(){
+    try {
+      var prefs = await getJSON('/api/tools/trading/prefs');
+      favoritesCache = Array.isArray(prefs.favorites) ? prefs.favorites : [];
+      if (typeof prefs.lastSymbol === 'string' && prefs.lastSymbol) symbol = prefs.lastSymbol;
+    } catch (e) {
+      favoritesCache = [];
+    }
+    if (document.getElementById('trSearchOverlay').classList.contains('show')) {
+      renderSearchList(document.getElementById('trSearchInput').value);
+    }
   }
   function toggleFavorite(sym){
     var list = getFavorites();
@@ -2272,7 +2285,7 @@ button:active{transform:scale(.96)}
 
   function switchSymbol(newSymbol){
     symbol = newSymbol;
-    localStorage.setItem(LAST_SYMBOL_KEY, symbol);
+    postJSON('/api/tools/trading/prefs', { lastSymbol: symbol }).catch(function(){});
     document.getElementById('trPairSymbol').textContent = symbol;
     firstPrice = null;
     try { initChart(); } catch (e) {}
@@ -2670,14 +2683,17 @@ button:active{transform:scale(.96)}
     setTimeout(syncTrPanelHeight, 300);
   }
 
-  updateDemoBadge();
-  document.getElementById('trPairSymbol').textContent = symbol;
-  initChart();
-  loadTicker();
-  loadSymbols();
-  loadInstrumentInfo();
-  startPositionsPolling();
-  setInterval(loadTicker, 5000);
+  (async function(){
+    await loadTradingPrefs();
+    updateDemoBadge();
+    document.getElementById('trPairSymbol').textContent = symbol;
+    initChart();
+    loadTicker();
+    loadSymbols();
+    loadInstrumentInfo();
+    startPositionsPolling();
+    setInterval(loadTicker, 5000);
+  })();
 
   var PLAN_NAMES = { free: 'Free', starter: 'Starter', standard: 'Standard', pro: 'Pro', max: 'Max' };
   var PURCHASABLE_PLANS = ['standard', 'pro', 'max'];
