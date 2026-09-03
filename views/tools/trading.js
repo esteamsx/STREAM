@@ -514,6 +514,42 @@ button:active{transform:scale(.96)}
 .tr-community-send-btn{background:linear-gradient(135deg,#22d1ee,#7c6bff);color:#04141a;border:none}
 .tr-community-photo-btn svg,.tr-community-send-btn svg{width:17px;height:17px}
 .tr-community-input-row input[type="text"]{flex:1;padding:11px;border-radius:20px;background:var(--card2);border:1px solid var(--border-strong);color:var(--text);font-size:.82rem}
+
+.tr-comm-row{position:relative;display:flex;max-width:100%}
+.tr-comm-row.own{justify-content:flex-end}
+.tr-comm-row-inner{transition:transform .15s ease;max-width:78%}
+.tr-comm-reply-icon{position:absolute;top:50%;left:8px;transform:translateY(-50%) scale(.5);width:26px;height:26px;border-radius:50%;background:var(--card2);border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;color:var(--accent);opacity:0;transition:opacity .15s,transform .15s}
+.tr-comm-row.own .tr-comm-reply-icon{left:auto;right:8px}
+.tr-comm-reply-icon.show{opacity:1;transform:translateY(-50%) scale(1)}
+.tr-comm-reply-icon svg{width:13px;height:13px}
+.tr-comm-reply-quote{background:rgba(0,0,0,.12);border-left:2px solid var(--accent);border-radius:8px;padding:5px 8px;margin-bottom:6px;font-size:.7rem;cursor:pointer}
+.tr-community-msg.own .tr-comm-reply-quote{background:rgba(4,20,26,.15);border-left-color:#04141a}
+.tr-comm-reply-quote-label{font-weight:700;display:block;margin-bottom:1px}
+.tr-comm-reply-quote-text{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.tr-comm-jump-highlight{outline:2px solid var(--accent);outline-offset:2px;border-radius:14px}
+.tr-community-msg img{cursor:pointer}
+.tr-comm-reply-preview{display:none;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--border-strong);border-radius:12px;padding:7px 10px;margin-bottom:8px;font-size:.72rem}
+.tr-comm-reply-preview.show{display:flex}
+.tr-comm-reply-preview-body{flex:1;min-width:0;border-left:2px solid var(--accent);padding-left:8px}
+.tr-comm-reply-preview-label{font-weight:700;color:var(--accent);display:block;margin-bottom:1px}
+.tr-comm-reply-preview-text{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.tr-comm-reply-cancel{width:22px;height:22px;border-radius:50%;background:var(--card);border:1px solid var(--border-strong);color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tr-comm-reply-cancel svg{width:12px;height:12px}
+
+.tr-comm-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9200;display:none;align-items:center;justify-content:center;flex-direction:column;padding:20px}
+.tr-comm-lightbox.show{display:flex}
+.tr-comm-lightbox img{max-width:100%;max-height:70vh;border-radius:10px;object-fit:contain}
+.tr-comm-lightbox-close{position:absolute;top:20px;right:20px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;display:flex;align-items:center;justify-content:center;border:none}
+.tr-comm-lightbox-close svg{width:18px;height:18px}
+.tr-comm-lightbox-download{margin-top:18px;display:flex;align-items:center;gap:8px;padding:10px 20px;border-radius:20px;background:linear-gradient(135deg,#22d1ee,#7c6bff);color:#04141a;font-weight:700;font-size:.82rem;text-decoration:none}
+.tr-comm-lightbox-download svg{width:16px;height:16px}
+
+.tr-comm-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9200;display:none;align-items:flex-end;justify-content:center}
+.tr-comm-menu-overlay.show{display:flex}
+.tr-comm-menu{background:var(--card);border-radius:16px 16px 0 0;width:100%;max-width:400px;padding:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+.tr-comm-menu-btn{width:100%;padding:14px;background:none;border:none;color:var(--text);font-size:.88rem;font-weight:600;border-radius:12px;display:flex;align-items:center;gap:10px}
+.tr-comm-menu-btn svg{width:18px;height:18px}
+.tr-comm-menu-btn.danger{color:var(--red)}
 </style>
 </head>
 <body>
@@ -1264,6 +1300,15 @@ button:active{transform:scale(.96)}
     </div>
     <div id="trCommunityChatArea">
       <div class="tr-community-messages" id="trCommunityMessages"></div>
+      <div class="tr-comm-reply-preview" id="trCommReplyPreview">
+        <div class="tr-comm-reply-preview-body">
+          <span class="tr-comm-reply-preview-label" id="trCommReplyPreviewLabel"></span>
+          <span class="tr-comm-reply-preview-text" id="trCommReplyPreviewText"></span>
+        </div>
+        <button type="button" class="tr-comm-reply-cancel" id="trCommReplyCancelBtn" aria-label="Cancel reply">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
       <div class="tr-community-input-row">
         <button type="button" class="tr-community-photo-btn" id="trCommunityPhotoBtn" aria-label="Attach photo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 16l-5-5-9 9"/></svg>
@@ -1275,6 +1320,33 @@ button:active{transform:scale(.96)}
         </button>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="tr-comm-lightbox" id="trCommLightbox">
+  <button type="button" class="tr-comm-lightbox-close" id="trCommLightboxCloseBtn" aria-label="Close">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <img id="trCommLightboxImg" alt="">
+  <a class="tr-comm-lightbox-download" id="trCommLightboxDownloadBtn" download="photo.jpg">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+    <span>Download</span>
+  </a>
+</div>
+
+<div class="tr-comm-menu-overlay" id="trCommMenuOverlay">
+  <div class="tr-comm-menu">
+    <button type="button" class="tr-comm-menu-btn" id="trCommMenuReplyBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17l-5-5 5-5M4 12h11a5 5 0 015 5v1"/></svg>
+      <span>Reply</span>
+    </button>
+    <button type="button" class="tr-comm-menu-btn danger" id="trCommMenuDeleteBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg>
+      <span>Delete</span>
+    </button>
+    <button type="button" class="tr-comm-menu-btn" id="trCommMenuCancelBtn">
+      <span>Cancel</span>
+    </button>
   </div>
 </div>
 
@@ -3117,6 +3189,10 @@ button:active{transform:scale(.96)}
   var communityHasAccess = false;
   var communityPollTimer = null;
   var communityAttachment = null;
+  var communityMyUid = null;
+  var communityMessagesById = {};
+  var communityReplyTo = null;
+  var communityMenuTargetId = null;
 
   function openCommunityOverlay(){
     document.getElementById('trCommunityOverlay').classList.add('show');
@@ -3141,6 +3217,7 @@ button:active{transform:scale(.96)}
     try {
       var data = await getJSON('/api/community/messages');
       communityHasAccess = true;
+      communityMyUid = data.myUid;
       document.getElementById('trCommunityLocked').style.display = 'none';
       document.getElementById('trCommunityChatArea').classList.add('show');
       renderCommunityMessages(data.messages || [], data.myUid);
@@ -3153,21 +3230,161 @@ button:active{transform:scale(.96)}
     }
   }
 
+  function communityReplyQuoteHtml(replyTo){
+    if (!replyTo) return '';
+    return '<div class="tr-comm-reply-quote" data-jump-to="' + esc(replyTo.id) + '">' +
+      '<span class="tr-comm-reply-quote-label">' + esc(replyTo.username || 'Trader') + '</span>' +
+      '<span class="tr-comm-reply-quote-text">' + (replyTo.isImage ? '\ud83d\uddbc Photo' : esc(replyTo.text || '')) + '</span>' +
+    '</div>';
+  }
+
   function renderCommunityMessages(messages, myUid){
     var box = document.getElementById('trCommunityMessages');
     var wasAtBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+    communityMessagesById = {};
+    messages.forEach(function(m){ communityMessagesById[m.id] = m; });
     box.innerHTML = messages.map(function(m){
       var isOwn = m.uid === myUid;
       var time = new Date(m.createdAt).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
-      var img = m.attachmentType === 'image' && m.attachmentDataUrl ? ('<img src="' + m.attachmentDataUrl + '" alt="photo">') : '';
-      return '<div class="tr-community-msg' + (isOwn ? ' own' : '') + '">' +
+      var img = m.attachmentType === 'image' && m.attachmentDataUrl ? ('<img src="' + m.attachmentDataUrl + '" alt="photo" data-msg-id="' + esc(m.id) + '">') : '';
+      var bubble = '<div class="tr-community-msg' + (isOwn ? ' own' : '') + '">' +
+        communityReplyQuoteHtml(m.replyTo) +
         (isOwn ? '' : '<div class="tr-community-msg-name">' + esc(m.username || 'Trader') + '</div>') +
         (m.text ? esc(m.text) : '') + img +
         '<div class="tr-community-msg-time">' + time + '</div>' +
       '</div>';
+      return '<div class="tr-comm-row' + (isOwn ? ' own' : '') + '" id="trcommmsg-' + esc(m.id) + '" data-msg-id="' + esc(m.id) + '" data-own="' + (isOwn ? '1' : '0') + '">' +
+        '<div class="tr-comm-reply-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17l-5-5 5-5M4 12h11a5 5 0 015 5v1"/></svg></div>' +
+        '<div class="tr-comm-row-inner">' + bubble + '</div>' +
+      '</div>';
     }).join('');
     if (wasAtBottom || messages.length <= 1) box.scrollTop = box.scrollHeight;
+    wireCommunityMessageGestures(box);
   }
+
+  function wireCommunityMessageGestures(box){
+    box.querySelectorAll('.tr-comm-row').forEach(function(row){
+      var msgId = row.dataset.msgId;
+      var inner = row.querySelector('.tr-comm-row-inner');
+      var replyIcon = row.querySelector('.tr-comm-reply-icon');
+      var startX = 0, startY = 0, moved = false, dragging = false, pressTimer = null;
+
+      function startPress(x, y){
+        startX = x; startY = y; moved = false; dragging = false;
+        pressTimer = setTimeout(function(){ if (!moved) openCommunityMsgMenu(msgId); }, 450);
+      }
+      function movePress(x, y){
+        var dx = x - startX;
+        var dy = y - startY;
+        if (!moved && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+          moved = true;
+          clearTimeout(pressTimer);
+        }
+        if (moved && Math.abs(dx) > Math.abs(dy)) {
+          dragging = true;
+          var clamped = Math.max(-70, Math.min(70, dx));
+          inner.style.transform = 'translateX(' + clamped + 'px)';
+          replyIcon.classList.toggle('show', Math.abs(clamped) > 36);
+        }
+      }
+      function endPress(x){
+        clearTimeout(pressTimer);
+        if (dragging) {
+          var dx = x - startX;
+          inner.style.transform = '';
+          replyIcon.classList.remove('show');
+          if (Math.abs(dx) > 55) {
+            var msg = communityMessagesById[msgId];
+            if (msg) enterCommunityReplyMode(msg);
+          }
+        }
+        dragging = false;
+      }
+
+      row.addEventListener('touchstart', function(e){ startPress(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+      row.addEventListener('touchmove', function(e){ movePress(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+      row.addEventListener('touchend', function(e){ endPress(e.changedTouches[0].clientX); });
+      row.addEventListener('touchcancel', function(){ clearTimeout(pressTimer); inner.style.transform = ''; replyIcon.classList.remove('show'); dragging = false; });
+    });
+
+    box.querySelectorAll('.tr-comm-reply-quote').forEach(function(q){
+      q.addEventListener('click', function(){
+        var target = document.getElementById('trcommmsg-' + q.dataset.jumpTo);
+        if (!target) return;
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.add('tr-comm-jump-highlight');
+        setTimeout(function(){ target.classList.remove('tr-comm-jump-highlight'); }, 900);
+      });
+    });
+
+    box.querySelectorAll('.tr-community-msg img').forEach(function(img){
+      img.addEventListener('click', function(){
+        openCommunityLightbox(img.src, img.dataset.msgId);
+      });
+    });
+  }
+
+  function enterCommunityReplyMode(msg){
+    communityReplyTo = {
+      id: msg.id,
+      username: msg.uid === communityMyUid ? 'You' : (msg.username || 'Trader'),
+      text: msg.text || '',
+      isImage: msg.attachmentType === 'image',
+    };
+    document.getElementById('trCommReplyPreviewLabel').textContent = communityReplyTo.username;
+    document.getElementById('trCommReplyPreviewText').textContent = communityReplyTo.isImage ? '\ud83d\uddbc Photo' : communityReplyTo.text;
+    document.getElementById('trCommReplyPreview').classList.add('show');
+    document.getElementById('trCommunityTextInput').focus();
+  }
+  document.getElementById('trCommReplyCancelBtn').addEventListener('click', function(){
+    communityReplyTo = null;
+    document.getElementById('trCommReplyPreview').classList.remove('show');
+  });
+
+  function openCommunityLightbox(src, msgId){
+    document.getElementById('trCommLightboxImg').src = src;
+    var dl = document.getElementById('trCommLightboxDownloadBtn');
+    dl.href = src;
+    dl.download = 'community-photo-' + (msgId || Date.now()) + '.jpg';
+    document.getElementById('trCommLightbox').classList.add('show');
+  }
+  document.getElementById('trCommLightboxCloseBtn').addEventListener('click', function(){
+    document.getElementById('trCommLightbox').classList.remove('show');
+  });
+  document.getElementById('trCommLightbox').addEventListener('click', function(e){
+    if (e.target.id === 'trCommLightbox') this.classList.remove('show');
+  });
+
+  function openCommunityMsgMenu(msgId){
+    var msg = communityMessagesById[msgId];
+    if (!msg) return;
+    communityMenuTargetId = msgId;
+    var isOwn = msg.uid === communityMyUid;
+    document.getElementById('trCommMenuDeleteBtn').style.display = isOwn ? 'flex' : 'none';
+    document.getElementById('trCommMenuOverlay').classList.add('show');
+  }
+  document.getElementById('trCommMenuCancelBtn').addEventListener('click', function(){
+    document.getElementById('trCommMenuOverlay').classList.remove('show');
+  });
+  document.getElementById('trCommMenuOverlay').addEventListener('click', function(e){
+    if (e.target.id === 'trCommMenuOverlay') this.classList.remove('show');
+  });
+  document.getElementById('trCommMenuReplyBtn').addEventListener('click', function(){
+    document.getElementById('trCommMenuOverlay').classList.remove('show');
+    var msg = communityMessagesById[communityMenuTargetId];
+    if (msg) enterCommunityReplyMode(msg);
+  });
+  document.getElementById('trCommMenuDeleteBtn').addEventListener('click', async function(){
+    document.getElementById('trCommMenuOverlay').classList.remove('show');
+    var msgId = communityMenuTargetId;
+    if (!msgId) return;
+    try {
+      await fetch('/api/community/messages/' + encodeURIComponent(msgId), { method: 'DELETE', credentials: 'same-origin' });
+      loadCommunityMessages();
+    } catch (err) {
+      toast('Could not delete that message.');
+    }
+  });
 
   document.getElementById('trCommunityPhotoBtn').addEventListener('click', function(){
     document.getElementById('trCommunityPhotoInput').click();
@@ -3196,9 +3413,11 @@ button:active{transform:scale(.96)}
     var sendBtn = document.getElementById('trCommunitySendBtn');
     sendBtn.disabled = true;
     try {
-      await postJSON('/api/community/messages', { text: text, attachment: communityAttachment });
+      await postJSON('/api/community/messages', { text: text, attachment: communityAttachment, replyTo: communityReplyTo || undefined });
       input.value = '';
       communityAttachment = null;
+      communityReplyTo = null;
+      document.getElementById('trCommReplyPreview').classList.remove('show');
       loadCommunityMessages();
     } catch (err) {
       toast(err.message || 'Could not send that message.');

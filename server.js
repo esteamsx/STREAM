@@ -278,6 +278,7 @@ import {
   creditTradingProfitCoins,
   sendCommunityMessage,
   getCommunityMessages,
+  deleteCommunityMessage,
   COMMUNITY_CHAT_NAME,
   API_PLANS,
   SESSION_TTL_MS,
@@ -4632,8 +4633,29 @@ app.delete("/api/tools/trading/keys", requireAuth, tradingOrderLimiter, async (r
 
 app.post("/api/tools/trading/auto-settings", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
+    const usdtPerTrade = Number(req.body?.usdtPerTrade);
+    const exchange = req.body?.exchange === "weex" ? "weex" : "bybit";
+    const mode = req.body?.mode === "live" ? "live" : "demo";
     if (req.body?.enabled) {
       await requireAiTradingAccess(req.uid);
+    }
+    // Check the amount against the user's own real balance on that exchange
+    // before saving - otherwise a bulk operation later would just fail for
+    // them at order time (harmlessly, since bulk-start already isolates each
+    // trader's failure), but this catches it upfront with a clearer message.
+    if (req.body?.enabled && Number.isFinite(usdtPerTrade)) {
+      try {
+        const creds = await getDecryptedTradingCredentials(req.uid, exchange, mode);
+        if (creds) {
+          const service = exchange === "weex" ? weexReadonly : bybitReadonly;
+          const balanceInfo = await service.getAllPositions("linear", mode === "demo", creds);
+          if (balanceInfo.available != null && usdtPerTrade > balanceInfo.available) {
+            return res.status(400).json({
+              error: `Your USDT per trade (${usdtPerTrade}) is higher than your available balance (${balanceInfo.available.toFixed(2)} USDT) on ${exchange === "weex" ? "WEEX" : "Bybit"}. Lower it or add funds first.`,
+            });
+          }
+        }
+      } catch (err) {}
     }
     await saveAutoTradingSettings(req.uid, {
       enabled: !!req.body?.enabled,
@@ -4691,6 +4713,15 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
         const creds = await getDecryptedTradingCredentials(trader.uid, exchange, mode);
         if (!creds) {
           throw Object.assign(new Error("No " + exchange + " " + mode + " API keys saved."), { uid: trader.uid });
+        }
+        try {
+          const service0 = exchange === "weex" ? weexReadonly : bybitReadonly;
+          const balanceInfo = await service0.getAllPositions(category, demo, creds);
+          if (balanceInfo.available != null && usdtPerTrade > balanceInfo.available) {
+            throw Object.assign(new Error(`Balance too low (${balanceInfo.available.toFixed(2)} USDT available, needs ${usdtPerTrade}).`), { uid: trader.uid });
+          }
+        } catch (err) {
+          if (err.uid) throw err;
         }
         const price = await getMarkPrice(exchange, demo);
         if (!price) {
@@ -6092,10 +6123,19 @@ app.get("/api/community/messages", requireAuth, async (req, res) => {
 
 app.post("/api/community/messages", requireAuth, communityChatLimiter, async (req, res) => {
   try {
-    const message = await sendCommunityMessage(req.uid, req.body?.text, req.body?.attachment);
+    const message = await sendCommunityMessage(req.uid, req.body?.text, req.body?.attachment, req.body?.replyTo);
     res.json({ message });
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "Could not send that message." });
+  }
+});
+
+app.delete("/api/community/messages/:id", requireAuth, async (req, res) => {
+  try {
+    await deleteCommunityMessage(req.uid, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not delete that message." });
   }
 });
 

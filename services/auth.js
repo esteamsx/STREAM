@@ -2882,12 +2882,20 @@ const COMMUNITY_CHAT_NAME = "ES TEAMS FT SIGNALS";
 const COMMUNITY_CHAT_MAX_LEN = 1000;
 const COMMUNITY_CHAT_PAGE_SIZE = 50;
 
-async function sendCommunityMessage(uid, text, attachment) {
+async function sendCommunityMessage(uid, text, attachment, replyTo) {
   const { profile } = await requireCommunityAccess(uid);
   const trimmed = String(text || "").trim();
   const cleanAttachment = validateSupportAttachment(attachment);
   if (!trimmed && !cleanAttachment) throw Object.assign(new Error("Type a message first."), { status: 400 });
   if (trimmed.length > COMMUNITY_CHAT_MAX_LEN) throw Object.assign(new Error("Message is too long."), { status: 400 });
+  const cleanReplyTo = replyTo && replyTo.id
+    ? {
+        id: String(replyTo.id),
+        username: String(replyTo.username || "Trader").slice(0, 40),
+        text: String(replyTo.text || "").slice(0, 140),
+        isImage: !!replyTo.isImage,
+      }
+    : null;
   const now = Date.now();
   const msgRef = db.collection("communityChat").doc();
   const messageDoc = {
@@ -2897,6 +2905,7 @@ async function sendCommunityMessage(uid, text, attachment) {
     createdAt: now,
     attachmentDataUrl: cleanAttachment ? cleanAttachment.dataUrl : null,
     attachmentType: cleanAttachment ? cleanAttachment.type : null,
+    replyTo: cleanReplyTo,
   };
   await msgRef.set(messageDoc);
   return { id: msgRef.id, ...messageDoc };
@@ -2906,6 +2915,17 @@ async function getCommunityMessages(uid, limit = COMMUNITY_CHAT_PAGE_SIZE) {
   await requireCommunityAccess(uid);
   const snap = await db.collection("communityChat").orderBy("createdAt", "desc").limit(limit).get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).reverse();
+}
+
+async function deleteCommunityMessage(uid, msgId) {
+  await requireCommunityAccess(uid);
+  const ref = db.collection("communityChat").doc(String(msgId || ""));
+  const snap = await ref.get();
+  if (!snap.exists) throw Object.assign(new Error("Message not found."), { status: 404 });
+  const data = snap.data();
+  if (data.uid !== uid) throw Object.assign(new Error("You can only delete your own messages."), { status: 403 });
+  await ref.delete();
+  return { id: ref.id };
 }
 
 const RENEW_LOOKAHEAD_MS = 24 * 60 * 60 * 1000;
@@ -4621,6 +4641,7 @@ export {
   creditTradingProfitCoins,
   sendCommunityMessage,
   getCommunityMessages,
+  deleteCommunityMessage,
   COMMUNITY_CHAT_NAME,
   getApiPlanConfig,
   SESSION_TTL_MS,
