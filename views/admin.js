@@ -574,6 +574,36 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div></div>
   </div>
 
+  <div class="ad-card accent-gold" id="tpCodeCard">
+    <div class="ad-card-header" id="tpCodeHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9V6a2 2 0 012-2h12a2 2 0 012 2v3a2 2 0 000 4v3a2 2 0 01-2 2H6a2 2 0 01-2-2v-3a2 2 0 000-4z"/><path d="M13 5v2m0 3.5V13m0 3.5V19" stroke-linecap="round"/></svg>
+      <div class="ad-card-header-title">Trading Plan Codes</div>
+      <div class="ad-card-count" id="tpCodeCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="bonus-form">
+        <div class="custom-select" id="tpCodePlanSelectWrap">
+          <button type="button" class="custom-select-btn">
+            <span>Standard</span>
+            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <input type="hidden" id="tpCodePlanSelect" value="standard">
+          <div class="custom-select-list">
+            <div class="custom-select-option active" data-value="standard">Standard</div>
+            <div class="custom-select-option" data-value="pro">Pro</div>
+            <div class="custom-select-option" data-value="max">Max</div>
+          </div>
+        </div>
+        <input type="date" id="tpCodeExpiryDate">
+        <input type="number" id="tpCodeMaxRedemptions" placeholder="Max users" min="1" step="1" value="1">
+        <button type="button" id="tpCodeGenerateBtn">Generate</button>
+      </div>
+      <div class="bonus-msg" id="tpCodeMsg"></div>
+      <div class="bonus-list" id="tpCodeList"><div class="sk-stack"><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div></div></div>
+    </div></div>
+  </div>
+
   <div class="ad-card accent-gold" id="withdrawalsCard">
     <div class="ad-card-header" id="withdrawalsHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
@@ -874,6 +904,14 @@ window.addEventListener('scroll', () => {
 document.getElementById('bonusHeader').addEventListener('click', () => {
   document.getElementById('bonusCard').classList.toggle('open');
 });
+document.getElementById('tpCodeHeader').addEventListener('click', () => {
+  document.getElementById('tpCodeCard').classList.toggle('open');
+});
+(() => {
+  const dateInput = document.getElementById('tpCodeExpiryDate');
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  dateInput.min = tomorrow.toISOString().slice(0, 10);
+})();
 document.getElementById('withdrawalsHeader').addEventListener('click', () => {
   document.getElementById('withdrawalsCard').classList.toggle('open');
 });
@@ -939,6 +977,81 @@ function loadBonusCodes(){
     renderBonusList(codes);
   }).catch(() => { bonusList.innerHTML = '<div class="ad-empty">Could not load bonus codes.</div>'; });
 }
+
+const TP_PLAN_LABELS = { standard: 'Standard', pro: 'Pro', max: 'Max' };
+const tpCodeList = document.getElementById('tpCodeList');
+const tpCodeCount = document.getElementById('tpCodeCount');
+const tpCodeMsg = document.getElementById('tpCodeMsg');
+
+function tpCodeCardHtml(c){
+  const used = c.redemptionsCount || 0;
+  const max = c.maxRedemptions || 0;
+  const active = used < max;
+  const created = c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '';
+  const planLabel = TP_PLAN_LABELS[c.plan] || c.plan;
+  return '<div class="bonus-code-card">' +
+    '<div class="bonus-code-head">' +
+      '<div class="bonus-code-text">' + esc(c.code) + '</div>' +
+      '<button type="button" class="bonus-copy-btn" data-code="' + esc(c.code) + '" aria-label="Copy code">' + COPY_ICON + '</button>' +
+      '<span class="status-pill ' + (active ? 'ok' : 'bad') + '">' + (active ? 'Active' : 'Expired') + '</span>' +
+    '</div>' +
+    '<div class="bonus-code-meta">' + esc(planLabel) + ' plan &middot; ' + (c.durationDays || 0) + ' days &middot; ' + used + '/' + max + ' used' + (created ? ' · ' + created : '') + '</div>' +
+  '</div>';
+}
+
+function renderTpCodeList(codes){
+  if(!codes.length){ tpCodeList.innerHTML = '<div class="ad-empty">No trading plan codes generated yet.</div>'; return; }
+  tpCodeList.innerHTML = codes.map(tpCodeCardHtml).join('');
+  tpCodeList.querySelectorAll('.bonus-copy-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.getAttribute('data-code')).then(() => showToast('Code copied.')).catch(() => {});
+    });
+  });
+}
+
+function loadTpCodes(){
+  getJSON('/api/admin/trading-plan-codes').then((data) => {
+    const codes = data.codes || [];
+    tpCodeCount.style.display = codes.length ? '' : 'none';
+    tpCodeCount.textContent = String(codes.length);
+    renderTpCodeList(codes);
+  }).catch(() => { tpCodeList.innerHTML = '<div class="ad-empty">Could not load trading plan codes.</div>'; });
+}
+
+document.getElementById('tpCodeGenerateBtn').addEventListener('click', () => {
+  const btn = document.getElementById('tpCodeGenerateBtn');
+  const plan = document.getElementById('tpCodePlanSelect').value;
+  const expiryDateStr = document.getElementById('tpCodeExpiryDate').value;
+  const maxRedemptions = Number(document.getElementById('tpCodeMaxRedemptions').value);
+  tpCodeMsg.className = 'bonus-msg';
+  tpCodeMsg.textContent = '';
+  if (!expiryDateStr) {
+    tpCodeMsg.className = 'bonus-msg err';
+    tpCodeMsg.textContent = 'Pick how long the plan should stay active.';
+    return;
+  }
+  const durationDays = Math.ceil((new Date(expiryDateStr + 'T23:59:59').getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  if (!Number.isFinite(durationDays) || durationDays < 1) {
+    tpCodeMsg.className = 'bonus-msg err';
+    tpCodeMsg.textContent = 'Pick a date in the future.';
+    return;
+  }
+  if (!maxRedemptions || maxRedemptions < 1) {
+    tpCodeMsg.className = 'bonus-msg err';
+    tpCodeMsg.textContent = 'Enter how many users can use this code.';
+    return;
+  }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="ad-spinner"></span> Generating…';
+  postJSON('/api/admin/trading-plan-codes', { plan, durationDays, maxRedemptions }).then((data) => {
+    tpCodeMsg.className = 'bonus-msg ok';
+    tpCodeMsg.textContent = 'Generated code: ' + data.code.code;
+    loadTpCodes();
+  }).catch((err) => {
+    tpCodeMsg.className = 'bonus-msg err';
+    tpCodeMsg.textContent = err.message || 'Could not generate trading plan code.';
+  }).finally(() => { btn.disabled = false; btn.textContent = 'Generate'; });
+});
 
 const withdrawalsList = document.getElementById('withdrawalsList');
 const withdrawalsCount = document.getElementById('withdrawalsCount');
@@ -2235,6 +2348,7 @@ document.getElementById('maintenanceEndBtn').addEventListener('click', async () 
 
 loadMaintenanceStatus();
 loadBonusCodes();
+loadTpCodes();
 loadWithdrawals();
 loadCrlog();
 loadUsersPage(true);

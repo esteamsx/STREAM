@@ -3244,6 +3244,84 @@ async function redeemBonusCode(uid, rawCode, product) {
   return result;
 }
 
+const TRADING_PLAN_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function generateTradingPlanCodeString() {
+  const bytes = crypto.randomBytes(8);
+  let out = "";
+  for (let i = 0; i < 8; i++) out += TRADING_PLAN_CODE_ALPHABET[bytes[i] % TRADING_PLAN_CODE_ALPHABET.length];
+  return out;
+}
+
+async function createTradingPlanCode(adminUid, plan, durationDays, maxRedemptions) {
+  if (!TRADING_PLANS[plan] || !PURCHASABLE_TRADING_PLANS.includes(plan)) {
+    throw new Error(`Plan must be one of: ${PURCHASABLE_TRADING_PLANS.join(", ")}.`);
+  }
+  const days = Number(durationDays);
+  if (!Number.isInteger(days) || days < 1) {
+    throw new Error("Duration must be a positive whole number of days.");
+  }
+  const limit = Number(maxRedemptions);
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new Error("Max redemptions must be a positive whole number.");
+  }
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const code = generateTradingPlanCodeString();
+    const ref = db.collection("tradingPlanCodes").doc(code);
+    const snap = await ref.get();
+    if (snap.exists) continue;
+    const entry = {
+      code,
+      plan,
+      durationDays: days,
+      maxRedemptions: limit,
+      redemptionsCount: 0,
+      createdAt: Date.now(),
+      createdBy: adminUid,
+    };
+    await ref.set(entry);
+    return entry;
+  }
+  throw new Error("Could not generate a unique code. Try again.");
+}
+
+async function listTradingPlanCodes() {
+  const snap = await db.collection("tradingPlanCodes").orderBy("createdAt", "desc").limit(200).get();
+  return snap.docs.map((d) => d.data());
+}
+
+async function redeemTradingPlanCode(uid, rawCode) {
+  const code = String(rawCode || "").trim().toUpperCase();
+  if (!code) throw Object.assign(new Error("Enter a code."), { status: 400 });
+  if (!/^[A-Z0-9]{1,32}$/.test(code)) {
+    throw Object.assign(new Error("That code doesn't exist."), { status: 404 });
+  }
+  const codeRef = db.collection("tradingPlanCodes").doc(code);
+  const redemptionRef = codeRef.collection("redemptions").doc(uid);
+  const userRef = db.collection("users").doc(uid);
+  const result = await db.runTransaction(async (tx) => {
+    const [codeSnap, redemptionSnap] = await Promise.all([tx.get(codeRef), tx.get(redemptionRef)]);
+    if (!codeSnap.exists) throw Object.assign(new Error("That code doesn't exist."), { status: 404 });
+    const data = codeSnap.data();
+    if (redemptionSnap.exists) throw Object.assign(new Error("You've already used this code."), { status: 400 });
+    if (data.redemptionsCount >= data.maxRedemptions) {
+      throw Object.assign(new Error("This code has expired."), { status: 400 });
+    }
+    const expiresAt = Date.now() + data.durationDays * 24 * 60 * 60 * 1000;
+    tx.set(redemptionRef, { uid, redeemedAt: Date.now() });
+    tx.update(codeRef, { redemptionsCount: data.redemptionsCount + 1 });
+    tx.set(userRef, {
+      tradingPlanPaid: data.plan,
+      tradingPlanPurchasedAt: Date.now(),
+      tradingPlanExpiresAt: expiresAt,
+    }, { merge: true });
+    return { plan: data.plan, expiresAt };
+  });
+  const planName = TRADING_PLANS[result.plan].name;
+  await addNotification(uid, "trading_plan_code", `You've received a ${planName} Trading Plan`, { plan: result.plan, expiresAt: result.expiresAt });
+  return result;
+}
+
 const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const REFERRAL_SIGNUP_COINS = 5;
 const DAILY_COIN_CLAIM_AMOUNT = 2;
@@ -4550,4 +4628,7 @@ export {
   createBonusCode,
   listBonusCodes,
   redeemBonusCode,
+  createTradingPlanCode,
+  listTradingPlanCodes,
+  redeemTradingPlanCode,
 };

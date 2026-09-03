@@ -284,6 +284,9 @@ import {
   createBonusCode,
   broadcastNotification,
   listBonusCodes,
+  createTradingPlanCode,
+  listTradingPlanCodes,
+  redeemTradingPlanCode,
   adminListWithdrawalRequests,
   adminConfirmWithdrawalPaid,
   logChannelReactUse,
@@ -4011,6 +4014,27 @@ app.post("/api/admin/bonus-codes", requireAuth, requireAdmin, async (req, res) =
   }
 });
 
+app.get("/api/admin/trading-plan-codes", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ codes: await listTradingPlanCodes() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load trading plan codes." });
+  }
+});
+
+app.post("/api/admin/trading-plan-codes", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const plan = String(req.body && req.body.plan || "");
+    const durationDays = Number(req.body && req.body.durationDays);
+    const maxRedemptions = Number(req.body && req.body.maxRedemptions);
+    const code = await createTradingPlanCode(req.uid, plan, durationDays, maxRedemptions);
+    res.json({ ok: true, code });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not create trading plan code." });
+  }
+});
+
 app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
   try {
     res.json({ withdrawals: await adminListWithdrawalRequests() });
@@ -4305,6 +4329,15 @@ app.get("/api/tools/trading/instrument", requireAuth, async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load instrument info." });
+  }
+});
+
+app.post("/api/tools/trading/redeem-plan-code", requireAuth, tradingOrderLimiter, async (req, res) => {
+  try {
+    const result = await redeemTradingPlanCode(req.uid, req.body?.code);
+    res.json({ ok: true, plan: result.plan, expiresAt: result.expiresAt });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not redeem that code." });
   }
 });
 

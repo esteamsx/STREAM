@@ -889,6 +889,13 @@ button:active{transform:scale(.96)}
           <span class="tr-settings-home-label">How to Use</span>
           <svg class="tr-settings-home-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
         </button>
+        <button type="button" class="tr-settings-home-btn" id="trGoRedeemBtn">
+          <span class="tr-settings-home-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V6a2 2 0 012-2h12a2 2 0 012 2v3a2 2 0 000 4v3a2 2 0 01-2 2H6a2 2 0 01-2-2v-3a2 2 0 000-4z"/><path d="M13 5v2m0 3.5V13m0 3.5V19" stroke-linecap="round"/></svg>
+          </span>
+          <span class="tr-settings-home-label">Redeem Code</span>
+          <svg class="tr-settings-home-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+        </button>
       </div>
     </div>
 
@@ -1097,6 +1104,27 @@ button:active{transform:scale(.96)}
           <p><b>Max</b> (&#8358;15,000 / 30 days): 20 manual trades, 20 open positions, Auto Trading, community chat, 25 coins per qualifying live win, and a &#8358;500 cash reward paid to your wallet immediately on purchase.</p>
           <p>Coin rewards only apply to live trades closed in profit at 100% ROI or higher, demo trades never earn coins.</p>
         </div>
+      </div>
+    </div>
+
+    <div class="tr-settings-page" id="trSettingsPageRedeem" style="display:none">
+      <div class="tr-select-header tr-select-header-row">
+        <button type="button" class="tr-settings-back-btn" id="trRedeemBackBtn" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <span>Redeem Code</span>
+        <button type="button" class="tr-select-close-btn" id="trRedeemCloseBtn" aria-label="Cancel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="tr-keys-scroll">
+        <p class="tr-auto-help">Have a code from an admin? Redeem it here to get a Trading plan applied to your account, without paying.</p>
+        <div class="tr-order-field">
+          <label>Code</label>
+          <input type="text" id="trRedeemCodeInput" placeholder="Enter code" autocomplete="off" maxlength="16" style="text-transform:uppercase">
+        </div>
+        <button type="button" class="tr-bulk-start-btn" id="trRedeemCodeBtn">Redeem</button>
+        <div class="tr-bulk-result" id="trRedeemCodeMsg" style="display:none"></div>
       </div>
     </div>
 
@@ -2409,6 +2437,7 @@ button:active{transform:scale(.96)}
     document.getElementById('trSettingsPageExchange').style.display = name === 'exchange' ? 'block' : 'none';
     document.getElementById('trSettingsPageKeys').style.display = name === 'keys' ? 'block' : 'none';
     document.getElementById('trSettingsPageGuide').style.display = name === 'guide' ? 'block' : 'none';
+    document.getElementById('trSettingsPageRedeem').style.display = name === 'redeem' ? 'block' : 'none';
   }
   document.getElementById('trGoAccountBtn').addEventListener('click', function(){ showSettingsPage('exchange'); });
   document.getElementById('trGoApiKeysBtn').addEventListener('click', function(){
@@ -2416,12 +2445,43 @@ button:active{transform:scale(.96)}
     loadKeysStatus();
   });
   document.getElementById('trGoGuideBtn').addEventListener('click', function(){ showSettingsPage('guide'); });
+  document.getElementById('trGoRedeemBtn').addEventListener('click', function(){
+    showSettingsPage('redeem');
+    document.getElementById('trRedeemCodeInput').value = '';
+    document.getElementById('trRedeemCodeMsg').style.display = 'none';
+  });
   document.getElementById('trAccountBackBtn').addEventListener('click', function(){ showSettingsPage('home'); });
   document.getElementById('trAccountCloseBtn').addEventListener('click', closeExchangeOverlay);
   document.getElementById('trKeysBackBtn').addEventListener('click', function(){ showSettingsPage('home'); });
   document.getElementById('trKeysCloseBtn').addEventListener('click', closeExchangeOverlay);
   document.getElementById('trGuideBackBtn').addEventListener('click', function(){ showSettingsPage('home'); });
   document.getElementById('trGuideCloseBtn').addEventListener('click', closeExchangeOverlay);
+  document.getElementById('trRedeemBackBtn').addEventListener('click', function(){ showSettingsPage('home'); });
+  document.getElementById('trRedeemCloseBtn').addEventListener('click', closeExchangeOverlay);
+  document.getElementById('trRedeemCodeBtn').addEventListener('click', async function(){
+    var btn = this;
+    var input = document.getElementById('trRedeemCodeInput');
+    var msg = document.getElementById('trRedeemCodeMsg');
+    var code = input.value.trim().toUpperCase();
+    msg.style.display = 'none';
+    if (!code) { toast('Enter a code first.'); return; }
+    setBtnLoading(btn, 'Redeeming...');
+    try {
+      var result = await postJSON('/api/tools/trading/redeem-plan-code', { code: code });
+      var planLabel = PLAN_NAMES[result.plan] || result.plan;
+      msg.style.display = 'block';
+      msg.style.color = '#3DDC84';
+      msg.textContent = 'Success! You now have the ' + planLabel + ' Trading Plan.';
+      input.value = '';
+    } catch (err) {
+      msg.style.display = 'block';
+      msg.style.color = 'var(--red)';
+      msg.textContent = err.message || 'Could not redeem that code.';
+    } finally {
+      clearBtnLoading(btn);
+      btn.textContent = 'Redeem';
+    }
+  });
 
   var autoExchangeValue = 'bybit';
   var autoModeValue = 'demo';
