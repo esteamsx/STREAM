@@ -4419,14 +4419,19 @@ app.post("/api/tools/trading/close", requireAuth, tradingOrderLimiter, async (re
     const demo = tradingDemo(req);
     const creds = await getTradingCreds(req);
     let roiSnapshot = null;
+    let isBulkPosition = false;
     try {
       const posData = await tradingService(req).getLivePosition(category, symbol, demo, creds);
       if (posData.hasPosition && posData.margin) {
         roiSnapshot = (posData.unrealizedPnl / posData.margin) * 100;
       }
     } catch (err) {}
+    try {
+      const group = await getActiveBulkGroup(category, symbol);
+      isBulkPosition = !!group && (group.participants || []).some((p) => p.uid === req.uid);
+    } catch (err) {}
     const result = await tradingService(req).closePosition(category, symbol, percent, demo, creds);
-    if (roiSnapshot != null && (!percent || percent >= 100)) {
+    if (roiSnapshot != null && !isBulkPosition && (!percent || percent >= 100)) {
       creditTradingProfitCoins(req.uid, roiSnapshot, demo).catch(() => {});
     }
     let bulkClosed = 0;

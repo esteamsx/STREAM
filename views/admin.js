@@ -359,6 +359,12 @@ body:has(.ad-overlay.show){overflow:hidden}
 .ad-tpl-check-btn:disabled{opacity:.5}
 
 .bonus-form{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.tp-code-form{flex-direction:column;flex-wrap:nowrap}
+.tp-code-form-row{display:flex;gap:8px}
+.tp-code-form-row .custom-select{flex:1;min-width:0}
+.tp-code-form-row input[type="number"]{width:100px;flex-shrink:0}
+.tp-code-date{width:100%}
+.tp-code-generate-btn{width:100%}
 .bonus-form select,.bonus-form input{
   background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
   padding:10px 12px;color:var(--text);font-size:.82rem;outline:none;transition:border-color .2s var(--ease);
@@ -582,22 +588,24 @@ body:has(.ad-overlay.show){overflow:hidden}
       <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
     </div>
     <div class="ad-card-body"><div class="ad-card-body-inner">
-      <div class="bonus-form">
-        <div class="custom-select" id="tpCodePlanSelectWrap">
-          <button type="button" class="custom-select-btn">
-            <span>Standard</span>
-            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
-          </button>
-          <input type="hidden" id="tpCodePlanSelect" value="standard">
-          <div class="custom-select-list">
-            <div class="custom-select-option active" data-value="standard">Standard</div>
-            <div class="custom-select-option" data-value="pro">Pro</div>
-            <div class="custom-select-option" data-value="max">Max</div>
+      <div class="bonus-form tp-code-form">
+        <div class="tp-code-form-row">
+          <div class="custom-select" id="tpCodePlanSelectWrap">
+            <button type="button" class="custom-select-btn">
+              <span>Standard</span>
+              <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <input type="hidden" id="tpCodePlanSelect" value="standard">
+            <div class="custom-select-list">
+              <div class="custom-select-option active" data-value="standard">Standard</div>
+              <div class="custom-select-option" data-value="pro">Pro</div>
+              <div class="custom-select-option" data-value="max">Max</div>
+            </div>
           </div>
+          <input type="number" id="tpCodeMaxRedemptions" placeholder="Max users" min="1" step="1" value="1">
         </div>
-        <input type="date" id="tpCodeExpiryDate">
-        <input type="number" id="tpCodeMaxRedemptions" placeholder="Max users" min="1" step="1" value="1">
-        <button type="button" id="tpCodeGenerateBtn">Generate</button>
+        <input type="date" id="tpCodeExpiryDate" class="tp-code-date">
+        <button type="button" id="tpCodeGenerateBtn" class="tp-code-generate-btn">Generate</button>
       </div>
       <div class="bonus-msg" id="tpCodeMsg"></div>
       <div class="bonus-list" id="tpCodeList"><div class="sk-stack"><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div></div></div>
