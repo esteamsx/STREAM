@@ -466,18 +466,43 @@ async function listActiveBulkGroupsByAdmin(adminUid, category) {
 }
 // The admin who ran the bulk operation never gets a real order placed on
 // their own account (see bulk-start below), so there's nothing real to show
-// them. This builds a stand-in "position" card from the group's own data plus
-// a live mark price, purely for display - size/PnL/margin are not real
-// numbers, they just let the admin's UI render the same position card style
-// with the Bulk tag, so editing TP/SL or closing it can cascade to the real
-// participants.
+// them by default. This builds a stand-in "position" card from the group's
+// own data plus a live mark price, and aggregates the real PnL/ROI across all
+// participants so the admin can see at a glance whether the group is up or
+// down - each participant's own fetch is isolated so one bad/expired key can
+// never break the card (or the whole positions list) for the admin.
 async function buildVirtualBulkPosition(req, group) {
   const service = tradingService(req);
   let markPrice = null;
   try {
     const klines = await service.getPublicKlines(group.category, group.symbol, "15", 1, tradingDemo(req));
-    markPrice = klines.list && klines.list[0] ? Number(klines.list[0][4]) : null;
-  } catch (err) {}
+    markPrice = klines && klines.list && klines.list[0] ? Number(klines.list[0][4]) : null;
+  } catch (err) {
+    console.error("[bulk] mark price fetch failed for " + group.symbol + ":", err.message);
+  }
+
+  let totalPnl = 0;
+  let totalMargin = 0;
+  let respondedCount = 0;
+  try {
+    const participants = Array.isArray(group.participants) ? group.participants : [];
+    const results = await Promise.allSettled(participants.map(async (p) => {
+      const creds = await getDecryptedTradingCredentials(p.uid, p.exchange, p.mode);
+      if (!creds) return null;
+      const svc = p.exchange === "weex" ? weexReadonly : bybitReadonly;
+      return svc.getLivePosition(group.category, group.symbol, p.mode === "demo", creds);
+    }));
+    results.forEach((r) => {
+      if (r.status === "fulfilled" && r.value && r.value.hasPosition) {
+        totalPnl += Number(r.value.unrealizedPnl) || 0;
+        totalMargin += Number(r.value.margin) || 0;
+        respondedCount++;
+      }
+    });
+  } catch (err) {
+    console.error("[bulk] participant PnL aggregation failed for " + group.symbol + ":", err.message);
+  }
+
   return {
     hasPosition: true,
     side: group.side,
@@ -485,9 +510,10 @@ async function buildVirtualBulkPosition(req, group) {
     entryPrice: markPrice,
     markPrice,
     leverage: group.leverage,
-    unrealizedPnl: 0,
-    positionValue: 0,
-    margin: 0,
+    unrealizedPnl: totalPnl,
+    positionValue: totalMargin,
+    margin: totalMargin,
+    participantCount: respondedCount,
     liqPrice: null,
     marginMode: "isolated",
     takeProfit: group.takeProfit || null,
@@ -4331,14 +4357,18 @@ app.get("/api/tools/trading/position", requireAuth, async (req, res) => {
           result.isBulk = true;
           result.bulkIsAdmin = group.createdBy === req.uid;
         }
-      } catch (err) {}
+      } catch (err) {
+        console.error("[bulk] position tag lookup failed:", err.message);
+      }
     } else {
       try {
         const group = await getActiveBulkGroup(category, symbol);
         if (group && group.createdBy === req.uid) {
           Object.assign(result, await buildVirtualBulkPosition(req, group));
         }
-      } catch (err) {}
+      } catch (err) {
+        console.error("[bulk] virtual position build failed:", err.message);
+      }
     }
     res.json(result);
   } catch (err) {
@@ -4361,21 +4391,33 @@ app.get("/api/tools/trading/positions", requireAuth, async (req, res) => {
             pos.isBulk = true;
             pos.bulkIsAdmin = group.createdBy === req.uid;
           }
-        } catch (err) {}
+        } catch (err) {
+          console.error("[bulk] position tag lookup failed for " + pos.symbol + ":", err.message);
+        }
       }));
     }
     try {
       // The admin's virtual Bulk card is always shown alongside any real
       // position they separately hold on the same symbol - they're two
       // distinct things (their own trade vs. the group they're managing for
-      // everyone else), so one is never hidden in favor of the other.
+      // everyone else), so one is never hidden in favor of the other. Each
+      // group is built independently so one broken group can never take down
+      // the rest of the admin's positions list.
       const ownGroups = await listActiveBulkGroupsByAdmin(req.uid, category);
-      const virtualPositions = await Promise.all(ownGroups.map(async (g) => {
+      const virtualResults = await Promise.allSettled(ownGroups.map(async (g) => {
         const virtual = await buildVirtualBulkPosition(req, g);
         return { symbol: g.symbol, ...virtual };
       }));
-      result.positions.push(...virtualPositions);
-    } catch (err) {}
+      virtualResults.forEach((r, i) => {
+        if (r.status === "fulfilled") {
+          result.positions.push(r.value);
+        } else {
+          console.error("[bulk] virtual position build failed for " + ownGroups[i].symbol + ":", r.reason && r.reason.message);
+        }
+      });
+    } catch (err) {
+      console.error("[bulk] loading admin's own bulk groups failed:", err.message);
+    }
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load your positions." });

@@ -1571,6 +1571,7 @@ button:active{transform:scale(.96)}
       return;
     }
     row.innerHTML = positions.map(function(pos){
+      try {
       var sideLower = pos.side === 'Buy' ? 'long' : 'short';
       var sideLabel = sideLower === 'long' ? 'Long' : 'Short';
       var isActive = pos.symbol === symbol;
@@ -1582,12 +1583,21 @@ button:active{transform:scale(.96)}
         '</div>';
       }
       if (pos.isVirtual) {
+        var vPct = positionRoi(pos);
+        var vPnlSign = vPct >= 0 ? 'pos' : 'neg';
+        var hasRealData = pos.participantCount > 0;
         return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + (positions.length === 1 ? ' single' : '') + '" data-symbol="' + esc(pos.symbol) + '" data-virtual="1">' +
           '<div class="tr-pc-head">' +
             '<span class="tr-pc-symbol">' + esc(pos.symbol) + '<span class="tr-pc-bulk-tag">Bulk</span></span>' +
             '<span><span class="tr-pc-side ' + sideLower + '">' + sideLabel + '</span><span class="tr-pc-lev">' + pos.leverage + 'x</span></span>' +
           '</div>' +
-          '<div class="tr-pc-meta"><span>Not on your account, this manages the bulk trade for your opted-in users.</span></div>' +
+          (hasRealData
+            ? '<div class="tr-pc-pnl-row">' +
+                '<span class="tr-pc-pnl ' + vPnlSign + '">' + (vPct >= 0 ? '+' : '') + vPct.toFixed(2) + '%</span>' +
+                '<span class="tr-pc-pnl-usdt ' + vPnlSign + '">' + (pos.unrealizedPnl >= 0 ? '+' : '') + pos.unrealizedPnl.toFixed(2) + ' USDT</span>' +
+              '</div>'
+            : '') +
+          '<div class="tr-pc-meta"><span>Not on your account' + (hasRealData ? ', combined ROI across ' + pos.participantCount + ' user(s)' : ', this manages the bulk trade for your opted-in users') + '.</span></div>' +
           tpslBadges +
           '<div class="tr-pc-actions">' +
             '<button type="button" class="tr-pc-btn" data-action="tpsl" data-symbol="' + esc(pos.symbol) + '" data-virtual="1">TP/SL</button>' +
@@ -1614,6 +1624,10 @@ button:active{transform:scale(.96)}
           '<button type="button" class="tr-pc-btn danger" data-action="close" data-symbol="' + esc(pos.symbol) + '" data-virtual="0">Close</button>' +
         '</div>' +
       '</div>';
+      } catch (err) {
+        console.error('Failed to render position card for ' + (pos && pos.symbol) + ':', err);
+        return '';
+      }
     }).join('');
 
     function findPos(sym, isVirtual){
@@ -1645,14 +1659,18 @@ button:active{transform:scale(.96)}
     try {
       var data = await getJSON('/api/tools/trading/positions?category=' + CATEGORY);
       if (gen !== dataGen) return;
-      positions = data.positions || [];
-      renderPositions();
       var equityEl = document.getElementById('trEquity');
       var availEl = document.getElementById('trAvailable');
       equityEl.textContent = data.equity != null ? '$' + data.equity.toFixed(2) : '--';
       lastAvailableRaw = data.available != null ? data.available : 0;
       availEl.textContent = data.available != null ? data.available.toFixed(2) : '--';
       updateEstMargin();
+      positions = data.positions || [];
+      try {
+        renderPositions();
+      } catch (renderErr) {
+        console.error('renderPositions failed:', renderErr);
+      }
     } catch (err) {
       if (gen !== dataGen) return;
       document.getElementById('trEquity').textContent = '--';
