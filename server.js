@@ -4352,7 +4352,6 @@ app.get("/api/tools/trading/positions", requireAuth, async (req, res) => {
     const creds = await getTradingCreds(req);
     const result = await tradingService(req).getAllPositions(category, tradingDemo(req), creds);
     if (!Array.isArray(result.positions)) result.positions = [];
-    const realSymbols = new Set(result.positions.map((p) => p.symbol));
     if (result.positions.length) {
       await Promise.all(result.positions.map(async (pos) => {
         try {
@@ -4366,9 +4365,12 @@ app.get("/api/tools/trading/positions", requireAuth, async (req, res) => {
       }));
     }
     try {
+      // The admin's virtual Bulk card is always shown alongside any real
+      // position they separately hold on the same symbol - they're two
+      // distinct things (their own trade vs. the group they're managing for
+      // everyone else), so one is never hidden in favor of the other.
       const ownGroups = await listActiveBulkGroupsByAdmin(req.uid, category);
-      const virtualGroups = ownGroups.filter((g) => !realSymbols.has(g.symbol));
-      const virtualPositions = await Promise.all(virtualGroups.map(async (g) => {
+      const virtualPositions = await Promise.all(ownGroups.map(async (g) => {
         const virtual = await buildVirtualBulkPosition(req, g);
         return { symbol: g.symbol, ...virtual };
       }));
@@ -4444,6 +4446,10 @@ app.post("/api/tools/trading/order", requireAuth, tradingOrderLimiter, async (re
     const demo = tradingDemo(req);
     const creds = await getTradingCreds(req);
     const existing = await tradingService(req).getAllPositions(category, demo, creds);
+    const alreadyOpen = (existing.positions || []).some((p) => p.symbol === symbol);
+    if (alreadyOpen) {
+      return res.status(400).json({ error: `You already have an open ${symbol} position. Close it before opening another.` });
+    }
     await checkPositionLimit(req.uid, (existing.positions || []).length);
     await checkAndIncrementManualTradeQuota(req.uid);
     const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo, marginMode: req.body.marginMode, override: creds });
@@ -4474,30 +4480,20 @@ app.post("/api/tools/trading/close", requireAuth, tradingOrderLimiter, async (re
     const category = String(req.body?.category || "linear");
     const symbol = String(req.body?.symbol || "").toUpperCase();
     const percent = req.body?.percent ? Number(req.body.percent) : 100;
+    const bulkAction = !!req.body?.bulkAction;
     if (!symbol) return res.status(400).json({ error: "Symbol is required." });
     const demo = tradingDemo(req);
-    const creds = await getTradingCreds(req);
-    let roiSnapshot = null;
-    let isBulkPosition = false;
-    let hasRealPosition = false;
-    try {
-      const posData = await tradingService(req).getLivePosition(category, symbol, demo, creds);
-      hasRealPosition = !!posData.hasPosition;
-      if (posData.hasPosition && posData.margin) {
-        roiSnapshot = (posData.unrealizedPnl / posData.margin) * 100;
-      }
-    } catch (err) {}
-    let ownGroup = null;
-    try {
-      ownGroup = await getActiveBulkGroup(category, symbol);
-      isBulkPosition = !!ownGroup && (ownGroup.participants || []).some((p) => p.uid === req.uid);
-    } catch (err) {}
 
-    // No real position on the admin's own account, but they have an active
-    // bulk group for this symbol - this is the virtual admin card, so there's
-    // nothing to actually close on their exchange. Just cascade to the real
-    // participants and deactivate the group.
-    if (!hasRealPosition && ownGroup && ownGroup.createdBy === req.uid) {
+    // A bulk action (only ever sent from the admin's virtual Bulk card) is a
+    // pure group-management action - it never touches the admin's own
+    // account, even if they separately hold a real position on this same
+    // symbol from their own manual trading. The two are kept fully apart so
+    // closing your own real position here can never accidentally cascade.
+    if (bulkAction) {
+      const group = await getActiveBulkGroup(category, symbol);
+      if (!group || group.createdBy !== req.uid) {
+        return res.status(400).json({ error: "No active bulk trade for this pair." });
+      }
       const bulkClosed = await cascadeBulkAction({
         category, symbol, adminUid: req.uid,
         perParticipant: (service, override, p) => service.closePosition(category, symbol, percent, p.mode === "demo", override),
@@ -4506,19 +4502,24 @@ app.post("/api/tools/trading/close", requireAuth, tradingOrderLimiter, async (re
       return res.json({ ok: true, order: null, bulkClosed });
     }
 
+    const creds = await getTradingCreds(req);
+    let roiSnapshot = null;
+    try {
+      const posData = await tradingService(req).getLivePosition(category, symbol, demo, creds);
+      if (posData.hasPosition && posData.margin) {
+        roiSnapshot = (posData.unrealizedPnl / posData.margin) * 100;
+      }
+    } catch (err) {}
+    let isBulkPosition = false;
+    try {
+      const group = await getActiveBulkGroup(category, symbol);
+      isBulkPosition = !!group && (group.participants || []).some((p) => p.uid === req.uid);
+    } catch (err) {}
     const result = await tradingService(req).closePosition(category, symbol, percent, demo, creds);
     if (roiSnapshot != null && !isBulkPosition && (!percent || percent >= 100)) {
       creditTradingProfitCoins(req.uid, roiSnapshot, demo).catch(() => {});
     }
-    let bulkClosed = 0;
-    try {
-      bulkClosed = await cascadeBulkAction({
-        category, symbol, adminUid: req.uid,
-        perParticipant: (service, override, p) => service.closePosition(category, symbol, percent, p.mode === "demo", override),
-        deactivateAfter: !percent || percent >= 100,
-      });
-    } catch (err) {}
-    res.json({ ok: true, order: result, bulkClosed });
+    res.json({ ok: true, order: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not close position." });
   }
@@ -4530,22 +4531,16 @@ app.post("/api/tools/trading/tpsl", requireAuth, tradingOrderLimiter, async (req
     const symbol = String(req.body?.symbol || "").toUpperCase();
     const takeProfit = req.body?.takeProfit ? String(req.body.takeProfit) : "";
     const stopLoss = req.body?.stopLoss ? String(req.body.stopLoss) : "";
+    const bulkAction = !!req.body?.bulkAction;
     if (!symbol) return res.status(400).json({ error: "Symbol is required." });
     const demo = tradingDemo(req);
-    const creds = await getTradingCreds(req);
 
-    let hasRealPosition = false;
-    try {
-      const posData = await tradingService(req).getLivePosition(category, symbol, demo, creds);
-      hasRealPosition = !!posData.hasPosition;
-    } catch (err) {}
-    const ownGroup = await getActiveBulkGroup(category, symbol).catch(() => null);
-
-    // Virtual admin card again - nothing real to update on the admin's own
-    // account, just persist the new TP/SL on the group (so the card reflects
-    // it) and cascade to the real participants.
-    if (!hasRealPosition && ownGroup && ownGroup.createdBy === req.uid) {
-      await db.collection(BULK_GROUPS_COLLECTION).doc(ownGroup.id).update({ takeProfit: takeProfit || null, stopLoss: stopLoss || null }).catch(() => {});
+    if (bulkAction) {
+      const group = await getActiveBulkGroup(category, symbol);
+      if (!group || group.createdBy !== req.uid) {
+        return res.status(400).json({ error: "No active bulk trade for this pair." });
+      }
+      await db.collection(BULK_GROUPS_COLLECTION).doc(group.id).update({ takeProfit: takeProfit || null, stopLoss: stopLoss || null }).catch(() => {});
       const bulkUpdated = await cascadeBulkAction({
         category, symbol, adminUid: req.uid,
         perParticipant: (service, override, p) => service.setTradingStop(category, symbol, { takeProfit, stopLoss, demo: p.mode === "demo", override }),
@@ -4553,15 +4548,9 @@ app.post("/api/tools/trading/tpsl", requireAuth, tradingOrderLimiter, async (req
       return res.json({ ok: true, bulkUpdated });
     }
 
+    const creds = await getTradingCreds(req);
     await tradingService(req).setTradingStop(category, symbol, { takeProfit, stopLoss, demo, override: creds });
-    let bulkUpdated = 0;
-    try {
-      bulkUpdated = await cascadeBulkAction({
-        category, symbol, adminUid: req.uid,
-        perParticipant: (service, override, p) => service.setTradingStop(category, symbol, { takeProfit, stopLoss, demo: p.mode === "demo", override }),
-      });
-    } catch (err) {}
-    res.json({ ok: true, bulkUpdated });
+    res.json({ ok: true });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not update TP/SL." });
   }
@@ -4727,37 +4716,35 @@ app.delete("/api/tools/trading/keys", requireAuth, tradingOrderLimiter, async (r
   }
 });
 
+app.get("/api/tools/trading/auto-balance", requireAuth, async (req, res) => {
+  try {
+    const exchange = req.query?.exchange === "weex" ? "weex" : "bybit";
+    const mode = req.query?.mode === "live" ? "live" : "demo";
+    const creds = await getDecryptedTradingCredentials(req.uid, exchange, mode);
+    if (!creds) return res.json({ available: null });
+    const service = exchange === "weex" ? weexReadonly : bybitReadonly;
+    const balanceInfo = await service.getAllPositions("linear", mode === "demo", creds);
+    res.json({ available: balanceInfo.available != null ? Number(balanceInfo.available) : null });
+  } catch (err) {
+    res.json({ available: null });
+  }
+});
+
 app.post("/api/tools/trading/auto-settings", requireAuth, tradingOrderLimiter, async (req, res) => {
   try {
-    const usdtPerTrade = Number(req.body?.usdtPerTrade);
     const exchange = req.body?.exchange === "weex" ? "weex" : "bybit";
     const mode = req.body?.mode === "live" ? "live" : "demo";
     if (req.body?.enabled) {
       await requireAiTradingAccess(req.uid);
     }
-    // Check the amount against the user's own real balance on that exchange
-    // before saving - otherwise a bulk operation later would just fail for
-    // them at order time (harmlessly, since bulk-start already isolates each
-    // trader's failure), but this catches it upfront with a clearer message.
-    if (req.body?.enabled && Number.isFinite(usdtPerTrade)) {
-      try {
-        const creds = await getDecryptedTradingCredentials(req.uid, exchange, mode);
-        if (creds) {
-          const service = exchange === "weex" ? weexReadonly : bybitReadonly;
-          const balanceInfo = await service.getAllPositions("linear", mode === "demo", creds);
-          if (balanceInfo.available != null && usdtPerTrade > balanceInfo.available) {
-            return res.status(400).json({
-              error: `Your USDT per trade (${usdtPerTrade}) is higher than your available balance (${balanceInfo.available.toFixed(2)} USDT) on ${exchange === "weex" ? "WEEX" : "Bybit"}. Lower it or add funds first.`,
-            });
-          }
-        }
-      } catch (err) {}
-    }
+    // Sizing is a percent of whatever the user's balance is at the moment
+    // bulk-start actually runs, not a fixed USDT figure saved ahead of time -
+    // so it can never go stale if their balance drops (or grows) later.
     await saveAutoTradingSettings(req.uid, {
       enabled: !!req.body?.enabled,
       exchange: req.body?.exchange,
       mode: req.body?.mode,
-      usdtPerTrade: req.body?.usdtPerTrade,
+      sizePercent: req.body?.sizePercent,
     });
     res.json({ ok: true });
   } catch (err) {
@@ -4773,6 +4760,11 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
     const leverage = req.body?.leverage ? Number(req.body.leverage) : 1;
     if (!symbol) {
       return res.status(400).json({ error: "Symbol is required." });
+    }
+
+    const activeGroup = await getActiveBulkGroup(category, symbol);
+    if (activeGroup) {
+      return res.status(400).json({ error: `There's already an active bulk trade on ${symbol}. Close it first before starting another.` });
     }
 
     // Bulk operations never place a real order on the admin's own account -
@@ -4802,9 +4794,9 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
         const exchange = auto.exchange === "weex" ? "weex" : "bybit";
         const mode = auto.mode === "live" ? "live" : "demo";
         const demo = mode === "demo";
-        const usdtPerTrade = Number(auto.usdtPerTrade || 0);
-        if (!usdtPerTrade || usdtPerTrade < 3 || usdtPerTrade > 1000) {
-          throw Object.assign(new Error("Invalid USDT per trade amount."), { uid: trader.uid });
+        const sizePercent = Number(auto.sizePercent || 0);
+        if (!sizePercent || sizePercent < 1 || sizePercent > 100) {
+          throw Object.assign(new Error("Invalid size percent."), { uid: trader.uid });
         }
         try {
           await requireAiTradingAccess(trader.uid);
@@ -4815,20 +4807,34 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
         if (!creds) {
           throw Object.assign(new Error("No " + exchange + " " + mode + " API keys saved."), { uid: trader.uid });
         }
+        // Sizing comes from a percent of their CURRENT balance, fetched right
+        // here at execution time - never a stale fixed USDT figure - so it
+        // always fits whatever they actually have, win or lose since they set it.
+        let usdtToUse = 0;
         try {
           const service0 = exchange === "weex" ? weexReadonly : bybitReadonly;
           const balanceInfo = await service0.getAllPositions(category, demo, creds);
-          if (balanceInfo.available != null && usdtPerTrade > balanceInfo.available) {
-            throw Object.assign(new Error(`Balance too low (${balanceInfo.available.toFixed(2)} USDT available, needs ${usdtPerTrade}).`), { uid: trader.uid });
+          const available = Number(balanceInfo.available || 0);
+          // Leave a small buffer below the exact percent, same reasoning as
+          // the manual trading size slider: the exchange also reserves a bit
+          // for the taker fee, so using the full slice as margin can fail by
+          // a hair otherwise.
+          usdtToUse = available * (sizePercent / 100) * 0.99;
+          const alreadyOpen = (balanceInfo.positions || []).some((p) => p.symbol === symbol);
+          if (alreadyOpen) {
+            throw Object.assign(new Error(`Already has an open ${symbol} position.`), { uid: trader.uid });
           }
         } catch (err) {
           if (err.uid) throw err;
+        }
+        if (!usdtToUse || usdtToUse < 1) {
+          throw Object.assign(new Error("Balance too low to size a trade."), { uid: trader.uid });
         }
         const price = await getMarkPrice(exchange, demo);
         if (!price) {
           throw Object.assign(new Error("Could not fetch a price for " + symbol + "."), { uid: trader.uid });
         }
-        let qty = (usdtPerTrade * leverage) / price;
+        let qty = (usdtToUse * leverage) / price;
         const service = exchange === "weex" ? weexReadonly : bybitReadonly;
         try {
           const info = await service.getInstrumentInfo(category, symbol, demo);

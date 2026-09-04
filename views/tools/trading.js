@@ -205,6 +205,9 @@ button{font-family:inherit}
 .tr-size-pct{font-family:var(--font-mono);font-size:.8rem;color:var(--muted);width:38px;text-align:right}
 .tr-size-presets{display:flex;gap:6px;margin-bottom:12px}
 .tr-size-preset{flex:1;padding:5px;border-radius:7px;background:var(--card2);border:1px solid var(--border);color:var(--muted);font-size:.7rem;font-weight:700}
+.tr-auto-size-preview{background:#0a1418;border:1px solid var(--border-strong);border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;flex-direction:column;gap:4px}
+.tr-auto-size-preview-row{font-size:.74rem;color:var(--muted)}
+.tr-auto-size-preview-row b{color:var(--text);font-family:var(--font-mono);font-weight:700}
 .tr-order-avail{font-size:.7rem;color:var(--muted);margin-bottom:12px}
 .tr-side-buttons{display:flex;gap:10px}
 .tr-side-btn{
@@ -742,7 +745,22 @@ button:active{transform:scale(.96)}
           </button>
         </div>
       </div>
-      <div class="tr-order-field"><label>USDT per Trade (3 to 1000)</label><input type="number" id="trAutoUsdt" min="3" max="1000" value="10"></div>
+      <div class="tr-order-field"><label>Size (% of your balance per trade)</label></div>
+      <div class="tr-size-row">
+        <input type="range" id="trAutoSizeSlider" min="1" max="100" value="15">
+        <span class="tr-size-pct" id="trAutoSizePct">15%</span>
+      </div>
+      <div class="tr-size-presets">
+        <button type="button" class="tr-size-preset" data-pct="15">15%</button>
+        <button type="button" class="tr-size-preset" data-pct="30">30%</button>
+        <button type="button" class="tr-size-preset" data-pct="50">50%</button>
+        <button type="button" class="tr-size-preset" data-pct="75">75%</button>
+        <button type="button" class="tr-size-preset" data-pct="100">100%</button>
+      </div>
+      <div class="tr-auto-size-preview" id="trAutoSizePreview">
+        <span class="tr-auto-size-preview-row">Balance <b id="trAutoBalanceLabel">--</b> USDT</span>
+        <span class="tr-auto-size-preview-row">Will use <b id="trAutoUsdtPreview">--</b> USDT per trade</span>
+      </div>
       <button type="button" class="tr-auto-save-btn" id="trAutoSaveBtn">Save Settings</button>
       <div class="tr-auto-save-msg" id="trAutoSaveMsg" style="display:none"></div>
     </div>
@@ -1564,7 +1582,7 @@ button:active{transform:scale(.96)}
         '</div>';
       }
       if (pos.isVirtual) {
-        return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + (positions.length === 1 ? ' single' : '') + '" data-symbol="' + esc(pos.symbol) + '">' +
+        return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + (positions.length === 1 ? ' single' : '') + '" data-symbol="' + esc(pos.symbol) + '" data-virtual="1">' +
           '<div class="tr-pc-head">' +
             '<span class="tr-pc-symbol">' + esc(pos.symbol) + '<span class="tr-pc-bulk-tag">Bulk</span></span>' +
             '<span><span class="tr-pc-side ' + sideLower + '">' + sideLabel + '</span><span class="tr-pc-lev">' + pos.leverage + 'x</span></span>' +
@@ -1572,14 +1590,14 @@ button:active{transform:scale(.96)}
           '<div class="tr-pc-meta"><span>Not on your account, this manages the bulk trade for your opted-in users.</span></div>' +
           tpslBadges +
           '<div class="tr-pc-actions">' +
-            '<button type="button" class="tr-pc-btn" data-action="tpsl" data-symbol="' + esc(pos.symbol) + '">TP/SL</button>' +
-            '<button type="button" class="tr-pc-btn danger" data-action="close" data-symbol="' + esc(pos.symbol) + '">Close for Users</button>' +
+            '<button type="button" class="tr-pc-btn" data-action="tpsl" data-symbol="' + esc(pos.symbol) + '" data-virtual="1">TP/SL</button>' +
+            '<button type="button" class="tr-pc-btn danger" data-action="close" data-symbol="' + esc(pos.symbol) + '" data-virtual="1">Close for Users</button>' +
           '</div>' +
         '</div>';
       }
       var pct = positionRoi(pos);
       var pnlSign = pct >= 0 ? 'pos' : 'neg';
-      return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + (positions.length === 1 ? ' single' : '') + '" data-symbol="' + esc(pos.symbol) + '">' +
+      return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + (positions.length === 1 ? ' single' : '') + '" data-symbol="' + esc(pos.symbol) + '" data-virtual="0">' +
         '<div class="tr-pc-head">' +
           '<span class="tr-pc-symbol">' + esc(pos.symbol) + '<span class="tr-pc-margin-mode">' + (pos.marginMode === 'cross' ? 'Cross' : 'Isolated') + '</span>' + (pos.isBulk ? '<span class="tr-pc-bulk-tag">Bulk</span>' : '') + '</span>' +
           '<span><span class="tr-pc-side ' + sideLower + '">' + sideLabel + '</span><span class="tr-pc-lev">' + pos.leverage + 'x</span></span>' +
@@ -1591,12 +1609,16 @@ button:active{transform:scale(.96)}
         tpslBadges +
         '<div class="tr-pc-meta"><span>Entry <b>' + formatPrice(pos.entryPrice) + '</b></span><span>Liq <b>' + (pos.liqPrice ? formatPrice(pos.liqPrice) : '--') + '</b></span><span>Mark <b>' + formatPrice(pos.markPrice) + '</b></span></div>' +
         '<div class="tr-pc-actions">' +
-          '<button type="button" class="tr-pc-btn" data-action="tpsl" data-symbol="' + esc(pos.symbol) + '">TP/SL</button>' +
-          '<button type="button" class="tr-pc-btn" data-action="share" data-symbol="' + esc(pos.symbol) + '">Share</button>' +
-          '<button type="button" class="tr-pc-btn danger" data-action="close" data-symbol="' + esc(pos.symbol) + '">Close</button>' +
+          '<button type="button" class="tr-pc-btn" data-action="tpsl" data-symbol="' + esc(pos.symbol) + '" data-virtual="0">TP/SL</button>' +
+          '<button type="button" class="tr-pc-btn" data-action="share" data-symbol="' + esc(pos.symbol) + '" data-virtual="0">Share</button>' +
+          '<button type="button" class="tr-pc-btn danger" data-action="close" data-symbol="' + esc(pos.symbol) + '" data-virtual="0">Close</button>' +
         '</div>' +
       '</div>';
     }).join('');
+
+    function findPos(sym, isVirtual){
+      return positions.find(function(p){ return p.symbol === sym && !!p.isVirtual === isVirtual; });
+    }
 
     row.querySelectorAll('.tr-position-card').forEach(function(card){
       card.addEventListener('click', function(e){
@@ -1605,16 +1627,16 @@ button:active{transform:scale(.96)}
       });
     });
     row.querySelectorAll('[data-action="tpsl"]').forEach(function(btn){
-      btn.addEventListener('click', function(){ openTpslEditor(btn.getAttribute('data-symbol')); });
+      btn.addEventListener('click', function(){ openTpslEditor(btn.getAttribute('data-symbol'), btn.getAttribute('data-virtual') === '1'); });
     });
     row.querySelectorAll('[data-action="share"]').forEach(function(btn){
       btn.addEventListener('click', function(){
-        var pos = positions.find(function(p){ return p.symbol === btn.getAttribute('data-symbol'); });
+        var pos = findPos(btn.getAttribute('data-symbol'), false);
         if (pos) openShareOverlay(pos);
       });
     });
     row.querySelectorAll('[data-action="close"]').forEach(function(btn){
-      btn.addEventListener('click', function(){ confirmClosePosition(btn.getAttribute('data-symbol')); });
+      btn.addEventListener('click', function(){ confirmClosePosition(btn.getAttribute('data-symbol'), btn.getAttribute('data-virtual') === '1'); });
     });
   }
 
@@ -1730,8 +1752,8 @@ button:active{transform:scale(.96)}
     }
   }
 
-  function confirmClosePosition(sym){
-    var pos = positions.find(function(p){ return p.symbol === sym; });
+  function confirmClosePosition(sym, isVirtual){
+    var pos = positions.find(function(p){ return p.symbol === sym && !!p.isVirtual === !!isVirtual; });
     if (!pos) return;
     document.getElementById('trConfirmTitle').textContent = pos.isVirtual ? 'Close Bulk Trade' : 'Close Position';
     document.getElementById('trConfirmBody').innerHTML =
@@ -1747,8 +1769,8 @@ button:active{transform:scale(.96)}
     okBtn.onclick = async function(){
       setBtnLoading(okBtn, 'Closing...');
       try {
-        var result = await postJSON('/api/tools/trading/close', { category: CATEGORY, symbol: sym, percent: 100 });
-        toast(pos.isVirtual ? ('Closed for ' + (result.bulkClosed || 0) + ' user(s).') : (result.bulkClosed ? ('Position closed for you and ' + result.bulkClosed + ' other user(s).') : 'Position closed.'));
+        var result = await postJSON('/api/tools/trading/close', { category: CATEGORY, symbol: sym, percent: 100, bulkAction: !!pos.isVirtual });
+        toast(pos.isVirtual ? ('Closed for ' + (result.bulkClosed || 0) + ' user(s).') : 'Position closed.');
         closeConfirmOverlay();
         pollPositions();
       } catch (err) {
@@ -1856,8 +1878,8 @@ button:active{transform:scale(.96)}
     box.innerHTML = computePreview(pos.entryPrice, pos.size, pos.leverage, sideLabel, tp, sl);
   }
 
-  function openTpslEditor(sym){
-    var pos = positions.find(function(p){ return p.symbol === sym; });
+  function openTpslEditor(sym, isVirtual){
+    var pos = positions.find(function(p){ return p.symbol === sym && !!p.isVirtual === !!isVirtual; });
     if (!pos) return;
     document.getElementById('trTpslTitle').textContent = 'Edit TP / SL \\u00b7 ' + sym;
     document.getElementById('trEditTpInput').value = pos.takeProfit || '';
@@ -1866,7 +1888,7 @@ button:active{transform:scale(.96)}
     document.getElementById('trEditTpInput').oninput = function(){ updateEditTpslPreview(pos); };
     document.getElementById('trEditSlInput').oninput = function(){ updateEditTpslPreview(pos); };
     var bulkNote = document.getElementById('trTpslBulkNote');
-    if (bulkNote) bulkNote.style.display = (pos.isBulk && pos.bulkIsAdmin) ? 'block' : 'none';
+    if (bulkNote) bulkNote.style.display = pos.isVirtual ? 'block' : 'none';
     document.getElementById('trTpslOverlay').classList.add('show');
     document.getElementById('trTpslSaveBtn').onclick = async function(){
       var tp = document.getElementById('trEditTpInput').value;
@@ -1874,8 +1896,8 @@ button:active{transform:scale(.96)}
       var btn = document.getElementById('trTpslSaveBtn');
       setBtnLoading(btn, 'Saving...');
       try {
-        var result = await postJSON('/api/tools/trading/tpsl', { category: CATEGORY, symbol: sym, takeProfit: tp, stopLoss: sl });
-        toast(result.bulkUpdated ? ('TP/SL updated for you and ' + result.bulkUpdated + ' other user(s).') : 'TP/SL updated.');
+        var result = await postJSON('/api/tools/trading/tpsl', { category: CATEGORY, symbol: sym, takeProfit: tp, stopLoss: sl, bulkAction: !!pos.isVirtual });
+        toast(pos.isVirtual ? ('TP/SL updated for ' + (result.bulkUpdated || 0) + ' user(s).') : 'TP/SL updated.');
         document.getElementById('trTpslOverlay').classList.remove('show');
         pollPositions();
       } catch (err) {
@@ -2004,7 +2026,7 @@ button:active{transform:scale(.96)}
     document.getElementById('trSizePct').textContent = pct + '%';
     applySizePct(pct);
   });
-  document.querySelectorAll('.tr-size-preset').forEach(function(btn){
+  document.querySelectorAll('.tr-order-card .tr-size-preset').forEach(function(btn){
     btn.addEventListener('click', function(){
       var pct = Number(btn.getAttribute('data-pct'));
       currentSizePct = pct;
@@ -2692,12 +2714,50 @@ button:active{transform:scale(.96)}
     openGenericSelect('Exchange', [{ value: 'bybit', label: 'Bybit' }, { value: 'weex', label: 'WEEX' }], autoExchangeValue, function(v){
       autoExchangeValue = v;
       document.getElementById('trAutoExchangeLabel').textContent = v === 'weex' ? 'WEEX' : 'Bybit';
+      loadAutoBalancePreview();
     });
   });
   document.getElementById('trAutoModeBtn').addEventListener('click', function(){
     openGenericSelect('Mode', [{ value: 'demo', label: 'Demo' }, { value: 'live', label: 'Live' }], autoModeValue, function(v){
       autoModeValue = v;
       document.getElementById('trAutoModeLabel').textContent = v === 'live' ? 'Live' : 'Demo';
+      loadAutoBalancePreview();
+    });
+  });
+
+  var autoSizePercent = 15;
+  var autoBalanceAvailable = null;
+  function updateAutoSizePreview(){
+    document.getElementById('trAutoBalanceLabel').textContent = autoBalanceAvailable != null ? autoBalanceAvailable.toFixed(2) : '--';
+    if (autoBalanceAvailable != null) {
+      var usdt = autoBalanceAvailable * (autoSizePercent / 100);
+      document.getElementById('trAutoUsdtPreview').textContent = usdt.toFixed(2);
+    } else {
+      document.getElementById('trAutoUsdtPreview').textContent = '--';
+    }
+  }
+  async function loadAutoBalancePreview(){
+    document.getElementById('trAutoBalanceLabel').textContent = '...';
+    document.getElementById('trAutoUsdtPreview').textContent = '...';
+    try {
+      var data = await getJSON('/api/tools/trading/auto-balance?exchange=' + autoExchangeValue + '&mode=' + autoModeValue);
+      autoBalanceAvailable = data.available;
+    } catch (err) {
+      autoBalanceAvailable = null;
+    }
+    updateAutoSizePreview();
+  }
+  document.getElementById('trAutoSizeSlider').addEventListener('input', function(e){
+    autoSizePercent = Number(e.target.value);
+    document.getElementById('trAutoSizePct').textContent = autoSizePercent + '%';
+    updateAutoSizePreview();
+  });
+  document.getElementById('trAutoSettingsCard').querySelectorAll('.tr-size-preset').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      autoSizePercent = Number(btn.getAttribute('data-pct'));
+      document.getElementById('trAutoSizeSlider').value = autoSizePercent;
+      document.getElementById('trAutoSizePct').textContent = autoSizePercent + '%';
+      updateAutoSizePreview();
     });
   });
 
@@ -2732,7 +2792,10 @@ button:active{transform:scale(.96)}
       autoModeValue = auto.mode === 'live' ? 'live' : 'demo';
       document.getElementById('trAutoExchangeLabel').textContent = autoExchangeValue === 'weex' ? 'WEEX' : 'Bybit';
       document.getElementById('trAutoModeLabel').textContent = autoModeValue === 'live' ? 'Live' : 'Demo';
-      document.getElementById('trAutoUsdt').value = auto.usdtPerTrade || 10;
+      autoSizePercent = auto.sizePercent || 15;
+      document.getElementById('trAutoSizeSlider').value = autoSizePercent;
+      document.getElementById('trAutoSizePct').textContent = autoSizePercent + '%';
+      loadAutoBalancePreview();
       var bulkCard = document.getElementById('trBulkCard');
       if (bulkCard) bulkCard.classList.toggle('tr-admin-locked', !status.isAdmin);
     } catch (err) {}
@@ -2841,13 +2904,12 @@ button:active{transform:scale(.96)}
     var wasOn = toggle.classList.contains('on');
     var nextOn = !wasOn;
     toggle.classList.toggle('on', nextOn);
-    var usdt = Number(document.getElementById('trAutoUsdt').value || 10);
     try {
       await postJSON('/api/tools/trading/auto-settings', {
         enabled: nextOn,
         exchange: autoExchangeValue,
         mode: autoModeValue,
-        usdtPerTrade: usdt >= 3 && usdt <= 1000 ? usdt : 10,
+        sizePercent: autoSizePercent,
       });
       toast(nextOn ? 'Auto Trading enabled.' : 'Auto Trading disabled.');
     } catch (err) {
@@ -2858,20 +2920,14 @@ button:active{transform:scale(.96)}
 
   document.getElementById('trAutoSaveBtn').addEventListener('click', async function(){
     var btn = this;
-    var usdt = Number(document.getElementById('trAutoUsdt').value || 0);
     var msg = document.getElementById('trAutoSaveMsg');
-    if (usdt < 3 || usdt > 1000) {
-      msg.style.display = 'block';
-      msg.textContent = 'USDT per trade must be between 3 and 1000.';
-      return;
-    }
     setBtnLoading(btn, 'Saving...');
     try {
       await postJSON('/api/tools/trading/auto-settings', {
         enabled: document.getElementById('trAutoEnableToggle').classList.contains('on'),
         exchange: autoExchangeValue,
         mode: autoModeValue,
-        usdtPerTrade: usdt,
+        sizePercent: autoSizePercent,
       });
       msg.style.display = 'block';
       msg.textContent = 'Saved.';

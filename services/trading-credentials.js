@@ -75,7 +75,7 @@ export async function getCredentialsStatus(uid) {
   return {
     bybit: { live: statusFor(data, "bybit", "live"), demo: statusFor(data, "bybit", "demo") },
     weex: { live: statusFor(data, "weex", "live"), demo: statusFor(data, "weex", "demo") },
-    autoTrading: data?.autoTrading || { enabled: false, exchange: "bybit", mode: "demo", usdtPerTrade: 10 },
+    autoTrading: data?.autoTrading || { enabled: false, exchange: "bybit", mode: "demo", sizePercent: 15 },
   };
 }
 
@@ -93,15 +93,15 @@ export async function getDecryptedCredentials(uid, exchange, mode) {
 }
 
 export async function saveAutoTradingSettings(uid, settings) {
-  const usdtPerTrade = Number(settings.usdtPerTrade);
-  if (!Number.isFinite(usdtPerTrade) || usdtPerTrade < 3 || usdtPerTrade > 1000) {
-    throw Object.assign(new Error("USDT per trade must be between 3 and 1000."), { status: 400 });
+  const sizePercent = Number(settings.sizePercent);
+  if (!Number.isFinite(sizePercent) || sizePercent < 1 || sizePercent > 100) {
+    throw Object.assign(new Error("Size percent must be between 1 and 100."), { status: 400 });
   }
   const exchange = settings.exchange === "weex" ? "weex" : "bybit";
   const mode = settings.mode === "live" ? "live" : "demo";
   const ref = db.collection(COLLECTION).doc(uid);
   await ref.set({
-    autoTrading: { enabled: !!settings.enabled, exchange, mode, usdtPerTrade },
+    autoTrading: { enabled: !!settings.enabled, exchange, mode, sizePercent },
   }, { merge: true });
 }
 
