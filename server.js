@@ -455,7 +455,47 @@ async function getActiveBulkGroup(category, symbol) {
 async function saveBulkGroup({ category, symbol, side, leverage, createdBy, participants }) {
   await db.collection(BULK_GROUPS_COLLECTION).doc(bulkGroupId(category, symbol)).set({
     category, symbol, side, leverage, createdBy, participants, active: true, updatedAt: Date.now(),
+    takeProfit: null, stopLoss: null,
   });
+}
+async function listActiveBulkGroupsByAdmin(adminUid, category) {
+  const snap = await db.collection(BULK_GROUPS_COLLECTION).where("createdBy", "==", adminUid).get();
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((g) => g.active && g.category === category);
+}
+// The admin who ran the bulk operation never gets a real order placed on
+// their own account (see bulk-start below), so there's nothing real to show
+// them. This builds a stand-in "position" card from the group's own data plus
+// a live mark price, purely for display - size/PnL/margin are not real
+// numbers, they just let the admin's UI render the same position card style
+// with the Bulk tag, so editing TP/SL or closing it can cascade to the real
+// participants.
+async function buildVirtualBulkPosition(req, group) {
+  const service = tradingService(req);
+  let markPrice = null;
+  try {
+    const klines = await service.getPublicKlines(group.category, group.symbol, "15", 1, tradingDemo(req));
+    markPrice = klines.list && klines.list[0] ? Number(klines.list[0][4]) : null;
+  } catch (err) {}
+  return {
+    hasPosition: true,
+    side: group.side,
+    size: 0,
+    entryPrice: markPrice,
+    markPrice,
+    leverage: group.leverage,
+    unrealizedPnl: 0,
+    positionValue: 0,
+    margin: 0,
+    liqPrice: null,
+    marginMode: "isolated",
+    takeProfit: group.takeProfit || null,
+    stopLoss: group.stopLoss || null,
+    isBulk: true,
+    bulkIsAdmin: true,
+    isVirtual: true,
+  };
 }
 // Cascades a close/TP-SL action from the admin who started a bulk operation to
 // every other participant's own account, using each participant's own saved
@@ -4292,6 +4332,13 @@ app.get("/api/tools/trading/position", requireAuth, async (req, res) => {
           result.bulkIsAdmin = group.createdBy === req.uid;
         }
       } catch (err) {}
+    } else {
+      try {
+        const group = await getActiveBulkGroup(category, symbol);
+        if (group && group.createdBy === req.uid) {
+          Object.assign(result, await buildVirtualBulkPosition(req, group));
+        }
+      } catch (err) {}
     }
     res.json(result);
   } catch (err) {
@@ -4304,7 +4351,9 @@ app.get("/api/tools/trading/positions", requireAuth, async (req, res) => {
     const category = String(req.query.category || "linear");
     const creds = await getTradingCreds(req);
     const result = await tradingService(req).getAllPositions(category, tradingDemo(req), creds);
-    if (Array.isArray(result.positions) && result.positions.length) {
+    if (!Array.isArray(result.positions)) result.positions = [];
+    const realSymbols = new Set(result.positions.map((p) => p.symbol));
+    if (result.positions.length) {
       await Promise.all(result.positions.map(async (pos) => {
         try {
           const group = await getActiveBulkGroup(category, pos.symbol);
@@ -4316,6 +4365,15 @@ app.get("/api/tools/trading/positions", requireAuth, async (req, res) => {
         } catch (err) {}
       }));
     }
+    try {
+      const ownGroups = await listActiveBulkGroupsByAdmin(req.uid, category);
+      const virtualGroups = ownGroups.filter((g) => !realSymbols.has(g.symbol));
+      const virtualPositions = await Promise.all(virtualGroups.map(async (g) => {
+        const virtual = await buildVirtualBulkPosition(req, g);
+        return { symbol: g.symbol, ...virtual };
+      }));
+      result.positions.push(...virtualPositions);
+    } catch (err) {}
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not load your positions." });
@@ -4421,16 +4479,33 @@ app.post("/api/tools/trading/close", requireAuth, tradingOrderLimiter, async (re
     const creds = await getTradingCreds(req);
     let roiSnapshot = null;
     let isBulkPosition = false;
+    let hasRealPosition = false;
     try {
       const posData = await tradingService(req).getLivePosition(category, symbol, demo, creds);
+      hasRealPosition = !!posData.hasPosition;
       if (posData.hasPosition && posData.margin) {
         roiSnapshot = (posData.unrealizedPnl / posData.margin) * 100;
       }
     } catch (err) {}
+    let ownGroup = null;
     try {
-      const group = await getActiveBulkGroup(category, symbol);
-      isBulkPosition = !!group && (group.participants || []).some((p) => p.uid === req.uid);
+      ownGroup = await getActiveBulkGroup(category, symbol);
+      isBulkPosition = !!ownGroup && (ownGroup.participants || []).some((p) => p.uid === req.uid);
     } catch (err) {}
+
+    // No real position on the admin's own account, but they have an active
+    // bulk group for this symbol - this is the virtual admin card, so there's
+    // nothing to actually close on their exchange. Just cascade to the real
+    // participants and deactivate the group.
+    if (!hasRealPosition && ownGroup && ownGroup.createdBy === req.uid) {
+      const bulkClosed = await cascadeBulkAction({
+        category, symbol, adminUid: req.uid,
+        perParticipant: (service, override, p) => service.closePosition(category, symbol, percent, p.mode === "demo", override),
+        deactivateAfter: !percent || percent >= 100,
+      }).catch(() => 0);
+      return res.json({ ok: true, order: null, bulkClosed });
+    }
+
     const result = await tradingService(req).closePosition(category, symbol, percent, demo, creds);
     if (roiSnapshot != null && !isBulkPosition && (!percent || percent >= 100)) {
       creditTradingProfitCoins(req.uid, roiSnapshot, demo).catch(() => {});
@@ -4456,8 +4531,29 @@ app.post("/api/tools/trading/tpsl", requireAuth, tradingOrderLimiter, async (req
     const takeProfit = req.body?.takeProfit ? String(req.body.takeProfit) : "";
     const stopLoss = req.body?.stopLoss ? String(req.body.stopLoss) : "";
     if (!symbol) return res.status(400).json({ error: "Symbol is required." });
+    const demo = tradingDemo(req);
     const creds = await getTradingCreds(req);
-    await tradingService(req).setTradingStop(category, symbol, { takeProfit, stopLoss, demo: tradingDemo(req), override: creds });
+
+    let hasRealPosition = false;
+    try {
+      const posData = await tradingService(req).getLivePosition(category, symbol, demo, creds);
+      hasRealPosition = !!posData.hasPosition;
+    } catch (err) {}
+    const ownGroup = await getActiveBulkGroup(category, symbol).catch(() => null);
+
+    // Virtual admin card again - nothing real to update on the admin's own
+    // account, just persist the new TP/SL on the group (so the card reflects
+    // it) and cascade to the real participants.
+    if (!hasRealPosition && ownGroup && ownGroup.createdBy === req.uid) {
+      await db.collection(BULK_GROUPS_COLLECTION).doc(ownGroup.id).update({ takeProfit: takeProfit || null, stopLoss: stopLoss || null }).catch(() => {});
+      const bulkUpdated = await cascadeBulkAction({
+        category, symbol, adminUid: req.uid,
+        perParticipant: (service, override, p) => service.setTradingStop(category, symbol, { takeProfit, stopLoss, demo: p.mode === "demo", override }),
+      }).catch(() => 0);
+      return res.json({ ok: true, bulkUpdated });
+    }
+
+    await tradingService(req).setTradingStop(category, symbol, { takeProfit, stopLoss, demo, override: creds });
     let bulkUpdated = 0;
     try {
       bulkUpdated = await cascadeBulkAction({
@@ -4679,7 +4775,12 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
       return res.status(400).json({ error: "Symbol is required." });
     }
 
-    const traders = await getAllOptedInAutoTraders();
+    // Bulk operations never place a real order on the admin's own account -
+    // it's run purely on behalf of opted-in users. The admin instead sees a
+    // virtual "bulk" position card (built in the position/positions routes
+    // below) that mirrors the group and lets them edit TP/SL or close it,
+    // which cascades to the real participants without risking admin funds.
+    const traders = (await getAllOptedInAutoTraders()).filter((t) => t.uid !== req.uid);
     if (!traders.length) {
       return res.json({ total: 0, succeeded: 0, failed: 0, results: [] });
     }

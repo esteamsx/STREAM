@@ -686,7 +686,7 @@ button:active{transform:scale(.96)}
   <div class="tr-auto-card tr-admin-locked" id="trBulkCard">
     <div class="tr-auto-card-title">Bulk Operation <span class="tr-auto-admin-tag">Admin</span></div>
     <div class="tr-admin-blur-content">
-      <p class="tr-auto-help">Opens a position for every user who has enabled Auto Trading and saved their own API keys, sized by each user's own USDT-per-trade setting.</p>
+      <p class="tr-auto-help">Opens a position for every user who has enabled Auto Trading and saved their own API keys, sized by each user's own USDT-per-trade setting. Your own account is never traded - you'll see this as a virtual Bulk position you can use to manage TP/SL and closing for everyone at once.</p>
       <div class="tr-order-field">
         <label>Pair</label>
         <button type="button" class="tr-select-btn" id="trBulkPairBtn">
@@ -1555,8 +1555,6 @@ button:active{transform:scale(.96)}
     row.innerHTML = positions.map(function(pos){
       var sideLower = pos.side === 'Buy' ? 'long' : 'short';
       var sideLabel = sideLower === 'long' ? 'Long' : 'Short';
-      var pct = positionRoi(pos);
-      var pnlSign = pct >= 0 ? 'pos' : 'neg';
       var isActive = pos.symbol === symbol;
       var tpslBadges = '';
       if (pos.takeProfit || pos.stopLoss) {
@@ -1565,6 +1563,22 @@ button:active{transform:scale(.96)}
           (pos.stopLoss ? '<span>SL ' + formatPrice(pos.stopLoss) + '</span>' : '') +
         '</div>';
       }
+      if (pos.isVirtual) {
+        return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + (positions.length === 1 ? ' single' : '') + '" data-symbol="' + esc(pos.symbol) + '">' +
+          '<div class="tr-pc-head">' +
+            '<span class="tr-pc-symbol">' + esc(pos.symbol) + '<span class="tr-pc-bulk-tag">Bulk</span></span>' +
+            '<span><span class="tr-pc-side ' + sideLower + '">' + sideLabel + '</span><span class="tr-pc-lev">' + pos.leverage + 'x</span></span>' +
+          '</div>' +
+          '<div class="tr-pc-meta"><span>Not on your account, this manages the bulk trade for your opted-in users.</span></div>' +
+          tpslBadges +
+          '<div class="tr-pc-actions">' +
+            '<button type="button" class="tr-pc-btn" data-action="tpsl" data-symbol="' + esc(pos.symbol) + '">TP/SL</button>' +
+            '<button type="button" class="tr-pc-btn danger" data-action="close" data-symbol="' + esc(pos.symbol) + '">Close for Users</button>' +
+          '</div>' +
+        '</div>';
+      }
+      var pct = positionRoi(pos);
+      var pnlSign = pct >= 0 ? 'pos' : 'neg';
       return '<div class="tr-position-card ' + sideLower + (isActive ? ' active' : '') + (positions.length === 1 ? ' single' : '') + '" data-symbol="' + esc(pos.symbol) + '">' +
         '<div class="tr-pc-head">' +
           '<span class="tr-pc-symbol">' + esc(pos.symbol) + '<span class="tr-pc-margin-mode">' + (pos.marginMode === 'cross' ? 'Cross' : 'Isolated') + '</span>' + (pos.isBulk ? '<span class="tr-pc-bulk-tag">Bulk</span>' : '') + '</span>' +
@@ -1719,20 +1733,22 @@ button:active{transform:scale(.96)}
   function confirmClosePosition(sym){
     var pos = positions.find(function(p){ return p.symbol === sym; });
     if (!pos) return;
-    document.getElementById('trConfirmTitle').textContent = 'Close Position';
+    document.getElementById('trConfirmTitle').textContent = pos.isVirtual ? 'Close Bulk Trade' : 'Close Position';
     document.getElementById('trConfirmBody').innerHTML =
       '<div class="tr-confirm-row"><span>Symbol</span><span>' + esc(sym) + '</span></div>' +
       '<div class="tr-confirm-row"><span>Side</span><span>' + (pos.side === 'Buy' ? 'Long' : 'Short') + '</span></div>' +
-      '<div class="tr-confirm-row"><span>Size</span><span>' + pos.size + '</span></div>' +
-      (pos.isBulk && pos.bulkIsAdmin ? '<div class="tr-confirm-row"><span colspan="2" style="color:var(--red)">This is a bulk position - closing it also closes it for every other opted-in user.</span></div>' : '');
+      (pos.isVirtual ? '' : '<div class="tr-confirm-row"><span>Size</span><span>' + pos.size + '</span></div>') +
+      (pos.isVirtual
+        ? '<div class="tr-confirm-row"><span colspan="2" style="color:var(--red)">You have no real position here, this closes the trade for every opted-in user.</span></div>'
+        : (pos.isBulk && pos.bulkIsAdmin ? '<div class="tr-confirm-row"><span colspan="2" style="color:var(--red)">This is a bulk position - closing it also closes it for every other opted-in user.</span></div>' : ''));
     var okBtn = document.getElementById('trConfirmOkBtn');
     okBtn.className = 'tr-confirm-ok ' + (pos.side === 'Buy' ? 'short' : 'long');
-    okBtn.textContent = 'Close Position';
+    okBtn.textContent = pos.isVirtual ? 'Close for Users' : 'Close Position';
     okBtn.onclick = async function(){
       setBtnLoading(okBtn, 'Closing...');
       try {
         var result = await postJSON('/api/tools/trading/close', { category: CATEGORY, symbol: sym, percent: 100 });
-        toast(result.bulkClosed ? ('Position closed for you and ' + result.bulkClosed + ' other user(s).') : 'Position closed.');
+        toast(pos.isVirtual ? ('Closed for ' + (result.bulkClosed || 0) + ' user(s).') : (result.bulkClosed ? ('Position closed for you and ' + result.bulkClosed + ' other user(s).') : 'Position closed.'));
         closeConfirmOverlay();
         pollPositions();
       } catch (err) {
