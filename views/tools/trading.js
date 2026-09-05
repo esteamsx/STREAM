@@ -182,6 +182,7 @@ button{font-family:inherit}
 .tr-auto-help{font-size:.74rem;color:var(--muted);line-height:1.5;margin:0 0 14px}
 .tr-bulk-start-btn{width:100%;padding:14px;border-radius:12px;background:linear-gradient(135deg,#ff5c7a,#ff8a5c);border:none;color:#1a0508;font-family:var(--font-display);font-weight:800;font-size:.92rem;margin-top:6px}
 .tr-bulk-result{margin-top:12px;font-size:.76rem;color:var(--muted);background:var(--card2);border-radius:10px;padding:10px;line-height:1.6;max-height:180px;overflow-y:auto}
+.tr-bulk-result.err{color:var(--red);background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.3)}
 .tr-auto-toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-family:var(--font-display);font-weight:700;font-size:.84rem}
 .tr-auto-save-btn{width:100%;padding:14px;border-radius:12px;background:linear-gradient(135deg,#22d1ee,#7c6bff);border:none;color:#04141a;font-family:var(--font-display);font-weight:800;font-size:.92rem;margin-top:4px}
 .tr-auto-save-msg{margin-top:10px;font-size:.76rem;color:var(--muted)}
@@ -1477,7 +1478,9 @@ button:active{transform:scale(.96)}
   });
 
   function formatPrice(p){
-    if (p == null) return '--';
+    if (p == null || p === '') return '--';
+    p = Number(p);
+    if (!isFinite(p)) return '--';
     if (p >= 1000) return p.toLocaleString(undefined, { maximumFractionDigits: 2 });
     if (p >= 1) return p.toFixed(4);
     return p.toFixed(6);
@@ -3052,8 +3055,17 @@ button:active{transform:scale(.96)}
           takeProfit: tp || undefined, stopLoss: sl || undefined,
         });
         resultBox.style.display = 'block';
+        resultBox.className = 'tr-bulk-result';
         if (!data.total) {
-          resultBox.textContent = 'No users are opted into Auto Trading yet.';
+          resultBox.classList.add('err');
+          resultBox.textContent = 'No users are opted into Auto Trading yet. Nothing was traded, so there is no bulk position to manage.';
+        } else if (!data.succeeded) {
+          resultBox.classList.add('err');
+          var failLines = ['0 of ' + data.total + ' succeeded. No trade happened, so there is no bulk position to show.'];
+          data.results.forEach(function(r){
+            failLines.push('✗ ' + r.uid.slice(0, 8) + ' : ' + r.error);
+          });
+          resultBox.innerHTML = failLines.map(esc).join('<br>');
         } else {
           var lines = [data.succeeded + ' of ' + data.total + ' succeeded.'];
           data.results.forEach(function(r){

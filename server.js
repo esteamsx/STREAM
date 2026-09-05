@@ -4404,6 +4404,7 @@ app.get("/api/tools/trading/positions", requireAuth, async (req, res) => {
       // group is built independently so one broken group can never take down
       // the rest of the admin's positions list.
       const ownGroups = await listActiveBulkGroupsByAdmin(req.uid, category);
+      console.error("[bulk] admin " + req.uid + " has " + ownGroups.length + " own group(s) for category " + category + ":", ownGroups.map((g) => g.symbol + "/active=" + g.active));
       const virtualResults = await Promise.allSettled(ownGroups.map(async (g) => {
         const virtual = await buildVirtualBulkPosition(req, g);
         return { symbol: g.symbol, ...virtual };
@@ -4918,7 +4919,11 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
 
     const succeededList = summary.filter((s) => s.ok).map((s) => ({ uid: s.uid, exchange: s.exchange, mode: s.mode }));
     if (succeededList.length) {
-      await saveBulkGroup({ category, symbol, side, leverage, createdBy: req.uid, participants: succeededList, takeProfit, stopLoss }).catch(() => {});
+      await saveBulkGroup({ category, symbol, side, leverage, createdBy: req.uid, participants: succeededList, takeProfit, stopLoss })
+        .then(() => console.error("[bulk] group saved for " + symbol + " with " + succeededList.length + " participant(s), admin " + req.uid))
+        .catch((err) => console.error("[bulk] saveBulkGroup FAILED for " + symbol + ":", err.message));
+    } else {
+      console.error("[bulk] no group saved for " + symbol + " - 0 of " + summary.length + " succeeded:", summary.map((s) => s.error).join(" | "));
     }
 
     res.json({
