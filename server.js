@@ -452,10 +452,10 @@ async function getActiveBulkGroup(category, symbol) {
   const data = snap.data();
   return data.active ? { id: snap.id, ...data } : null;
 }
-async function saveBulkGroup({ category, symbol, side, leverage, createdBy, participants }) {
+async function saveBulkGroup({ category, symbol, side, leverage, createdBy, participants, tpRoi, slRoi }) {
   await db.collection(BULK_GROUPS_COLLECTION).doc(bulkGroupId(category, symbol)).set({
     category, symbol, side, leverage, createdBy, participants, active: true, updatedAt: Date.now(),
-    takeProfit: null, stopLoss: null,
+    takeProfit: null, stopLoss: null, tpRoi: tpRoi || null, slRoi: slRoi || null,
   });
 }
 async function listActiveBulkGroupsByAdmin(adminUid, category) {
@@ -518,6 +518,8 @@ async function buildVirtualBulkPosition(req, group) {
     marginMode: "isolated",
     takeProfit: group.takeProfit || null,
     stopLoss: group.stopLoss || null,
+    tpRoi: group.tpRoi || null,
+    slRoi: group.slRoi || null,
     isBulk: true,
     bulkIsAdmin: true,
     isVirtual: true,
@@ -4800,6 +4802,8 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
     const symbol = String(req.body?.symbol || "").toUpperCase();
     const side = req.body?.side === "Sell" ? "Sell" : "Buy";
     const leverage = req.body?.leverage ? Number(req.body.leverage) : 1;
+    const tpRoi = req.body?.tpRoi ? Number(req.body.tpRoi) : 0;
+    const slRoi = req.body?.slRoi ? Number(req.body.slRoi) : 0;
     if (!symbol) {
       return res.status(400).json({ error: "Symbol is required." });
     }
@@ -4892,6 +4896,37 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
           passphrase: creds.passphrase,
           category, symbol, side, qty, leverage, orderType: "Market", demo,
         });
+
+        // TP/SL by ROI has to be computed per participant off their own real
+        // fill price, not one shared price - two people entering at slightly
+        // different prices need different TP/SL prices to hit the same ROI.
+        if (tpRoi || slRoi) {
+          try {
+            await new Promise((resolve) => setTimeout(resolve, 900));
+            const filled = await service.getLivePosition(category, symbol, demo, creds);
+            if (filled.hasPosition && filled.entryPrice) {
+              const entry = Number(filled.entryPrice);
+              const moveFrac = (roiPct) => (roiPct / 100) / leverage;
+              let tpPrice = null;
+              let slPrice = null;
+              if (side === "Buy") {
+                if (tpRoi) tpPrice = entry * (1 + moveFrac(tpRoi));
+                if (slRoi) slPrice = entry * (1 - moveFrac(slRoi));
+              } else {
+                if (tpRoi) tpPrice = entry * (1 - moveFrac(tpRoi));
+                if (slRoi) slPrice = entry * (1 + moveFrac(slRoi));
+              }
+              await service.setTradingStop(category, symbol, {
+                takeProfit: tpPrice != null ? String(tpPrice) : "",
+                stopLoss: slPrice != null ? String(slPrice) : "",
+                demo,
+                override: creds,
+              });
+            }
+          } catch (err) {
+            console.error("[bulk] TP/SL by ROI failed for " + trader.uid + ":", err.message);
+          }
+        }
         return { uid: trader.uid, exchange, mode, qty, order };
       })
     );
@@ -4905,7 +4940,7 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
 
     const succeededList = summary.filter((s) => s.ok).map((s) => ({ uid: s.uid, exchange: s.exchange, mode: s.mode }));
     if (succeededList.length) {
-      await saveBulkGroup({ category, symbol, side, leverage, createdBy: req.uid, participants: succeededList }).catch(() => {});
+      await saveBulkGroup({ category, symbol, side, leverage, createdBy: req.uid, participants: succeededList, tpRoi, slRoi }).catch(() => {});
     }
 
     res.json({

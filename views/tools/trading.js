@@ -381,6 +381,7 @@ button{font-family:inherit}
 .tr-confirm-ok{color:#fff}
 .tr-confirm-ok.long{background:var(--green)}
 .tr-confirm-ok.short{background:var(--red)}
+.tr-confirm-ok.neutral{background:linear-gradient(135deg,#ff5c7a,#ff8a5c);color:#1a0508}
 
 .tr-tpsl-panel{width:100%;max-width:360px;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);border:1px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);border-radius:16px;padding:20px}
 .tr-tpsl-panel .tr-order-field{margin-bottom:12px}
@@ -714,6 +715,14 @@ button:active{transform:scale(.96)}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
           </button>
         </div>
+      </div>
+      <div class="tr-order-toggle">
+        <input type="checkbox" id="trBulkTpslToggle">
+        <label for="trBulkTpslToggle">Set TP / SL by ROI</label>
+      </div>
+      <div class="tr-order-row" id="trBulkTpslRow" style="display:none">
+        <div class="tr-order-field"><label>Take Profit ROI %</label><input type="number" id="trBulkTpRoi" placeholder="e.g. 50" min="1" step="any"></div>
+        <div class="tr-order-field"><label>Stop Loss ROI %</label><input type="number" id="trBulkSlRoi" placeholder="e.g. 20" min="1" step="any"></div>
       </div>
       <button type="button" class="tr-bulk-start-btn" id="trBulkStartBtn">Bulk Start</button>
       <div class="tr-bulk-result" id="trBulkResult" style="display:none"></div>
@@ -1568,7 +1577,11 @@ button:active{transform:scale(.96)}
   function renderPositions(){
     var row = document.getElementById('trPositionsRow');
     document.getElementById('trPositionsHead').style.display = positions.length > 1 ? 'flex' : 'none';
-    document.getElementById('trPositionsCountLabel').textContent = 'Positions (' + positions.length + ')';
+    var realCount = positions.filter(function(p){ return !p.isVirtual; }).length;
+    var virtualCount = positions.length - realCount;
+    var label = realCount + (realCount === 1 ? ' position' : ' positions');
+    if (virtualCount) label += ' + ' + virtualCount + ' bulk';
+    document.getElementById('trPositionsCountLabel').textContent = label;
     if (!positions.length) {
       row.innerHTML = '<div class="tr-positions-empty" id="trPositionsEmpty">No open positions.</div>';
       return;
@@ -1579,7 +1592,12 @@ button:active{transform:scale(.96)}
       var sideLabel = sideLower === 'long' ? 'Long' : 'Short';
       var isActive = pos.symbol === symbol;
       var tpslBadges = '';
-      if (pos.takeProfit || pos.stopLoss) {
+      if (pos.isVirtual && (pos.tpRoi || pos.slRoi)) {
+        tpslBadges = '<div class="tr-pc-tpsl">' +
+          (pos.tpRoi ? '<span>TP ' + pos.tpRoi + '% ROI</span>' : '') +
+          (pos.slRoi ? '<span>SL ' + pos.slRoi + '% ROI</span>' : '') +
+        '</div>';
+      } else if (pos.takeProfit || pos.stopLoss) {
         tpslBadges = '<div class="tr-pc-tpsl">' +
           (pos.takeProfit ? '<span>TP ' + formatPrice(pos.takeProfit) + '</span>' : '') +
           (pos.stopLoss ? '<span>SL ' + formatPrice(pos.stopLoss) + '</span>' : '') +
@@ -1815,16 +1833,16 @@ button:active{transform:scale(.96)}
     okBtn.textContent = 'Close All';
     okBtn.onclick = async function(){
       setBtnLoading(okBtn, 'Closing...');
-      var syms = positions.map(function(p){ return p.symbol; });
+      var entries = positions.map(function(p){ return { symbol: p.symbol, isVirtual: !!p.isVirtual }; });
       var failed = 0;
-      for (var i = 0; i < syms.length; i++) {
+      for (var i = 0; i < entries.length; i++) {
         try {
-          await postJSON('/api/tools/trading/close', { category: CATEGORY, symbol: syms[i], percent: 100 });
+          await postJSON('/api/tools/trading/close', { category: CATEGORY, symbol: entries[i].symbol, percent: 100, bulkAction: entries[i].isVirtual });
         } catch (err) {
           failed++;
         }
       }
-      toast(failed ? ('Closed ' + (syms.length - failed) + ' of ' + syms.length + '.') : 'All positions closed.');
+      toast(failed ? ('Closed ' + (entries.length - failed) + ' of ' + entries.length + '.') : 'All positions closed.');
       closeConfirmOverlay();
       pollPositions();
       clearBtnLoading(okBtn);
@@ -2960,32 +2978,60 @@ button:active{transform:scale(.96)}
     clearBtnLoading(btn);
   });
 
-  document.getElementById('trBulkStartBtn').addEventListener('click', async function(){
-    var btn = this;
+  document.getElementById('trBulkTpslToggle').addEventListener('change', function(){
+    document.getElementById('trBulkTpslRow').style.display = this.checked ? 'flex' : 'none';
+  });
+
+  document.getElementById('trBulkStartBtn').addEventListener('click', function(){
     var pair = bulkSymbol;
     var lev = Number(bulkLeverageValue || 10);
     var side = bulkSideValue;
-    var resultBox = document.getElementById('trBulkResult');
     if (!pair) { toast('Select a pair first.'); return; }
-    setBtnLoading(btn, 'Starting...');
-    resultBox.style.display = 'none';
-    try {
-      var data = await postJSON('/api/tools/trading/auto/bulk-start', { category: CATEGORY, symbol: pair, leverage: lev, side: side });
-      resultBox.style.display = 'block';
-      if (!data.total) {
-        resultBox.textContent = 'No users are opted into Auto Trading yet.';
-      } else {
-        var lines = [data.succeeded + ' of ' + data.total + ' succeeded.'];
-        data.results.forEach(function(r){
-          lines.push((r.ok ? '✓ ' : '✗ ') + r.uid.slice(0, 8) + (r.ok ? (' : ' + r.qty + ' ' + pair) : (' : ' + r.error)));
+    var useTpsl = document.getElementById('trBulkTpslToggle').checked;
+    var tpRoi = useTpsl ? Number(document.getElementById('trBulkTpRoi').value || 0) : 0;
+    var slRoi = useTpsl ? Number(document.getElementById('trBulkSlRoi').value || 0) : 0;
+    if (useTpsl && (!tpRoi && !slRoi)) { toast('Enter a take profit or stop loss ROI.'); return; }
+
+    document.getElementById('trConfirmTitle').textContent = 'Confirm Bulk Start';
+    document.getElementById('trConfirmBody').innerHTML =
+      '<div class="tr-confirm-row"><span>Pair</span><span>' + esc(pair) + '</span></div>' +
+      '<div class="tr-confirm-row"><span>Position</span><span>' + (side === 'Buy' ? 'Long' : 'Short') + '</span></div>' +
+      '<div class="tr-confirm-row"><span>Leverage</span><span>' + lev + 'x</span></div>' +
+      (useTpsl && tpRoi ? '<div class="tr-confirm-row"><span>Take Profit</span><span>' + tpRoi + '% ROI</span></div>' : '') +
+      (useTpsl && slRoi ? '<div class="tr-confirm-row"><span>Stop Loss</span><span>' + slRoi + '% ROI</span></div>' : '') +
+      '<div class="tr-confirm-row"><span colspan="2" style="color:var(--muted)">This trades every opted-in user, your own account is never used.</span></div>';
+    var okBtn = document.getElementById('trConfirmOkBtn');
+    okBtn.className = 'tr-confirm-ok neutral';
+    okBtn.textContent = 'Bulk Start';
+    okBtn.onclick = async function(){
+      setBtnLoading(okBtn, 'Starting...');
+      var resultBox = document.getElementById('trBulkResult');
+      resultBox.style.display = 'none';
+      try {
+        var data = await postJSON('/api/tools/trading/auto/bulk-start', {
+          category: CATEGORY, symbol: pair, leverage: lev, side: side,
+          tpRoi: tpRoi || undefined, slRoi: slRoi || undefined,
         });
-        resultBox.innerHTML = lines.map(esc).join('<br>');
+        resultBox.style.display = 'block';
+        if (!data.total) {
+          resultBox.textContent = 'No users are opted into Auto Trading yet.';
+        } else {
+          var lines = [data.succeeded + ' of ' + data.total + ' succeeded.'];
+          data.results.forEach(function(r){
+            lines.push((r.ok ? '✓ ' : '✗ ') + r.uid.slice(0, 8) + (r.ok ? (' : ' + r.qty + ' ' + pair) : (' : ' + r.error)));
+          });
+          resultBox.innerHTML = lines.map(esc).join('<br>');
+        }
+        closeConfirmOverlay();
+        pollPositions();
+      } catch (err) {
+        resultBox.style.display = 'block';
+        resultBox.textContent = err.message || 'Bulk start failed.';
+        closeConfirmOverlay();
       }
-    } catch (err) {
-      resultBox.style.display = 'block';
-      resultBox.textContent = err.message || 'Bulk start failed.';
-    }
-    clearBtnLoading(btn);
+      clearBtnLoading(okBtn);
+    };
+    document.getElementById('trConfirmOverlay').classList.add('show');
   });
 
   var TR_VIEW_KEY = 'trActiveView';
