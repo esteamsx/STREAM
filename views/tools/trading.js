@@ -123,10 +123,10 @@ button{font-family:inherit}
 
 .tr-positions-section{margin-bottom:14px}
 .tr-section-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700;margin-bottom:8px;padding:0 2px}
-.tr-positions-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:2px;scroll-snap-type:x proximity}
+.tr-positions-row{display:flex;flex-direction:column;gap:10px;max-height:70vh;overflow-y:auto;padding-right:2px}
 .tr-positions-row::-webkit-scrollbar{display:none}
 .tr-position-card{
-  scroll-snap-align:start;flex-shrink:0;width:260px;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);border:1px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
+  width:100%;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);border:1px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
   border-radius:14px;padding:14px;
 }
 .tr-position-card.single{width:100%}
@@ -222,7 +222,8 @@ button{font-family:inherit}
 .tr-preview-group:last-child{margin-bottom:0}
 .tr-liq-preview{font-size:.68rem;color:var(--muted);margin:-2px 0 12px;line-height:1.6}
 .tr-liq-preview b{color:var(--text);font-family:var(--font-mono)}
-.tr-positions-head{display:flex;justify-content:flex-end;margin-bottom:8px}
+.tr-positions-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.tr-positions-head-label{font-family:var(--font-display);font-weight:700;font-size:.82rem;color:var(--muted)}
 .tr-close-all-btn{padding:6px 14px;border-radius:10px;background:rgba(255,59,92,.12);border:1px solid rgba(255,59,92,.35);color:var(--red);font-family:var(--font-display);font-weight:700;font-size:.78rem}
 .tr-tpsl-preview b{font-family:var(--font-mono)}
 .tr-tpsl-preview b.pos{color:var(--green)}
@@ -621,6 +622,7 @@ button:active{transform:scale(.96)}
 
   <div class="tr-tab-panel active" id="trTabPositions">
     <div class="tr-positions-head" id="trPositionsHead" style="display:none">
+      <span class="tr-positions-head-label" id="trPositionsCountLabel">Positions</span>
       <button type="button" class="tr-close-all-btn" id="trCloseAllBtn">Close All</button>
     </div>
     <div class="tr-positions-row" id="trPositionsRow">
@@ -689,7 +691,7 @@ button:active{transform:scale(.96)}
   <div class="tr-auto-card tr-admin-locked" id="trBulkCard">
     <div class="tr-auto-card-title">Bulk Operation <span class="tr-auto-admin-tag">Admin</span></div>
     <div class="tr-admin-blur-content">
-      <p class="tr-auto-help">Opens a position for every user who has enabled Auto Trading and saved their own API keys, sized by each user's own USDT-per-trade setting. Your own account is never traded - you'll see this as a virtual Bulk position you can use to manage TP/SL and closing for everyone at once.</p>
+      <p class="tr-auto-help">Opens a trade for every opted-in user. Your account isn't traded, just used to manage it.</p>
       <div class="tr-order-field">
         <label>Pair</label>
         <button type="button" class="tr-select-btn" id="trBulkPairBtn">
@@ -842,7 +844,7 @@ button:active{transform:scale(.96)}
     <div class="tr-order-field"><label>Take Profit</label><input type="number" id="trEditTpInput" step="any" placeholder="Optional"></div>
     <div class="tr-order-field"><label>Stop Loss</label><input type="number" id="trEditSlInput" step="any" placeholder="Optional"></div>
     <div class="tr-tpsl-preview" id="trEditTpslPreview"></div>
-    <div class="tr-bulk-result" id="trTpslBulkNote" style="display:none;color:var(--red);margin-bottom:10px">This is a bulk position &middot; saving also updates it for every other opted-in user.</div>
+    <div class="tr-bulk-result" id="trTpslBulkNote" style="display:none;color:var(--red);margin-bottom:10px">Applies to all users on this trade.</div>
     <div class="tr-confirm-actions">
       <button type="button" class="tr-confirm-cancel" id="trTpslCancelBtn">Cancel</button>
       <button type="button" class="tr-tpsl-save" id="trTpslSaveBtn" style="flex:1">Save</button>
@@ -1566,6 +1568,7 @@ button:active{transform:scale(.96)}
   function renderPositions(){
     var row = document.getElementById('trPositionsRow');
     document.getElementById('trPositionsHead').style.display = positions.length > 1 ? 'flex' : 'none';
+    document.getElementById('trPositionsCountLabel').textContent = 'Positions (' + positions.length + ')';
     if (!positions.length) {
       row.innerHTML = '<div class="tr-positions-empty" id="trPositionsEmpty">No open positions.</div>';
       return;
@@ -1597,7 +1600,7 @@ button:active{transform:scale(.96)}
                 '<span class="tr-pc-pnl-usdt ' + vPnlSign + '">' + (pos.unrealizedPnl >= 0 ? '+' : '') + pos.unrealizedPnl.toFixed(2) + ' USDT</span>' +
               '</div>'
             : '') +
-          '<div class="tr-pc-meta"><span>Not on your account' + (hasRealData ? ', combined ROI across ' + pos.participantCount + ' user(s)' : ', this manages the bulk trade for your opted-in users') + '.</span></div>' +
+          '<div class="tr-pc-meta"><span>' + (hasRealData ? 'ROI across ' + pos.participantCount + ' user(s)' : 'Managing bulk trade for users') + '</span></div>' +
           tpslBadges +
           '<div class="tr-pc-actions">' +
             '<button type="button" class="tr-pc-btn" data-action="tpsl" data-symbol="' + esc(pos.symbol) + '" data-virtual="1">TP/SL</button>' +
@@ -1779,8 +1782,8 @@ button:active{transform:scale(.96)}
       '<div class="tr-confirm-row"><span>Side</span><span>' + (pos.side === 'Buy' ? 'Long' : 'Short') + '</span></div>' +
       (pos.isVirtual ? '' : '<div class="tr-confirm-row"><span>Size</span><span>' + pos.size + '</span></div>') +
       (pos.isVirtual
-        ? '<div class="tr-confirm-row"><span colspan="2" style="color:var(--red)">You have no real position here, this closes the trade for every opted-in user.</span></div>'
-        : (pos.isBulk && pos.bulkIsAdmin ? '<div class="tr-confirm-row"><span colspan="2" style="color:var(--red)">This is a bulk position - closing it also closes it for every other opted-in user.</span></div>' : ''));
+        ? '<div class="tr-confirm-row"><span colspan="2" style="color:var(--red)">Closes this trade for all users.</span></div>'
+        : (pos.isBulk && pos.bulkIsAdmin ? '<div class="tr-confirm-row"><span colspan="2" style="color:var(--red)">Closes for other users too.</span></div>' : ''));
     var okBtn = document.getElementById('trConfirmOkBtn');
     okBtn.className = 'tr-confirm-ok ' + (pos.side === 'Buy' ? 'short' : 'long');
     okBtn.textContent = pos.isVirtual ? 'Close for Users' : 'Close Position';
