@@ -718,12 +718,13 @@ button:active{transform:scale(.96)}
       </div>
       <div class="tr-order-toggle">
         <input type="checkbox" id="trBulkTpslToggle">
-        <label for="trBulkTpslToggle">Set TP / SL by ROI</label>
+        <label for="trBulkTpslToggle">Set TP / SL</label>
       </div>
       <div class="tr-order-row" id="trBulkTpslRow" style="display:none">
-        <div class="tr-order-field"><label>Take Profit ROI %</label><input type="number" id="trBulkTpRoi" placeholder="e.g. 50" min="1" step="any"></div>
-        <div class="tr-order-field"><label>Stop Loss ROI %</label><input type="number" id="trBulkSlRoi" placeholder="e.g. 20" min="1" step="any"></div>
+        <div class="tr-order-field"><label>Take Profit</label><input type="number" id="trBulkTpInput" step="any" placeholder="Optional"></div>
+        <div class="tr-order-field"><label>Stop Loss</label><input type="number" id="trBulkSlInput" step="any" placeholder="Optional"></div>
       </div>
+      <div class="tr-tpsl-preview" id="trBulkTpslPreview" style="display:none"></div>
       <button type="button" class="tr-bulk-start-btn" id="trBulkStartBtn">Bulk Start</button>
       <div class="tr-bulk-result" id="trBulkResult" style="display:none"></div>
     </div>
@@ -1576,12 +1577,9 @@ button:active{transform:scale(.96)}
 
   function renderPositions(){
     var row = document.getElementById('trPositionsRow');
-    document.getElementById('trPositionsHead').style.display = positions.length > 1 ? 'flex' : 'none';
     var realCount = positions.filter(function(p){ return !p.isVirtual; }).length;
-    var virtualCount = positions.length - realCount;
-    var label = realCount + (realCount === 1 ? ' position' : ' positions');
-    if (virtualCount) label += ' + ' + virtualCount + ' bulk';
-    document.getElementById('trPositionsCountLabel').textContent = label;
+    document.getElementById('trPositionsHead').style.display = positions.length > 1 ? 'flex' : 'none';
+    document.getElementById('trPositionsCountLabel').textContent = 'Positions (' + realCount + ')';
     if (!positions.length) {
       row.innerHTML = '<div class="tr-positions-empty" id="trPositionsEmpty">No open positions.</div>';
       return;
@@ -1592,12 +1590,7 @@ button:active{transform:scale(.96)}
       var sideLabel = sideLower === 'long' ? 'Long' : 'Short';
       var isActive = pos.symbol === symbol;
       var tpslBadges = '';
-      if (pos.isVirtual && (pos.tpRoi || pos.slRoi)) {
-        tpslBadges = '<div class="tr-pc-tpsl">' +
-          (pos.tpRoi ? '<span>TP ' + pos.tpRoi + '% ROI</span>' : '') +
-          (pos.slRoi ? '<span>SL ' + pos.slRoi + '% ROI</span>' : '') +
-        '</div>';
-      } else if (pos.takeProfit || pos.stopLoss) {
+      if (pos.takeProfit || pos.stopLoss) {
         tpslBadges = '<div class="tr-pc-tpsl">' +
           (pos.takeProfit ? '<span>TP ' + formatPrice(pos.takeProfit) + '</span>' : '') +
           (pos.stopLoss ? '<span>SL ' + formatPrice(pos.stopLoss) + '</span>' : '') +
@@ -2671,8 +2664,10 @@ button:active{transform:scale(.96)}
     });
   }
 
+  var bulkMarkPriceEstimate = null;
   async function selectBulkSymbol(sym){
     bulkSymbol = sym;
+    bulkMarkPriceEstimate = null;
     document.getElementById('trBulkPairLabel').textContent = sym;
     document.getElementById('trBulkSearchOverlay').classList.remove('show');
     var leverageBtn = document.getElementById('trBulkLeverageBtn');
@@ -2694,6 +2689,14 @@ button:active{transform:scale(.96)}
       leverageLabel.textContent = '--';
       toast(err.message || 'This pair is not available on both exchanges.');
     }
+    try {
+      var klineData = await getJSON('/api/tools/trading/klines?category=' + CATEGORY + '&symbol=' + sym + '&interval=15');
+      var list = klineData.list || [];
+      bulkMarkPriceEstimate = list.length ? Number(list[0][4]) : null;
+    } catch (err) {
+      bulkMarkPriceEstimate = null;
+    }
+    updateBulkTpslPreview();
   }
 
   var bulkLeverageOptions = [];
@@ -2719,6 +2722,7 @@ button:active{transform:scale(.96)}
     openGenericSelect('Leverage', options, bulkLeverageValue, function(v){
       bulkLeverageValue = v;
       document.getElementById('trBulkLeverageLabel').textContent = v + 'x';
+      updateBulkTpslPreview();
     });
   });
 
@@ -2747,6 +2751,7 @@ button:active{transform:scale(.96)}
     openGenericSelect('Position', [{ value: 'Buy', label: 'Long' }, { value: 'Sell', label: 'Short' }], bulkSideValue, function(v){
       bulkSideValue = v;
       document.getElementById('trBulkSideLabel').textContent = v === 'Sell' ? 'Short' : 'Long';
+      updateBulkTpslPreview();
     });
   });
   document.getElementById('trAutoExchangeBtn').addEventListener('click', function(){
@@ -2978,8 +2983,42 @@ button:active{transform:scale(.96)}
     clearBtnLoading(btn);
   });
 
+  function computeRoiOnlyPreview(entryPrice, leverage, sideLabel, tp, sl){
+    if (!entryPrice || !leverage) return '';
+    var lines = [];
+    if (tp) {
+      var tpRoi = (sideLabel === 'Long' ? (tp - entryPrice) / entryPrice : (entryPrice - tp) / entryPrice) * leverage * 100;
+      lines.push('TP: <b class="' + (tpRoi >= 0 ? 'pos' : 'neg') + '">' + (tpRoi >= 0 ? '+' : '') + tpRoi.toFixed(2) + '%</b>');
+    }
+    if (sl) {
+      var slRoi = (sideLabel === 'Long' ? (sl - entryPrice) / entryPrice : (entryPrice - sl) / entryPrice) * leverage * 100;
+      lines.push('SL: <b class="' + (slRoi >= 0 ? 'pos' : 'neg') + '">' + (slRoi >= 0 ? '+' : '') + slRoi.toFixed(2) + '%</b>');
+    }
+    return lines.join('<br>');
+  }
+
+  function updateBulkTpslPreview(){
+    var box = document.getElementById('trBulkTpslPreview');
+    var tp = Number(document.getElementById('trBulkTpInput').value || 0);
+    var sl = Number(document.getElementById('trBulkSlInput').value || 0);
+    if (!tp && !sl) { box.style.display = 'none'; return; }
+    if (!bulkMarkPriceEstimate || !bulkLeverageValue) { box.style.display = 'none'; return; }
+    var sideLabel = bulkSideValue === 'Buy' ? 'Long' : 'Short';
+    var preview = computeRoiOnlyPreview(bulkMarkPriceEstimate, bulkLeverageValue, sideLabel, tp, sl);
+    if (!preview) { box.style.display = 'none'; return; }
+    box.innerHTML = preview;
+    box.style.display = 'block';
+  }
+  document.getElementById('trBulkTpInput').addEventListener('input', updateBulkTpslPreview);
+  document.getElementById('trBulkSlInput').addEventListener('input', updateBulkTpslPreview);
+
   document.getElementById('trBulkTpslToggle').addEventListener('change', function(){
     document.getElementById('trBulkTpslRow').style.display = this.checked ? 'flex' : 'none';
+    if (!this.checked) {
+      document.getElementById('trBulkTpInput').value = '';
+      document.getElementById('trBulkSlInput').value = '';
+      document.getElementById('trBulkTpslPreview').style.display = 'none';
+    }
   });
 
   document.getElementById('trBulkStartBtn').addEventListener('click', function(){
@@ -2988,17 +3027,17 @@ button:active{transform:scale(.96)}
     var side = bulkSideValue;
     if (!pair) { toast('Select a pair first.'); return; }
     var useTpsl = document.getElementById('trBulkTpslToggle').checked;
-    var tpRoi = useTpsl ? Number(document.getElementById('trBulkTpRoi').value || 0) : 0;
-    var slRoi = useTpsl ? Number(document.getElementById('trBulkSlRoi').value || 0) : 0;
-    if (useTpsl && (!tpRoi && !slRoi)) { toast('Enter a take profit or stop loss ROI.'); return; }
+    var tp = useTpsl ? document.getElementById('trBulkTpInput').value : '';
+    var sl = useTpsl ? document.getElementById('trBulkSlInput').value : '';
+    if (useTpsl && !tp && !sl) { toast('Enter a take profit or stop loss price.'); return; }
 
     document.getElementById('trConfirmTitle').textContent = 'Confirm Bulk Start';
     document.getElementById('trConfirmBody').innerHTML =
       '<div class="tr-confirm-row"><span>Pair</span><span>' + esc(pair) + '</span></div>' +
       '<div class="tr-confirm-row"><span>Position</span><span>' + (side === 'Buy' ? 'Long' : 'Short') + '</span></div>' +
       '<div class="tr-confirm-row"><span>Leverage</span><span>' + lev + 'x</span></div>' +
-      (useTpsl && tpRoi ? '<div class="tr-confirm-row"><span>Take Profit</span><span>' + tpRoi + '% ROI</span></div>' : '') +
-      (useTpsl && slRoi ? '<div class="tr-confirm-row"><span>Stop Loss</span><span>' + slRoi + '% ROI</span></div>' : '') +
+      (tp ? '<div class="tr-confirm-row"><span>Take Profit</span><span>' + esc(tp) + '</span></div>' : '') +
+      (sl ? '<div class="tr-confirm-row"><span>Stop Loss</span><span>' + esc(sl) + '</span></div>' : '') +
       '<div class="tr-confirm-row"><span colspan="2" style="color:var(--muted)">This trades every opted-in user, your own account is never used.</span></div>';
     var okBtn = document.getElementById('trConfirmOkBtn');
     okBtn.className = 'tr-confirm-ok neutral';
@@ -3010,7 +3049,7 @@ button:active{transform:scale(.96)}
       try {
         var data = await postJSON('/api/tools/trading/auto/bulk-start', {
           category: CATEGORY, symbol: pair, leverage: lev, side: side,
-          tpRoi: tpRoi || undefined, slRoi: slRoi || undefined,
+          takeProfit: tp || undefined, stopLoss: sl || undefined,
         });
         resultBox.style.display = 'block';
         if (!data.total) {
