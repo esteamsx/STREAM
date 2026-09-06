@@ -448,17 +448,28 @@ const BULK_GROUPS_COLLECTION = "bulkPositionGroups";
 function bulkGroupId(category, symbol) {
   return `${category}_${symbol}`;
 }
+const bulkGroupCache = new Map();
+const BULK_GROUP_CACHE_MS = 10000;
+function invalidateBulkGroupCache(category, symbol) {
+  const key = bulkGroupId(category, symbol);
+  bulkGroupCache.delete(key);
+  virtualBulkCache.delete(key);
+}
 async function getActiveBulkGroup(category, symbol) {
-  const snap = await db.collection(BULK_GROUPS_COLLECTION).doc(bulkGroupId(category, symbol)).get();
-  if (!snap.exists) return null;
-  const data = snap.data();
-  return data.active ? { id: snap.id, ...data } : null;
+  const key = bulkGroupId(category, symbol);
+  const cached = bulkGroupCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+  const snap = await db.collection(BULK_GROUPS_COLLECTION).doc(key).get();
+  const data = snap.exists && snap.data().active ? { id: snap.id, ...snap.data() } : null;
+  bulkGroupCache.set(key, { data, expiresAt: Date.now() + BULK_GROUP_CACHE_MS });
+  return data;
 }
 async function saveBulkGroup({ category, symbol, side, leverage, createdBy, participants, takeProfit, stopLoss }) {
   await db.collection(BULK_GROUPS_COLLECTION).doc(bulkGroupId(category, symbol)).set({
     category, symbol, side, leverage, createdBy, participants, active: true, updatedAt: Date.now(),
     takeProfit: takeProfit || null, stopLoss: stopLoss || null,
   });
+  invalidateBulkGroupCache(category, symbol);
 }
 async function listActiveBulkGroupsByAdmin(adminUid, category) {
   const snap = await db.collection(BULK_GROUPS_COLLECTION).where("createdBy", "==", adminUid).get();
@@ -473,7 +484,19 @@ async function listActiveBulkGroupsByAdmin(adminUid, category) {
 // participants so the admin can see at a glance whether the group is up or
 // down - each participant's own fetch is isolated so one bad/expired key can
 // never break the card (or the whole positions list) for the admin.
+//
+// The admin's positions page polls every few seconds, and without a cache
+// this would fetch decrypted credentials and call the exchange API for every
+// participant on every single poll - with several participants that burns
+// through Firestore's daily quota within hours. Cached for a short window so
+// the numbers still feel live without hammering Firestore or the exchange.
+const virtualBulkCache = new Map();
+const VIRTUAL_BULK_CACHE_MS = 15000;
 async function buildVirtualBulkPosition(req, group) {
+  const cacheKey = bulkGroupId(group.category, group.symbol);
+  const cached = virtualBulkCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+
   const service = tradingService(req);
   let markPrice = null;
   try {
@@ -505,7 +528,7 @@ async function buildVirtualBulkPosition(req, group) {
     console.error("[bulk] participant PnL aggregation failed for " + group.symbol + ":", err.message);
   }
 
-  return {
+  const data = {
     hasPosition: true,
     side: group.side,
     size: 0,
@@ -524,6 +547,8 @@ async function buildVirtualBulkPosition(req, group) {
     bulkIsAdmin: true,
     isVirtual: true,
   };
+  virtualBulkCache.set(cacheKey, { data, expiresAt: Date.now() + VIRTUAL_BULK_CACHE_MS });
+  return data;
 }
 // Cascades a close/TP-SL action from the admin who started a bulk operation to
 // every other participant's own account, using each participant's own saved
@@ -543,6 +568,7 @@ async function cascadeBulkAction({ category, symbol, adminUid, perParticipant, d
   }));
   if (deactivateAfter) {
     await db.collection(BULK_GROUPS_COLLECTION).doc(group.id).update({ active: false, closedAt: Date.now() }).catch(() => {});
+    invalidateBulkGroupCache(category, symbol);
   }
   return succeeded;
 }
@@ -4586,6 +4612,7 @@ app.post("/api/tools/trading/tpsl", requireAuth, tradingOrderLimiter, async (req
         return res.status(400).json({ error: "No active bulk trade for this pair." });
       }
       await db.collection(BULK_GROUPS_COLLECTION).doc(group.id).update({ takeProfit: takeProfit || null, stopLoss: stopLoss || null }).catch(() => {});
+      invalidateBulkGroupCache(category, symbol);
       const bulkUpdated = await cascadeBulkAction({
         category, symbol, adminUid: req.uid,
         perParticipant: (service, override, p) => service.setTradingStop(category, symbol, { takeProfit, stopLoss, demo: p.mode === "demo", override }),
