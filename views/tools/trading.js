@@ -400,7 +400,10 @@ button{font-family:inherit}
   content:"";position:absolute;inset:0;background:radial-gradient(circle at 18% -10%,rgba(18,196,139,.14),transparent 55%);pointer-events:none;
 }
 .tr-share-card.short::before{background:radial-gradient(circle at 18% -10%,rgba(255,59,92,.14),transparent 55%)}
-.tr-share-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;position:relative}
+.tr-share-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;position:relative}
+.tr-share-user-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:20px}
+.tr-share-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#22d1ee,#7c6bff);background-size:cover;background-position:center;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:.72rem;color:#04141a}
+.tr-share-username{font-family:var(--font-display);font-weight:700;font-size:.84rem;color:rgba(255,255,255,.78)}
 .tr-share-brand{display:flex;align-items:center;gap:7px;font-family:var(--font-display);font-weight:700;font-size:.84rem;
   background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
 .tr-share-brand svg{width:18px;height:18px;color:var(--accent);flex-shrink:0}
@@ -875,6 +878,10 @@ button:active{transform:scale(.96)}
           ES TEAMS TV
         </div>
         <span class="tr-share-side-chip" id="trShareSideChip">LONG · 1x</span>
+      </div>
+      <div class="tr-share-user-row" id="trShareUserRow">
+        <div class="tr-share-avatar" id="trShareAvatar">T</div>
+        <span class="tr-share-username" id="trShareUsername">@trader</span>
       </div>
       <div class="tr-share-symbol" id="trShareSymbol">BTCUSDT</div>
       <div class="tr-share-roi-label">
@@ -1401,6 +1408,30 @@ button:active{transform:scale(.96)}
   var lastPrice = null;
   var firstPrice = null;
   var shareUsdt = false;
+  var myProfile = null;
+  var shareAvatarImg = null;
+  var shareAvatarReady = null;
+  async function loadMyProfileForShare(){
+    if (myProfile) return myProfile;
+    try {
+      myProfile = await getJSON('/api/profile');
+    } catch (err) {
+      myProfile = {};
+    }
+    return myProfile;
+  }
+  function ensureShareAvatarLoaded(){
+    if (shareAvatarReady) return shareAvatarReady;
+    shareAvatarReady = new Promise(function(resolve){
+      if (!myProfile || myProfile.showProfilePhoto === false || !myProfile.photoURL) { resolve(false); return; }
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function(){ shareAvatarImg = img; resolve(true); };
+      img.onerror = function(){ resolve(false); };
+      img.src = myProfile.photoURL;
+    });
+    return shareAvatarReady;
+  }
   var orderType = 'Market';
   var activeTab = 'positions';
   var EXCHANGE_KEY = 'trExchange';
@@ -2135,7 +2166,23 @@ button:active{transform:scale(.96)}
   document.getElementById('trLongBtn').addEventListener('click', function(){ openOrderConfirm('Buy'); });
   document.getElementById('trShortBtn').addEventListener('click', function(){ openOrderConfirm('Sell'); });
 
+  async function refreshShareUserBadge(){
+    await loadMyProfileForShare();
+    await ensureShareAvatarLoaded();
+    var myUsername = (myProfile && myProfile.username) || 'trader';
+    document.getElementById('trShareUsername').textContent = '@' + myUsername;
+    var avatarEl = document.getElementById('trShareAvatar');
+    if (myProfile && myProfile.showProfilePhoto !== false && myProfile.photoURL) {
+      avatarEl.style.backgroundImage = 'url(' + myProfile.photoURL + ')';
+      avatarEl.textContent = '';
+    } else {
+      avatarEl.style.backgroundImage = '';
+      avatarEl.textContent = myUsername.charAt(0).toUpperCase();
+    }
+  }
+
   function openShareOverlay(pos){
+    refreshShareUserBadge();
     var sideLower = pos.side === 'Buy' ? 'long' : 'short';
     var sideLabel = sideLower === 'long' ? 'Long' : 'Short';
     var pct = positionRoi(pos);
@@ -2197,7 +2244,7 @@ button:active{transform:scale(.96)}
     ctx.closePath();
   }
 
-  function drawShareCanvas(pos, sideLower, sideLabel, pct, timestampText){
+  function drawShareCanvas(pos, sideLower, sideLabel, pct, timestampText, drawAvatar){
     var canvas = document.getElementById('trShareCanvas');
     var ctx = canvas.getContext('2d');
     var W = canvas.width, H = canvas.height;
@@ -2235,6 +2282,40 @@ button:active{transform:scale(.96)}
     ctx.fillStyle = sideColor;
     ctx.textAlign = 'center';
     ctx.fillText(chipLabel, chipX + chipW / 2, chipY + 23);
+
+    var myUsername = (myProfile && myProfile.username) || 'trader';
+    var uName = '@' + myUsername;
+    var uRowY = 102;
+    var avatarD = 28, avatarGap = 10;
+    ctx.font = '700 17px "Space Grotesk", sans-serif';
+    var uNameW = ctx.measureText(uName).width;
+    var uTotalW = avatarD + avatarGap + uNameW;
+    var uStartX = W / 2 - uTotalW / 2;
+    var avatarCx = uStartX + avatarD / 2;
+    var avatarCy = uRowY;
+    var hasAvatarImg = drawAvatar && shareAvatarImg && myProfile && myProfile.showProfilePhoto !== false;
+    if (hasAvatarImg) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(avatarCx, avatarCy, avatarD / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(shareAvatarImg, avatarCx - avatarD / 2, avatarCy - avatarD / 2, avatarD, avatarD);
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(avatarCx, avatarCy, avatarD / 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(34,209,238,.22)';
+      ctx.fill();
+      ctx.fillStyle = '#22d1ee';
+      ctx.font = '800 14px "Space Grotesk", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(myUsername.charAt(0).toUpperCase(), avatarCx, avatarCy + 5);
+    }
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,255,255,.78)';
+    ctx.font = '700 17px "Space Grotesk", sans-serif';
+    ctx.fillText(uName, uStartX + avatarD + avatarGap, uRowY + 6);
 
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(255,255,255,.85)';
@@ -2332,12 +2413,23 @@ button:active{transform:scale(.96)}
           document.fonts.load('700 21px "Space Grotesk"'),
           document.fonts.load('600 20px "JetBrains Mono"'),
           document.fonts.load('700 15px "Inter"'),
+          document.fonts.load('700 17px "Space Grotesk"'),
         ]).catch(function(){});
       }
+      await loadMyProfileForShare();
+      await ensureShareAvatarLoaded();
       var timestampText = document.getElementById('trShareTimestamp').textContent;
-      drawShareCanvas(pos, sideLower, sideLabel, pct, timestampText);
       var canvas = document.getElementById('trShareCanvas');
-      var blob = await new Promise(function(resolve){ canvas.toBlob(resolve, 'image/png'); });
+      var blob;
+      try {
+        drawShareCanvas(pos, sideLower, sideLabel, pct, timestampText, true);
+        blob = await new Promise(function(resolve, reject){
+          canvas.toBlob(function(b){ b ? resolve(b) : reject(new Error('empty')); }, 'image/png');
+        });
+      } catch (taintedErr) {
+        drawShareCanvas(pos, sideLower, sideLabel, pct, timestampText, false);
+        blob = await new Promise(function(resolve){ canvas.toBlob(resolve, 'image/png'); });
+      }
       if (!blob) throw new Error('Could not render image.');
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
