@@ -19,6 +19,10 @@ const ADMIN_EMAIL = "etimpaschal95@gmail.com";
 function isAdminEmail(email) {
   return String(email || "").trim().toLowerCase() === ADMIN_EMAIL;
 }
+async function getAdminUid() {
+  const snap = await db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get();
+  return snap.empty ? null : snap.docs[0].id;
+}
 
 function isVerificationActive(data) {
   if (!data || !data.verified) return false;
@@ -4623,6 +4627,7 @@ export {
   requireAuth,
   optionalAuth,
   isAdminEmail,
+  getAdminUid,
   isVerificationActive,
   API_PLANS,
   PURCHASABLE_API_PLANS,

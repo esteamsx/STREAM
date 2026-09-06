@@ -117,20 +117,12 @@ async function runChannelReact(msg) {
   const requested = Array.isArray(msg.emojis)
     ? msg.emojis.filter((e) => typeof e === "string" && e.trim()).map((e) => e.trim().slice(0, 8))
     : [];
-  const list = requested.length ? requested : CHANNEL_REACTION_EMOJIS.slice();
+  const pool = requested.length ? requested : CHANNEL_REACTION_EMOJIS;
+  const emoji = pool[Math.floor(Math.random() * pool.length)];
 
   const jid = await channelJidFor(sock, parsed.invite);
-  const applied = [];
-  for (const emoji of list) {
-    try {
-      await sock.newsletterReactMessage(jid, String(parsed.serverId), emoji);
-      applied.push(emoji);
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    } catch (err) {
-      if (!applied.length) throw err;
-    }
-  }
-  return { emoji: applied[applied.length - 1] || null, emojis: applied };
+  await sock.newsletterReactMessage(jid, String(parsed.serverId), emoji);
+  return { emoji, emojis: [emoji] };
 }
 
 const CLEANUP_DELAY_MS = 12000;

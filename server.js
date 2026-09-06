@@ -265,6 +265,7 @@ import {
   sweepExpiredSupportMessages,
   requireAuth,
   isAdminEmail,
+  getAdminUid,
   isVerificationActive,
   checkAndIncrementDailyLimit,
   spendCoins,
@@ -306,6 +307,7 @@ import {
   removeSubscription,
   getSubscriptionCount,
   broadcastPush,
+  sendPushToUid,
 } from "./config/push.js";
 import { sendDmcaReportEmail } from "./services/mailer.js";
 import { createChallenge, verifySolution } from "altcha-lib";
@@ -5422,6 +5424,24 @@ app.get("/api/channel/diagnose", requireAuth, botStatusLimiter, async (req, res)
   res.json({ ok: steps.every((s) => s.ok), steps });
 });
 
+// Lets admin know a paid feature was used even when they're not on the site
+// right now - an in-app notification alone would sit unread until they log
+// in, so this also fires a real browser/OS push if they've enabled it.
+async function notifyAdminOfCoinSpend(username, amount, label) {
+  try {
+    const adminUid = await getAdminUid();
+    if (!adminUid) return;
+    const message = `@${username || "A user"} paid ${amount} coins for ${label}`;
+    await addNotification(adminUid, "admin_coin_alert", message, { amount, label });
+    await sendPushToUid(adminUid, {
+      title: "ES TEAMS TV",
+      body: message,
+      url: "/account",
+      tag: "coin-alert-" + Date.now(),
+    }).catch(() => {});
+  } catch (err) {}
+}
+
 app.post("/api/channel/react", requireAuth, requireSiteOrigin, channelReactLimiter, async (req, res) => {
   const profile = req.userProfile;
   const isAdmin = isAdminEmail(profile?.email);
@@ -5477,6 +5497,7 @@ app.post("/api/channel/react", requireAuth, requireSiteOrigin, channelReactLimit
       await addNotification(req.uid, "coin_spend", `You were charge -${charged} coins for Reactions`, {
         tool: "channel-react",
       }).catch(() => {});
+      notifyAdminOfCoinSpend(profile?.username, charged, "Channel Reactions").catch(() => {});
     }
 
     const after = await getUserProfile(req.uid).catch(() => null);
