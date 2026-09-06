@@ -438,27 +438,14 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
     pushLog(entry, "Auto-restarting to clear the repair state…");
     if (entry.proc && entry.proc.exitCode === null && entry.proc.signalCode === null) {
       entry.proc.kill("SIGTERM");
-      // Mirror the manual restart's force-kill fallback: some sessions leave
-      // the process holding open sockets that never exit on SIGTERM alone,
-      // which previously left this stuck waiting on entry.exited forever.
-      setTimeout(() => {
-        if (entry.proc && entry.proc.exitCode === null && entry.proc.signalCode === null) {
-          try { entry.proc.kill("SIGKILL"); } catch {}
-        }
-      }, 8000);
     }
-    Promise.race([
-      entry.exited,
-      new Promise((resolve) => setTimeout(resolve, 10000)),
-    ]).then(() => {
+    entry.exited.then(() => {
       setTimeout(() => {
         db.collection("botDeployments").doc(botId).get().then((freshSnap) => {
           if (!freshSnap.exists) return;
           const d = freshSnap.data();
           if (running.has(botId)) return;
-          runDeployment(botId, d.uid, d.phoneNumber, { isRestore: true }).catch((err) => {
-            ref.update({ status: "crashed", lastError: err.message, updatedAt: Date.now() }).catch(() => {});
-          });
+          runDeployment(botId, d.uid, d.phoneNumber, { isRestore: true }).catch(() => {});
         }).catch(() => {});
       }, AUTO_RESTART_DELAY_MS);
     });

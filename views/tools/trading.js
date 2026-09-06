@@ -401,9 +401,9 @@ button{font-family:inherit}
 }
 .tr-share-card.short::before{background:radial-gradient(circle at 18% -10%,rgba(255,59,92,.14),transparent 55%)}
 .tr-share-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;position:relative}
-.tr-share-brand{display:flex;align-items:center;gap:7px;font-family:var(--font-display);font-weight:700;font-size:.84rem;
-  background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
-.tr-share-brand svg{width:18px;height:18px;color:var(--accent);flex-shrink:0}
+.tr-share-user{display:flex;align-items:center;gap:8px;min-width:0}
+.tr-share-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#22d1ee,#7c6bff);background-size:cover;background-position:center;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:.72rem;color:#04141a}
+.tr-share-username{font-family:var(--font-display);font-weight:700;font-size:.84rem;color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tr-share-side-chip{font-family:var(--font-display);font-weight:800;font-size:.68rem;letter-spacing:.04em;text-transform:uppercase;padding:5px 11px;border-radius:20px;border:1px solid transparent}
 .tr-share-side-chip.long{background:rgba(18,196,139,.14);color:var(--green);border-color:rgba(18,196,139,.3)}
 .tr-share-side-chip.short{background:rgba(255,59,92,.14);color:var(--red);border-color:rgba(255,59,92,.3)}
@@ -425,7 +425,8 @@ button{font-family:inherit}
 .tr-share-meta-row div:last-child{text-align:right}
 .tr-share-meta-ts{text-align:center;font-size:.6rem;color:var(--muted);opacity:.65;font-family:var(--font-mono)}
 .tr-share-footer{text-align:center;position:relative}
-.tr-share-footer-brand{font-family:var(--font-display);font-weight:800;font-size:.88rem;color:var(--text)}
+.tr-share-footer-brand{font-family:var(--font-display);font-weight:800;font-size:.88rem;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
 .tr-share-footer-url{font-size:.66rem;color:var(--muted);margin-top:2px}
 .tr-share-demo-stamp{
   position:absolute;top:46%;left:50%;transform:translate(-50%,-50%) rotate(-18deg);
@@ -870,9 +871,9 @@ button:active{transform:scale(.96)}
     </button>
     <div class="tr-share-card" id="trShareCard">
       <div class="tr-share-top">
-        <div class="tr-share-brand">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-          ES TEAMS TV
+        <div class="tr-share-user" id="trShareUser">
+          <div class="tr-share-avatar" id="trShareAvatar">T</div>
+          <span class="tr-share-username" id="trShareUsername">@trader</span>
         </div>
         <span class="tr-share-side-chip" id="trShareSideChip">LONG · 1x</span>
       </div>
@@ -1401,6 +1402,30 @@ button:active{transform:scale(.96)}
   var lastPrice = null;
   var firstPrice = null;
   var shareUsdt = false;
+  var myProfile = null;
+  var shareAvatarImg = null;
+  var shareAvatarReady = null;
+  async function loadMyProfileForShare(){
+    if (myProfile) return myProfile;
+    try {
+      myProfile = await getJSON('/api/profile');
+    } catch (err) {
+      myProfile = {};
+    }
+    return myProfile;
+  }
+  function ensureShareAvatarLoaded(){
+    if (shareAvatarReady) return shareAvatarReady;
+    shareAvatarReady = new Promise(function(resolve){
+      if (!myProfile || myProfile.showProfilePhoto === false || !myProfile.photoURL) { resolve(false); return; }
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function(){ shareAvatarImg = img; resolve(true); };
+      img.onerror = function(){ resolve(false); };
+      img.src = myProfile.photoURL;
+    });
+    return shareAvatarReady;
+  }
   var orderType = 'Market';
   var activeTab = 'positions';
   var EXCHANGE_KEY = 'trExchange';
@@ -2135,7 +2160,23 @@ button:active{transform:scale(.96)}
   document.getElementById('trLongBtn').addEventListener('click', function(){ openOrderConfirm('Buy'); });
   document.getElementById('trShortBtn').addEventListener('click', function(){ openOrderConfirm('Sell'); });
 
+  async function refreshShareUserBadge(){
+    await loadMyProfileForShare();
+    await ensureShareAvatarLoaded();
+    var myUsername = (myProfile && myProfile.username) || 'trader';
+    document.getElementById('trShareUsername').textContent = '@' + myUsername;
+    var avatarEl = document.getElementById('trShareAvatar');
+    if (myProfile && myProfile.showProfilePhoto !== false && myProfile.photoURL) {
+      avatarEl.style.backgroundImage = 'url(' + myProfile.photoURL + ')';
+      avatarEl.textContent = '';
+    } else {
+      avatarEl.style.backgroundImage = '';
+      avatarEl.textContent = myUsername.charAt(0).toUpperCase();
+    }
+  }
+
   function openShareOverlay(pos){
+    refreshShareUserBadge();
     var sideLower = pos.side === 'Buy' ? 'long' : 'short';
     var sideLabel = sideLower === 'long' ? 'Long' : 'Short';
     var pct = positionRoi(pos);
@@ -2197,7 +2238,7 @@ button:active{transform:scale(.96)}
     ctx.closePath();
   }
 
-  function drawShareCanvas(pos, sideLower, sideLabel, pct, timestampText){
+  function drawShareCanvas(pos, sideLower, sideLabel, pct, timestampText, drawAvatar){
     var canvas = document.getElementById('trShareCanvas');
     var ctx = canvas.getContext('2d');
     var W = canvas.width, H = canvas.height;
@@ -2216,10 +2257,32 @@ button:active{transform:scale(.96)}
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, W, H);
 
+    var myUsername = (myProfile && myProfile.username) || 'trader';
+    var uName = '@' + myUsername;
+    var avatarD = 30, avatarGap = 9, avatarCx = 44 + avatarD / 2, avatarCy = 55;
+    var hasAvatarImg = drawAvatar && shareAvatarImg && myProfile && myProfile.showProfilePhoto !== false;
+    if (hasAvatarImg) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(avatarCx, avatarCy, avatarD / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(shareAvatarImg, avatarCx - avatarD / 2, avatarCy - avatarD / 2, avatarD, avatarD);
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(avatarCx, avatarCy, avatarD / 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(34,209,238,.22)';
+      ctx.fill();
+      ctx.fillStyle = '#22d1ee';
+      ctx.font = '800 15px "Space Grotesk", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(myUsername.charAt(0).toUpperCase(), avatarCx, avatarCy + 5);
+    }
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#00E0FF';
-    ctx.font = '700 21px "Space Grotesk", sans-serif';
-    ctx.fillText('ES TEAMS TV', 44, 66);
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.font = '700 18px "Space Grotesk", sans-serif';
+    ctx.fillText(uName, avatarCx + avatarD / 2 + avatarGap, avatarCy + 6);
 
     var chipLabel = sideLabel.toUpperCase() + '  \\u00b7  ' + (pos.leverage || 1) + 'x';
     ctx.font = '800 17px "Space Grotesk", sans-serif';
@@ -2286,9 +2349,14 @@ button:active{transform:scale(.96)}
 
     var footerY = rowY + 27 + 100;
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffffff';
     ctx.font = '800 23px "Space Grotesk", sans-serif';
-    ctx.fillText('ES TEAMS TV', W / 2, footerY);
+    var footerLabel = 'ES TEAMS TV';
+    var footerLabelW = ctx.measureText(footerLabel).width;
+    var footerGrad = ctx.createLinearGradient(W / 2 - footerLabelW / 2, 0, W / 2 + footerLabelW / 2, 0);
+    footerGrad.addColorStop(0, '#00E0FF');
+    footerGrad.addColorStop(1, '#7c5cff');
+    ctx.fillStyle = footerGrad;
+    ctx.fillText(footerLabel, W / 2, footerY);
     ctx.fillStyle = 'rgba(255,255,255,.5)';
     ctx.font = '500 15px Inter, sans-serif';
     ctx.fillText('esteamstv.devs.surf', W / 2, footerY + 24);
@@ -2332,12 +2400,23 @@ button:active{transform:scale(.96)}
           document.fonts.load('700 21px "Space Grotesk"'),
           document.fonts.load('600 20px "JetBrains Mono"'),
           document.fonts.load('700 15px "Inter"'),
+          document.fonts.load('700 18px "Space Grotesk"'),
         ]).catch(function(){});
       }
+      await loadMyProfileForShare();
+      await ensureShareAvatarLoaded();
       var timestampText = document.getElementById('trShareTimestamp').textContent;
-      drawShareCanvas(pos, sideLower, sideLabel, pct, timestampText);
       var canvas = document.getElementById('trShareCanvas');
-      var blob = await new Promise(function(resolve){ canvas.toBlob(resolve, 'image/png'); });
+      var blob;
+      try {
+        drawShareCanvas(pos, sideLower, sideLabel, pct, timestampText, true);
+        blob = await new Promise(function(resolve, reject){
+          canvas.toBlob(function(b){ b ? resolve(b) : reject(new Error('empty')); }, 'image/png');
+        });
+      } catch (taintedErr) {
+        drawShareCanvas(pos, sideLower, sideLabel, pct, timestampText, false);
+        blob = await new Promise(function(resolve){ canvas.toBlob(resolve, 'image/png'); });
+      }
       if (!blob) throw new Error('Could not render image.');
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
