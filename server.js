@@ -5431,11 +5431,10 @@ async function notifyAdminOfCoinSpend(username, amount, label) {
   try {
     const adminUid = await getAdminUid();
     if (!adminUid) return;
-    const message = `@${username || "A user"} paid ${amount} coins for ${label}`;
-    await addNotification(adminUid, "admin_coin_alert", message, { amount, label });
+    await addNotification(adminUid, "admin_coin_alert", `@${username || "A user"} paid ${amount} coins for ${label}`, { amount, label });
     await sendPushToUid(adminUid, {
       title: "ES TEAMS TV",
-      body: message,
+      body: `@${username || "A user"} paid +${amount} coins`,
       url: "/account",
       tag: "coin-alert-" + Date.now(),
     }).catch(() => {});

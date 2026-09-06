@@ -125,8 +125,13 @@ async function runChannelReact(msg) {
   return { emoji, emojis: [emoji] };
 }
 
-const CLEANUP_DELAY_MS = 12000;
-const REPLY_WATCH_MS = 45000;
+// The relayed ".chreact <link>" message gets deleted after this window as a
+// cosmetic cleanup (so it doesn't clutter the chat). 12s was too aggressive -
+// if the receiving bot's own connection is even briefly reconnecting or busy,
+// the command message could vanish before it's read, and the reaction never
+// runs at all. This is not time-critical, so it's fine to wait much longer.
+const CLEANUP_DELAY_MS = 180000;
+const REPLY_WATCH_MS = 300000;
 
 function quotedIdOf(waMessage) {
   const content = waMessage && waMessage.message;

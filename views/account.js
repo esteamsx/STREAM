@@ -2728,8 +2728,19 @@ async function refreshPushButton(){
   const btn = document.getElementById('notifEnablePushBtn');
   if (!window.ESPush) { btn.style.display = 'none'; return; }
   const status = await ESPush.getStatus();
-  if (status === 'unsupported' || status === 'granted') {
+  if (status === 'unsupported') {
     btn.style.display = 'none';
+    return;
+  }
+  if (status === 'granted') {
+    const active = await ESPush.hasActiveSubscription();
+    if (active) {
+      btn.style.display = 'none';
+      return;
+    }
+    btn.style.display = '';
+    btn.textContent = 'Re-enable notifications';
+    btn.disabled = false;
     return;
   }
   btn.style.display = '';

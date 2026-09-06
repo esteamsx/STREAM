@@ -64,5 +64,13 @@
     }
   }
 
-  window.ESPush = { isSupported, getStatus, enable, disable };
+  async function hasActiveSubscription() {
+    if (!(await isSupported())) return false;
+    const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+    if (!reg) return false;
+    const subscription = await reg.pushManager.getSubscription();
+    return !!subscription;
+  }
+
+  window.ESPush = { isSupported, getStatus, hasActiveSubscription, enable, disable };
 })();
