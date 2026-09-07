@@ -2,6 +2,22 @@
 import crypto from "crypto";
 import ipaddr from "ipaddr.js";
 import helmet from "helmet";
+import { readSessionToken } from "../services/auth.js";
+
+function extractSessionCookie(req) {
+  const header = req.headers?.cookie;
+  if (!header) return null;
+  const match = header.match(/(?:^|;\s*)session=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function sessionUid(req) {
+  const raw = extractSessionCookie(req);
+  if (!raw) return null;
+  const payload = readSessionToken(raw);
+  if (!payload || typeof payload.exp !== "number" || Date.now() >= payload.exp) return null;
+  return payload.uid || null;
+}
 
 export const cspNonce = (req, res, next) => {
   const nonce = crypto.randomBytes(16).toString("base64");
@@ -266,6 +282,8 @@ export class RepeatedRefusalGuard {
     this.banMs = banMs;
     this.refusals = new Map();
     this.bannedUntil = new Map();
+    this.uidRefusals = new Map();
+    this.uidBannedUntil = new Map();
     setInterval(() => {
       const now = Date.now();
       for (const [ip, timestamps] of this.refusals) {
@@ -276,6 +294,14 @@ export class RepeatedRefusalGuard {
       for (const [ip, expiry] of this.bannedUntil) {
         if (now >= expiry) this.bannedUntil.delete(ip);
       }
+      for (const [uid, timestamps] of this.uidRefusals) {
+        const fresh = timestamps.filter((t) => now - t < this.windowMs);
+        if (fresh.length === 0) this.uidRefusals.delete(uid);
+        else if (fresh.length !== timestamps.length) this.uidRefusals.set(uid, fresh);
+      }
+      for (const [uid, expiry] of this.uidBannedUntil) {
+        if (now >= expiry) this.uidBannedUntil.delete(uid);
+      }
     }, Math.max(this.windowMs, 60000)).unref();
   }
 
@@ -283,9 +309,30 @@ export class RepeatedRefusalGuard {
     return (req, res, next) => {
       const ip = req.ip;
       const now = Date.now();
+      const uid = sessionUid(req);
+
+      // A session tied to an account that is itself racking up refusals is
+      // blocked regardless of IP - this is what stops someone from signing
+      // up for one real account purely to hand their bot a permanent bypass
+      // of the IP ban below.
+      if (uid) {
+        const uidBanned = this.uidBannedUntil.get(uid);
+        if (uidBanned && now < uidBanned) {
+          return res.status(403).send("Forbidden");
+        } else if (uidBanned) {
+          this.uidBannedUntil.delete(uid);
+        }
+      }
 
       const bannedUntil = this.bannedUntil.get(ip);
       if (bannedUntil && now < bannedUntil) {
+        // A shared/rotating VPN exit IP can get banned from someone else's
+        // scanning traffic on that same address - a real logged-in session
+        // cookie is proof this specific request is a genuine user, not the
+        // bot that triggered the ban, so let them through regardless of IP.
+        // Their own account is still tracked and banned separately above if
+        // it starts racking up refusals itself.
+        if (uid) return next();
         return res.status(403).send("Forbidden");
       } else if (bannedUntil) {
         this.bannedUntil.delete(ip);
@@ -294,6 +341,19 @@ export class RepeatedRefusalGuard {
       res.on("finish", () => {
         if (res.statusCode !== 403) return;
         if (req.path.startsWith("/api/v1/") || req.path.startsWith("/embed/")) return;
+
+        if (uid) {
+          const uidHits = (this.uidRefusals.get(uid) || []).filter((t) => now - t < this.windowMs);
+          uidHits.push(now);
+          this.uidRefusals.set(uid, uidHits);
+          if (uidHits.length >= this.maxRefusals) {
+            console.warn(`Auto-banning account ${uid} for ${Math.round(this.banMs / 60000)}min after ${uidHits.length} refused requests.`);
+            this.uidBannedUntil.set(uid, now + this.banMs);
+            this.uidRefusals.delete(uid);
+          }
+          return;
+        }
+
         const hits = (this.refusals.get(ip) || []).filter((t) => now - t < this.windowMs);
         hits.push(now);
         this.refusals.set(ip, hits);

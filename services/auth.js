@@ -4569,6 +4569,7 @@ export {
   consumeResetToken,
   createSession,
   verifySession,
+  readSessionToken,
   refreshSession,
   deleteSession,
   revokeAllSessions,
