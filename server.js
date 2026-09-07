@@ -20,6 +20,7 @@ import { renderDevelopersApi } from "./views/developers-api.js";
 import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
+import { quotaMaintenanceGate, checkQuotaError } from "./middleware/quota-guard.js";
 import { pageLockGate } from "./middleware/page-lock.js";
 import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
@@ -618,6 +619,7 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(quotaMaintenanceGate);
 app.use(maintenanceGate);
 app.use(pageLockGate);
 app.use(apiRouter);
@@ -7188,9 +7190,11 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled promise rejection:", reason);
+  checkQuotaError(reason);
 });
 
 process.on("uncaughtException", (err) => {
   console.error("Uncaught exception:", err);
+  checkQuotaError(err);
   shutdown("uncaughtException", 1);
 });

@@ -8,6 +8,7 @@ import {
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
 import { db, auth } from "../config/firebase.js";
+import { checkQuotaError } from "../middleware/quota-guard.js";
 import { VERIFICATION_PRICE_NGN } from "./paystack.js";
 import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEmail } from "./mailer.js";
 
@@ -2524,7 +2525,10 @@ function requireAuth(req, res, next) {
       }
       next();
     })
-    .catch(() => res.status(401).json({ error: "not_authenticated" }));
+    .catch((err) => {
+      checkQuotaError(err);
+      res.status(401).json({ error: "not_authenticated" });
+    });
 }
 
 async function optionalAuth(req, res, next) {
@@ -2538,7 +2542,8 @@ async function optionalAuth(req, res, next) {
         req.userProfile = profile;
       }
     }
-  } catch {
+  } catch (err) {
+    checkQuotaError(err);
   }
   next();
 }
@@ -3153,6 +3158,7 @@ async function runSubscriptionRenewals(chargeFn) {
       snap = await db.collection("users").where(config.autoField, "==", true).get();
     } catch (err) {
       console.error(`[auto-renew] query failed for ${product}:`, err.message);
+      checkQuotaError(err);
       continue;
     }
     for (const doc of snap.docs) {
