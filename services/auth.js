@@ -2566,6 +2566,7 @@ function adminUserView(uid, data) {
     verified: isVerificationActive(data),
     verifiedExpiresAt: data.verifiedExpiresAt || null,
     verifiedVia: data.verifiedVia || null,
+    coinBalance: data.coinBalance || 0,
   };
 }
 

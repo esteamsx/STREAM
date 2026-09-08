@@ -306,6 +306,7 @@ body:has(.ad-overlay.show){overflow:hidden}
 .ad-overlay.show .ad-modal{transform:translateY(0) scale(1)}
 .ad-modal-title{font-family:var(--font-display);font-weight:700;font-size:1rem;margin-bottom:4px;display:flex;align-items:center;gap:8px}
 .ad-modal-sub{font-size:.8rem;color:var(--muted);margin-bottom:18px;line-height:1.5}
+.ad-coins-amount{font-family:var(--font-display);font-weight:800;font-size:2.4rem;text-align:center;margin:14px 0 22px;background:linear-gradient(90deg,#FFC53D,#FF9F1C);-webkit-background-clip:text;background-clip:text;color:transparent}
 .ad-modal input{
   width:100%;background:var(--dark3);border:1px solid var(--border-strong);border-radius:10px;
   padding:11px 12px;color:var(--text);font-size:.85rem;outline:none;margin-bottom:10px;transition:border-color .2s var(--ease);
@@ -787,6 +788,19 @@ body:has(.ad-overlay.show){overflow:hidden}
     <div class="ad-modal-actions">
       <button type="button" class="ad-modal-btn ghost" id="resetCancelBtn">Cancel</button>
       <button type="button" class="ad-modal-btn primary" id="resetApplyBtn">Apply Changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="ad-overlay" id="coinsOverlay">
+  <div class="ad-modal">
+    <div class="ad-modal-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 0c0 1.7-2.5 1.7-2.5 3.5m0 3.2h.01" stroke-linecap="round"/></svg>
+      <span id="coinsModalUser">Coin Balance</span>
+    </div>
+    <div class="ad-coins-amount" id="coinsModalAmount">0</div>
+    <div class="ad-modal-actions">
+      <button type="button" class="ad-modal-btn ghost" id="coinsCancelBtn">Cancel</button>
     </div>
   </div>
 </div>
@@ -1283,8 +1297,26 @@ function renderUserRow(u){
   row.appendChild(avatar);
   row.appendChild(info);
   row.appendChild(actions);
+  row.style.cursor = 'pointer';
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('.ad-row-actions')) return;
+    openCoinsOverlay(u);
+  });
   return row;
 }
+
+function openCoinsOverlay(u){
+  const label = (u.firstName || u.lastName) ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : ('@' + u.username);
+  document.getElementById('coinsModalUser').textContent = label;
+  document.getElementById('coinsModalAmount').textContent = (u.coinBalance || 0).toLocaleString();
+  document.getElementById('coinsOverlay').classList.add('show');
+}
+document.getElementById('coinsCancelBtn').addEventListener('click', () => {
+  document.getElementById('coinsOverlay').classList.remove('show');
+});
+document.getElementById('coinsOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'coinsOverlay') document.getElementById('coinsOverlay').classList.remove('show');
+});
 
 function renderBannedRow(u){
   const row = document.createElement('div');
