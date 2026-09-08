@@ -147,8 +147,11 @@ function attachAutoReactListener(sock) {
       for (const waMessage of upsert.messages || []) {
         try {
           const remoteJid = waMessage.key && waMessage.key.remoteJid;
-          const serverId = waMessage.key && waMessage.key.id;
-          if (!remoteJid || !serverId || !remoteJid.endsWith("@newsletter")) continue;
+          // The message stanza id (key.id) is an internal identifier, not the
+          // short numeric id used in a post's shareable link - that one is
+          // newsletterServerId, which is what newsletterReactMessage expects.
+          const serverId = waMessage.newsletterServerId;
+          if (!remoteJid || serverId == null || !remoteJid.endsWith("@newsletter")) continue;
 
           if (!autoReactJidToInvite.has(remoteJid)) {
             await resolveAutoReactChannels(sock);
