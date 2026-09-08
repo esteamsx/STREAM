@@ -3,13 +3,6 @@ const path = require("path");
 const CHANNEL_REACTION_EMOJIS = ["🙏", "❤️", "👍", "🤭", "😲"];
 const BAILEYS = "@whiskeysockets/baileys";
 
-// Channels the bot is admin/subscribed to - new posts on these get an
-// automatic reaction the moment they arrive, no manual link submission needed.
-const AUTO_REACT_CHANNEL_INVITES = [
-  "0029VatAyCwFy72JdZXFPm29",
-  "0029VaoYmHz9MF98STZg4w1h",
-];
-
 let currentSock = null;
 let attached = false;
 
@@ -27,7 +20,6 @@ function captureSocket() {
     function patched(...args) {
       const sock = original.apply(this, args);
       currentSock = sock;
-      attachAutoReactListener(sock);
       return sock;
     };
 
@@ -110,68 +102,6 @@ async function channelJidFor(sock, invite) {
   const jid = meta && (meta.id || meta.jid);
   if (!jid) throw new Error("Could not resolve that channel.");
   return jid;
-}
-
-const autoReactJidToInvite = new Map();
-const autoReactRecentIds = new Set();
-
-function rememberReactedId(id) {
-  autoReactRecentIds.add(id);
-  if (autoReactRecentIds.size > 300) {
-    const oldest = autoReactRecentIds.values().next().value;
-    autoReactRecentIds.delete(oldest);
-  }
-}
-
-async function resolveAutoReactChannels(sock) {
-  for (const invite of AUTO_REACT_CHANNEL_INVITES) {
-    const alreadyResolved = [...autoReactJidToInvite.values()].includes(invite);
-    if (alreadyResolved) continue;
-    try {
-      const jid = await channelJidFor(sock, invite);
-      autoReactJidToInvite.set(jid, invite);
-    } catch (err) {
-      console.error("[auto-react] could not resolve channel " + invite + ": " + err.message);
-    }
-  }
-}
-
-function attachAutoReactListener(sock) {
-  try {
-    if (!sock || sock.__autoReactAttached || !sock.ev || typeof sock.ev.on !== "function") return;
-    sock.__autoReactAttached = true;
-    resolveAutoReactChannels(sock).catch(() => {});
-
-    sock.ev.on("messages.upsert", async (upsert) => {
-      if (!upsert || upsert.type !== "notify" || typeof sock.newsletterReactMessage !== "function") return;
-      for (const waMessage of upsert.messages || []) {
-        try {
-          const remoteJid = waMessage.key && waMessage.key.remoteJid;
-          // The message stanza id (key.id) is an internal identifier, not the
-          // short numeric id used in a post's shareable link - that one is
-          // newsletterServerId, which is what newsletterReactMessage expects.
-          const serverId = waMessage.newsletterServerId;
-          if (!remoteJid || serverId == null || !remoteJid.endsWith("@newsletter")) continue;
-
-          if (!autoReactJidToInvite.has(remoteJid)) {
-            await resolveAutoReactChannels(sock);
-            if (!autoReactJidToInvite.has(remoteJid)) continue;
-          }
-          const dedupeKey = remoteJid + ":" + serverId;
-          if (autoReactRecentIds.has(dedupeKey)) continue;
-          rememberReactedId(dedupeKey);
-
-          const emoji = CHANNEL_REACTION_EMOJIS[Math.floor(Math.random() * CHANNEL_REACTION_EMOJIS.length)];
-          await sock.newsletterReactMessage(remoteJid, String(serverId), emoji);
-          console.log("[auto-react] reacted " + emoji + " to new post " + serverId + " on " + autoReactJidToInvite.get(remoteJid));
-        } catch (err) {
-          console.error("[auto-react] failed on a new channel post:", err.message);
-        }
-      }
-    });
-  } catch (err) {
-    console.error("[auto-react] could not attach listener:", err.message);
-  }
 }
 
 async function runChannelReact(msg) {
