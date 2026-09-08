@@ -455,6 +455,57 @@ body:has(.ad-overlay.show){overflow:hidden}
   box-shadow:0 10px 30px rgba(0,0,0,.4);
 }
 .ad-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.ad-analytics-fab{
+  position:fixed;bottom:26px;right:20px;width:56px;height:56px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 12px 30px rgba(0,224,255,.35);
+  z-index:75;
+}
+.ad-analytics-fab svg{width:24px;height:24px}
+
+.ad-analytics-overlay{
+  position:fixed;inset:0;background:#0A0A0F;z-index:200;display:none;flex-direction:column;
+}
+.ad-analytics-overlay.show{display:flex}
+.ad-analytics-head{
+  display:flex;align-items:center;justify-content:space-between;padding:16px 18px;
+  border-bottom:1px solid var(--border-strong);flex-shrink:0;
+}
+.ad-analytics-title{font-family:var(--font-display);font-weight:800;font-size:1.05rem}
+.ad-analytics-close{width:36px;height:36px;border-radius:50%;background:var(--card2);border:1px solid var(--border-strong);color:var(--text);display:flex;align-items:center;justify-content:center}
+.ad-analytics-body{flex:1;overflow-y:auto;padding:16px 18px 40px}
+
+.ad-range-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:18px}
+.ad-range-pill{
+  flex-shrink:0;padding:8px 16px;border-radius:20px;background:var(--card2);border:1px solid var(--border-strong);
+  color:var(--muted);font-weight:700;font-size:.78rem;white-space:nowrap;
+}
+.ad-range-pill.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-color:transparent}
+
+.ad-analytics-summary{display:flex;gap:12px;margin-bottom:20px}
+.ad-summary-card{
+  flex:1;background:linear-gradient(155deg,rgba(255,255,255,.08),rgba(255,255,255,.02));
+  border:1px solid var(--border-strong);border-radius:14px;padding:14px 16px;
+}
+.ad-summary-label{font-size:.7rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.ad-summary-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ad-summary-value{font-family:var(--font-display);font-weight:800;font-size:1.5rem}
+
+.ad-chart-wrap{background:var(--card2);border:1px solid var(--border-strong);border-radius:16px;padding:14px 8px 8px;margin-bottom:22px;position:relative}
+.ad-chart-empty{text-align:center;padding:40px 10px;color:var(--muted);font-size:.82rem}
+#adAnalyticsCanvas{width:100%;display:block}
+.ad-chart-tooltip{
+  position:absolute;background:#04141a;border:1px solid var(--border-strong);border-radius:10px;padding:8px 10px;
+  font-size:.72rem;pointer-events:none;display:none;white-space:nowrap;z-index:5;
+}
+.ad-chart-tooltip b{font-family:ui-monospace,'JetBrains Mono',monospace;font-size:.8rem}
+
+.ad-analytics-sec-title{font-family:var(--font-display);font-weight:700;font-size:.86rem;margin-bottom:10px}
+.ad-toppage-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.ad-toppage-row:last-child{border-bottom:none}
+.ad-toppage-path{font-family:ui-monospace,'JetBrains Mono',monospace;font-size:.78rem;color:var(--text);word-break:break-all;padding-right:10px}
+.ad-toppage-count{font-family:var(--font-display);font-weight:700;font-size:.82rem;color:var(--accent);flex-shrink:0}
 </style>
 </head>
 <body>
@@ -802,6 +853,49 @@ body:has(.ad-overlay.show){overflow:hidden}
     <div class="ad-modal-actions">
       <button type="button" class="ad-modal-btn ghost" id="coinsCancelBtn">Cancel</button>
     </div>
+  </div>
+</div>
+
+<button type="button" class="ad-analytics-fab" id="analyticsFabBtn" aria-label="Analytics">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5m0 14h16M8 19v-6m4 6V9m4 10v-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</button>
+
+<div class="ad-analytics-overlay" id="analyticsOverlay">
+  <div class="ad-analytics-head">
+    <div class="ad-analytics-title">Analytics</div>
+    <button type="button" class="ad-analytics-close" id="analyticsCloseBtn" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="ad-analytics-body">
+    <div class="ad-range-row" id="analyticsRangeRow">
+      <button type="button" class="ad-range-pill" data-range="24h">24 Hours</button>
+      <button type="button" class="ad-range-pill active" data-range="7d">7 Days</button>
+      <button type="button" class="ad-range-pill" data-range="30d">30 Days</button>
+      <button type="button" class="ad-range-pill" data-range="60d">60 Days</button>
+      <button type="button" class="ad-range-pill" data-range="180d">180 Days</button>
+      <button type="button" class="ad-range-pill" data-range="lifetime">Lifetime</button>
+    </div>
+
+    <div class="ad-analytics-summary">
+      <div class="ad-summary-card">
+        <div class="ad-summary-label"><span class="ad-summary-dot" style="background:#00E0FF"></span>Views</div>
+        <div class="ad-summary-value" id="analyticsViewsTotal">--</div>
+      </div>
+      <div class="ad-summary-card">
+        <div class="ad-summary-label"><span class="ad-summary-dot" style="background:#12C48B"></span>Visitors</div>
+        <div class="ad-summary-value" id="analyticsVisitorsTotal">--</div>
+      </div>
+    </div>
+
+    <div class="ad-chart-wrap">
+      <canvas id="adAnalyticsCanvas" height="220"></canvas>
+      <div class="ad-chart-tooltip" id="analyticsTooltip"></div>
+      <div class="ad-chart-empty" id="analyticsChartEmpty" style="display:none">No traffic recorded for this range yet.</div>
+    </div>
+
+    <div class="ad-analytics-sec-title">Top Pages</div>
+    <div id="analyticsTopPages"></div>
   </div>
 </div>
 
@@ -2385,6 +2479,171 @@ document.getElementById('maintenanceEndBtn').addEventListener('click', async () 
   }
   btn.disabled = false;
 });
+
+let analyticsCurrentRange = '7d';
+
+document.getElementById('analyticsFabBtn').addEventListener('click', () => {
+  document.getElementById('analyticsOverlay').classList.add('show');
+  loadAnalytics(analyticsCurrentRange);
+});
+document.getElementById('analyticsCloseBtn').addEventListener('click', () => {
+  document.getElementById('analyticsOverlay').classList.remove('show');
+});
+document.querySelectorAll('#analyticsRangeRow .ad-range-pill').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#analyticsRangeRow .ad-range-pill').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    analyticsCurrentRange = btn.getAttribute('data-range');
+    loadAnalytics(analyticsCurrentRange);
+  });
+});
+
+function formatCompactNumber(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(n);
+}
+
+function analyticsPointLabel(point, range) {
+  if (range === '24h') {
+    const d = new Date(point.label);
+    return d.toLocaleTimeString(undefined, { hour: 'numeric' });
+  }
+  const d = new Date(point.label + 'T00:00:00Z');
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+async function loadAnalytics(range) {
+  const emptyEl = document.getElementById('analyticsChartEmpty');
+  const canvas = document.getElementById('adAnalyticsCanvas');
+  document.getElementById('analyticsViewsTotal').textContent = '...';
+  document.getElementById('analyticsVisitorsTotal').textContent = '...';
+  try {
+    const data = await getJSON('/api/admin/analytics?range=' + range);
+    document.getElementById('analyticsViewsTotal').textContent = formatCompactNumber(data.totals.views);
+    document.getElementById('analyticsVisitorsTotal').textContent = formatCompactNumber(data.totals.visitors);
+
+    const hasData = data.points.some((p) => p.views > 0 || p.visitors > 0);
+    emptyEl.style.display = hasData ? 'none' : 'block';
+    canvas.style.display = hasData ? 'block' : 'none';
+    if (hasData) drawAnalyticsChart(canvas, data.points, range);
+
+    const topPagesEl = document.getElementById('analyticsTopPages');
+    if (!data.topPaths.length) {
+      topPagesEl.innerHTML = '<div class="ad-empty">No page views recorded for this range yet.</div>';
+    } else {
+      topPagesEl.innerHTML = data.topPaths.map((p) =>
+        '<div class="ad-toppage-row"><span class="ad-toppage-path">' + escHtml(p.path) + '</span><span class="ad-toppage-count">' + formatCompactNumber(p.count) + '</span></div>'
+      ).join('');
+    }
+  } catch (err) {
+    document.getElementById('analyticsViewsTotal').textContent = '--';
+    document.getElementById('analyticsVisitorsTotal').textContent = '--';
+    emptyEl.textContent = err.message || 'Could not load analytics.';
+    emptyEl.style.display = 'block';
+    canvas.style.display = 'none';
+  }
+}
+
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function drawAnalyticsChart(canvas, points, range) {
+  const dpr = window.devicePixelRatio || 1;
+  const cssWidth = canvas.parentElement.clientWidth - 16;
+  const cssHeight = 220;
+  canvas.width = cssWidth * dpr;
+  canvas.height = cssHeight * dpr;
+  canvas.style.width = cssWidth + 'px';
+  canvas.style.height = cssHeight + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+  const padL = 36, padR = 8, padT = 14, padB = 26;
+  const plotW = cssWidth - padL - padR;
+  const plotH = cssHeight - padT - padB;
+  const maxVal = Math.max(1, ...points.map((p) => Math.max(p.views, p.visitors)));
+  const stepX = points.length > 1 ? plotW / (points.length - 1) : 0;
+
+  ctx.strokeStyle = 'rgba(255,255,255,.08)';
+  ctx.lineWidth = 1;
+  ctx.font = '10px Inter, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.textAlign = 'right';
+  const gridLines = 4;
+  for (let i = 0; i <= gridLines; i++) {
+    const y = padT + (plotH / gridLines) * i;
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + plotW, y);
+    ctx.stroke();
+    const val = Math.round(maxVal - (maxVal / gridLines) * i);
+    ctx.fillText(formatCompactNumber(val), padL - 8, y + 3);
+  }
+
+  function drawLine(key, color, fill) {
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      const x = padL + stepX * i;
+      const y = padT + plotH - (p[key] / maxVal) * plotH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    if (fill) {
+      const lastX = padL + stepX * (points.length - 1);
+      ctx.lineTo(lastX, padT + plotH);
+      ctx.lineTo(padL, padT + plotH);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+      grad.addColorStop(0, color + '33');
+      grad.addColorStop(1, color + '02');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        const x = padL + stepX * i;
+        const y = padT + plotH - (p[key] / maxVal) * plotH;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  drawLine('views', '#00E0FF', true);
+  drawLine('visitors', '#12C48B', false);
+
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.textAlign = 'center';
+  const labelEvery = Math.max(1, Math.ceil(points.length / 6));
+  points.forEach((p, i) => {
+    if (i % labelEvery !== 0 && i !== points.length - 1) return;
+    const x = padL + stepX * i;
+    ctx.fillText(analyticsPointLabel(p, range), x, cssHeight - 6);
+  });
+
+  const tooltip = document.getElementById('analyticsTooltip');
+  canvas.onmousemove = null;
+  canvas.ontouchstart = null;
+  function showTooltipAt(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    let idx = Math.round((x - padL) / (stepX || 1));
+    idx = Math.max(0, Math.min(points.length - 1, idx));
+    const p = points[idx];
+    tooltip.style.display = 'block';
+    tooltip.style.left = Math.min(cssWidth - 120, Math.max(4, padL + stepX * idx - 40)) + 'px';
+    tooltip.style.top = '2px';
+    tooltip.innerHTML = analyticsPointLabel(p, range) + '<br>Views: <b>' + p.views + '</b><br>Visitors: <b>' + p.visitors + '</b>';
+  }
+  canvas.addEventListener('mousemove', (e) => showTooltipAt(e.clientX, e.clientY));
+  canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+  canvas.addEventListener('touchstart', (e) => { if (e.touches[0]) showTooltipAt(e.touches[0].clientX, e.touches[0].clientY); });
+  canvas.addEventListener('touchend', () => { tooltip.style.display = 'none'; });
+}
 
 loadMaintenanceStatus();
 loadBonusCodes();

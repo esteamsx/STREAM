@@ -21,6 +21,7 @@ import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
 import { quotaMaintenanceGate, checkQuotaError } from "./middleware/quota-guard.js";
+import { trackPageView, getAnalytics } from "./middleware/analytics-tracker.js";
 import { pageLockGate } from "./middleware/page-lock.js";
 import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
@@ -599,6 +600,7 @@ app.use(crossOriginWriteGuard);
 
 app.use(express.json({ limit: "25mb", verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(cookieParser());
+app.use(trackPageView);
 
 const REFERRAL_CODE_RE = /^[A-Z0-9]{4,16}$/;
 const REFERRAL_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -3881,6 +3883,17 @@ async function requireAdmin(req, res, next) {
     res.status(403).json({ error: "Not authorized." });
   }
 }
+
+app.get("/api/admin/analytics", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const range = String(req.query.range || "7d");
+    const allowed = new Set(["24h", "7d", "30d", "60d", "180d", "lifetime"]);
+    const data = getAnalytics(allowed.has(range) ? range : "7d");
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "Could not load analytics." });
+  }
+});
 
 app.get("/api/admin/me", requireAuth, requireAdmin, async (req, res) => {
   try {
