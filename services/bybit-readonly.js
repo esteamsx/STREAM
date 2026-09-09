@@ -268,9 +268,6 @@ export async function placeOrder({ category, symbol, side, qty, leverage, orderT
   try {
     return await signedPost(demo, apiKey, apiSecret, "/v5/order/create", body);
   } catch (err) {
-    // Accounts on Hedge Mode need positionIdx 1 (long) or 2 (short) instead
-    // of the One-Way default of 0 - retry once with the right value rather
-    // than making every user switch their Bybit account mode to match ours.
     if (/position idx not match position mode/i.test(err.message || "")) {
       return signedPost(demo, apiKey, apiSecret, "/v5/order/create", {
         ...body,

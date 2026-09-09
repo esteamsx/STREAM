@@ -11,6 +11,7 @@ import { db, auth } from "../config/firebase.js";
 import { checkQuotaError } from "../middleware/quota-guard.js";
 import { VERIFICATION_PRICE_NGN } from "./paystack.js";
 import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEmail } from "./mailer.js";
+import { appendCoinLedger, coinLedgerMismatch, verifyCoinLedgerChain } from "./coin-ledger.js";
 
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
@@ -2883,7 +2884,13 @@ async function creditTradingProfitCoins(uid, roiPercent, isDemo) {
   if (!profile) return { credited: 0 };
   const plan = getTradingPlanConfig(profile);
   if (!plan.coinsOnProfit) return { credited: 0 };
-  await db.collection("users").doc(uid).set({ coinBalance: admin.firestore.FieldValue.increment(plan.coinsOnProfit) }, { merge: true });
+  const userRef = db.collection("users").doc(uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.exists ? snap.data() : {};
+    const ledger = appendCoinLedger(tx, userRef, data, plan.coinsOnProfit, "trading_profit", { roiPercent });
+    tx.set(userRef, { coinBalance: admin.firestore.FieldValue.increment(plan.coinsOnProfit), ...ledger }, { merge: true });
+  });
   await addNotification(uid, "trading_profit_coins", `You earned ${plan.coinsOnProfit} coins for a live trade closed at ${roiPercent.toFixed(0)}% ROI`, { coins: plan.coinsOnProfit, roiPercent });
   return { credited: plan.coinsOnProfit };
 }
@@ -3417,6 +3424,8 @@ async function applyReferral(newUid, rawReferredByCode) {
   const applied = await db.runTransaction(async (tx) => {
     const existing = await tx.get(referralRef);
     if (existing.exists) return false;
+    const referrerSnap = await tx.get(referrerRef);
+    const referrerData = referrerSnap.exists ? referrerSnap.data() : {};
     tx.set(referralRef, {
       referrerUid: referrer.uid,
       referredUid: newUid,
@@ -3425,7 +3434,8 @@ async function applyReferral(newUid, rawReferredByCode) {
       totalCommissionNgn: 0,
     });
     tx.update(newUserRef, { referredBy: referrer.uid });
-    tx.set(referrerRef, { coinBalance: admin.firestore.FieldValue.increment(REFERRAL_SIGNUP_COINS) }, { merge: true });
+    const ledger = appendCoinLedger(tx, referrerRef, referrerData, REFERRAL_SIGNUP_COINS, "referral_signup", { referredUid: newUid });
+    tx.set(referrerRef, { coinBalance: admin.firestore.FieldValue.increment(REFERRAL_SIGNUP_COINS), ...ledger }, { merge: true });
     return true;
   });
   if (!applied) return;
@@ -3455,7 +3465,8 @@ async function claimDailyCoins(uid, faceDescriptor) {
       throw Object.assign(new Error("You've already claimed today's coins. Come back tomorrow."), { status: 400 });
     }
     if (isAdminEmail(data.email)) amount = ADMIN_DAILY_COIN_CLAIM_AMOUNT;
-    tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(amount), lastDailyCoinClaimDay: today }, { merge: true });
+    const ledger = appendCoinLedger(tx, ref, data, amount, "daily_claim", { day: today });
+    tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(amount), lastDailyCoinClaimDay: today, ...ledger }, { merge: true });
   });
   await saveClaimFace(uid, probes);
   await addNotification(uid, "daily_claim", "You have successfully claimed daily coins", {
@@ -3477,6 +3488,9 @@ async function spendCoins(uid, amount, reason) {
     if (!snap.exists) throw Object.assign(new Error("Account not found."), { status: 404 });
     const data = snap.data();
     spenderData = data;
+    if (coinLedgerMismatch(data)) {
+      throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
+    }
     const balance = data.coinBalance || 0;
     if (balance < cost) {
       throw Object.assign(
@@ -3485,7 +3499,8 @@ async function spendCoins(uid, amount, reason) {
       );
     }
     remaining = balance - cost;
-    tx.update(userRef, { coinBalance: admin.firestore.FieldValue.increment(-cost) });
+    const ledger = appendCoinLedger(tx, userRef, data, -cost, reason || "spend", {});
+    tx.update(userRef, { coinBalance: admin.firestore.FieldValue.increment(-cost), ...ledger });
   });
   creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, cost).catch(() => {});
   return { spent: cost, balance: remaining, reason: reason || "" };
@@ -3494,10 +3509,13 @@ async function spendCoins(uid, amount, reason) {
 async function refundCoins(uid, amount) {
   const cost = Math.max(0, Math.floor(Number(amount) || 0));
   if (!cost) return;
-  await db
-    .collection("users")
-    .doc(uid)
-    .set({ coinBalance: admin.firestore.FieldValue.increment(cost) }, { merge: true });
+  const ref = db.collection("users").doc(uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists ? snap.data() : {};
+    const ledger = appendCoinLedger(tx, ref, data, cost, "refund", {});
+    tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(cost), ...ledger }, { merge: true });
+  });
 }
 
 async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, amount) {
@@ -3507,7 +3525,12 @@ async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, a
     if (snap.empty) return;
     const adminDoc = snap.docs[0];
     if (adminDoc.id === spenderUid) return;
-    await adminDoc.ref.update({ coinBalance: admin.firestore.FieldValue.increment(amount) });
+    await db.runTransaction(async (tx) => {
+      const adminSnap = await tx.get(adminDoc.ref);
+      const data = adminSnap.exists ? adminSnap.data() : {};
+      const ledger = appendCoinLedger(tx, adminDoc.ref, data, amount, "channel_react_income", { fromUid: spenderUid });
+      tx.set(adminDoc.ref, { coinBalance: admin.firestore.FieldValue.increment(amount), ...ledger }, { merge: true });
+    });
     const handle = spenderUsername ? `@${spenderUsername}` : "A user";
     await addNotification(adminDoc.id, "coin_income", `${handle} paid +${amount} coins`, { fromUid: spenderUid, amount });
   } catch {
@@ -3525,11 +3548,16 @@ async function redeemCoinsForLimit(uid, itemKey, product) {
     if (!snap.exists) throw new Error("Account not found.");
     const data = snap.data();
     spenderData = data;
+    if (coinLedgerMismatch(data)) {
+      throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
+    }
     const balance = data.coinBalance || 0;
     if (balance < item.coinCost) throw Object.assign(new Error("Not enough coins for that reward."), { status: 400 });
+    const ledger = appendCoinLedger(tx, userRef, data, -item.coinCost, "store_redeem", { itemKey, product });
     tx.update(userRef, {
       coinBalance: admin.firestore.FieldValue.increment(-item.coinCost),
       [field]: admin.firestore.FieldValue.increment(item.bonusAmount),
+      ...ledger,
     });
   });
   creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, item.coinCost).catch(() => {});
@@ -3547,16 +3575,21 @@ async function redeemCoinsForVerification(uid) {
     if (!snap.exists) throw new Error("Account not found.");
     const data = snap.data();
     spenderData = data;
+    if (coinLedgerMismatch(data)) {
+      throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
+    }
     const balance = data.coinBalance || 0;
     if (balance < item.coinCost) throw Object.assign(new Error("Not enough coins for that reward."), { status: 400 });
     const base = Math.max(Date.now(), data.verifiedExpiresAt || 0);
     const expiresAt = base + 3 * 24 * 60 * 60 * 1000;
+    const ledger = appendCoinLedger(tx, userRef, data, -item.coinCost, "store_redeem", { itemKey: "verify3d" });
     tx.update(userRef, {
       coinBalance: admin.firestore.FieldValue.increment(-item.coinCost),
       verified: true,
       verifiedAt: data.verified ? data.verifiedAt || Date.now() : Date.now(),
       verifiedExpiresAt: expiresAt,
       verifiedVia: "coins",
+      ...ledger,
     });
     return { expiresAt };
   });
@@ -3606,12 +3639,18 @@ async function transferCoins(uid, targetUsername, rawAmount) {
       throw Object.assign(new Error("That username does not exist."), { status: 404 });
     }
     const senderData = senderSnap.data();
+    const recipientData = recipientSnap.data();
+    if (coinLedgerMismatch(senderData)) {
+      throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
+    }
     const balance = senderData.coinBalance || 0;
     if (balance < amount) {
       throw Object.assign(new Error("You do not have enough coins for that transfer."), { status: 400 });
     }
-    tx.update(senderRef, { coinBalance: admin.firestore.FieldValue.increment(-amount) });
-    tx.update(recipientRef, { coinBalance: admin.firestore.FieldValue.increment(amount) });
+    const senderLedger = appendCoinLedger(tx, senderRef, senderData, -amount, "transfer_out", { toUid: recipient.uid });
+    const recipientLedger = appendCoinLedger(tx, recipientRef, recipientData, amount, "transfer_in", { fromUid: uid });
+    tx.update(senderRef, { coinBalance: admin.firestore.FieldValue.increment(-amount), ...senderLedger });
+    tx.update(recipientRef, { coinBalance: admin.firestore.FieldValue.increment(amount), ...recipientLedger });
     return {
       senderUsername: senderData.username || "a user",
       newBalance: balance - amount,
@@ -3666,7 +3705,13 @@ async function finalizeCoinPurchasePayment(reference, paystackData) {
   const record = claim.record;
   const pkg = COIN_PACKAGES[record.packageKey];
   const coins = pkg ? pkg.coins : 0;
-  await db.collection("users").doc(record.uid).set({ coinBalance: admin.firestore.FieldValue.increment(coins) }, { merge: true });
+  const userRef = db.collection("users").doc(record.uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.exists ? snap.data() : {};
+    const ledger = appendCoinLedger(tx, userRef, data, coins, "coin_purchase", { packageKey: record.packageKey, reference });
+    tx.set(userRef, { coinBalance: admin.firestore.FieldValue.increment(coins), ...ledger }, { merge: true });
+  });
   await ref.update({ status: "success", confirmedAt: Date.now() });
   await addNotification(record.uid, "coin_purchase", `+${coins} coins added to your balance`, { coins });
   return { alreadyProcessed: false, uid: record.uid, coins };
@@ -3757,10 +3802,13 @@ async function finalizeCoinRequestPayment(reference, paystackData) {
 
   const record = claim.record;
   const coins = record.coins || 0;
-  await db.collection("users").doc(record.uid).set(
-    { coinBalance: admin.firestore.FieldValue.increment(coins) },
-    { merge: true }
-  );
+  const userRef = db.collection("users").doc(record.uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.exists ? snap.data() : {};
+    const ledger = appendCoinLedger(tx, userRef, data, coins, "coin_request_payment", { token: record.token, reference });
+    tx.set(userRef, { coinBalance: admin.firestore.FieldValue.increment(coins), ...ledger }, { merge: true });
+  });
   await ref.update({ status: "success", confirmedAt: Date.now() });
   await db.collection("coinRequestLinks").doc(record.token).set(
     { paid: true, paidAt: Date.now(), paidReference: reference },

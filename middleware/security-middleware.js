@@ -311,10 +311,6 @@ export class RepeatedRefusalGuard {
       const now = Date.now();
       const uid = sessionUid(req);
 
-      // A session tied to an account that is itself racking up refusals is
-      // blocked regardless of IP - this is what stops someone from signing
-      // up for one real account purely to hand their bot a permanent bypass
-      // of the IP ban below.
       if (uid) {
         const uidBanned = this.uidBannedUntil.get(uid);
         if (uidBanned && now < uidBanned) {
@@ -326,12 +322,6 @@ export class RepeatedRefusalGuard {
 
       const bannedUntil = this.bannedUntil.get(ip);
       if (bannedUntil && now < bannedUntil) {
-        // A shared/rotating VPN exit IP can get banned from someone else's
-        // scanning traffic on that same address - a real logged-in session
-        // cookie is proof this specific request is a genuine user, not the
-        // bot that triggered the ban, so let them through regardless of IP.
-        // Their own account is still tracked and banned separately above if
-        // it starts racking up refusals itself.
         if (uid) return next();
         return res.status(403).send("Forbidden");
       } else if (bannedUntil) {
@@ -399,12 +389,6 @@ export const crossOriginWriteGuard = (req, res, next) => {
   return res.status(403).json({ error: "Access denied" });
 };
 
-// Stricter than crossOriginWriteGuard: for sensitive/automatable actions (login,
-// signup, claiming coins, deploying a bot), a missing Origin header is treated as
-// a block rather than allowed through. Real browsers always send Origin on a
-// same-origin fetch/POST; scripts, curl, Postman, and bots typically only send it
-// if the author deliberately adds it, so this closes that specific gap for the
-// routes that need it most, without changing behavior for the rest of the site.
 export const requireSiteOrigin = (req, res, next) => {
   const origin = req.get("origin");
   let originHost = null;
