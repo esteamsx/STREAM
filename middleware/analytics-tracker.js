@@ -112,7 +112,7 @@ function trackPageView(req, res, next) {
   next();
 }
 
-async function flushCompletedDays() {
+async function flushCompletedDays(force = false) {
   try {
     const store = await ensureStoreLoaded();
     const now = Date.now();
@@ -128,7 +128,7 @@ async function flushCompletedDays() {
     }
 
     for (const [dayKey, entries] of byDay) {
-      if (dayKey === currentDayKey) continue;
+      if (!force && dayKey === currentDayKey) continue;
       let views = 0;
       const visitorIds = new Set();
       const pathTotals = new Map();
@@ -253,4 +253,4 @@ async function getAnalytics(range) {
   return { points, totals: { views: totalViews, visitors: totalVisitors }, topPaths };
 }
 
-export { trackPageView, getAnalytics };
+export { trackPageView, getAnalytics, flushCompletedDays };

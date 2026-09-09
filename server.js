@@ -21,7 +21,7 @@ import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
 import { quotaMaintenanceGate, checkQuotaError } from "./middleware/quota-guard.js";
-import { trackPageView, getAnalytics } from "./middleware/analytics-tracker.js";
+import { trackPageView, getAnalytics, flushCompletedDays } from "./middleware/analytics-tracker.js";
 import { pageLockGate } from "./middleware/page-lock.js";
 import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
@@ -7191,7 +7191,8 @@ function shutdown(signal, code = 0) {
   }, 15000);
   force.unref();
   server.closeIdleConnections?.();
-  server.close(() => {
+  server.close(async () => {
+    await flushCompletedDays(true).catch(() => {});
     clearTimeout(force);
     console.log("ES TEAMS TV stopped cleanly.");
     process.exit(code);
