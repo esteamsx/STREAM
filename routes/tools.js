@@ -1415,6 +1415,56 @@ router.post("/api/tools/http-headers", optionalAuth, toolGate("http-headers"), a
   }
 });
 
+const BASE_EXPLORER_API = "https://base.blockscout.com/api/v2";
+const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+
+router.post("/api/tools/block-explorer", optionalAuth, toolGate("block-explorer"), async (req, res) => {
+  const address = String(req.body?.address || "").trim();
+  if (!EVM_ADDRESS_RE.test(address)) {
+    return res.status(400).json({ error: "Enter a valid address, starting with 0x, 42 characters long." });
+  }
+  try {
+    const [addrRes, countersRes] = await Promise.all([
+      fetch(`${BASE_EXPLORER_API}/addresses/${address}`, { headers: { "user-agent": "ES-TEAMS-TV-Tools/1.0" } }),
+      fetch(`${BASE_EXPLORER_API}/addresses/${address}/counters`, { headers: { "user-agent": "ES-TEAMS-TV-Tools/1.0" } }),
+    ]);
+    if (addrRes.status === 404) {
+      return res.status(404).json({ error: "That address has no activity on Base Mainnet." });
+    }
+    if (!addrRes.ok) return res.status(502).json({ error: "Could not reach the Base block explorer." });
+    const data = await addrRes.json();
+    const counters = countersRes.ok ? await countersRes.json().catch(() => null) : null;
+    const balanceWei = data.coin_balance || "0";
+    const balanceEth = (Number(balanceWei) / 1e18).toFixed(6);
+    const token = data.token
+      ? {
+          name: data.token.name || null,
+          symbol: data.token.symbol || null,
+          decimals: data.token.decimals != null ? data.token.decimals : null,
+          totalSupply: data.token.total_supply || null,
+          holders: data.token.holders != null ? data.token.holders : null,
+        }
+      : null;
+    res.json({
+      address: data.hash || address,
+      isContract: !!data.is_contract,
+      isVerified: data.is_verified == null ? null : !!data.is_verified,
+      name: data.name || null,
+      balanceEth,
+      balanceWei,
+      txCount: counters ? Number(counters.transactions_count || 0) : null,
+      tokenTransfersCount: counters ? Number(counters.token_transfers_count || 0) : null,
+      token,
+      creatorAddress: data.creator_address_hash || null,
+      creationTxHash: data.creation_transaction_hash || null,
+      basescanUrl: `https://basescan.org/address/${address}`,
+      blockscoutUrl: `https://base.blockscout.com/address/${address}`,
+    });
+  } catch (err) {
+    res.status(502).json({ error: "Could not reach the Base block explorer." });
+  }
+});
+
 const CRON_MONTH_NAMES = ["", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const CRON_DOW_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 

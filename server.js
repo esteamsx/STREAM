@@ -36,6 +36,7 @@ import { renderQrCode } from "./views/tools/qr-code.js";
 import { renderTrading } from "./views/tools/trading.js";
 import { renderSslChecker } from "./views/tools/ssl-checker.js";
 import { renderWhois } from "./views/tools/whois.js";
+import { renderBlockExplorer } from "./views/tools/block-explorer.js";
 import { renderBase64 } from "./views/tools/base64.js";
 import { renderJwtDecode } from "./views/tools/jwt-decode.js";
 import { renderJsonFormatter } from "./views/tools/json-formatter.js";
@@ -480,6 +481,19 @@ async function listActiveBulkGroupsByAdmin(adminUid, category) {
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((g) => g.active && g.category === category);
 }
+// The admin who ran the bulk operation never gets a real order placed on
+// their own account (see bulk-start below), so there's nothing real to show
+// them by default. This builds a stand-in "position" card from the group's
+// own data plus a live mark price, and aggregates the real PnL/ROI across all
+// participants so the admin can see at a glance whether the group is up or
+// down - each participant's own fetch is isolated so one bad/expired key can
+// never break the card (or the whole positions list) for the admin.
+//
+// The admin's positions page polls every few seconds, and without a cache
+// this would fetch decrypted credentials and call the exchange API for every
+// participant on every single poll - with several participants that burns
+// through Firestore's daily quota within hours. Cached for a short window so
+// the numbers still feel live without hammering Firestore or the exchange.
 const virtualBulkCache = new Map();
 const VIRTUAL_BULK_CACHE_MS = 15000;
 async function buildVirtualBulkPosition(req, group) {
@@ -540,6 +554,10 @@ async function buildVirtualBulkPosition(req, group) {
   virtualBulkCache.set(cacheKey, { data, expiresAt: Date.now() + VIRTUAL_BULK_CACHE_MS });
   return data;
 }
+// Cascades a close/TP-SL action from the admin who started a bulk operation to
+// every other participant's own account, using each participant's own saved
+// API keys. Only the admin who created the group can trigger this - a regular
+// participant closing/editing their own position never cascades to others.
 async function cascadeBulkAction({ category, symbol, adminUid, perParticipant, deactivateAfter }) {
   const group = await getActiveBulkGroup(category, symbol);
   if (!group || group.createdBy !== adminUid) return 0;
@@ -750,6 +768,7 @@ const cachedToolsQrCodeHtml = renderQrCode(authPageConfig);
 const cachedToolsTradingHtml = renderTrading(authPageConfig);
 const cachedToolsSslCheckerHtml = renderSslChecker(authPageConfig);
 const cachedToolsWhoisHtml = renderWhois(authPageConfig);
+const cachedToolsBlockExplorerHtml = renderBlockExplorer(authPageConfig);
 const cachedToolsBase64Html = renderBase64(authPageConfig);
 const cachedToolsJwtDecodeHtml = renderJwtDecode(authPageConfig);
 const cachedToolsJsonFormatterHtml = renderJsonFormatter(authPageConfig);
@@ -4433,6 +4452,12 @@ app.get("/api/tools/trading/positions", requireAuth, async (req, res) => {
       }));
     }
     try {
+      // The admin's virtual Bulk card is always shown alongside any real
+      // position they separately hold on the same symbol - they're two
+      // distinct things (their own trade vs. the group they're managing for
+      // everyone else), so one is never hidden in favor of the other. Each
+      // group is built independently so one broken group can never take down
+      // the rest of the admin's positions list.
       const ownGroups = await listActiveBulkGroupsByAdmin(req.uid, category);
       console.error("[bulk] admin " + req.uid + " has " + ownGroups.length + " own group(s) for category " + category + ":", ownGroups.map((g) => g.symbol + "/active=" + g.active));
       const virtualResults = await Promise.allSettled(ownGroups.map(async (g) => {
@@ -4557,6 +4582,11 @@ app.post("/api/tools/trading/close", requireAuth, tradingOrderLimiter, async (re
     if (!symbol) return res.status(400).json({ error: "Symbol is required." });
     const demo = tradingDemo(req);
 
+    // A bulk action (only ever sent from the admin's virtual Bulk card) is a
+    // pure group-management action - it never touches the admin's own
+    // account, even if they separately hold a real position on this same
+    // symbol from their own manual trading. The two are kept fully apart so
+    // closing your own real position here can never accidentally cascade.
     if (bulkAction) {
       const group = await getActiveBulkGroup(category, symbol);
       if (!group || group.createdBy !== req.uid) {
@@ -4639,6 +4669,9 @@ app.get("/api/tools/trading/symbols", requireAuth, async (req, res) => {
   }
 });
 
+// Bulk operations can land on either exchange depending on each opted-in
+// user's own settings, so the admin can only pick a pair that's tradeable on
+// both - this returns the intersection instead of either exchange alone.
 app.get("/api/tools/trading/bulk-symbols", requireAuth, requireAdmin, async (req, res) => {
   try {
     const category = String(req.query.category || "linear");
@@ -4803,6 +4836,9 @@ app.post("/api/tools/trading/auto-settings", requireAuth, tradingOrderLimiter, a
     if (req.body?.enabled) {
       await requireAiTradingAccess(req.uid);
     }
+    // Sizing is a percent of whatever the user's balance is at the moment
+    // bulk-start actually runs, not a fixed USDT figure saved ahead of time -
+    // so it can never go stale if their balance drops (or grows) later.
     await saveAutoTradingSettings(req.uid, {
       enabled: !!req.body?.enabled,
       exchange: req.body?.exchange,
@@ -4832,6 +4868,11 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
       return res.status(400).json({ error: `There's already an active bulk trade on ${symbol}. Close it first before starting another.` });
     }
 
+    // Bulk operations never place a real order on the admin's own account -
+    // it's run purely on behalf of opted-in users. The admin instead sees a
+    // virtual "bulk" position card (built in the position/positions routes
+    // below) that mirrors the group and lets them edit TP/SL or close it,
+    // which cascades to the real participants without risking admin funds.
     const traders = (await getAllOptedInAutoTraders()).filter((t) => t.uid !== req.uid);
     if (!traders.length) {
       return res.json({ total: 0, succeeded: 0, failed: 0, results: [] });
@@ -4867,11 +4908,18 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
         if (!creds) {
           throw Object.assign(new Error("No " + exchange + " " + mode + " API keys saved."), { uid: trader.uid });
         }
+        // Sizing comes from a percent of their CURRENT balance, fetched right
+        // here at execution time - never a stale fixed USDT figure - so it
+        // always fits whatever they actually have, win or lose since they set it.
         let usdtToUse = 0;
         try {
           const service0 = exchange === "weex" ? weexReadonly : bybitReadonly;
           const balanceInfo = await service0.getAllPositions(category, demo, creds);
           const available = Number(balanceInfo.available || 0);
+          // Leave a small buffer below the exact percent, same reasoning as
+          // the manual trading size slider: the exchange also reserves a bit
+          // for the taker fee, so using the full slice as margin can fail by
+          // a hair otherwise.
           usdtToUse = available * (sizePercent / 100) * 0.99;
           const alreadyOpen = (balanceInfo.positions || []).some((p) => p.symbol === symbol);
           if (alreadyOpen) {
@@ -4904,6 +4952,9 @@ app.post("/api/tools/trading/auto/bulk-start", requireAuth, requireAdmin, tradin
           category, symbol, side, qty, leverage, orderType: "Market", demo,
         });
 
+        // TP/SL is one shared price for everyone, same as a normal manual
+        // trade - it's a market level, not something that needs recalculating
+        // per person the way a percent-based target would.
         if (takeProfit || stopLoss) {
           try {
             await service.setTradingStop(category, symbol, { takeProfit, stopLoss, demo, override: creds });
@@ -4952,6 +5003,10 @@ app.get("/tools/ssl-checker", scrapeGate, (req, res) => {
 
 app.get("/tools/whois", scrapeGate, (req, res) => {
   res.send(cachedToolsWhoisHtml);
+});
+
+app.get("/tools/block-explorer", scrapeGate, (req, res) => {
+  res.send(cachedToolsBlockExplorerHtml);
 });
 
 app.get("/tools/base64", scrapeGate, (req, res) => {
@@ -5427,6 +5482,9 @@ app.get("/api/channel/diagnose", requireAuth, botStatusLimiter, async (req, res)
   res.json({ ok: steps.every((s) => s.ok), steps });
 });
 
+// Lets admin know a paid feature was used even when they're not on the site
+// right now - an in-app notification alone would sit unread until they log
+// in, so this also fires a real browser/OS push if they've enabled it.
 async function notifyAdminOfCoinSpend(username, amount, label) {
   try {
     const adminUid = await getAdminUid();
