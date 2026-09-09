@@ -3372,12 +3372,12 @@ const COIN_STORE_ITEMS = {
 };
 
 const COIN_PACKAGES = {
-  pack25: { coins: 25, priceNgn: 100 },
-  pack50: { coins: 50, priceNgn: 200 },
-  pack150: { coins: 150, priceNgn: 500 },
-  pack350: { coins: 350, priceNgn: 900 },
-  pack500: { coins: 500, priceNgn: 1200 },
-  pack1000: { coins: 1000, priceNgn: 2000 },
+  pack25: { coins: 25, priceNgn: 200 },
+  pack50: { coins: 50, priceNgn: 400 },
+  pack150: { coins: 150, priceNgn: 1000 },
+  pack350: { coins: 350, priceNgn: 1800 },
+  pack500: { coins: 500, priceNgn: 2400 },
+  pack1000: { coins: 1000, priceNgn: 4000 },
 };
 
 async function generateReferralCode() {
@@ -3672,7 +3672,7 @@ async function finalizeCoinPurchasePayment(reference, paystackData) {
   return { alreadyProcessed: false, uid: record.uid, coins };
 }
 
-const COIN_REQUEST_NGN_PER_COIN = 5;
+const COIN_REQUEST_NGN_PER_COIN = 10;
 const MIN_COIN_REQUEST = 20;
 const MAX_COIN_REQUEST = 5000;
 const COIN_REQUEST_LINK_TTL_MS = 60 * 60 * 1000;
