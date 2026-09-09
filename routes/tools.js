@@ -1415,8 +1415,44 @@ router.post("/api/tools/http-headers", optionalAuth, toolGate("http-headers"), a
   }
 });
 
+const BASE_RPC_URL = "https://mainnet.base.org";
 const BASE_EXPLORER_API = "https://base.blockscout.com/api/v2";
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+
+async function baseRpcCall(method, params) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(BASE_RPC_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      signal: controller.signal,
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message || "Base RPC error.");
+    return json.result;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchBlockscoutJson(path) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${BASE_EXPLORER_API}${path}`, {
+      headers: { accept: "application/json", "user-agent": "ES-TEAMS-TV-Tools/1.0" },
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 router.post("/api/tools/block-explorer", optionalAuth, toolGate("block-explorer"), async (req, res) => {
   const address = String(req.body?.address || "").trim();
@@ -1424,44 +1460,47 @@ router.post("/api/tools/block-explorer", optionalAuth, toolGate("block-explorer"
     return res.status(400).json({ error: "Enter a valid address, starting with 0x, 42 characters long." });
   }
   try {
-    const [addrRes, countersRes] = await Promise.all([
-      fetch(`${BASE_EXPLORER_API}/addresses/${address}`, { headers: { "user-agent": "ES-TEAMS-TV-Tools/1.0" } }),
-      fetch(`${BASE_EXPLORER_API}/addresses/${address}/counters`, { headers: { "user-agent": "ES-TEAMS-TV-Tools/1.0" } }),
+    const [codeHex, balanceHex, txCountHex] = await Promise.all([
+      baseRpcCall("eth_getCode", [address, "latest"]),
+      baseRpcCall("eth_getBalance", [address, "latest"]),
+      baseRpcCall("eth_getTransactionCount", [address, "latest"]),
     ]);
-    if (addrRes.status === 404) {
-      return res.status(404).json({ error: "That address has no activity on Base Mainnet." });
-    }
-    if (!addrRes.ok) return res.status(502).json({ error: "Could not reach the Base block explorer." });
-    const data = await addrRes.json();
-    const counters = countersRes.ok ? await countersRes.json().catch(() => null) : null;
-    const balanceWei = data.coin_balance || "0";
+    const isContract = !!codeHex && codeHex !== "0x";
+    const balanceWei = BigInt(balanceHex || "0x0").toString();
     const balanceEth = (Number(balanceWei) / 1e18).toFixed(6);
-    const token = data.token
+
+    const [addrInfo, counters] = await Promise.all([
+      fetchBlockscoutJson(`/addresses/${address}`),
+      fetchBlockscoutJson(`/addresses/${address}/counters`),
+    ]);
+
+    const token = addrInfo && addrInfo.token
       ? {
-          name: data.token.name || null,
-          symbol: data.token.symbol || null,
-          decimals: data.token.decimals != null ? data.token.decimals : null,
-          totalSupply: data.token.total_supply || null,
-          holders: data.token.holders != null ? data.token.holders : null,
+          name: addrInfo.token.name || null,
+          symbol: addrInfo.token.symbol || null,
+          decimals: addrInfo.token.decimals != null ? addrInfo.token.decimals : null,
+          totalSupply: addrInfo.token.total_supply || null,
+          holders: addrInfo.token.holders != null ? addrInfo.token.holders : null,
         }
       : null;
+
     res.json({
-      address: data.hash || address,
-      isContract: !!data.is_contract,
-      isVerified: data.is_verified == null ? null : !!data.is_verified,
-      name: data.name || null,
+      address,
+      isContract,
+      isVerified: addrInfo && addrInfo.is_verified != null ? !!addrInfo.is_verified : null,
+      name: (addrInfo && addrInfo.name) || null,
       balanceEth,
       balanceWei,
-      txCount: counters ? Number(counters.transactions_count || 0) : null,
+      txCount: counters ? Number(counters.transactions_count || 0) : Number(BigInt(txCountHex || "0x0")),
       tokenTransfersCount: counters ? Number(counters.token_transfers_count || 0) : null,
       token,
-      creatorAddress: data.creator_address_hash || null,
-      creationTxHash: data.creation_transaction_hash || null,
+      creatorAddress: (addrInfo && addrInfo.creator_address_hash) || null,
+      creationTxHash: (addrInfo && addrInfo.creation_transaction_hash) || null,
       basescanUrl: `https://basescan.org/address/${address}`,
       blockscoutUrl: `https://base.blockscout.com/address/${address}`,
     });
   } catch (err) {
-    res.status(502).json({ error: "Could not reach the Base block explorer." });
+    res.status(502).json({ error: "Could not reach the Base network. Try again in a moment." });
   }
 });
 
