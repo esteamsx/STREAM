@@ -1,9 +1,11 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { db } from "../config/firebase.js";
 
 const STORE_FILE = path.join(process.cwd(), ".analytics-daily.json");
 const MAX_DAYS_STORED = 400;
+const FIRESTORE_DOC = db.collection("analyticsStore").doc("daily");
 
 const VISITOR_COOKIE = "esv";
 const VISITOR_COOKIE_MAX_AGE = 2 * 365 * 24 * 60 * 60 * 1000;
@@ -12,6 +14,8 @@ const SKIP_PREFIXES = ["/api/", "/public/", "/uploads/", "/embed/", "/favicon", 
 const ASSET_EXT = /\.(js|css|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|map|json|xml|txt)$/i;
 
 const hourly = new Map();
+let dailyStore = null;
+let storeLoadPromise = null;
 
 function hourKeyFor(ts) {
   const d = new Date(ts);
@@ -31,18 +35,49 @@ function getOrCreateHourBucket(hourKey) {
   return bucket;
 }
 
-function loadDailyStore() {
+function readLocalFile() {
   try {
-    if (!fs.existsSync(STORE_FILE)) return {};
+    if (!fs.existsSync(STORE_FILE)) return null;
     return JSON.parse(fs.readFileSync(STORE_FILE, "utf8"));
   } catch (err) {
-    return {};
+    return null;
   }
 }
-function saveDailyStore(store) {
+function writeLocalFile(store) {
   try {
     fs.writeFileSync(STORE_FILE, JSON.stringify(store));
   } catch (err) {
+  }
+}
+
+async function ensureStoreLoaded() {
+  if (dailyStore) return dailyStore;
+  if (storeLoadPromise) return storeLoadPromise;
+  storeLoadPromise = (async () => {
+    const local = readLocalFile();
+    if (local) {
+      dailyStore = local;
+      return dailyStore;
+    }
+    try {
+      const snap = await FIRESTORE_DOC.get();
+      dailyStore = snap.exists ? (snap.data().days || {}) : {};
+    } catch (err) {
+      console.error("[analytics] could not load daily store from Firestore:", err.message);
+      dailyStore = {};
+    }
+    writeLocalFile(dailyStore);
+    return dailyStore;
+  })();
+  return storeLoadPromise;
+}
+
+async function persistStore(store) {
+  writeLocalFile(store);
+  try {
+    await FIRESTORE_DOC.set({ days: store, updatedAt: Date.now() });
+  } catch (err) {
+    console.error("[analytics] could not persist daily store to Firestore:", err.message);
   }
 }
 
@@ -77,12 +112,12 @@ function trackPageView(req, res, next) {
   next();
 }
 
-function flushCompletedDays() {
+async function flushCompletedDays() {
   try {
+    const store = await ensureStoreLoaded();
     const now = Date.now();
     const currentDayKey = dayKeyFor(now);
     const currentHourKey = hourKeyFor(now);
-    const store = loadDailyStore();
     let changed = false;
 
     const byDay = new Map();
@@ -127,17 +162,21 @@ function flushCompletedDays() {
       if (keys.length > MAX_DAYS_STORED) {
         for (const k of keys.slice(0, keys.length - MAX_DAYS_STORED)) delete store[k];
       }
-      saveDailyStore(store);
+      await persistStore(store);
     }
   } catch (err) {
+    console.error("[analytics] flush failed:", err.message);
   }
 }
 
-setInterval(flushCompletedDays, 5 * 60 * 1000).unref();
+setInterval(() => {
+  flushCompletedDays().catch(() => {});
+}, 5 * 60 * 1000).unref();
 
-function getAnalytics(range) {
+async function getAnalytics(range) {
+  await flushCompletedDays();
+  const store = dailyStore || {};
   const now = Date.now();
-  flushCompletedDays();
 
   if (range === "24h") {
     const points = [];
@@ -162,7 +201,6 @@ function getAnalytics(range) {
   }
 
   const daysMap = { "7d": 7, "30d": 30, "60d": 60, "180d": 180 };
-  const store = loadDailyStore();
   const todayKey = dayKeyFor(now);
   let todayViews = 0;
   const todayVisitors = new Set();

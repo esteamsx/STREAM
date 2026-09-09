@@ -3888,7 +3888,7 @@ app.get("/api/admin/analytics", requireAuth, requireAdmin, async (req, res) => {
   try {
     const range = String(req.query.range || "7d");
     const allowed = new Set(["24h", "7d", "30d", "60d", "180d", "lifetime"]);
-    const data = getAnalytics(allowed.has(range) ? range : "7d");
+    const data = await getAnalytics(allowed.has(range) ? range : "7d");
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: "Could not load analytics." });
