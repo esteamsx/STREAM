@@ -3834,6 +3834,7 @@ app.get("/football", scrapeGate, (req, res, next) => {
 
 app.get("/login", scrapeGate, guestOnly, (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  if (req.query.embed === "1") res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.send(cachedLoginHtml);
 });
 
