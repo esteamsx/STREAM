@@ -2750,11 +2750,11 @@ const PURCHASABLE_API_PLANS = ["standard", "pro", "max"];
 const TRADING_PLAN_DAYS = 30;
 
 const TRADING_PLANS = {
-  free: { name: "Free", priceNgn: 0, requiresVerification: false, manualTradesPerWeek: 3, maxPositions: 2, aiTrading: false, community: false, coinsOnProfit: 0, instantBonusNgn: 0 },
-  starter: { name: "Starter", priceNgn: 0, requiresVerification: true, manualTradesPerWeek: 5, maxPositions: 5, aiTrading: false, community: false, coinsOnProfit: 3, instantBonusNgn: 0 },
-  standard: { name: "Standard", priceNgn: 5000, requiresVerification: false, manualTradesPerWeek: 7, maxPositions: 7, aiTrading: false, community: true, coinsOnProfit: 5, instantBonusNgn: 0 },
-  pro: { name: "Pro", priceNgn: 10000, requiresVerification: false, manualTradesPerWeek: 15, maxPositions: 15, aiTrading: true, community: true, coinsOnProfit: 10, instantBonusNgn: 0 },
-  max: { name: "Max", priceNgn: 15000, requiresVerification: false, manualTradesPerWeek: 20, maxPositions: 20, aiTrading: true, community: true, coinsOnProfit: 25, instantBonusNgn: 500 },
+  free: { name: "Free", priceNgn: 0, requiresVerification: false, manualTradesPerWeek: 6, maxPositions: 2, aiTrading: false, community: false, coinsOnProfit: 0, instantBonusNgn: 0 },
+  starter: { name: "Starter", priceNgn: 0, requiresVerification: true, manualTradesPerWeek: 10, maxPositions: 5, aiTrading: false, community: false, coinsOnProfit: 3, instantBonusNgn: 0 },
+  standard: { name: "Standard", priceNgn: 5000, requiresVerification: false, manualTradesPerWeek: 14, maxPositions: 7, aiTrading: false, community: true, coinsOnProfit: 5, instantBonusNgn: 0 },
+  pro: { name: "Pro", priceNgn: 10000, requiresVerification: false, manualTradesPerWeek: 30, maxPositions: 15, aiTrading: true, community: true, coinsOnProfit: 10, instantBonusNgn: 0 },
+  max: { name: "Max", priceNgn: 15000, requiresVerification: false, manualTradesPerWeek: 50, maxPositions: 20, aiTrading: true, community: true, coinsOnProfit: 25, instantBonusNgn: 500 },
 };
 
 const PURCHASABLE_TRADING_PLANS = ["standard", "pro", "max"];
