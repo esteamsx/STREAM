@@ -1165,11 +1165,11 @@ button:active{transform:scale(.96)}
         </div>
         <div class="tr-guide-block">
           <div class="tr-guide-title">Rewards</div>
-          <p><b>Free:</b> 3 manual trades and 2 open positions per 30 days. No Auto Trading, community, or coin rewards.</p>
-          <p><b>Starter</b> (free with account verification): 5 manual trades, 5 open positions, and 3 coins for every live trade closed at 100%+ ROI.</p>
-          <p><b>Standard</b> (&#8358;5,000 / 30 days): 7 manual trades, 7 open positions, community chat access, and 5 coins per qualifying live win.</p>
-          <p><b>Pro</b> (&#8358;10,000 / 30 days): 15 manual trades, 15 open positions, Auto Trading unlocked, community chat, and 10 coins per qualifying live win.</p>
-          <p><b>Max</b> (&#8358;15,000 / 30 days): 20 manual trades, 20 open positions, Auto Trading, community chat, 25 coins per qualifying live win, and a &#8358;500 cash reward paid to your wallet immediately on purchase.</p>
+          <p><b>Free:</b> 6 manual trades and 2 open positions per 30 days. No Auto Trading, community, or coin rewards.</p>
+          <p><b>Starter</b> (free with account verification): 10 manual trades, 5 open positions, and 3 coins for every live trade closed at 100%+ ROI.</p>
+          <p><b>Standard</b> (&#8358;5,000 / 30 days): 14 manual trades, 7 open positions, community chat access, and 5 coins per qualifying live win.</p>
+          <p><b>Pro</b> (&#8358;10,000 / 30 days): 30 manual trades, 15 open positions, Auto Trading unlocked, community chat, and 10 coins per qualifying live win.</p>
+          <p><b>Max</b> (&#8358;15,000 / 30 days): 50 manual trades, 20 open positions, Auto Trading, community chat, 25 coins per qualifying live win, and a &#8358;500 cash reward paid to your wallet immediately on purchase.</p>
           <p>Coin rewards only apply to live trades closed in profit at 100% ROI or higher, demo trades never earn coins.</p>
         </div>
       </div>
@@ -1224,7 +1224,7 @@ button:active{transform:scale(.96)}
           <div class="plan-price">Free</div>
           <div class="plan-note">Default plan</div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>3 Manual Trades</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>6 Manual Trades</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>2 Open Positions</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Community Chat</div>
@@ -1239,7 +1239,7 @@ button:active{transform:scale(.96)}
           <div class="plan-price">Free<span> &middot; with verification</span></div>
           <div class="plan-note">Auto with account verification</div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 Manual Trades</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>10 Manual Trades</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>5 Open Positions</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Community Chat</div>
@@ -1254,7 +1254,7 @@ button:active{transform:scale(.96)}
           <div class="plan-price">&#8358;5,000<span> / 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 Manual Trades</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>14 Manual Trades</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>7 Open Positions</div>
             <div class="plan-feature off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Auto Trading</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community Chat</div>
@@ -1269,7 +1269,7 @@ button:active{transform:scale(.96)}
           <div class="plan-price">&#8358;10,000<span> / 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 Manual Trades</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>30 Manual Trades</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15 Open Positions</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Auto Trading</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community Chat</div>
@@ -1284,7 +1284,7 @@ button:active{transform:scale(.96)}
           <div class="plan-price">&#8358;15,000<span> / 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
-            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 Manual Trades</div>
+            <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>50 Manual Trades</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>20 Open Positions</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Auto Trading</div>
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Community Chat</div>
