@@ -333,9 +333,14 @@ body:has(.page-overlay.show){overflow:hidden}
 .uname-status svg{width:12px;height:12px;flex-shrink:0}
 
 .uname-spinner{width:11px;height:11px;border:2px solid var(--muted2);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0}
+html.embed-mode body{padding:20px 16px;background:transparent}
+html.embed-mode .aurora{display:none}
+html.embed-mode .auth-wrap{max-width:100%;margin:0}
 </style>
 </head>
 <body>
+
+<script nonce="__CSP_NONCE__">(function(){try{if(new URLSearchParams(window.location.search).get('embed')==='1')document.documentElement.classList.add('embed-mode');}catch(e){}})();</script>
 
 <div class="aurora">
   <div class="blob blob-1"></div>
@@ -782,6 +787,21 @@ function postSignInTarget(){
   return '/?welcome=1';
 }
 
+function isEmbedded(){
+  try{ return new URLSearchParams(window.location.search).get('embed') === '1'; }catch(e){ return false; }
+}
+
+function goToSignInTarget(){
+  var target = postSignInTarget();
+  if (isEmbedded()) {
+    try{
+      window.parent.postMessage({ type: 'estv-auth-success', next: target }, window.location.origin);
+      return;
+    }catch(e){}
+  }
+  window.location.href = target;
+}
+
 async function establishSession(idToken, remember, altcha){
   const data = await postJSON('/api/session', { idToken, remember, altcha });
   document.getElementById('pageOverlay').classList.remove('show');
@@ -789,7 +809,7 @@ async function establishSession(idToken, remember, altcha){
     await promptTwoFactor(data.pendingToken);
     return;
   }
-  window.location.href = postSignInTarget();
+  goToSignInTarget();
 }
 
 const tfaDigits = Array.from(document.querySelectorAll('#tfaLoginOverlay .code-digit'));
@@ -841,7 +861,7 @@ function promptTwoFactor(pendingToken){
       try {
         await postJSON('/api/2fa/login-verify', { pendingToken, code });
         cleanup();
-        window.location.href = postSignInTarget();
+        goToSignInTarget();
       } catch (err) {
         errorBox.textContent = err.message;
         errorBox.classList.add('show');

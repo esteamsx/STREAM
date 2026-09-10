@@ -11,6 +11,7 @@ ${cfg.devToolsBlock || ""}
 ${siteHeadFor("profile")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
+<script nonce="__CSP_NONCE__" src="/guest-gate.js" defer></script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2613,6 +2614,10 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
       btn.className = 'pf-follow-btn' + (user.isFollowing ? ' following' : '');
       btn.textContent = user.isFollowing ? 'Following' : 'Follow';
       btn.addEventListener('click', async () => {
+        if (!user.isViewerLoggedIn) {
+          openSignInModal(window.location.pathname);
+          return;
+        }
         const wasFollowing = btn.classList.contains('following');
         await toggleFollow(user.uid, btn);
         const nowFollowing = btn.classList.contains('following');
@@ -2629,6 +2634,17 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
         }
       });
       document.getElementById('pfActionSlot').appendChild(btn);
+    }
+
+    if (!user.isViewerLoggedIn) {
+      const guestBanner = document.createElement('div');
+      guestBanner.className = 'pf-locked-card';
+      guestBanner.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>' +
+        '<div><b>You are browsing as a guest.</b><br>Sign in to follow, like, and comment.</div>';
+      guestBanner.style.cursor = 'pointer';
+      guestBanner.addEventListener('click', () => openSignInModal(window.location.pathname));
+      document.getElementById('pfInfoSlot').appendChild(guestBanner);
     }
 
     if (user.followersRestricted) {
