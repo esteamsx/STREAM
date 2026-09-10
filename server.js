@@ -29,7 +29,7 @@ import { apiRouter } from "./routes/api.js";
 import { devApiRouter } from "./routes/dev-api.js";
 import { renderDeployBot } from "./views/deploy-bot.js";
 import { renderChannelReact } from "./views/channel-react.js";
-import { renderToolsIndex } from "./views/tools/index.js";
+import { renderToolsIndex, renderToolsIndexGuestGate } from "./views/tools/index.js";
 import { renderDnsLookup } from "./views/tools/dns-lookup.js";
 import { renderObfuscate } from "./views/tools/obfuscate.js";
 import { renderQrCode } from "./views/tools/qr-code.js";
@@ -747,6 +747,7 @@ const cachedDevelopersApiHtml = renderDevelopersApi(authPageConfig);
 const cachedDeployBotHtml = renderDeployBot(authPageConfig);
 const cachedChannelReactHtml = renderChannelReact(authPageConfig);
 const cachedToolsIndexHtml = renderToolsIndex(authPageConfig);
+const cachedToolsIndexGuestHtml = renderToolsIndexGuestGate(authPageConfig);
 const cachedToolsDnsLookupHtml = renderDnsLookup(authPageConfig);
 const cachedToolsObfuscateHtml = renderObfuscate(authPageConfig);
 const cachedToolsQrCodeHtml = renderQrCode(authPageConfig);
@@ -4357,7 +4358,12 @@ app.get("/channel-react", scrapeGate, requireUser, (req, res) => {
   res.send(cachedChannelReactHtml);
 });
 
-app.get("/tools", scrapeGate, (req, res) => {
+app.get("/tools", scrapeGate, async (req, res) => {
+  const sessionId = req.cookies?.session;
+  const uid = await verifySession(sessionId);
+  if (!uid) return res.send(cachedToolsIndexGuestHtml);
+  const profile = await getUserProfile(uid);
+  if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.send(cachedToolsIndexGuestHtml);
   res.send(cachedToolsIndexHtml);
 });
 
