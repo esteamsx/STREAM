@@ -42,6 +42,7 @@ import {
   getAnimeInfo,
 } from "../services/lookup.js";
 import { signDownloadToken, verifyDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
+import { watermarkImageBuffer } from "../services/image-watermark.js";
 import { generatePassword, encodeBase64, decodeBase64, hashText, translateText, captureScreenshot, getLinkPreview, buildChartUrl, makeSticker } from "../services/utils-tools.js";
 import {
   requireAuth,
@@ -65,6 +66,33 @@ const PUBLIC_BASE = "https://esteamstv.devs.surf";
 const DL_TTL_MS = 6 * 60 * 60 * 1000;
 
 const DEFAULT_PROMO_NOTICE = "Visit our Channel: https://whatsapp.com/channel/0029VatAyCwFy72JdZXFPm29";
+const WHATSAPP_CHANNEL_URL = "https://whatsapp.com/channel/0029VatAyCwFy72JdZXFPm29";
+const TELEGRAM_CHANNEL_URL = "https://t.me/esteams_btc";
+
+function buildChannelPromo(url, label) {
+  const text = label || "Join our Channel";
+  return {
+    text,
+    url,
+    whatsapp: {
+      note: "WhatsApp button support varies by library or fork. Pass this as templateButtons or buttons when sending a message with a library such as Baileys.",
+      buttons: [
+        {
+          buttonId: "estv_channel",
+          buttonText: { displayText: text },
+          type: 1,
+          urlButton: { displayText: text, url },
+        },
+      ],
+    },
+    telegram: {
+      note: "Pass this as reply_markup when sending a message with a library such as Telegraf or node-telegram-bot-api.",
+      reply_markup: {
+        inline_keyboard: [[{ text, url }]],
+      },
+    },
+  };
+}
 
 const rpsLimitersByRate = new Map();
 function getRpsLimiter(requestsPerSecond) {
@@ -89,14 +117,21 @@ async function requireDevApiKey(req, res, next) {
     const ownerProfile = await getUserProfile(found.uid).catch(() => null);
     const plan = getDevApiPlanConfig(ownerProfile);
     req.devApiPlanKey = getEffectiveDevApiPlan(ownerProfile);
+    req.devApiNoAds = !!plan.noAds;
 
     const originalJson = res.json.bind(res);
     res.json = (body) => {
-      if (res.statusCode >= 400 && body && typeof body === "object" && !Array.isArray(body) && typeof body.error === "string") {
+      if (body && typeof body === "object" && !Array.isArray(body)) {
         if (!plan.noAds) {
-          body = { ...body, error: `${body.error} ${DEFAULT_PROMO_NOTICE}` };
+          body = { ...body, promo: buildChannelPromo(WHATSAPP_CHANNEL_URL, "Join our WhatsApp Channel") };
+          if (res.statusCode >= 400 && typeof body.error === "string") {
+            body.error = `${body.error} ${DEFAULT_PROMO_NOTICE}`;
+          }
         } else if (ownerProfile && ownerProfile.devApiCustomAdsUrl) {
-          body = { ...body, error: `${body.error} ${ownerProfile.devApiCustomAdsUrl}` };
+          body = { ...body, promo: buildChannelPromo(ownerProfile.devApiCustomAdsUrl, "Check this out") };
+          if (res.statusCode >= 400 && typeof body.error === "string") {
+            body.error = `${body.error} ${ownerProfile.devApiCustomAdsUrl}`;
+          }
         }
       }
       return originalJson(body);
@@ -349,7 +384,7 @@ router.get("/api/v1/dev/instagram", requireDevApiKey, instagramLimiter, async (r
     if (media.videoUrl) {
       out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.videoUrl, mime: "video/mp4", filename: `${filename}.mp4` }, DL_TTL_MS)}`;
     } else if (media.imageUrl) {
-      out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.imageUrl, mime: "image/jpeg", filename: `${filename}.jpg` }, DL_TTL_MS)}`;
+      out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.imageUrl, mime: "image/jpeg", filename: `${filename}.jpg`, watermark: !req.devApiNoAds }, DL_TTL_MS)}`;
     }
     out.expires_at = new Date(Date.now() + DL_TTL_MS).toISOString();
     res.json(out);
@@ -371,7 +406,7 @@ router.get("/api/v1/dev/tiktok", requireDevApiKey, tiktokLimiter, async (req, re
     }
     if (media.images.length) {
       out.image_urls = media.images.map((imgUrl, i) =>
-        `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: imgUrl, mime: "image/jpeg", filename: `${filename}-${i + 1}.jpg` }, DL_TTL_MS)}`
+        `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: imgUrl, mime: "image/jpeg", filename: `${filename}-${i + 1}.jpg`, watermark: !req.devApiNoAds }, DL_TTL_MS)}`
       );
     }
     out.expires_at = new Date(Date.now() + DL_TTL_MS).toISOString();
@@ -554,8 +589,16 @@ router.get("/api/v1/dev/screenshot", requireDevApiKey, screenshotLimiter, async 
 
   try {
     const { buffer, contentType } = await captureScreenshot(url);
+    let out = buffer;
+    if (!req.devApiNoAds && contentType && contentType.startsWith("image/")) {
+      try {
+        out = await watermarkImageBuffer(buffer, "ES TEAMS TV");
+      } catch (err) {
+        out = buffer;
+      }
+    }
     res.set("Content-Type", contentType);
-    res.send(buffer);
+    res.send(out);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not capture that screenshot." });
   }

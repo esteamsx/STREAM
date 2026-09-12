@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
+import { watermarkImageBuffer } from "./image-watermark.js";
 
 function getDlTokenSecret() {
   if (process.env.STREAM_TOKEN_SECRET) return process.env.STREAM_TOKEN_SECRET;
@@ -54,9 +55,32 @@ export async function streamProxiedFile(payload, req, res) {
     };
     if (req.headers.range) headers.Range = req.headers.range;
     const upstream = await fetch(payload.url, { headers, redirect: "follow" });
+    const ct = payload.mime || upstream.headers.get("content-type");
+
+    if (payload.watermark && upstream.ok && ct && ct.startsWith("image/")) {
+      const raw = Buffer.from(await upstream.arrayBuffer());
+      let out = raw;
+      let outType = ct;
+      try {
+        out = await watermarkImageBuffer(raw, payload.watermarkText || "ES TEAMS TV");
+        if (ct === "image/png") outType = "image/png";
+        else if (ct === "image/webp") outType = "image/webp";
+        else outType = "image/jpeg";
+      } catch (err) {
+        out = raw;
+      }
+      res.status(200);
+      res.set("Content-Type", outType);
+      res.set("Content-Length", String(out.length));
+      res.set("Accept-Ranges", "none");
+      res.set("Cache-Control", "no-store");
+      if (payload.filename) {
+        res.set("Content-Disposition", `attachment; filename="${payload.filename.replace(/[^\w.\-]/g, "_")}"`);
+      }
+      return res.end(out);
+    }
 
     res.status(upstream.status);
-    const ct = payload.mime || upstream.headers.get("content-type");
     const cl = upstream.headers.get("content-length");
     const cr = upstream.headers.get("content-range");
     if (ct) res.set("Content-Type", ct);
