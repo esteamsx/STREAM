@@ -2138,10 +2138,7 @@ button:active{transform:scale(.96)}
     okBtn.onclick = async function(){
       setBtnLoading(okBtn, 'Placing...');
       try {
-        await postJSON('/api/tools/trading/order', { category: CATEGORY, symbol: symbol, side: side, qty: qty, leverage: lev, orderType: orderType, price: limitPrice, marginMode: MARGIN_MODE });
-        if (tp || sl) {
-          await postJSON('/api/tools/trading/tpsl', { category: CATEGORY, symbol: symbol, takeProfit: tp, stopLoss: sl }).catch(function(){});
-        }
+        await postJSON('/api/tools/trading/order', { category: CATEGORY, symbol: symbol, side: side, qty: qty, leverage: lev, orderType: orderType, price: limitPrice, marginMode: MARGIN_MODE, takeProfit: tp, stopLoss: sl });
         toast('Order placed.');
         closeConfirmOverlay();
         document.getElementById('trQtyInput').value = '';

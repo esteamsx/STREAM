@@ -4531,6 +4531,8 @@ app.post("/api/tools/trading/order", requireAuth, tradingOrderLimiter, async (re
     const leverage = req.body?.leverage ? String(req.body.leverage) : null;
     const orderType = req.body?.orderType === "Limit" ? "Limit" : "Market";
     const price = req.body?.price ? String(req.body.price) : null;
+    const takeProfit = req.body?.takeProfit ? String(req.body.takeProfit) : null;
+    const stopLoss = req.body?.stopLoss ? String(req.body.stopLoss) : null;
     if (!symbol || !qty || Number(qty) <= 0) {
       return res.status(400).json({ error: "Symbol and quantity are required." });
     }
@@ -4543,7 +4545,7 @@ app.post("/api/tools/trading/order", requireAuth, tradingOrderLimiter, async (re
     }
     await checkPositionLimit(req.uid, (existing.positions || []).length);
     await checkAndIncrementManualTradeQuota(req.uid);
-    const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo, marginMode: req.body.marginMode, override: creds });
+    const result = await tradingService(req).placeOrder({ category, symbol, side, qty, leverage, orderType, price, takeProfit, stopLoss, demo, marginMode: req.body.marginMode, override: creds });
     res.json({ ok: true, order: result });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not place order." });

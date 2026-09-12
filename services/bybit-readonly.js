@@ -244,7 +244,7 @@ export async function setMarginMode(category, symbol, marginMode, demo = false, 
   });
 }
 
-export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false, override }) {
+export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, takeProfit, stopLoss, demo = false, override }) {
   const { apiKey, apiSecret } = requireKeys(demo, override);
   if (leverage) {
     await setLeverage(category, symbol, leverage, demo, override);
@@ -265,6 +265,8 @@ export async function placeOrder({ category, symbol, side, qty, leverage, orderT
     }
     body.price = String(price);
   }
+  if (takeProfit) body.takeProfit = String(takeProfit);
+  if (stopLoss) body.stopLoss = String(stopLoss);
   try {
     return await signedPost(demo, apiKey, apiSecret, "/v5/order/create", body);
   } catch (err) {
@@ -353,7 +355,7 @@ export async function getClosedPnl(category, limit, demo = false, override) {
   }));
 }
 
-export async function placeOrderWithCredentials({ apiKey, apiSecret, category, symbol, side, qty, leverage, orderType, price, demo = false }) {
+export async function placeOrderWithCredentials({ apiKey, apiSecret, category, symbol, side, qty, leverage, orderType, price, takeProfit, stopLoss, demo = false }) {
   if (leverage) {
     const lev = String(leverage);
     try {
@@ -380,6 +382,8 @@ export async function placeOrderWithCredentials({ apiKey, apiSecret, category, s
     }
     body.price = String(price);
   }
+  if (takeProfit) body.takeProfit = String(takeProfit);
+  if (stopLoss) body.stopLoss = String(stopLoss);
   try {
     return await signedPost(demo, apiKey, apiSecret, "/v5/order/create", body);
   } catch (err) {
