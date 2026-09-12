@@ -41,12 +41,14 @@ export async function saveCredentials(uid, exchange, mode, fields) {
   }
   const ref = db.collection(COLLECTION).doc(uid);
   await ref.set({ [exchange]: { [mode]: entry } }, { merge: true });
+  credentialsCache.delete(credentialsCacheKey(uid, exchange, mode));
 }
 
 export async function deleteCredentials(uid, exchange, mode) {
   assertExchangeMode(exchange, mode);
   const ref = db.collection(COLLECTION).doc(uid);
   await ref.set({ [exchange]: { [mode]: null } }, { merge: true });
+  credentialsCache.delete(credentialsCacheKey(uid, exchange, mode));
 }
 
 export async function findDuplicateCredentialOwner(uid, field, value) {
@@ -79,17 +81,28 @@ export async function getCredentialsStatus(uid) {
   };
 }
 
+const credentialsCache = new Map();
+const CREDENTIALS_CACHE_TTL_MS = 20 * 1000;
+
+function credentialsCacheKey(uid, exchange, mode) {
+  return `${uid}:${exchange}:${mode}`;
+}
+
 export async function getDecryptedCredentials(uid, exchange, mode) {
   assertExchangeMode(exchange, mode);
+  const cacheKey = credentialsCacheKey(uid, exchange, mode);
+  const cached = credentialsCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < CREDENTIALS_CACHE_TTL_MS) return cached.data;
   const snap = await db.collection(COLLECTION).doc(uid).get();
   const data = snap.exists ? snap.data() : {};
   const c = data?.[exchange]?.[mode];
-  if (!c || !c.apiKey || !c.apiSecret) return null;
-  return {
+  const result = !c || !c.apiKey || !c.apiSecret ? null : {
     apiKey: decryptSecret(c.apiKey),
     apiSecret: decryptSecret(c.apiSecret),
     passphrase: c.passphrase ? decryptSecret(c.passphrase) : undefined,
   };
+  credentialsCache.set(cacheKey, { data: result, at: Date.now() });
+  return result;
 }
 
 export async function saveAutoTradingSettings(uid, settings) {

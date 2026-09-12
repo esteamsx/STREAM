@@ -213,13 +213,21 @@ async function checkPendingSignupCode(email, code) {
   return { ok: true, data };
 }
 
+const userProfileCache = new Map();
+const USER_PROFILE_CACHE_TTL_MS = 10 * 1000;
+
 async function getUserProfile(uid) {
+  const cached = userProfileCache.get(uid);
+  if (cached && Date.now() - cached.at < USER_PROFILE_CACHE_TTL_MS) return cached.data;
   const snap = await db.collection("users").doc(uid).get();
-  return snap.exists ? snap.data() : null;
+  const data = snap.exists ? snap.data() : null;
+  userProfileCache.set(uid, { data, at: Date.now() });
+  return data;
 }
 
 async function updateUserProfile(uid, data) {
   await db.collection("users").doc(uid).update(data);
+  userProfileCache.delete(uid);
 }
 
 const MAX_ALT_USERNAMES = 10;
