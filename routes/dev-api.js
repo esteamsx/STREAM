@@ -320,7 +320,7 @@ router.get("/api/v1/dev/mp3", requireDevApiKey, mp3Limiter, async (req, res) => 
     const song = await fetchSongByQuery(query);
     if (!song.audioUrl) throw Object.assign(new Error("No audio found for that search."), { status: 404 });
     const filename = `${sanitizeFilename(song.title)}.mp3`;
-    const token = signDownloadToken({ url: song.audioUrl, mime: "audio/mpeg", filename }, DL_TTL_MS);
+    const token = signDownloadToken({ url: song.audioUrl, mime: "audio/mpeg", filename, watermark: !req.devApiNoAds }, DL_TTL_MS);
     res.json({
       title: song.title,
       thumbnail: song.thumbnail,
@@ -340,7 +340,7 @@ router.get("/api/v1/dev/mp4", requireDevApiKey, mp4Limiter, async (req, res) => 
     const song = await fetchSongByQuery(query);
     if (!song.videoUrl) throw Object.assign(new Error("No video found for that search."), { status: 404 });
     const filename = `${sanitizeFilename(song.title)}.mp4`;
-    const token = signDownloadToken({ url: song.videoUrl, mime: "video/mp4", filename }, DL_TTL_MS);
+    const token = signDownloadToken({ url: song.videoUrl, mime: "video/mp4", filename, watermark: !req.devApiNoAds }, DL_TTL_MS);
     res.json({
       title: song.title,
       thumbnail: song.thumbnail,
@@ -361,10 +361,10 @@ router.get("/api/v1/dev/facebook", requireDevApiKey, facebookLimiter, async (req
     const filename = sanitizeFilename(video.title);
     const out = { title: video.title };
     if (video.hd) {
-      out.hd_download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: video.hd, mime: "video/mp4", filename: `${filename}.mp4` }, DL_TTL_MS)}`;
+      out.hd_download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: video.hd, mime: "video/mp4", filename: `${filename}.mp4`, watermark: !req.devApiNoAds }, DL_TTL_MS)}`;
     }
     if (video.sd) {
-      out.sd_download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: video.sd, mime: "video/mp4", filename: `${filename}-sd.mp4` }, DL_TTL_MS)}`;
+      out.sd_download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: video.sd, mime: "video/mp4", filename: `${filename}-sd.mp4`, watermark: !req.devApiNoAds }, DL_TTL_MS)}`;
     }
     out.expires_at = new Date(Date.now() + DL_TTL_MS).toISOString();
     res.json(out);
@@ -382,7 +382,7 @@ router.get("/api/v1/dev/instagram", requireDevApiKey, instagramLimiter, async (r
     const filename = sanitizeFilename(media.title || "instagram-media");
     const out = { type: media.type, title: media.title, caption: media.caption };
     if (media.videoUrl) {
-      out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.videoUrl, mime: "video/mp4", filename: `${filename}.mp4` }, DL_TTL_MS)}`;
+      out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.videoUrl, mime: "video/mp4", filename: `${filename}.mp4`, watermark: !req.devApiNoAds }, DL_TTL_MS)}`;
     } else if (media.imageUrl) {
       out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.imageUrl, mime: "image/jpeg", filename: `${filename}.jpg`, watermark: !req.devApiNoAds }, DL_TTL_MS)}`;
     }
@@ -402,7 +402,7 @@ router.get("/api/v1/dev/tiktok", requireDevApiKey, tiktokLimiter, async (req, re
     const filename = sanitizeFilename(media.title || "tiktok-media");
     const out = { type: media.type, title: media.title, author: media.author };
     if (media.videoUrl) {
-      out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.videoUrl, mime: "video/mp4", filename: `${filename}.mp4` }, DL_TTL_MS)}`;
+      out.download_url = `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: media.videoUrl, mime: "video/mp4", filename: `${filename}.mp4`, watermark: !req.devApiNoAds }, DL_TTL_MS)}`;
     }
     if (media.images.length) {
       out.image_urls = media.images.map((imgUrl, i) =>

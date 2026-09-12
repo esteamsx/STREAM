@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
 import { watermarkImageBuffer } from "./image-watermark.js";
+import { watermarkVideoBuffer, watermarkAudioBuffer, canWatermarkSize } from "./video-watermark.js";
 
 function getDlTokenSecret() {
   if (process.env.STREAM_TOKEN_SECRET) return process.env.STREAM_TOKEN_SECRET;
@@ -78,6 +79,25 @@ export async function streamProxiedFile(payload, req, res) {
         res.set("Content-Disposition", `attachment; filename="${payload.filename.replace(/[^\w.\-]/g, "_")}"`);
       }
       return res.end(out);
+    }
+
+    if (payload.watermark && upstream.ok && ct && (ct.startsWith("video/") || ct.startsWith("audio/"))) {
+      const cl = Number(upstream.headers.get("content-length") || 0);
+      if (canWatermarkSize(cl)) {
+        const raw = Buffer.from(await upstream.arrayBuffer());
+        const out = ct.startsWith("video/")
+          ? await watermarkVideoBuffer(raw, payload.watermarkText || "ES TEAMS TV")
+          : await watermarkAudioBuffer(raw, payload.watermarkText || "ES TEAMS TV");
+        res.status(200);
+        res.set("Content-Type", ct);
+        res.set("Content-Length", String(out.length));
+        res.set("Accept-Ranges", "none");
+        res.set("Cache-Control", "no-store");
+        if (payload.filename) {
+          res.set("Content-Disposition", `attachment; filename="${payload.filename.replace(/[^\w.\-]/g, "_")}"`);
+        }
+        return res.end(out);
+      }
     }
 
     res.status(upstream.status);
