@@ -3254,18 +3254,36 @@ async function listBonusCodes() {
   return snap.docs.map((d) => d.data());
 }
 
+function bonusRequestFields(product) {
+  const field = product === "devapi" ? "bonusDevApiRequests" : "bonusApiRequests";
+  return { field, monthField: `${field}Month` };
+}
+
+function getEffectiveBonusRequests(profile, product) {
+  if (!profile) return 0;
+  const { field, monthField } = bonusRequestFields(product);
+  if (profile[monthField] !== currentUsageMonth()) return 0;
+  return profile[field] || 0;
+}
+
+function addMonthlyBonusRequests(tx, userRef, priorData, product, amount) {
+  const { field, monthField } = bonusRequestFields(product);
+  const nowMonth = currentUsageMonth();
+  const carried = priorData && priorData[monthField] === nowMonth ? (priorData[field] || 0) : 0;
+  tx.set(userRef, { [field]: carried + amount, [monthField]: nowMonth }, { merge: true });
+}
+
 async function redeemBonusCode(uid, rawCode, product) {
   const code = String(rawCode || "").trim().toUpperCase();
   if (!code) throw Object.assign(new Error("Enter a bonus code."), { status: 400 });
   if (!/^[A-Z0-9]{1,32}$/.test(code)) {
     throw Object.assign(new Error("That bonus code doesn't exist."), { status: 404 });
   }
-  const field = product === "devapi" ? "bonusDevApiRequests" : "bonusApiRequests";
   const codeRef = db.collection("bonusCodes").doc(code);
   const redemptionRef = codeRef.collection("redemptions").doc(uid);
   const userRef = db.collection("users").doc(uid);
   const result = await db.runTransaction(async (tx) => {
-    const [codeSnap, redemptionSnap] = await Promise.all([tx.get(codeRef), tx.get(redemptionRef)]);
+    const [codeSnap, redemptionSnap, userSnap] = await Promise.all([tx.get(codeRef), tx.get(redemptionRef), tx.get(userRef)]);
     if (!codeSnap.exists) throw Object.assign(new Error("That bonus code doesn't exist."), { status: 404 });
     const data = codeSnap.data();
     if (redemptionSnap.exists) throw Object.assign(new Error("You've already used this bonus code."), { status: 400 });
@@ -3274,7 +3292,7 @@ async function redeemBonusCode(uid, rawCode, product) {
     }
     tx.set(redemptionRef, { uid, product, redeemedAt: Date.now() });
     tx.update(codeRef, { redemptionsCount: data.redemptionsCount + 1 });
-    tx.set(userRef, { [field]: admin.firestore.FieldValue.increment(data.amount) }, { merge: true });
+    addMonthlyBonusRequests(tx, userRef, userSnap.exists ? userSnap.data() : {}, product, data.amount);
     return { amount: data.amount, product };
   });
   const productLabel = product === "devapi" ? "Developer API" : "Live TV API";
@@ -3540,7 +3558,6 @@ async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, a
 async function redeemCoinsForLimit(uid, itemKey, product) {
   const item = COIN_STORE_ITEMS[itemKey];
   if (!item || !item.bonusAmount) throw Object.assign(new Error("Unknown reward."), { status: 400 });
-  const field = product === "devapi" ? "bonusDevApiRequests" : "bonusApiRequests";
   const userRef = db.collection("users").doc(uid);
   let spenderData = null;
   await db.runTransaction(async (tx) => {
@@ -3556,9 +3573,9 @@ async function redeemCoinsForLimit(uid, itemKey, product) {
     const ledger = appendCoinLedger(tx, userRef, data, -item.coinCost, "store_redeem", { itemKey, product });
     tx.update(userRef, {
       coinBalance: admin.firestore.FieldValue.increment(-item.coinCost),
-      [field]: admin.firestore.FieldValue.increment(item.bonusAmount),
       ...ledger,
     });
+    addMonthlyBonusRequests(tx, userRef, data, product, item.bonusAmount);
   });
   creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, item.coinCost).catch(() => {});
   const productLabel = product === "devapi" ? "Developer API" : "Live TV API";
@@ -4710,6 +4727,7 @@ export {
   createBonusCode,
   listBonusCodes,
   redeemBonusCode,
+  getEffectiveBonusRequests,
   createTradingPlanCode,
   listTradingPlanCodes,
   redeemTradingPlanCode,

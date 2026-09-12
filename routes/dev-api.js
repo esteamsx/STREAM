@@ -56,6 +56,7 @@ import {
   getDevApiPlanConfig,
   DEV_API_PLANS,
   redeemBonusCode,
+  getEffectiveBonusRequests,
 } from "../services/auth.js";
 
 const router = express.Router();
@@ -105,7 +106,7 @@ async function requireDevApiKey(req, res, next) {
       return res.status(429).json({ error: "Too many requests per second for your plan." });
     }
 
-    const monthlyLimit = plan.monthlyRequests + ((ownerProfile && ownerProfile.bonusDevApiRequests) || 0);
+    const monthlyLimit = plan.monthlyRequests + getEffectiveBonusRequests(ownerProfile, "devapi");
     const usage = await checkAndIncrementAccountDevApiUsage(found.uid, monthlyLimit);
     if (!usage.allowed) {
       return res.status(429).json({
@@ -150,7 +151,7 @@ router.get("/api/devapi/keys", requireAuth, async (req, res) => {
   try {
     const planKey = getEffectiveDevApiPlan(req.userProfile);
     const plan = DEV_API_PLANS[planKey];
-    const bonusRequests = (req.userProfile && req.userProfile.bonusDevApiRequests) || 0;
+    const bonusRequests = getEffectiveBonusRequests(req.userProfile, "devapi");
     const monthlyLimit = plan.monthlyRequests + bonusRequests;
     const [keys, usage] = await Promise.all([
       listDevApiKeysForUser(req.uid),

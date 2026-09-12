@@ -21,6 +21,7 @@ import {
   getApiPlanConfig,
   API_PLANS,
   redeemBonusCode,
+  getEffectiveBonusRequests,
 } from "../services/auth.js";
 
 const router = express.Router();
@@ -327,7 +328,7 @@ export async function requireApiKey(req, res, next) {
     const found = await findApiKeyByRawKey(String(key));
     if (!found) return res.status(401).json({ error: "Invalid or revoked API key." });
     const ownerProfile = await getUserProfile(found.uid).catch(() => null);
-    const monthlyLimit = getApiPlanConfig(ownerProfile).monthlyRequests + ((ownerProfile && ownerProfile.bonusApiRequests) || 0);
+    const monthlyLimit = getApiPlanConfig(ownerProfile).monthlyRequests + getEffectiveBonusRequests(ownerProfile, "api");
     const usage = await checkAndIncrementAccountApiUsage(found.uid, monthlyLimit);
     if (!usage.allowed) {
       return res.status(429).json({
@@ -559,7 +560,7 @@ router.get("/api/dev/keys", requireAuth, async (req, res) => {
   try {
     const planKey = getEffectiveApiPlan(req.userProfile);
     const plan = API_PLANS[planKey];
-    const bonusRequests = (req.userProfile && req.userProfile.bonusApiRequests) || 0;
+    const bonusRequests = getEffectiveBonusRequests(req.userProfile, "api");
     const monthlyLimit = plan.monthlyRequests + bonusRequests;
     const [keys, usage] = await Promise.all([
       listApiKeysForUser(req.uid),
