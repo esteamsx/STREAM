@@ -19,7 +19,7 @@ const MAX_ACTIVE_BOTS = 5;
 const MAX_INSTANCES_PER_USER = 1;
 const ACTIVE_STATUSES = ["downloading", "extracting", "installing", "starting", "pairing", "connected", "reconnecting"];
 const LOG_LINES_KEPT = 300;
-const SESSION_BACKUP_INTERVAL_MS = 3 * 60 * 1000;
+const SESSION_BACKUP_INTERVAL_MS = 60 * 1000;
 
 const running = new Map();
 
@@ -340,12 +340,33 @@ async function fetchDoc(botId) {
   return db.collection("botDeployments").doc(botId).get();
 }
 
+function sessionFilesCollection(botId) {
+  return db.collection("botDeployments").doc(botId).collection("sessionFiles");
+}
+
+function sanitizeSessionFileName(name) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
 async function restoreSessionFiles(workDir, botId) {
-  const snap = await fetchDoc(botId);
-  const files = snap.exists ? snap.data().sessionFiles : null;
-  if (!files) return;
   const sessionDir = path.join(workDir, SESSION_DIR_NAME);
   fs.mkdirSync(sessionDir, { recursive: true });
+
+  const snap = await sessionFilesCollection(botId).get().catch(() => null);
+  if (snap && !snap.empty) {
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      if (!data || !data.content) continue;
+      try {
+        fs.writeFileSync(path.join(sessionDir, data.name || doc.id), Buffer.from(data.content, "base64"));
+      } catch {  }
+    }
+    return;
+  }
+
+  const legacy = await fetchDoc(botId);
+  const files = legacy.exists ? legacy.data().sessionFiles : null;
+  if (!files) return;
   for (const [name, base64] of Object.entries(files)) {
     try { fs.writeFileSync(path.join(sessionDir, name), Buffer.from(base64, "base64")); } catch {  }
   }
@@ -369,15 +390,35 @@ async function backupSessionFiles(workDir, botId, entry) {
   const signature = stats.sort().join("|");
   if (entry && entry.lastBackupSignature === signature) return;
 
-  const files = {};
+  const col = sessionFilesCollection(botId);
+  const existingRefs = await col.listDocuments().catch(() => []);
+  const knownDocIds = new Set(existingRefs.map((r) => r.id));
+
+  const currentDocIds = new Set();
+  const writes = [];
   for (const name of names) {
     try {
       const full = path.join(sessionDir, name);
-      if (fs.statSync(full).isFile()) files[name] = fs.readFileSync(full).toString("base64");
+      if (!fs.statSync(full).isFile()) continue;
+      const docId = sanitizeSessionFileName(name);
+      currentDocIds.add(docId);
+      const content = fs.readFileSync(full).toString("base64");
+      writes.push({ ref: col.doc(docId), data: { name, content, updatedAt: Date.now() } });
     } catch {  }
   }
-  if (!Object.keys(files).length) return;
-  await db.collection("botDeployments").doc(botId).update({ sessionFiles: files, updatedAt: Date.now() }).catch(() => {});
+  const deletes = [...knownDocIds].filter((id) => !currentDocIds.has(id)).map((id) => col.doc(id));
+  if (!writes.length && !deletes.length) return;
+
+  const ops = [...writes.map((w) => ({ type: "set", ref: w.ref, data: w.data })), ...deletes.map((ref) => ({ type: "delete", ref }))];
+  for (let i = 0; i < ops.length; i += 400) {
+    const batch = db.batch();
+    for (const op of ops.slice(i, i + 400)) {
+      if (op.type === "set") batch.set(op.ref, op.data);
+      else batch.delete(op.ref);
+    }
+    await batch.commit().catch(() => {});
+  }
+  await db.collection("botDeployments").doc(botId).update({ updatedAt: Date.now() }).catch(() => {});
   if (entry) entry.lastBackupSignature = signature;
 }
 
