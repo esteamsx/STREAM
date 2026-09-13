@@ -1034,18 +1034,26 @@ async function sweepPendingDeletions() {
 }
 
 async function sweepOrphanedUsers() {
-  const snap = await db.collection("users").get().catch(() => null);
-  if (!snap) return;
-  for (const doc of snap.docs) {
-    const uid = doc.id;
-    try {
-      await auth.getUser(uid);
-    } catch (err) {
-      if (err.code === "auth/user-not-found") {
-        await cleanupFollowRelationships(uid).catch(() => {});
-        await doc.ref.delete().catch(() => {});
+  const PAGE_SIZE = 300;
+  let lastDoc = null;
+  for (;;) {
+    let query = db.collection("users").orderBy(admin.firestore.FieldPath.documentId()).limit(PAGE_SIZE);
+    if (lastDoc) query = query.startAfter(lastDoc);
+    const snap = await query.get().catch(() => null);
+    if (!snap || snap.empty) break;
+    for (const doc of snap.docs) {
+      const uid = doc.id;
+      try {
+        await auth.getUser(uid);
+      } catch (err) {
+        if (err.code === "auth/user-not-found") {
+          await cleanupFollowRelationships(uid).catch(() => {});
+          await doc.ref.delete().catch(() => {});
+        }
       }
     }
+    if (snap.docs.length < PAGE_SIZE) break;
+    lastDoc = snap.docs[snap.docs.length - 1];
   }
 }
 
