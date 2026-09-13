@@ -7126,10 +7126,31 @@ setInterval(() => {
   sweepPendingDeletions().catch((err) => console.error("Deletion sweep failed:", err));
 }, 5 * 60 * 1000);
 
-sweepOrphanedUsers().catch((err) => console.error("Orphaned user sweep failed:", err));
-setInterval(() => {
+const USER_SWEEP_MIN_GAP_MS = 24 * 60 * 60 * 1000;
+const userSweepStateRef = db.collection("_system").doc("userSweepState");
+
+async function shouldRunUserSweepNow() {
+  try {
+    const snap = await userSweepStateRef.get();
+    const lastRunAt = snap.exists ? snap.data().lastRunAt : null;
+    return !lastRunAt || Date.now() - lastRunAt >= USER_SWEEP_MIN_GAP_MS;
+  } catch (err) {
+    return true;
+  }
+}
+
+async function markUserSweepRan() {
+  await userSweepStateRef.set({ lastRunAt: Date.now() }).catch(() => {});
+}
+
+async function runUserSweepIfDue() {
+  if (!(await shouldRunUserSweepNow())) return;
+  await markUserSweepRan();
   sweepOrphanedUsers().catch((err) => console.error("Orphaned user sweep failed:", err));
-}, 30 * 60 * 1000);
+}
+
+runUserSweepIfDue();
+setInterval(runUserSweepIfDue, 60 * 60 * 1000);
 
 sweepExpiredSupportMessages().catch((err) => console.error("Support message sweep failed:", err));
 setInterval(() => {
