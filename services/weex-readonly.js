@@ -320,7 +320,7 @@ export async function setMarginMode(category, symbol, marginMode, demo = false, 
   return signedPost(demo, marginModePath(demo), { symbol: wSymbol, marginMode: modeCode }, override);
 }
 
-export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false, marginMode, override }) {
+export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, takeProfit, stopLoss, demo = false, marginMode, override }) {
   if (leverage) {
     await setLeverage(category, symbol, leverage, demo, marginMode, override);
   }
@@ -341,7 +341,19 @@ export async function placeOrder({ category, symbol, side, qty, leverage, orderT
     }
     body.price = String(price);
   }
-  return signedPost(demo, orderPath(demo), body, override);
+  const result = await signedPost(demo, orderPath(demo), body, override);
+  // Weex has no inline take-profit/stop-loss field on order creation the way Bybit does,
+  // so a market order needs a follow-up trading-stop call once the position exists.
+  // A limit order has no position to attach to until it fills, so it is skipped here.
+  if (!isLimit && (takeProfit || stopLoss)) {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      await setTradingStop(category, symbol, { takeProfit, stopLoss, demo, override });
+    } catch (err) {
+      console.error("Weex TP/SL attach failed after order fill:", err.message);
+    }
+  }
+  return result;
 }
 
 export async function closePosition(category, symbol, percent, demo = false, override) {

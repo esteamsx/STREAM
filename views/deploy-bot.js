@@ -617,6 +617,8 @@ input{font-family:inherit}
   refreshList();
   refreshCap();
   loadVerification();
+  // Backgrounded/minimized tabs don't need to keep polling Firestore-backed
+  // status endpoints, so pause while hidden and catch up immediately on return.
   setInterval(() => { if (!document.hidden) refreshList(); }, 5000);
   setInterval(() => { if (!document.hidden) refreshCap(); }, 15000);
   document.addEventListener('visibilitychange', () => {
