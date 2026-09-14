@@ -535,6 +535,7 @@ input{font-family:inherit}
   }
 
   setInterval(() => {
+    if (document.hidden) return;
     for (const id of expandedLogsFor) {
       const el = cardsById.get(id);
       if (el) loadLogs(id, el.querySelector('.db-logs'));
@@ -616,8 +617,11 @@ input{font-family:inherit}
   refreshList();
   refreshCap();
   loadVerification();
-  setInterval(refreshList, 5000);
-  setInterval(refreshCap, 15000);
+  setInterval(() => { if (!document.hidden) refreshList(); }, 5000);
+  setInterval(() => { if (!document.hidden) refreshCap(); }, 15000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { refreshList(); refreshCap(); }
+  });
 </script>
 </body>
 </html>`;

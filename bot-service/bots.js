@@ -377,37 +377,45 @@ async function backupSessionFiles(workDir, botId, entry) {
   let names;
   try { names = fs.readdirSync(sessionDir); } catch { return; }
 
-  const stats = [];
+  const perFileSignatures = new Map();
   for (const name of names) {
     try {
       const full = path.join(sessionDir, name);
       const st = fs.statSync(full);
-      if (st.isFile()) stats.push(`${name}:${st.size}:${st.mtimeMs}`);
+      if (st.isFile()) perFileSignatures.set(name, `${st.size}:${st.mtimeMs}`);
     } catch {  }
   }
-  if (!stats.length) return;
+  if (!perFileSignatures.size) return;
 
+  const stats = [...perFileSignatures.entries()].map(([name, sig]) => `${name}:${sig}`);
   const signature = stats.sort().join("|");
   if (entry && entry.lastBackupSignature === signature) return;
 
   const col = sessionFilesCollection(botId);
-  const existingRefs = await col.listDocuments().catch(() => []);
-  const knownDocIds = new Set(existingRefs.map((r) => r.id));
+  if (entry && !entry.knownDocIds) {
+    const existingRefs = await col.listDocuments().catch(() => []);
+    entry.knownDocIds = new Set(existingRefs.map((r) => r.id));
+  }
+  const knownDocIds = entry ? entry.knownDocIds : new Set((await col.listDocuments().catch(() => [])).map((r) => r.id));
+  const lastFileSignatures = (entry && entry.lastFileSignatures) || new Map();
 
   const currentDocIds = new Set();
   const writes = [];
-  for (const name of names) {
+  for (const [name, sig] of perFileSignatures) {
     try {
-      const full = path.join(sessionDir, name);
-      if (!fs.statSync(full).isFile()) continue;
       const docId = sanitizeSessionFileName(name);
       currentDocIds.add(docId);
+      if (lastFileSignatures.get(docId) === sig && knownDocIds.has(docId)) continue;
+      const full = path.join(sessionDir, name);
       const content = fs.readFileSync(full).toString("base64");
-      writes.push({ ref: col.doc(docId), data: { name, content, updatedAt: Date.now() } });
+      writes.push({ ref: col.doc(docId), data: { name, content, updatedAt: Date.now() }, docId, sig });
     } catch {  }
   }
   const deletes = [...knownDocIds].filter((id) => !currentDocIds.has(id)).map((id) => col.doc(id));
-  if (!writes.length && !deletes.length) return;
+  if (!writes.length && !deletes.length) {
+    if (entry) entry.lastBackupSignature = signature;
+    return;
+  }
 
   const ops = [...writes.map((w) => ({ type: "set", ref: w.ref, data: w.data })), ...deletes.map((ref) => ({ type: "delete", ref }))];
   for (let i = 0; i < ops.length; i += 400) {
@@ -419,7 +427,16 @@ async function backupSessionFiles(workDir, botId, entry) {
     await batch.commit().catch(() => {});
   }
   await db.collection("botDeployments").doc(botId).update({ updatedAt: Date.now() }).catch(() => {});
-  if (entry) entry.lastBackupSignature = signature;
+  if (entry) {
+    entry.lastBackupSignature = signature;
+    if (!entry.lastFileSignatures) entry.lastFileSignatures = new Map();
+    for (const w of writes) entry.lastFileSignatures.set(w.docId, w.sig);
+    for (const id of [...entry.lastFileSignatures.keys()]) {
+      if (!currentDocIds.has(id)) entry.lastFileSignatures.delete(id);
+    }
+    for (const id of currentDocIds) entry.knownDocIds.add(id);
+    for (const ref of deletes) entry.knownDocIds.delete(ref.id);
+  }
 }
 
 async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}) {

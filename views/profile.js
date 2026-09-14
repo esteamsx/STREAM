@@ -1446,7 +1446,7 @@ function initFollowingFeedFab(){
     if (e.target.id === 'followingFeedOverlay') document.getElementById('followingFeedOverlay').classList.remove('show');
   });
   refreshFeedBadge();
-  setInterval(refreshFeedBadge, 20000);
+  setInterval(() => { if (!document.hidden) refreshFeedBadge(); }, 20000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) refreshFeedBadge();
   });

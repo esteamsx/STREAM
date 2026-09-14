@@ -80,20 +80,53 @@ app.get("/internal/system/storage", async (req, res) => {
   }
 });
 
+const CAP_CACHE_TTL_MS = 5000;
+let activeCapCache = { value: null, at: 0 };
+const mineCapCache = new Map(); // uid -> { value, at }
+
+async function cachedCountActiveBots() {
+  const now = Date.now();
+  if (activeCapCache.value !== null && now - activeCapCache.at < CAP_CACHE_TTL_MS) return activeCapCache.value;
+  const value = await countActiveBots();
+  activeCapCache = { value, at: now };
+  return value;
+}
+
+async function cachedCountBotsForUser(uid) {
+  const now = Date.now();
+  const cached = mineCapCache.get(uid);
+  if (cached && now - cached.at < CAP_CACHE_TTL_MS) return cached.value;
+  const value = await countBotsForUser(uid);
+  mineCapCache.set(uid, { value, at: now });
+  return value;
+}
+
 app.get("/internal/bots/cap", async (req, res) => {
   try {
     const uid = req.query.uid;
     const isAdmin = req.query.isAdmin === "true";
-    const [active, mine] = await Promise.all([countActiveBots(), countBotsForUser(uid)]);
+    const [active, mine] = await Promise.all([cachedCountActiveBots(), cachedCountBotsForUser(uid)]);
     res.json({ active, max: MAX_ACTIVE_BOTS, mine, maxMine: isAdmin ? null : MAX_INSTANCES_PER_USER, isAdmin });
   } catch (err) {
     res.status(500).json({ error: "Could not load deployment capacity." });
   }
 });
 
+const listCache = new Map(); // uid -> { value, at }
+const LIST_CACHE_TTL_MS = 4000;
+
 app.get("/internal/bots", async (req, res) => {
   try {
-    const bots = await listBotsForUser(req.query.uid);
+    const uid = req.query.uid;
+    const now = Date.now();
+    const cached = listCache.get(uid);
+    let bots;
+    if (cached && now - cached.at < LIST_CACHE_TTL_MS) {
+      bots = cached.value;
+    } else {
+      bots = await listBotsForUser(uid);
+      listCache.set(uid, { value: bots, at: now });
+    }
     res.json({ bots });
   } catch (err) {
     res.status(500).json({ error: "Could not load your deployments." });
@@ -104,6 +137,9 @@ app.post("/internal/bots/deploy", async (req, res) => {
   try {
     const { uid, isAdmin, ...body } = req.body || {};
     const result = await deployBot(uid, body, isAdmin);
+    listCache.delete(uid);
+    activeCapCache = { value: null, at: 0 };
+    mineCapCache.delete(uid);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message || "Deploy failed." });
@@ -120,7 +156,11 @@ app.get("/internal/bots/:id/status", async (req, res) => {
 
 app.post("/internal/bots/:id/stop", async (req, res) => {
   try {
-    res.json(await stopBot(req.body?.uid, req.params.id));
+    const uid = req.body?.uid;
+    const result = await stopBot(uid, req.params.id);
+    listCache.delete(uid);
+    activeCapCache = { value: null, at: 0 };
+    res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not stop deployment." });
   }
@@ -128,7 +168,11 @@ app.post("/internal/bots/:id/stop", async (req, res) => {
 
 app.post("/internal/bots/:id/restart", async (req, res) => {
   try {
-    res.json(await restartBot(req.body?.uid, req.params.id));
+    const uid = req.body?.uid;
+    const result = await restartBot(uid, req.params.id);
+    listCache.delete(uid);
+    activeCapCache = { value: null, at: 0 };
+    res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not restart deployment." });
   }
@@ -136,7 +180,12 @@ app.post("/internal/bots/:id/restart", async (req, res) => {
 
 app.delete("/internal/bots/:id", async (req, res) => {
   try {
-    res.json(await deleteBot(req.query.uid, req.params.id));
+    const uid = req.query.uid;
+    const result = await deleteBot(uid, req.params.id);
+    listCache.delete(uid);
+    activeCapCache = { value: null, at: 0 };
+    mineCapCache.delete(uid);
+    res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not delete deployment." });
   }

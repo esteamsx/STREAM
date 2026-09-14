@@ -502,7 +502,10 @@ altcha-widget{--altcha-max-width:100%}
   }
 
   loadStatus();
-  setInterval(loadStatus, 30000);
+  setInterval(() => { if (!document.hidden) loadStatus(); }, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadStatus();
+  });
 </script>
 </body>
 </html>`;

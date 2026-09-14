@@ -2783,7 +2783,7 @@ document.getElementById('notifMarkReadBtn').addEventListener('click', async () =
   btn.disabled = false;
 });
 loadNotifDot();
-setInterval(loadNotifDot, 20000);
+setInterval(() => { if (!document.hidden) loadNotifDot(); }, 20000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) loadNotifDot();
 });
@@ -4121,7 +4121,7 @@ async function openSupportChat(uid, title, isAdminView, verified, lastActiveAt, 
   document.getElementById('supportChatOverlay').classList.add('show');
   await loadSupportChatMessages(true);
   if (supportChatPollTimer) clearInterval(supportChatPollTimer);
-  supportChatPollTimer = setInterval(() => loadSupportChatMessages(false), 4000);
+  supportChatPollTimer = setInterval(() => { if (!document.hidden) loadSupportChatMessages(false); }, 4000);
 }
 
 function closeSupportChat(){
@@ -4318,7 +4318,7 @@ async function finishVoiceRecording(){
 
 function initSupportFab(){
   refreshSupportUnread();
-  setInterval(refreshSupportUnread, 20000);
+  setInterval(() => { if (!document.hidden) refreshSupportUnread(); }, 20000);
   document.getElementById('supportFab').addEventListener('click', () => {
     if (profile.isAdmin) openSupportInbox();
     else openSupportChat(profile.uid, 'Customer Care', false);
