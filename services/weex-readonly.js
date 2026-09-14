@@ -342,6 +342,9 @@ export async function placeOrder({ category, symbol, side, qty, leverage, orderT
     body.price = String(price);
   }
   const result = await signedPost(demo, orderPath(demo), body, override);
+  // Weex has no inline take-profit/stop-loss field on order creation the way Bybit does,
+  // so a market order needs a follow-up trading-stop call once the position exists.
+  // A limit order has no position to attach to until it fills, so it is skipped here.
   if (!isLimit && (takeProfit || stopLoss)) {
     await new Promise((resolve) => setTimeout(resolve, 800));
     try {
