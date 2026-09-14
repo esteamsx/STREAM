@@ -146,6 +146,9 @@ function tpSlPath(demo) {
 function fillsPath(demo) {
   return demo ? "/capi/v3/sim/order/fills" : "/capi/v2/order/fills";
 }
+function marginModePath(demo) {
+  return demo ? "/capi/v3/sim/account/setMarginMode" : "/capi/v2/account/setMarginMode";
+}
 
 export async function getPublicKlines(category, symbol, interval, limit = 200, demo = false) {
   const result = await publicGet("/capi/v2/market/candles", {
@@ -218,6 +221,15 @@ export async function getInstrumentInfo(category, symbol, demo = false) {
   };
 }
 
+function parseWeexMarginMode(raw) {
+  const n = Number(raw);
+  if (n === 1) return "cross";
+  if (n === 3) return "isolated";
+  const s = String(raw || "").toLowerCase();
+  if (s === "cross" || s === "crossed") return "cross";
+  return "isolated";
+}
+
 function pickUsdtAsset(assetsResult) {
   if (!assetsResult) return null;
   const list = Array.isArray(assetsResult) ? assetsResult : [assetsResult];
@@ -275,7 +287,7 @@ export async function getAllPositions(category, demo = false, override) {
       positionValue: Number(pos.openValue || pos.margin || 0),
       margin: Number(pos.margin || pos.marginSize || 0) || (pos.openValue && pos.leverage ? Number(pos.openValue) / Number(pos.leverage) : 0),
       liqPrice: pos.liquidatePrice ? Number(pos.liquidatePrice) : null,
-      marginMode: String(pos.marginMode || "isolated").toLowerCase() === "cross" ? "cross" : "isolated",
+      marginMode: parseWeexMarginMode(pos.marginMode),
       takeProfit: pos.presetTakeProfitPrice ? Number(pos.presetTakeProfitPrice) : null,
       stopLoss: pos.presetStopLossPrice ? Number(pos.presetStopLossPrice) : null,
     }));
@@ -294,12 +306,18 @@ export async function getAllPositions(category, demo = false, override) {
 export async function setLeverage(category, symbol, leverage, demo = false, marginMode = "isolated", override) {
   const wSymbol = toWeexSymbol(symbol);
   const lev = String(leverage);
-  const mode = marginMode === "cross" ? "cross" : "isolated";
+  const modeCode = marginMode === "cross" ? 1 : 3;
   for (const side of ["long", "short"]) {
     try {
-      await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side, marginMode: mode }, override);
+      await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side, marginMode: modeCode }, override);
     } catch (err) {}
   }
+}
+
+export async function setMarginMode(category, symbol, marginMode, demo = false, override) {
+  const wSymbol = toWeexSymbol(symbol);
+  const modeCode = marginMode === "cross" ? 1 : 3;
+  return signedPost(demo, marginModePath(demo), { symbol: wSymbol, marginMode: modeCode }, override);
 }
 
 export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, demo = false, marginMode, override }) {
@@ -360,6 +378,7 @@ export async function setTradingStop(category, symbol, { takeProfit, stopLoss, d
   const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
   const positionSide = pos && String(pos.side).toUpperCase() === "SHORT" ? "short" : "long";
   const size = pos ? String(pos.size || pos.holdSize || 0) : "0";
+  const marginModeCode = pos && pos.marginMode != null ? Number(pos.marginMode) : 1;
   const tasks = [];
   if (takeProfit) {
     tasks.push(signedPost(demo, tpSlPath(demo), {
@@ -370,7 +389,7 @@ export async function setTradingStop(category, symbol, { takeProfit, stopLoss, d
       executePrice: "0",
       size,
       positionSide,
-      marginMode: 1,
+      marginMode: marginModeCode,
     }, override));
   }
   if (stopLoss) {
@@ -382,7 +401,7 @@ export async function setTradingStop(category, symbol, { takeProfit, stopLoss, d
       executePrice: "0",
       size,
       positionSide,
-      marginMode: 1,
+      marginMode: marginModeCode,
     }, override));
   }
   return Promise.all(tasks);
@@ -438,7 +457,7 @@ export async function placeOrderWithCredentials({ apiKey, apiSecret, passphrase,
     const lev = String(leverage);
     for (const s of ["long", "short"]) {
       try {
-        await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side: s, marginMode: "isolated" }, override);
+        await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side: s, marginMode: 3 }, override);
       } catch (err) {}
     }
   }
