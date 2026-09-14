@@ -218,6 +218,12 @@ export async function getInstrumentInfo(category, symbol, demo = false) {
   };
 }
 
+function pickUsdtAsset(assetsResult) {
+  if (!assetsResult) return null;
+  const list = Array.isArray(assetsResult) ? assetsResult : [assetsResult];
+  return list.find((a) => a && (a.marginCoin === "USDT" || a.coin === "USDT")) || list[0] || null;
+}
+
 export async function getLivePosition(category, symbol, demo = false, override) {
   const wSymbol = toWeexSymbol(symbol);
   const [posResult, assetsResult] = await Promise.all([
@@ -228,10 +234,8 @@ export async function getLivePosition(category, symbol, demo = false, override) 
   const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
 
   let equity = null;
-  if (Array.isArray(assetsResult)) {
-    const usdt = assetsResult.find((a) => a.marginCoin === "USDT" || a.coin === "USDT");
-    if (usdt) equity = Number(usdt.equity || usdt.totalEquity || 0);
-  }
+  const usdtLive = pickUsdtAsset(assetsResult);
+  if (usdtLive) equity = Number(usdtLive.equity || usdtLive.totalEquity || 0);
 
   if (!pos) {
     return { hasPosition: false, equity };
@@ -278,12 +282,10 @@ export async function getAllPositions(category, demo = false, override) {
 
   let equity = null;
   let available = null;
-  if (Array.isArray(assetsResult)) {
-    const usdt = assetsResult.find((a) => a.marginCoin === "USDT" || a.coin === "USDT");
-    if (usdt) {
-      equity = Number(usdt.equity || usdt.totalEquity || 0);
-      available = Number(usdt.available || usdt.availableBalance || 0);
-    }
+  const usdt = pickUsdtAsset(assetsResult);
+  if (usdt) {
+    equity = Number(usdt.equity || usdt.totalEquity || 0);
+    available = Number(usdt.available || usdt.availableBalance || 0);
   }
 
   return { equity, available, positions };
@@ -408,19 +410,25 @@ export async function cancelOrder(category, symbol, orderId, demo = false, overr
 }
 
 export async function getClosedPnl(category, limit, demo = false, override) {
-  const result = await signedGet(demo, fillsPath(demo), { symbol: undefined, limit: limit || 30 }, override);
+  const [result, openPositions] = await Promise.all([
+    signedGet(demo, fillsPath(demo), { symbol: undefined, limit: limit || 30 }, override),
+    getAllPositions(category, demo, override).catch(() => ({ positions: [] })),
+  ]);
+  const openSymbols = new Set((openPositions.positions || []).map((p) => p.symbol));
   const rows = Array.isArray(result) ? result : (result && result.list) || [];
-  return rows.map((p) => ({
-    symbol: fromWeexSymbol(p.symbol),
-    side: /short|sell/i.test(p.type || p.side || "") ? "Buy" : "Sell",
-    qty: p.size || p.filled_qty,
-    entryPrice: Number(p.price_avg || p.avgEntryPrice || 0),
-    exitPrice: Number(p.price || p.avgExitPrice || 0),
-    closedPnl: Number(p.totalProfits || p.closedPnl || 0),
-    leverage: Number(p.leverage || 1),
-    createdTime: Number(p.createTime || p.createdTime || 0),
-    updatedTime: Number(p.updateTime || p.updatedTime || 0),
-  }));
+  return rows
+    .filter((p) => !openSymbols.has(fromWeexSymbol(p.symbol)))
+    .map((p) => ({
+      symbol: fromWeexSymbol(p.symbol),
+      side: /short|sell/i.test(p.type || p.side || "") ? "Buy" : "Sell",
+      qty: p.size || p.filled_qty,
+      entryPrice: Number(p.price_avg || p.avgEntryPrice || 0),
+      exitPrice: Number(p.price || p.avgExitPrice || 0),
+      closedPnl: Number(p.totalProfits || p.closedPnl || 0),
+      leverage: p.leverage != null ? Number(p.leverage) : null,
+      createdTime: Number(p.createTime || p.createdTime || 0),
+      updatedTime: Number(p.updateTime || p.updatedTime || 0),
+    }));
 }
 
 export async function placeOrderWithCredentials({ apiKey, apiSecret, passphrase, category, symbol, side, qty, leverage, orderType, price, demo = false }) {
