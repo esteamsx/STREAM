@@ -392,8 +392,6 @@ async function backupSessionFiles(workDir, botId, entry) {
   if (entry && entry.lastBackupSignature === signature) return;
 
   const col = sessionFilesCollection(botId);
-  // Cache the known-document-id set on `entry` across backup cycles so we only
-  // pay for a listDocuments() lookup once per bot run, not on every interval tick.
   if (entry && !entry.knownDocIds) {
     const existingRefs = await col.listDocuments().catch(() => []);
     entry.knownDocIds = new Set(existingRefs.map((r) => r.id));
@@ -407,9 +405,6 @@ async function backupSessionFiles(workDir, botId, entry) {
     try {
       const docId = sanitizeSessionFileName(name);
       currentDocIds.add(docId);
-      // Only re-upload a file whose own size/mtime signature actually changed,
-      // previously the whole session was rewritten in full whenever ANY file
-      // changed, which multiplied writes many times over.
       if (lastFileSignatures.get(docId) === sig && knownDocIds.has(docId)) continue;
       const full = path.join(sessionDir, name);
       const content = fs.readFileSync(full).toString("base64");
