@@ -216,6 +216,10 @@ async function checkPendingSignupCode(email, code) {
 const userProfileCache = new Map();
 const USER_PROFILE_CACHE_TTL_MS = 10 * 1000;
 
+function invalidateUserProfileCache(uid) {
+  userProfileCache.delete(uid);
+}
+
 async function getUserProfile(uid) {
   const cached = userProfileCache.get(uid);
   if (cached && Date.now() - cached.at < USER_PROFILE_CACHE_TTL_MS) return cached.data;
@@ -2824,6 +2828,7 @@ async function finalizeTradingPlanPayment(reference, paystackData) {
   if (plan.instantBonusNgn) {
     await db.collection("users").doc(record.uid).set({ nairaBalance: admin.firestore.FieldValue.increment(plan.instantBonusNgn) }, { merge: true });
   }
+  invalidateUserProfileCache(record.uid);
   await ref.update({ status: "success", confirmedAt: Date.now() });
   await saveBillingAuthorization(record.uid, paystackData);
   await addNotification(record.uid, "trading_plan", `Your ${plan.name} Trading plan is now active`, { plan: record.plan, expiresAt });
@@ -2907,6 +2912,7 @@ async function creditTradingProfitCoins(uid, roiPercent, isDemo) {
     const ledger = appendCoinLedger(tx, userRef, data, plan.coinsOnProfit, "trading_profit", { roiPercent });
     tx.set(userRef, { coinBalance: admin.firestore.FieldValue.increment(plan.coinsOnProfit), ...ledger }, { merge: true });
   });
+  invalidateUserProfileCache(uid);
   await addNotification(uid, "trading_profit_coins", `You earned ${plan.coinsOnProfit} coins for a live trade closed at ${roiPercent.toFixed(0)}% ROI`, { coins: plan.coinsOnProfit, roiPercent });
   return { credited: plan.coinsOnProfit };
 }
@@ -3473,6 +3479,8 @@ async function applyReferral(newUid, rawReferredByCode) {
     return true;
   });
   if (!applied) return;
+  invalidateUserProfileCache(referrer.uid);
+  invalidateUserProfileCache(newUid);
   await addNotification(
     referrer.uid,
     "referral_signup",
@@ -3502,6 +3510,7 @@ async function claimDailyCoins(uid, faceDescriptor) {
     const ledger = appendCoinLedger(tx, ref, data, amount, "daily_claim", { day: today });
     tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(amount), lastDailyCoinClaimDay: today, ...ledger }, { merge: true });
   });
+  invalidateUserProfileCache(uid);
   await saveClaimFace(uid, probes);
   await addNotification(uid, "daily_claim", "You have successfully claimed daily coins", {
     amount,
@@ -3536,6 +3545,7 @@ async function spendCoins(uid, amount, reason) {
     const ledger = appendCoinLedger(tx, userRef, data, -cost, reason || "spend", {});
     tx.update(userRef, { coinBalance: admin.firestore.FieldValue.increment(-cost), ...ledger });
   });
+  invalidateUserProfileCache(uid);
   creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, cost).catch(() => {});
   return { spent: cost, balance: remaining, reason: reason || "" };
 }
@@ -3550,6 +3560,7 @@ async function refundCoins(uid, amount) {
     const ledger = appendCoinLedger(tx, ref, data, cost, "refund", {});
     tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(cost), ...ledger }, { merge: true });
   });
+  invalidateUserProfileCache(uid);
 }
 
 async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, amount) {
@@ -3565,6 +3576,7 @@ async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, a
       const ledger = appendCoinLedger(tx, adminDoc.ref, data, amount, "channel_react_income", { fromUid: spenderUid });
       tx.set(adminDoc.ref, { coinBalance: admin.firestore.FieldValue.increment(amount), ...ledger }, { merge: true });
     });
+    invalidateUserProfileCache(adminDoc.id);
     const handle = spenderUsername ? `@${spenderUsername}` : "A user";
     await addNotification(adminDoc.id, "coin_income", `${handle} paid +${amount} coins`, { fromUid: spenderUid, amount });
   } catch {
@@ -3593,6 +3605,7 @@ async function redeemCoinsForLimit(uid, itemKey, product) {
     });
     addMonthlyBonusRequests(tx, userRef, data, product, item.bonusAmount);
   });
+  invalidateUserProfileCache(uid);
   creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, item.coinCost).catch(() => {});
   const productLabel = product === "devapi" ? "Developer API" : "Live TV API";
   await addNotification(uid, "coin_redeem", `Redeemed ${item.coinCost} coins for ${item.label} on your ${productLabel}`, { itemKey, product });
@@ -3626,6 +3639,7 @@ async function redeemCoinsForVerification(uid) {
     });
     return { expiresAt };
   });
+  invalidateUserProfileCache(uid);
   creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, item.coinCost).catch(() => {});
   await addNotification(uid, "coin_redeem", `Redeemed ${item.coinCost} coins for 3-day account verification`, { itemKey: "verify3d" });
   return { expiresAt: result.expiresAt };
@@ -3689,6 +3703,8 @@ async function transferCoins(uid, targetUsername, rawAmount) {
       newBalance: balance - amount,
     };
   });
+  invalidateUserProfileCache(uid);
+  invalidateUserProfileCache(recipient.uid);
 
   const recipientUsername = recipient.username || String(targetUsername || "").trim().toLowerCase();
 
@@ -3745,6 +3761,7 @@ async function finalizeCoinPurchasePayment(reference, paystackData) {
     const ledger = appendCoinLedger(tx, userRef, data, coins, "coin_purchase", { packageKey: record.packageKey, reference });
     tx.set(userRef, { coinBalance: admin.firestore.FieldValue.increment(coins), ...ledger }, { merge: true });
   });
+  invalidateUserProfileCache(record.uid);
   await ref.update({ status: "success", confirmedAt: Date.now() });
   await addNotification(record.uid, "coin_purchase", `+${coins} coins added to your balance`, { coins });
   return { alreadyProcessed: false, uid: record.uid, coins };
@@ -3842,6 +3859,7 @@ async function finalizeCoinRequestPayment(reference, paystackData) {
     const ledger = appendCoinLedger(tx, userRef, data, coins, "coin_request_payment", { token: record.token, reference });
     tx.set(userRef, { coinBalance: admin.firestore.FieldValue.increment(coins), ...ledger }, { merge: true });
   });
+  invalidateUserProfileCache(record.uid);
   await ref.update({ status: "success", confirmedAt: Date.now() });
   await db.collection("coinRequestLinks").doc(record.token).set(
     { paid: true, paidAt: Date.now(), paidReference: reference },
@@ -3864,6 +3882,7 @@ async function creditReferralCommission(uid, amountNgn, sourceLabel) {
   const commission = Math.round(amountNgn * REFERRAL_COMMISSION_RATE);
   if (commission <= 0) return;
   await db.collection("users").doc(referrerUid).set({ nairaBalance: admin.firestore.FieldValue.increment(commission) }, { merge: true });
+  invalidateUserProfileCache(referrerUid);
   db.collection("referrals").doc(uid).set({ totalCommissionNgn: admin.firestore.FieldValue.increment(commission) }, { merge: true }).catch(() => {});
   await addNotification(
     referrerUid,
@@ -3891,11 +3910,13 @@ async function setBankDetails(uid, { bankName, accountNumber, accountName }) {
   if (!isValidBankAccountNumber(cleanAccountNumber)) throw new Error("Enter a valid 10-digit account number.");
   const bankDetails = { bankName: cleanBankName, accountName: cleanAccountName, accountNumber: cleanAccountNumber };
   await db.collection("users").doc(uid).update({ bankDetails });
+  invalidateUserProfileCache(uid);
   return bankDetails;
 }
 
 async function deleteBankDetails(uid) {
   await db.collection("users").doc(uid).update({ bankDetails: admin.firestore.FieldValue.delete() });
+  invalidateUserProfileCache(uid);
   return { ok: true };
 }
 
@@ -3928,6 +3949,7 @@ async function requestWithdrawal(uid, amountNgn) {
     tx.set(withdrawalRef, { uid, amountNgn: amount, payoutAmountNgn, bankDetails: data.bankDetails, status: "pending", requestedAt: Date.now() });
     return { id: withdrawalRef.id, bankDetails: data.bankDetails };
   }).then(async (result) => {
+    invalidateUserProfileCache(uid);
     notifyAdminOfWithdrawalRequest(uid, amount, result.bankDetails, result.id).catch((err) => {
       console.error("[requestWithdrawal] admin notify failed:", err.message);
     });
