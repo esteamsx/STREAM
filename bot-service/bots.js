@@ -19,7 +19,7 @@ const MAX_ACTIVE_BOTS = 5;
 const MAX_INSTANCES_PER_USER = 1;
 const ACTIVE_STATUSES = ["downloading", "extracting", "installing", "starting", "pairing", "connected", "reconnecting"];
 const LOG_LINES_KEPT = 300;
-const SESSION_BACKUP_INTERVAL_MS = 60 * 1000;
+const SESSION_BACKUP_INTERVAL_MS = 5 * 60 * 1000;
 
 const running = new Map();
 

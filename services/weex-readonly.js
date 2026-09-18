@@ -15,18 +15,18 @@ function buildQueryString(params) {
 }
 
 function toWeexSymbol(symbol) {
-  return `cmt_${String(symbol || "").toLowerCase()}`;
+  return String(symbol || "").toUpperCase();
 }
 
 function fromWeexSymbol(symbol) {
-  return String(symbol || "").replace(/^cmt_/, "").toUpperCase();
+  return String(symbol || "").toUpperCase();
 }
 
 function granularityFor(interval) {
   const map = {
-    "1": "1m", "3": "3m", "5": "5m", "15": "15m", "30": "30m",
-    "60": "1H", "120": "2H", "240": "4H", "360": "6H", "720": "12H",
-    "D": "1D", "W": "1W",
+    "1": "1m", "3": "5m", "5": "5m", "15": "15m", "30": "30m",
+    "60": "1h", "120": "4h", "240": "4h", "360": "12h", "720": "12h",
+    "D": "1d", "W": "1w",
   };
   return map[String(interval)] || "15m";
 }
@@ -119,205 +119,250 @@ async function signedPost(demo, path, body = {}, override) {
   return readBody(res);
 }
 
+async function signedDelete(demo, path, params = {}, override) {
+  const { apiKey, apiSecret, passphrase } = requireKeys(demo, override);
+  const qs = buildQueryString(params);
+  const timestamp = Date.now().toString();
+  const message = timestamp + "DELETE" + path + (qs ? `?${qs}` : "");
+  const headers = {
+    "ACCESS-KEY": apiKey,
+    "ACCESS-SIGN": sign(apiSecret, message),
+    "ACCESS-TIMESTAMP": timestamp,
+    "ACCESS-PASSPHRASE": passphrase,
+    "locale": "en-US",
+    "Content-Type": "application/json",
+  };
+  const url = `${BASE_URL}${path}${qs ? `?${qs}` : ""}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  let res;
+  try {
+    res = await fetch(url, { method: "DELETE", headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+  return readBody(res);
+}
+
 function positionPath(demo) {
-  return demo ? "/capi/v3/sim/position/allPosition" : "/capi/v2/account/position/allPosition";
+  return demo ? "/capi/v3/sim/position/allPosition" : "/capi/v3/account/position/allPosition";
 }
 function singlePositionPath(demo) {
-  return demo ? "/capi/v3/sim/position/singlePosition" : "/capi/v2/account/position/singlePosition";
+  return demo ? "/capi/v3/sim/position/singlePosition" : "/capi/v3/account/position/singlePosition";
 }
 function balancePath(demo) {
-  return demo ? "/capi/v3/sim/balance" : "/capi/v2/account/assets";
+  return demo ? "/capi/v3/sim/balance" : "/capi/v3/account/balance";
 }
 function orderPath(demo) {
   return demo ? "/capi/v3/sim/order" : "/capi/v3/order";
 }
 function leveragePath(demo) {
-  return demo ? "/capi/v3/sim/leverage" : "/capi/v2/account/leverage";
+  return demo ? "/capi/v3/sim/leverage" : "/capi/v3/account/leverage";
 }
 function currentOrdersPath(demo) {
-  return demo ? "/capi/v3/sim/order/current" : "/capi/v2/order/current";
-}
-function cancelOrderPath(demo) {
-  return demo ? "/capi/v3/sim/order/cancel_order" : "/capi/v2/order/cancel_order";
+  return demo ? "/capi/v3/sim/openOrders" : "/capi/v3/openOrders";
 }
 function tpSlPath(demo) {
-  return demo ? "/capi/v3/sim/order/placeTpSlOrder" : "/capi/v2/order/placeTpSlOrder";
+  return demo ? "/capi/v3/sim/placeTpSlOrder" : "/capi/v3/placeTpSlOrder";
 }
-function fillsPath(demo) {
-  return demo ? "/capi/v3/sim/order/fills" : "/capi/v2/order/fills";
+function orderHistoryPath(demo) {
+  return demo ? "/capi/v3/sim/order/history" : "/capi/v3/order/history";
 }
-function marginModePath(demo) {
-  return demo ? "/capi/v3/sim/account/setMarginMode" : "/capi/v2/account/setMarginMode";
+function symbolPricePath() {
+  return "/capi/v3/market/symbolPrice";
 }
 
 export async function getPublicKlines(category, symbol, interval, limit = 200, demo = false) {
-  const result = await publicGet("/capi/v2/market/candles", {
+  const result = await publicGet("/capi/v3/market/klines", {
     symbol: toWeexSymbol(symbol),
-    granularity: granularityFor(interval),
+    interval: granularityFor(interval),
     limit,
   });
   const rows = Array.isArray(result) ? result : (result && result.list) || [];
   const list = rows
-    .map((row) => {
-      if (Array.isArray(row)) {
-        const [start, open, high, low, close, volume, turnover] = row;
-        return [String(start), String(open), String(high), String(low), String(close), String(volume || 0), String(turnover || 0)];
-      }
-      return [
-        String(row.time || row.ts || row.timestamp || 0),
-        String(row.open),
-        String(row.high),
-        String(row.low),
-        String(row.close),
-        String(row.volume || row.baseVolume || 0),
-        String(row.quoteVolume || row.turnover || 0),
-      ];
-    })
+    .map((row) => [
+      String(row[0]),
+      String(row[1]),
+      String(row[2]),
+      String(row[3]),
+      String(row[4]),
+      String(row[5] || 0),
+      String(row[7] || 0),
+    ])
     .sort((a, b) => Number(b[0]) - Number(a[0]));
   return { list };
 }
 
 export function getPublicTicker(category, symbol, demo = false) {
-  return publicGet("/capi/v2/market/ticker", { symbol: toWeexSymbol(symbol) });
+  return publicGet(symbolPricePath(), { symbol: toWeexSymbol(symbol), priceType: "MARK" });
 }
 
-export function getPublicInstruments(category, demo = false) {
-  return publicGet("/capi/v2/market/contracts", {});
+export async function getPublicInstruments(category, demo = false) {
+  return publicGet("/capi/v3/market/exchangeInfo", {});
 }
 
 export async function getAllInstruments(category, demo = false) {
-  const result = await publicGet("/capi/v2/market/contracts", {});
-  const rows = Array.isArray(result) ? result : (result && result.list) || [];
-  const list = rows
-    .filter((c) => {
-      const status = String(c.status || c.contractStatus || "").toLowerCase();
-      return !status || status === "normal" || status === "trading" || status === "online";
-    })
-    .map((c) => ({
-      symbol: fromWeexSymbol(c.symbol),
-      quoteCoin: "USDT",
-      status: "Trading",
-    }));
+  const result = await publicGet("/capi/v3/market/exchangeInfo", {});
+  const rows = (result && result.symbols) || [];
+  const list = rows.map((c) => ({
+    symbol: fromWeexSymbol(c.symbol),
+    quoteCoin: c.quoteAsset || "USDT",
+    status: "Trading",
+  }));
   return { list };
 }
 
 export async function getInstrumentInfo(category, symbol, demo = false) {
-  const result = await publicGet("/capi/v2/market/contracts", { symbol: toWeexSymbol(symbol) });
-  const rows = Array.isArray(result) ? result : (result && result.list) || [result];
+  const result = await publicGet("/capi/v3/market/exchangeInfo", { symbol: toWeexSymbol(symbol) });
+  const rows = (result && result.symbols) || [];
   const info = rows.find((c) => fromWeexSymbol(c.symbol) === String(symbol).toUpperCase()) || rows[0];
   if (!info) {
     throw Object.assign(new Error("Unknown trading pair."), { status: 404 });
   }
-  const sizeDecimals = Number(info.volumePlace ?? info.sizeDecimals ?? 3);
-  const priceDecimals = Number(info.pricePlace ?? info.priceDecimals ?? 2);
+  const qtyDecimals = Number(info.quantityPrecision ?? 3);
+  const priceDecimals = Number(info.pricePrecision ?? 2);
   return {
     symbol: fromWeexSymbol(info.symbol),
-    qtyStep: info.minTradeNum ? String(info.minTradeNum) : (1 / 10 ** sizeDecimals).toFixed(sizeDecimals),
-    minOrderQty: info.minTradeNum ? String(info.minTradeNum) : "0.001",
-    maxOrderQty: info.maxTradeNum ? String(info.maxTradeNum) : "1000",
-    minLeverage: "1",
+    qtyStep: info.minOrderSize ? String(info.minOrderSize) : (1 / 10 ** qtyDecimals).toFixed(qtyDecimals),
+    minOrderQty: info.minOrderSize ? String(info.minOrderSize) : "0.001",
+    maxOrderQty: info.maxOrderSize ? String(info.maxOrderSize) : "1000",
+    minLeverage: info.minLeverage ? String(info.minLeverage) : "1",
     maxLeverage: info.maxLeverage ? String(info.maxLeverage) : "100",
     tickSize: (1 / 10 ** priceDecimals).toFixed(priceDecimals),
   };
 }
 
 function parseWeexMarginMode(raw) {
-  const n = Number(raw);
-  if (n === 1) return "cross";
-  if (n === 3) return "isolated";
-  const s = String(raw || "").toLowerCase();
-  if (s === "cross" || s === "crossed") return "cross";
+  const s = String(raw || "").toUpperCase();
+  if (s === "CROSSED" || s === "CROSS") return "cross";
   return "isolated";
 }
 
 function pickUsdtAsset(assetsResult) {
   if (!assetsResult) return null;
   const list = Array.isArray(assetsResult) ? assetsResult : [assetsResult];
-  return list.find((a) => a && (a.marginCoin === "USDT" || a.coin === "USDT")) || list[0] || null;
+  if (!list.length) return null;
+  return (
+    list.find((a) => a && ["USDT", "SUSDT"].includes(String(a.asset || "").toUpperCase())) ||
+    list[0] ||
+    null
+  );
+}
+
+async function markPricesFor(symbols, demo, override) {
+  const unique = [...new Set(symbols)];
+  const entries = await Promise.all(unique.map(async (sym) => {
+    try {
+      const data = await publicGet(symbolPricePath(), { symbol: sym, priceType: "MARK" });
+      return [sym, Number(data && data.price) || 0];
+    } catch {
+      return [sym, 0];
+    }
+  }));
+  return new Map(entries);
+}
+
+function mapWeexPosition(pos, markPrice) {
+  const size = Number(pos.size || 0);
+  const openValue = Number(pos.openValue || 0);
+  const entryPrice = size ? openValue / size : 0;
+  const margin = Number(pos.marginSize || pos.isolatedMargin || 0) || (openValue && pos.leverage ? openValue / Number(pos.leverage) : 0);
+  return {
+    symbol: fromWeexSymbol(pos.symbol),
+    side: String(pos.side).toUpperCase() === "SHORT" ? "Sell" : "Buy",
+    size,
+    entryPrice,
+    markPrice: markPrice || 0,
+    leverage: Number(pos.leverage || 1),
+    unrealizedPnl: Number(pos.unrealizePnl || 0),
+    positionValue: openValue,
+    margin,
+    liqPrice: pos.liquidatePrice && Number(pos.liquidatePrice) > 0 ? Number(pos.liquidatePrice) : null,
+    marginMode: parseWeexMarginMode(pos.marginType),
+    takeProfit: null,
+    stopLoss: null,
+  };
 }
 
 export async function getLivePosition(category, symbol, demo = false, override) {
   const wSymbol = toWeexSymbol(symbol);
+  let balanceError = null;
   const [posResult, assetsResult] = await Promise.all([
     signedGet(demo, singlePositionPath(demo), { symbol: wSymbol }, override),
-    signedGet(demo, balancePath(demo), {}, override).catch(() => null),
+    signedGet(demo, balancePath(demo), {}, override).catch((err) => {
+      console.error("Weex balance fetch failed:", err.message);
+      balanceError = err.message || "Could not load your WEEX balance.";
+      return null;
+    }),
   ]);
   const rows = Array.isArray(posResult) ? posResult : posResult ? [posResult] : [];
-  const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
+  const pos = rows.find((p) => Number(p.size || 0) > 0);
 
   let equity = null;
   const usdtLive = pickUsdtAsset(assetsResult);
-  if (usdtLive) equity = Number(usdtLive.equity || usdtLive.totalEquity || 0);
+  if (usdtLive) equity = Number(usdtLive.balance || 0);
+  else if (!balanceError) balanceError = "No USDT balance found in your WEEX futures account. Transfer funds from Funding to your Futures (Trading) account on WEEX.";
 
   if (!pos) {
-    return { hasPosition: false, equity };
+    return { hasPosition: false, equity, balanceError: usdtLive ? null : balanceError };
   }
 
-  return {
-    hasPosition: true,
-    equity,
-    side: String(pos.side).toUpperCase() === "SHORT" ? "Sell" : "Buy",
-    size: Number(pos.size || pos.holdSize || 0),
-    entryPrice: Number(pos.avgPrice || pos.openPriceAvg || 0),
-    markPrice: Number(pos.markPrice || 0),
-    leverage: Number(pos.leverage || 1),
-    unrealizedPnl: Number(pos.unrealizePnl || pos.unrealizedPnl || 0),
-    positionValue: Number(pos.openValue || pos.margin || 0),
-    margin: Number(pos.margin || pos.marginSize || 0) || (pos.openValue && pos.leverage ? Number(pos.openValue) / Number(pos.leverage) : 0),
-    liqPrice: pos.liquidatePrice ? Number(pos.liquidatePrice) : null,
-  };
+  const markPrice = Number((await publicGet(symbolPricePath(), { symbol: wSymbol, priceType: "MARK" }).catch(() => null))?.price) || 0;
+  const mapped = mapWeexPosition(pos, markPrice);
+  return { hasPosition: true, equity, balanceError: usdtLive ? null : balanceError, ...mapped };
 }
 
 export async function getAllPositions(category, demo = false, override) {
+  let balanceError = null;
   const [posResult, assetsResult] = await Promise.all([
     signedGet(demo, positionPath(demo), {}, override),
-    signedGet(demo, balancePath(demo), {}, override).catch(() => null),
+    signedGet(demo, balancePath(demo), {}, override).catch((err) => {
+      console.error("Weex balance fetch failed:", err.message);
+      balanceError = err.message || "Could not load your WEEX balance.";
+      return null;
+    }),
   ]);
   const rows = Array.isArray(posResult) ? posResult : (posResult && posResult.list) || [];
-  const positions = rows
-    .filter((p) => Number(p.size || p.holdSize || 0) > 0)
-    .map((pos) => ({
-      symbol: fromWeexSymbol(pos.symbol),
-      side: String(pos.side).toUpperCase() === "SHORT" ? "Sell" : "Buy",
-      size: Number(pos.size || pos.holdSize || 0),
-      entryPrice: Number(pos.avgPrice || pos.openPriceAvg || 0),
-      markPrice: Number(pos.markPrice || 0),
-      leverage: Number(pos.leverage || 1),
-      unrealizedPnl: Number(pos.unrealizePnl || pos.unrealizedPnl || 0),
-      positionValue: Number(pos.openValue || pos.margin || 0),
-      margin: Number(pos.margin || pos.marginSize || 0) || (pos.openValue && pos.leverage ? Number(pos.openValue) / Number(pos.leverage) : 0),
-      liqPrice: pos.liquidatePrice ? Number(pos.liquidatePrice) : null,
-      marginMode: parseWeexMarginMode(pos.marginMode),
-      takeProfit: pos.presetTakeProfitPrice ? Number(pos.presetTakeProfitPrice) : null,
-      stopLoss: pos.presetStopLossPrice ? Number(pos.presetStopLossPrice) : null,
-    }));
+  const openRows = rows.filter((p) => Number(p.size || 0) > 0);
+  const markPrices = await markPricesFor(openRows.map((p) => toWeexSymbol(p.symbol)), demo, override);
+  const positions = openRows.map((pos) => mapWeexPosition(pos, markPrices.get(toWeexSymbol(pos.symbol))));
 
   let equity = null;
   let available = null;
   const usdt = pickUsdtAsset(assetsResult);
   if (usdt) {
-    equity = Number(usdt.equity || usdt.totalEquity || 0);
-    available = Number(usdt.available || usdt.availableBalance || 0);
+    equity = Number(usdt.balance || 0);
+    available = Number(usdt.availableBalance || 0);
+  } else if (!balanceError) {
+    balanceError = "No USDT balance found in your WEEX futures account. Transfer funds from Funding to your Futures (Trading) account on WEEX.";
   }
 
-  return { equity, available, positions };
+  return { equity, available, positions, balanceError: usdt ? null : balanceError };
+}
+
+function leverageBody(symbol, marginMode, leverage) {
+  const body = { symbol: toWeexSymbol(symbol), marginType: marginMode === "cross" ? "CROSSED" : "ISOLATED" };
+  if (marginMode === "cross") body.crossLeverage = String(leverage);
+  else {
+    body.isolatedLongLeverage = String(leverage);
+    body.isolatedShortLeverage = String(leverage);
+  }
+  return body;
 }
 
 export async function setLeverage(category, symbol, leverage, demo = false, marginMode = "isolated", override) {
-  const wSymbol = toWeexSymbol(symbol);
-  const lev = String(leverage);
-  const modeCode = marginMode === "cross" ? 1 : 3;
-  for (const side of ["long", "short"]) {
-    try {
-      await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side, marginMode: modeCode }, override);
-    } catch (err) {}
-  }
+  await signedPost(demo, leveragePath(demo), leverageBody(symbol, marginMode, leverage), override).catch(() => {});
 }
 
 export async function setMarginMode(category, symbol, marginMode, demo = false, override) {
-  const wSymbol = toWeexSymbol(symbol);
-  const modeCode = marginMode === "cross" ? 1 : 3;
-  return signedPost(demo, marginModePath(demo), { symbol: wSymbol, marginMode: modeCode }, override);
+  let currentLeverage = null;
+  try {
+    const posResult = await signedGet(demo, singlePositionPath(demo), { symbol: toWeexSymbol(symbol) }, override);
+    const rows = Array.isArray(posResult) ? posResult : posResult ? [posResult] : [];
+    const pos = rows.find((p) => Number(p.size || 0) > 0);
+    if (pos && pos.leverage) currentLeverage = pos.leverage;
+  } catch {}
+  return signedPost(demo, leveragePath(demo), leverageBody(symbol, marginMode, currentLeverage || "20"), override);
 }
 
 export async function placeOrder({ category, symbol, side, qty, leverage, orderType, price, takeProfit, stopLoss, demo = false, marginMode, override }) {
@@ -341,32 +386,31 @@ export async function placeOrder({ category, symbol, side, qty, leverage, orderT
     }
     body.price = String(price);
   }
-  const result = await signedPost(demo, orderPath(demo), body, override);
-  if (!isLimit && (takeProfit || stopLoss)) {
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    try {
-      await setTradingStop(category, symbol, { takeProfit, stopLoss, demo, override });
-    } catch (err) {
-      console.error("Weex TP/SL attach failed after order fill:", err.message);
-    }
+  if (takeProfit) {
+    body.tpTriggerPrice = String(takeProfit);
+    body.TpWorkingType = "CONTRACT_PRICE";
   }
-  return result;
+  if (stopLoss) {
+    body.slTriggerPrice = String(stopLoss);
+    body.SlWorkingType = "CONTRACT_PRICE";
+  }
+  return signedPost(demo, orderPath(demo), body, override);
 }
 
 export async function closePosition(category, symbol, percent, demo = false, override) {
   const wSymbol = toWeexSymbol(symbol);
   const posResult = await signedGet(demo, singlePositionPath(demo), { symbol: wSymbol }, override);
   const rows = Array.isArray(posResult) ? posResult : posResult ? [posResult] : [];
-  const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
+  const pos = rows.find((p) => Number(p.size || 0) > 0);
   if (!pos) {
     throw Object.assign(new Error("No open position on this pair."), { status: 400 });
   }
   const isLong = String(pos.side).toUpperCase() !== "SHORT";
   const pct = percent && percent > 0 && percent < 100 ? percent : 100;
-  let qty = Number(pos.size || pos.holdSize || 0);
+  let qty = Number(pos.size || 0);
   if (pct < 100) {
     qty = (qty * pct) / 100;
-    if (qty <= 0) qty = Number(pos.size || pos.holdSize || 0);
+    if (qty <= 0) qty = Number(pos.size || 0);
   }
   return signedPost(demo, orderPath(demo), {
     symbol: wSymbol,
@@ -384,33 +428,26 @@ export async function setTradingStop(category, symbol, { takeProfit, stopLoss, d
   const wSymbol = toWeexSymbol(symbol);
   const posResult = await signedGet(demo, singlePositionPath(demo), { symbol: wSymbol }, override);
   const rows = Array.isArray(posResult) ? posResult : posResult ? [posResult] : [];
-  const pos = rows.find((p) => Number(p.size || p.holdSize || 0) > 0);
-  const positionSide = pos && String(pos.side).toUpperCase() === "SHORT" ? "short" : "long";
-  const size = pos ? String(pos.size || pos.holdSize || 0) : "0";
-  const marginModeCode = pos && pos.marginMode != null ? Number(pos.marginMode) : 1;
+  const pos = rows.find((p) => Number(p.size || 0) > 0);
+  if (!pos) return;
+  const positionSide = String(pos.side).toUpperCase() === "SHORT" ? "SHORT" : "LONG";
   const tasks = [];
   if (takeProfit) {
     tasks.push(signedPost(demo, tpSlPath(demo), {
       symbol: wSymbol,
-      clientOrderId: `estvtp${Date.now()}`,
-      planType: "profit_plan",
+      clientAlgoId: `estvtp${Date.now()}`,
+      planType: "TAKE_PROFIT",
       triggerPrice: String(takeProfit),
-      executePrice: "0",
-      size,
       positionSide,
-      marginMode: marginModeCode,
     }, override));
   }
   if (stopLoss) {
     tasks.push(signedPost(demo, tpSlPath(demo), {
       symbol: wSymbol,
-      clientOrderId: `estvsl${Date.now()}`,
-      planType: "loss_plan",
+      clientAlgoId: `estvsl${Date.now()}`,
+      planType: "STOP_LOSS",
       triggerPrice: String(stopLoss),
-      executePrice: "0",
-      size,
       positionSide,
-      marginMode: marginModeCode,
     }, override));
   }
   return Promise.all(tasks);
@@ -420,42 +457,42 @@ export async function getOpenOrders(category, demo = false, override) {
   const result = await signedGet(demo, currentOrdersPath(demo), {}, override);
   const rows = Array.isArray(result) ? result : (result && result.list) || [];
   return rows.map((o) => ({
-    orderId: o.order_id || o.orderId,
+    orderId: o.orderId,
     symbol: fromWeexSymbol(o.symbol),
-    side: /short|sell/i.test(o.type || "") ? "Sell" : "Buy",
-    orderType: o.order_type === "1" || o.order_type === 1 ? "Limit" : "Market",
-    qty: o.size,
+    side: o.side === "SELL" ? "Sell" : "Buy",
+    orderType: o.type === "LIMIT" ? "Limit" : "Market",
+    qty: o.origQty,
     price: o.price,
-    triggerPrice: o.triggerPrice || null,
-    reduceOnly: /close/i.test(o.type || ""),
+    triggerPrice: o.stopPrice && Number(o.stopPrice) > 0 ? o.stopPrice : null,
+    reduceOnly: !!o.reduceOnly,
     orderStatus: o.status,
-    createdTime: Number(o.createTime || 0),
+    createdTime: Number(o.time || 0),
   }));
 }
 
 export async function cancelOrder(category, symbol, orderId, demo = false, override) {
-  return signedPost(demo, cancelOrderPath(demo), { symbol: toWeexSymbol(symbol), orderId }, override);
+  return signedDelete(demo, orderPath(demo), { orderId }, override);
 }
 
 export async function getClosedPnl(category, limit, demo = false, override) {
   const [result, openPositions] = await Promise.all([
-    signedGet(demo, fillsPath(demo), { symbol: undefined, limit: limit || 30 }, override),
+    signedGet(demo, orderHistoryPath(demo), { limit: limit || 30 }, override),
     getAllPositions(category, demo, override).catch(() => ({ positions: [] })),
   ]);
   const openSymbols = new Set((openPositions.positions || []).map((p) => p.symbol));
   const rows = Array.isArray(result) ? result : (result && result.list) || [];
   return rows
-    .filter((p) => !openSymbols.has(fromWeexSymbol(p.symbol)))
-    .map((p) => ({
-      symbol: fromWeexSymbol(p.symbol),
-      side: /short|sell/i.test(p.type || p.side || "") ? "Buy" : "Sell",
-      qty: p.size || p.filled_qty,
-      entryPrice: Number(p.price_avg || p.avgEntryPrice || 0),
-      exitPrice: Number(p.price || p.avgExitPrice || 0),
-      closedPnl: Number(p.totalProfits || p.closedPnl || 0),
-      leverage: p.leverage != null ? Number(p.leverage) : null,
-      createdTime: Number(p.createTime || p.createdTime || 0),
-      updatedTime: Number(p.updateTime || p.updatedTime || 0),
+    .filter((o) => o.status === "FILLED" && !openSymbols.has(fromWeexSymbol(o.symbol)))
+    .map((o) => ({
+      symbol: fromWeexSymbol(o.symbol),
+      side: o.side === "SELL" ? "Sell" : "Buy",
+      qty: o.executedQty || o.origQty,
+      entryPrice: Number(o.avgPrice || o.price || 0),
+      exitPrice: Number(o.avgPrice || o.price || 0),
+      closedPnl: 0,
+      leverage: null,
+      createdTime: Number(o.time || 0),
+      updatedTime: Number(o.updateTime || o.time || 0),
     }));
 }
 
@@ -463,12 +500,7 @@ export async function placeOrderWithCredentials({ apiKey, apiSecret, passphrase,
   const override = { apiKey, apiSecret, passphrase };
   const wSymbol = toWeexSymbol(symbol);
   if (leverage) {
-    const lev = String(leverage);
-    for (const s of ["long", "short"]) {
-      try {
-        await signedPost(demo, leveragePath(demo), { symbol: wSymbol, leverage: lev, side: s, marginMode: 3 }, override);
-      } catch (err) {}
-    }
+    await signedPost(demo, leveragePath(demo), leverageBody(symbol, "isolated", leverage), override).catch(() => {});
   }
   const isLimit = orderType === "Limit";
   const isBuy = side !== "Sell";
