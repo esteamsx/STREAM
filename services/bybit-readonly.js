@@ -1,6 +1,9 @@
 import crypto from "crypto";
+import { ProxyAgent } from "undici";
 
 const RECV_WINDOW = "5000";
+
+const proxyAgent = process.env.BYBIT_PROXY_URL ? new ProxyAgent(process.env.BYBIT_PROXY_URL) : undefined;
 
 function baseUrl(demo) {
   return demo ? "https://api-demo.bybit.com" : "https://api.bybit.com";
@@ -30,7 +33,7 @@ async function publicGet(demo, path, params = {}) {
   const timer = setTimeout(() => controller.abort(), 10000);
   let res;
   try {
-    res = await fetch(url, { signal: controller.signal });
+    res = await fetch(url, { signal: controller.signal, dispatcher: proxyAgent });
   } finally {
     clearTimeout(timer);
   }
@@ -56,7 +59,7 @@ async function signedGet(demo, apiKey, apiSecret, path, params = {}) {
   const timer = setTimeout(() => controller.abort(), 10000);
   let res;
   try {
-    res = await fetch(url, { headers, signal: controller.signal });
+    res = await fetch(url, { headers, signal: controller.signal, dispatcher: proxyAgent });
   } finally {
     clearTimeout(timer);
   }
@@ -82,7 +85,7 @@ async function signedPost(demo, apiKey, apiSecret, path, body = {}) {
   const timer = setTimeout(() => controller.abort(), 10000);
   let res;
   try {
-    res = await fetch(`${baseUrl(demo)}${path}`, { method: "POST", headers, body: bodyStr, signal: controller.signal });
+    res = await fetch(`${baseUrl(demo)}${path}`, { method: "POST", headers, body: bodyStr, signal: controller.signal, dispatcher: proxyAgent });
   } finally {
     clearTimeout(timer);
   }
