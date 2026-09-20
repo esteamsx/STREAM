@@ -206,6 +206,21 @@ altcha-widget{--altcha-max-width:100%}
 .cr-rules b{color:var(--text);font-weight:600}
 .cr-rules a{color:var(--accent);text-decoration:none;font-weight:600}
 .cr-foot{text-align:center;font-size:.68rem;color:var(--muted2);line-height:1.6;padding:4px 0 10px}
+.cr-history-list{max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.cr-history-item{padding:12px 13px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid var(--border)}
+:root[data-theme="light"] .cr-history-item{background:var(--card)}
+.cr-history-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.cr-history-status{font-size:.68rem;font-weight:700;padding:3px 9px;border-radius:20px;flex-shrink:0}
+.cr-history-status.pending{background:rgba(245,166,35,.15);color:var(--amber)}
+.cr-history-status.confirmed{background:rgba(18,196,139,.15);color:var(--green)}
+.cr-history-status.declined{background:rgba(255,59,92,.15);color:var(--red)}
+.cr-history-status.expired{background:rgba(255,255,255,.08);color:var(--muted)}
+.cr-history-link{font-size:.73rem;color:var(--muted);word-break:break-all;font-family:var(--font-mono);line-height:1.5}
+.cr-history-time{font-size:.68rem;color:var(--muted2);margin-top:4px}
+.cr-history-actions{display:flex;gap:8px;margin-top:9px}
+.cr-history-btn{flex:1;padding:8px 10px;border-radius:9px;border:1px solid var(--border-strong);background:transparent;
+  color:var(--text);font-size:.72rem;font-weight:600;cursor:pointer}
+.cr-history-btn:disabled{opacity:.4;cursor:not-allowed}
 .cr-hide{display:none}
 </style>
 </head>
@@ -267,7 +282,7 @@ altcha-widget{--altcha-max-width:100%}
 
   <div class="cr-card cr-hide" id="crMain">
     <div class="cr-card-title">React to a channel post</div>
-    <div class="cr-card-sub">Paste a WhatsApp channel post link and your own connected bot reacts to that post for you.</div>
+    <div class="cr-card-sub">Paste a WhatsApp channel post link. Reactions are added manually and confirmed here, usually within a few hours.</div>
     <div class="cr-quota" id="quotaNote"></div>
 
     <div id="flowBox" class="cr-flow cr-hide">
@@ -292,6 +307,12 @@ altcha-widget{--altcha-max-width:100%}
     <div class="cr-cmd cr-hide" id="cmdBox"></div>
   </div>
 
+  <div class="cr-card cr-hide" id="crHistoryCard">
+    <div class="cr-card-title">History</div>
+    <div class="cr-card-sub">Your last 5 requests. Each can take up to 6 hours to be confirmed.</div>
+    <div class="cr-history-list" id="crHistoryList"></div>
+  </div>
+
   <div class="cr-steps">
     <div class="cr-step">
       <span class="cr-step-n">1</span>
@@ -303,21 +324,21 @@ altcha-widget{--altcha-max-width:100%}
     </div>
     <div class="cr-step">
       <span class="cr-step-n">3</span>
-      <div><b>Send</b><span>Reactions are delivered from our servers. Nothing runs on your phone.</span></div>
+      <div><b>Send</b><span>Your request goes to a queue and is reacted to manually, then confirmed here.</span></div>
     </div>
   </div>
 
   <div class="cr-card">
     <div class="cr-card-title">Before you send</div>
     <ul class="cr-rules">
-      <li><a href="/account#rewards">5 coins</a> are deducted from your balance for every successful reaction. Nothing is charged if it fails.</li>
+      <li><a href="/account#rewards">5 coins</a> are deducted from your balance when you submit a request.</li>
       <li>Free accounts get <b>3 reactions a day</b>. Verified accounts get unlimited reactions, still at 5 coins each.</li>
-      <li>You get a notification in your account each time coins are deducted.</li>
+      <li>Requests are usually confirmed within a few hours, and take up to 6 hours at most.</li>
       <li>The link must be a channel <b>post</b> link, ending with the post number.</li>
     </ul>
   </div>
 
-  <div class="cr-foot">Reactions are processed on ES TEAMS TV servers.</div>
+  <div class="cr-foot">Reactions are reviewed and confirmed manually.</div>
 
 </div>
 
@@ -468,14 +489,14 @@ altcha-widget{--altcha-max-width:100%}
     try {
       const body = { link: link, altcha: altchaValue };
       const res = await postJSON('/api/channel/react', body);
-      setMsg(res.message || 'Whatsapp Channel Reaction Sent', 'ok');
+      setMsg(res.message || 'Reaction request queued.', 'ok');
       setCoins(res.coinBalance, true);
       if (crAltcha.reset) crAltcha.reset();
       altchaPassed = false; altchaValue = '';
       linkInput.value = '';
+      loadHistory();
     } catch (err) {
       setMsg(err.message || 'Could not send that command.', 'err');
-      if(state.free) runDiagnose();
     } finally {
       state.sending = false;
       sendLabel.textContent = 'Send reaction';
@@ -485,26 +506,75 @@ altcha-widget{--altcha-max-width:100%}
     }
   });
 
-  async function runDiagnose(){
+  const STATUS_TEXT = { pending: 'Pending', confirmed: 'Confirmed', declined: 'Declined', expired: 'Expired' };
+  const crHistoryCard = document.getElementById('crHistoryCard');
+  const crHistoryList = document.getElementById('crHistoryList');
+
+  function fmtHistoryTime(ts){
+    const d = new Date(ts);
+    return d.toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }) + ' at ' + d.toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function historyItemHtml(entry){
+    const status = entry.status || 'pending';
+    const canResend = status !== 'pending';
+    return '<div class="cr-history-item">' +
+      '<div class="cr-history-head">' +
+        '<span class="cr-history-status ' + status + '">' + (STATUS_TEXT[status] || status) + '</span>' +
+      '</div>' +
+      '<div class="cr-history-link">' + escapeHtml(entry.link || '') + '</div>' +
+      '<div class="cr-history-time">' + fmtHistoryTime(entry.createdAt) + '</div>' +
+      '<div class="cr-history-actions">' +
+        '<button type="button" class="cr-history-btn" data-copy-link="' + escapeHtml(entry.link || '') + '">Copy Link</button>' +
+        '<button type="button" class="cr-history-btn" data-resend-id="' + escapeHtml(entry.id) + '"' + (canResend ? '' : ' disabled') + '>Resend</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderHistory(list){
+    if(!list.length){ crHistoryCard.classList.add('cr-hide'); return; }
+    crHistoryCard.classList.remove('cr-hide');
+    crHistoryList.innerHTML = list.map(historyItemHtml).join('');
+    crHistoryList.querySelectorAll('[data-copy-link]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        const link = btn.getAttribute('data-copy-link');
+        navigator.clipboard.writeText(link).then(function(){ setMsg('Link copied.', 'ok'); }).catch(function(){ setMsg('Could not copy link.', 'err'); });
+      });
+    });
+    crHistoryList.querySelectorAll('[data-resend-id]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const original = btn.textContent;
+        btn.textContent = 'Resending\u2026';
+        try {
+          const res = await postJSON('/api/channel-react/' + encodeURIComponent(btn.getAttribute('data-resend-id')) + '/resend', {});
+          setMsg(res.message || 'Reaction request queued.', 'ok');
+          setCoins(res.coinBalance, true);
+          loadHistory();
+        } catch (err) {
+          setMsg(err.message || 'Could not resend that reaction.', 'err');
+          btn.disabled = false;
+          btn.textContent = original;
+        }
+      });
+    });
+  }
+
+  async function loadHistory(){
     try {
-      const d = await getJSON('/api/channel/diagnose');
-      if (d.ok) { diagBox.classList.add('cr-hide'); return; }
-      diagBox.innerHTML = d.steps.map(function(step){
-        return '<div class="cr-diag-row"><span class="cr-diag-mark ' + (step.ok ? 'on' : 'off') + '">' +
-          (step.ok ? 'OK' : 'X') + '</span><span>' + escapeHtml(step.name) +
-          (step.detail ? '<span class="cr-diag-detail">' + escapeHtml(step.detail) + '</span>' : '') +
-          '</span></div>';
-      }).join('');
-      diagBox.classList.remove('cr-hide');
-    } catch (e) {
-      diagBox.classList.add('cr-hide');
+      const data = await getJSON('/api/channel-react/history');
+      renderHistory(data.entries || []);
+    } catch (err) {
+      crHistoryCard.classList.add('cr-hide');
     }
   }
 
   loadStatus();
-  setInterval(() => { if (!document.hidden) loadStatus(); }, 30000);
+  loadHistory();
+  setInterval(() => { if (!document.hidden) { loadStatus(); loadHistory(); } }, 30000);
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) loadStatus();
+    if (!document.hidden) { loadStatus(); loadHistory(); }
   });
 </script>
 </body>

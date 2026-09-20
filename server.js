@@ -298,8 +298,10 @@ import {
   adminListWithdrawalRequests,
   adminConfirmWithdrawalPaid,
   logChannelReactUse,
+  getChannelReactHistory,
   adminListChannelReactLog,
   adminMarkChannelReactResent,
+  adminDecideChannelReact,
 } from "./services/auth.js";
 import { chargeAuthorization } from "./services/paystack.js";
 import { paymentsRouter } from "./routes/payments.js";
@@ -4196,6 +4198,38 @@ app.post("/api/admin/channel-react-log/:id/resend", requireAuth, requireAdmin, a
   }
 });
 
+app.post("/api/admin/channel-react-log/:id/confirm", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await adminDecideChannelReact(req.params.id, true);
+    await addNotification(result.uid, "channel_react_confirmed", "Your channel reaction was confirmed", { link: result.link }).catch(() => {});
+    await sendPushToUid(result.uid, {
+      title: "ES TEAMS TV",
+      body: "Your channel reaction was confirmed",
+      url: "/tools/channel-react",
+      tag: "channel-react-" + req.params.id,
+    }).catch(() => {});
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || "Could not confirm this reaction." });
+  }
+});
+
+app.post("/api/admin/channel-react-log/:id/decline", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await adminDecideChannelReact(req.params.id, false);
+    await addNotification(result.uid, "channel_react_declined", "Your channel reaction was declined", { link: result.link }).catch(() => {});
+    await sendPushToUid(result.uid, {
+      title: "ES TEAMS TV",
+      body: "Your channel reaction was declined",
+      url: "/tools/channel-react",
+      tag: "channel-react-" + req.params.id,
+    }).catch(() => {});
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || "Could not decline this reaction." });
+  }
+});
+
 app.get("/api/admin/support/threads", requireAuth, requireAdmin, async (req, res) => {
   try {
     res.json({ threads: await getSupportThreadsForAdmin() });
@@ -5370,7 +5404,6 @@ app.get("/api/channel/targets", requireAuth, botStatusLimiter, async (req, res) 
   try {
     const profile = req.userProfile;
     const isAdmin = isAdminEmail(profile?.email);
-    const serviceBot = await resolveServiceBot();
     res.json({
       isAdmin,
       unlimited: !!(profile && (isAdminEmail(profile.email) || isVerificationActive(profile))),
@@ -5378,7 +5411,7 @@ app.get("/api/channel/targets", requireAuth, botStatusLimiter, async (req, res) 
       coinBalance: Number(profile?.coinBalance || 0),
       coinCost: CHANNEL_REACT_COIN_COST,
       dailyLimit: CHANNEL_REACT_DAILY_LIMIT,
-      ready: !!serviceBot,
+      ready: true,
     });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || "Could not load your bots." });
@@ -5465,12 +5498,58 @@ async function notifyAdminOfCoinSpend(username, amount, label) {
   } catch (err) {}
 }
 
-app.post("/api/channel/react", requireAuth, requireSiteOrigin, channelReactLimiter, async (req, res) => {
+async function notifyAdminOfChannelReactRequest(username, link) {
+  try {
+    const adminUid = await getAdminUid();
+    if (!adminUid) return;
+    await addNotification(adminUid, "channel_react_request", `@${username || "A user"} requested a channel reaction`, { link });
+    await sendPushToUid(adminUid, {
+      title: "ES TEAMS TV",
+      body: `@${username || "A user"} requested a channel reaction`,
+      url: "/admin",
+      tag: "channel-react-request-" + Date.now(),
+    }).catch(() => {});
+  } catch (err) {}
+}
+
+async function submitChannelReactRequest(req, link) {
   const profile = req.userProfile;
   const isAdmin = isAdminEmail(profile?.email);
   const verified = isVerificationActive(profile);
   let charged = 0;
 
+  if (!isAdmin && !verified) {
+    const quota = await checkAndIncrementDailyLimit(`tool:channel-react:${req.uid}`, CHANNEL_REACT_DAILY_LIMIT);
+    if (!quota.allowed) {
+      throw Object.assign(new Error(`You've used this tool ${CHANNEL_REACT_DAILY_LIMIT} times today. Verified accounts get unlimited use, otherwise, try again in 24 hours.`), { status: 429 });
+    }
+  }
+
+  if (!isAdmin) {
+    try {
+      await spendCoins(req.uid, CHANNEL_REACT_COIN_COST, "channel-react");
+      charged = CHANNEL_REACT_COIN_COST;
+    } catch (coinErr) {
+      throw Object.assign(new Error(coinErr.message || "Not enough coins."), { status: coinErr.status || 400 });
+    }
+  }
+
+  await logChannelReactUse(req.uid, profile?.username, link, charged);
+  notifyAdminOfChannelReactRequest(profile?.username, link).catch(() => {});
+
+  if (charged) {
+    await addNotification(req.uid, "coin_spend", `You were charge -${charged} coins for Reactions`, {
+      tool: "channel-react",
+    }).catch(() => {});
+    notifyAdminOfCoinSpend(profile?.username, charged, "Channel Reactions").catch(() => {});
+  }
+
+  const after = await getUserProfile(req.uid).catch(() => null);
+  return { charged, coinBalance: Number(after?.coinBalance || 0) };
+}
+
+app.post("/api/channel/react", requireAuth, requireSiteOrigin, channelReactLimiter, async (req, res) => {
+  let charged = 0;
   try {
     if (!(await verifyCaptcha(req.body?.altcha))) {
       return res.status(400).json({ error: "Captcha not completed." });
@@ -5485,55 +5564,50 @@ app.post("/api/channel/react", requireAuth, requireSiteOrigin, channelReactLimit
       return res.status(400).json({ error: "That link is missing the post number at the end, like /5749." });
     }
 
-    if (!isAdmin && !verified) {
-      const quota = await checkAndIncrementDailyLimit(`tool:channel-react:${req.uid}`, CHANNEL_REACT_DAILY_LIMIT);
-      if (!quota.allowed) {
-        return res.status(429).json({
-          error: `You've used this tool ${CHANNEL_REACT_DAILY_LIMIT} times today. Verified accounts get unlimited use, otherwise, try again in 24 hours.`,
-        });
-      }
-    }
-
-    if (!isAdmin) {
-      try {
-        await spendCoins(req.uid, CHANNEL_REACT_COIN_COST, "channel-react");
-        charged = CHANNEL_REACT_COIN_COST;
-      } catch (coinErr) {
-        return res.status(coinErr.status || 400).json({ error: coinErr.message || "Not enough coins." });
-      }
-    }
-
-    const serviceBot = await resolveServiceBot();
-    if (!serviceBot) {
-      if (charged) await refundCoins(req.uid, charged);
-      return res.status(409).json({ error: "The reaction service is not available right now." });
-    }
-
-    await botServiceFetch(`/internal/bots/${serviceBot.id}/channel-react`, {
-      method: "POST",
-      body: JSON.stringify({ uid: serviceBot.uid, link, mode: "relay" }),
-    });
-
-    logChannelReactUse(req.uid, profile?.username, link, charged).catch(() => {});
-
-    if (charged) {
-      await addNotification(req.uid, "coin_spend", `You were charge -${charged} coins for Reactions`, {
-        tool: "channel-react",
-      }).catch(() => {});
-      notifyAdminOfCoinSpend(profile?.username, charged, "Channel Reactions").catch(() => {});
-    }
-
-    const after = await getUserProfile(req.uid).catch(() => null);
+    const result = await submitChannelReactRequest(req, link);
+    charged = result.charged;
     res.json({
       ok: true,
-      message: "Whatsapp Channel Reaction Sent",
-      charged,
-      coinBalance: Number(after?.coinBalance || 0),
+      message: "Reaction request queued. It's usually confirmed within a few hours, and up to 6.",
+      charged: result.charged,
+      coinBalance: result.coinBalance,
     });
   } catch (err) {
     if (charged) await refundCoins(req.uid, charged).catch(() => {});
     console.error(`channel-react failed for ${req.uid}: ${err && err.stack ? err.stack : err}`);
-    res.status(500).json({ error: "Server error." });
+    res.status(err.status || 500).json({ error: err.message || "Server error." });
+  }
+});
+
+app.get("/api/channel-react/history", requireAuth, botStatusLimiter, async (req, res) => {
+  try {
+    res.json({ entries: await getChannelReactHistory(req.uid) });
+  } catch (err) {
+    res.status(500).json({ error: "Could not load your reaction history." });
+  }
+});
+
+app.post("/api/channel-react/:id/resend", requireAuth, requireSiteOrigin, channelReactLimiter, async (req, res) => {
+  let charged = 0;
+  try {
+    const history = await getChannelReactHistory(req.uid);
+    const entry = history.find((e) => e.id === req.params.id);
+    if (!entry) return res.status(404).json({ error: "That reaction request was not found." });
+    if (entry.status === "pending") {
+      return res.status(409).json({ error: "That request is still pending. Wait for it to be confirmed or for it to expire before resending." });
+    }
+
+    const result = await submitChannelReactRequest(req, entry.link);
+    charged = result.charged;
+    res.json({
+      ok: true,
+      message: "Reaction request queued. It's usually confirmed within a few hours, and up to 6.",
+      charged: result.charged,
+      coinBalance: result.coinBalance,
+    });
+  } catch (err) {
+    if (charged) await refundCoins(req.uid, charged).catch(() => {});
+    res.status(err.status || 500).json({ error: err.message || "Could not resend that reaction." });
   }
 });
 

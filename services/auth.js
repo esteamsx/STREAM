@@ -3993,27 +3993,68 @@ async function adminListWithdrawalRequests() {
   );
 }
 
+const CHANNEL_REACT_EXPIRY_MS = 6 * 60 * 60 * 1000;
+
 async function logChannelReactUse(uid, username, link, charged) {
   try {
-    await db.collection("channelReactLog").add({
+    const ref = await db.collection("channelReactLog").add({
       uid,
       username: username || "",
       link,
       charged: charged || 0,
       createdAt: Date.now(),
+      expiresAt: Date.now() + CHANNEL_REACT_EXPIRY_MS,
+      status: "pending",
       lastResendAt: null,
+      decidedAt: null,
     });
+    return ref.id;
   } catch {
+    return null;
   }
+}
+
+function withComputedStatus(entry) {
+  if (entry.status === "pending" && entry.expiresAt && Date.now() > entry.expiresAt) {
+    return { ...entry, status: "expired" };
+  }
+  return entry;
+}
+
+async function expireStalePendingRows(rows) {
+  const stale = rows.filter((r) => r.status === "pending" && r.expiresAt && Date.now() > r.expiresAt);
+  if (!stale.length) return;
+  const batch = db.batch();
+  stale.forEach((r) => batch.update(db.collection("channelReactLog").doc(r.id), { status: "expired" }));
+  await batch.commit().catch(() => {});
+}
+
+async function getChannelReactHistory(uid) {
+  const snap = await db.collection("channelReactLog").where("uid", "==", uid).orderBy("createdAt", "desc").limit(5).get();
+  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  await expireStalePendingRows(rows);
+  return rows.map(withComputedStatus);
 }
 
 async function adminListChannelReactLog() {
   const snap = await db.collection("channelReactLog").orderBy("createdAt", "desc").limit(300).get();
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  await expireStalePendingRows(rows);
+  return rows.map(withComputedStatus);
 }
 
 async function adminMarkChannelReactResent(logId) {
   await db.collection("channelReactLog").doc(logId).update({ lastResendAt: Date.now() }).catch(() => {});
+}
+
+async function adminDecideChannelReact(logId, approved) {
+  const ref = db.collection("channelReactLog").doc(logId);
+  const snap = await ref.get();
+  if (!snap.exists) throw Object.assign(new Error("Reaction request not found."), { status: 404 });
+  const data = snap.data();
+  const status = approved ? "confirmed" : "declined";
+  await ref.update({ status, decidedAt: Date.now() });
+  return { uid: data.uid, link: data.link, status };
 }
 
 function generateCertificateSerial() {
@@ -4665,8 +4706,10 @@ export {
   adminListWithdrawalRequests,
   adminConfirmWithdrawalPaid,
   logChannelReactUse,
+  getChannelReactHistory,
   adminListChannelReactLog,
   adminMarkChannelReactResent,
+  adminDecideChannelReact,
   recordIssuedStreamLink,
   getIssuedStreamLinks,
   issueResetToken,

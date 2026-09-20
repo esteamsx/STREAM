@@ -423,6 +423,7 @@ body:has(.ad-overlay.show){overflow:hidden}
 .status-pill{font-size:.64rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:20px;flex-shrink:0;white-space:nowrap}
 .status-pill.ok{background:rgba(61,220,132,.15);color:#3DDC84}
 .status-pill.bad{background:rgba(255,59,92,.15);color:var(--red)}
+.status-pill.warn{background:rgba(245,166,35,.15);color:#F5A623}
 .bonus-code-meta{font-size:.72rem;color:var(--muted)}
 
 .withdrawal-item{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card2)}
@@ -440,12 +441,14 @@ body:has(.ad-overlay.show){overflow:hidden}
 .crlog-item-user{font-family:var(--font-display);font-weight:700;font-size:.86rem}
 .crlog-item-link{font-size:.72rem;color:var(--muted);line-height:1.5;margin-bottom:10px;word-break:break-all}
 .crlog-item-actions{display:flex;gap:8px}
-.crlog-copy-btn,.crlog-resend-btn{
+.crlog-copy-btn,.crlog-resend-btn,.crlog-confirm-btn,.crlog-decline-btn{
   flex:1;padding:8px;border-radius:10px;font-weight:700;font-size:.76rem;display:flex;align-items:center;justify-content:center;gap:6px;
 }
 .crlog-copy-btn{background:var(--card);border:1px solid var(--border-strong);color:var(--text)}
 .crlog-resend-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a}
-.crlog-resend-btn:disabled,.crlog-copy-btn:disabled{opacity:.55}
+.crlog-confirm-btn{background:#3DDC84;border:none;color:#04141a}
+.crlog-decline-btn{background:transparent;border:1px solid var(--red);color:var(--red)}
+.crlog-resend-btn:disabled,.crlog-copy-btn:disabled,.crlog-confirm-btn:disabled,.crlog-decline-btn:disabled{opacity:.55}
 .ad-scroll-list{max-height:340px}
 
 .ad-toast{
@@ -1231,18 +1234,24 @@ function fmtCrlogTime(ts){
   return d.toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }) + ' at ' + d.toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit' });
 }
 
+const CRLOG_STATUS_TEXT = { pending: 'Pending', confirmed: 'Confirmed', declined: 'Declined', expired: 'Expired' };
+
 function crlogItemHtml(entry){
+  const status = entry.status || 'pending';
   return '<div class="crlog-item" data-crlog-id="' + esc(entry.id) + '">' +
     '<div class="crlog-item-head">' +
       '<div class="crlog-item-user">@' + esc(entry.username || 'user') + '</div>' +
-      '<span class="status-pill ' + (entry.charged ? 'bad' : 'ok') + '">' + (entry.charged ? entry.charged + ' coins' : 'Free') + '</span>' +
+      '<span class="status-pill ' + (status === 'confirmed' ? 'ok' : status === 'declined' ? 'bad' : 'warn') + '">' + (CRLOG_STATUS_TEXT[status] || status) + '</span>' +
     '</div>' +
     '<div class="crlog-item-link">' + esc(entry.link || '') + '<br>' + fmtCrlogTime(entry.createdAt) +
       (entry.lastResendAt ? ' &middot; Last resent ' + fmtCrlogTime(entry.lastResendAt) : '') +
     '</div>' +
     '<div class="crlog-item-actions">' +
       '<button type="button" class="crlog-copy-btn" data-copy-link="' + esc(entry.link || '') + '">Copy Link</button>' +
-      '<button type="button" class="crlog-resend-btn" data-resend-id="' + esc(entry.id) + '" data-resend-link="' + esc(entry.link || '') + '">Resend</button>' +
+      (status === 'pending'
+        ? '<button type="button" class="crlog-confirm-btn" data-confirm-id="' + esc(entry.id) + '">Confirm</button>' +
+          '<button type="button" class="crlog-decline-btn" data-decline-id="' + esc(entry.id) + '">Decline</button>'
+        : '') +
     '</div>' +
   '</div>';
 }
@@ -1256,20 +1265,35 @@ function renderCrlogList(list){
       navigator.clipboard.writeText(link).then(() => showToast('Link copied.')).catch(() => showToast('Could not copy link.'));
     });
   });
-  crlogList.querySelectorAll('[data-resend-id]').forEach((btn) => {
+  crlogList.querySelectorAll('[data-confirm-id]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-resend-id');
-      const link = btn.getAttribute('data-resend-link');
+      const id = btn.getAttribute('data-confirm-id');
       btn.disabled = true;
-      btn.innerHTML = '<span class="ad-spinner"></span> Resending…';
+      btn.innerHTML = '<span class="ad-spinner"></span> Confirming\u2026';
       try {
-        await postJSON('/api/admin/channel-react-log/' + encodeURIComponent(id) + '/resend', { link });
-        showToast('Reaction resent.');
+        await postJSON('/api/admin/channel-react-log/' + encodeURIComponent(id) + '/confirm', {});
+        showToast('Reaction confirmed.');
         loadCrlog();
       } catch (err) {
-        showToast(err.message || 'Could not resend that reaction.');
+        showToast(err.message || 'Could not confirm that reaction.');
         btn.disabled = false;
-        btn.textContent = 'Resend';
+        btn.textContent = 'Confirm';
+      }
+    });
+  });
+  crlogList.querySelectorAll('[data-decline-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-decline-id');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="ad-spinner"></span> Declining\u2026';
+      try {
+        await postJSON('/api/admin/channel-react-log/' + encodeURIComponent(id) + '/decline', {});
+        showToast('Reaction declined.');
+        loadCrlog();
+      } catch (err) {
+        showToast(err.message || 'Could not decline that reaction.');
+        btn.disabled = false;
+        btn.textContent = 'Decline';
       }
     });
   });
