@@ -2,7 +2,8 @@ import express from "express";
 import QRCode from "qrcode";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { extractTextFromImageUrl } from "../services/ocr.js";
-import { fetchSongByQuery, analyzeImage } from "../services/davidcyril.js";
+import { fetchSongByQuery } from "../services/song.js";
+import { analyzeImage } from "../services/vision.js";
 import { resolveFacebookVideo } from "../services/facebook.js";
 import { resolveInstagramMedia } from "../services/instagram.js";
 import { resolveTikTokMedia } from "../services/tiktok.js";
@@ -71,27 +72,7 @@ const TELEGRAM_CHANNEL_URL = "https://t.me/esteams_btc";
 
 function buildChannelPromo(url, label) {
   const text = label || "Join our Channel";
-  return {
-    text,
-    url,
-    whatsapp: {
-      note: "WhatsApp button support varies by library or fork. Pass this as templateButtons or buttons when sending a message with a library such as Baileys.",
-      buttons: [
-        {
-          buttonId: "estv_channel",
-          buttonText: { displayText: text },
-          type: 1,
-          urlButton: { displayText: text, url },
-        },
-      ],
-    },
-    telegram: {
-      note: "Pass this as reply_markup when sending a message with a library such as Telegraf or node-telegram-bot-api.",
-      reply_markup: {
-        inline_keyboard: [[{ text, url }]],
-      },
-    },
-  };
+  return { text, url };
 }
 
 const rpsLimitersByRate = new Map();
