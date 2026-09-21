@@ -107,6 +107,7 @@ import { renderSpeechTools } from "./views/tools/speech-tools.js";
 import { renderQrScanner } from "./views/tools/qr-scanner.js";
 import { renderOcrTool } from "./views/tools/ocr-tool.js";
 import { toolsRouter } from "./routes/tools.js";
+import { freeApiRouter, handleShortlinkRedirect } from "./routes/free-apis.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -616,6 +617,8 @@ app.use(pageLockGate);
 app.use(apiRouter);
 app.use(devApiRouter);
 app.use(toolsRouter);
+app.use(freeApiRouter);
+app.get("/s/:code", handleShortlinkRedirect);
 app.use(paymentsRouter);
 app.use(rewardsRouter);
 app.use(payLinkRouter);
