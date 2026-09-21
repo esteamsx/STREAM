@@ -2,6 +2,10 @@ import express from "express";
 import crypto from "node:crypto";
 import QRCode from "qrcode";
 import sharp from "sharp";
+import * as cheerio from "cheerio";
+import ytdl from "@distube/ytdl-core";
+import ytsearch from "yt-search";
+import { removeBackground } from "@imgly/background-removal-node";
 import { db } from "../config/firebase.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 
@@ -319,5 +323,505 @@ freeApiRouter.get("/api/free/canvas/jail", async (req, res) => {
     res.send(out);
   } catch (err) {
     res.status(500).json({ error: "Could not build that jail image." });
+  }
+});
+
+
+freeApiRouter.get("/api/free/tiktok", async (req, res) => {
+  try {
+    const url = String(req.query.url || "").trim();
+    if (!url) return res.status(400).json({ error: "Missing ?url=" });
+    const data = await fetchJson(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+    if (!data || data.code !== 0 || !data.data) return res.status(404).json({ error: "Could not fetch that TikTok video." });
+    const d = data.data;
+    res.json({
+      title: d.title,
+      author: d.author && d.author.unique_id,
+      cover: d.cover,
+      videoNoWatermark: `https://www.tikwm.com${d.play}`,
+      videoWatermarked: d.wmplay ? `https://www.tikwm.com${d.wmplay}` : null,
+      audio: d.music ? `https://www.tikwm.com${d.music}` : null,
+      duration: d.duration,
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: "Could not fetch that TikTok video." });
+  }
+});
+
+freeApiRouter.get("/api/free/tiktok/stalk", async (req, res) => {
+  try {
+    const username = String(req.query.username || "").trim().replace(/^@/, "");
+    if (!username) return res.status(400).json({ error: "Missing ?username=" });
+    const data = await fetchJson(`https://www.tikwm.com/api/user/info?unique_id=${encodeURIComponent(username)}`);
+    if (!data || data.code !== 0 || !data.data) return res.status(404).json({ error: "Could not find that TikTok user." });
+    const u = data.data.user || {};
+    const s = data.data.stats || {};
+    res.json({
+      uniqueId: u.uniqueId,
+      nickname: u.nickname,
+      verified: !!u.verified,
+      bio: u.signature || "",
+      avatar: u.avatarLarger,
+      followers: s.followerCount,
+      following: s.followingCount,
+      likes: s.heartCount,
+      videos: s.videoCount,
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: "Could not find that TikTok user." });
+  }
+});
+
+const TWITTER_GUEST_BEARER = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
+let twitterGuestToken = null;
+let twitterGuestTokenAt = 0;
+
+async function getTwitterGuestToken() {
+  if (twitterGuestToken && Date.now() - twitterGuestTokenAt < 25 * 60 * 1000) return twitterGuestToken;
+  const res = await fetch("https://api.twitter.com/1.1/guest/activate.json", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${decodeURIComponent(TWITTER_GUEST_BEARER)}` },
+  });
+  const data = await res.json();
+  if (!data || !data.guest_token) throw Object.assign(new Error("Could not get a Twitter guest session."), { status: 502 });
+  twitterGuestToken = data.guest_token;
+  twitterGuestTokenAt = Date.now();
+  return twitterGuestToken;
+}
+
+freeApiRouter.get("/api/free/twitter", async (req, res) => {
+  try {
+    const url = String(req.query.url || "").trim();
+    const idMatch = url.match(/status(?:es)?\/(\d+)/);
+    if (!idMatch) return res.status(400).json({ error: "That doesn't look like a tweet URL." });
+    const tweetId = idMatch[1];
+
+    const guestToken = await getTwitterGuestToken();
+    const apiRes = await fetch(`https://api.twitter.com/2/timeline/conversation/${tweetId}.json?tweet_mode=extended`, {
+      headers: {
+        Authorization: `Bearer ${decodeURIComponent(TWITTER_GUEST_BEARER)}`,
+        "x-guest-token": guestToken,
+      },
+    });
+    const data = await apiRes.json();
+    const tweet = data && data.globalObjects && data.globalObjects.tweets && data.globalObjects.tweets[tweetId];
+    const media = tweet && tweet.extended_entities && tweet.extended_entities.media && tweet.extended_entities.media[0];
+    const variants = media && media.video_info && media.video_info.variants;
+    if (!variants || !variants.length) return res.status(404).json({ error: "No video found on that tweet." });
+
+    const best = variants
+      .filter((v) => v.content_type === "video/mp4")
+      .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+    if (!best) return res.status(404).json({ error: "No downloadable video found on that tweet." });
+
+    res.json({ video: best.url, thumbnail: media.media_url_https, text: tweet.full_text });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: "Could not fetch that tweet's video right now." });
+  }
+});
+
+freeApiRouter.get("/api/free/facebook", async (req, res) => {
+  try {
+    const url = String(req.query.url || "").trim();
+    if (!url) return res.status(400).json({ error: "Missing ?url=" });
+    const pageRes = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 10)" } });
+    const html = await pageRes.text();
+    const hd = html.match(/"browser_native_hd_url":"([^"]+)"/);
+    const sd = html.match(/"browser_native_sd_url":"([^"]+)"/);
+    const decode = (s) => s.replace(/\\u0025/g, "%").replace(/\\\//g, "/").replace(/&amp;/g, "&");
+    const hdUrl = hd ? decode(hd[1]) : null;
+    const sdUrl = sd ? decode(sd[1]) : null;
+    if (!hdUrl && !sdUrl) return res.status(404).json({ error: "Could not find a downloadable video on that link." });
+    res.json({ hd: hdUrl, sd: sdUrl });
+  } catch (err) {
+    res.status(500).json({ error: "Could not fetch that Facebook video." });
+  }
+});
+
+freeApiRouter.get("/api/free/instagram", async (req, res) => {
+  try {
+    const url = String(req.query.url || "").trim();
+    if (!url) return res.status(400).json({ error: "Missing ?url=" });
+    const clean = url.split("?")[0].replace(/\/$/, "");
+    const embedRes = await fetch(`${clean}/embed/captioned/`, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const html = await embedRes.text();
+    const $ = cheerio.load(html);
+    const scriptText = $("script").map((i, el) => $(el).html()).get().join("\n");
+    const videoMatch = scriptText.match(/"video_url":"([^"]+)"/) || html.match(/"video_url":"([^"]+)"/);
+    const video = videoMatch ? videoMatch[1].replace(/\\u0026/g, "&").replace(/\\\//g, "/") : null;
+    if (!video) return res.status(404).json({ error: "Could not find a video on that post (it may be private)." });
+    res.json({ video });
+  } catch (err) {
+    res.status(500).json({ error: "Could not fetch that Instagram video." });
+  }
+});
+
+freeApiRouter.get("/api/free/youtube/video", async (req, res) => {
+  try {
+    const url = String(req.query.url || "").trim();
+    if (!url || !ytdl.validateURL(url)) return res.status(400).json({ error: "That's not a valid YouTube link." });
+    const info = await ytdl.getInfo(url);
+    const format = ytdl.chooseFormat(info.formats, { quality: "18" }) || ytdl.chooseFormat(info.formats, { filter: "videoandaudio" });
+    if (!format) return res.status(404).json({ error: "No downloadable format found for that video." });
+    res.json({
+      title: info.videoDetails.title,
+      thumbnail: info.videoDetails.thumbnails.slice(-1)[0]?.url,
+      duration: info.videoDetails.lengthSeconds,
+      quality: format.qualityLabel || "audio+video",
+      downloadUrl: format.url,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Could not fetch that YouTube video." });
+  }
+});
+
+freeApiRouter.get("/api/free/song/search", async (req, res) => {
+  try {
+    const query = String(req.query.query || "").trim();
+    if (!query) return res.status(400).json({ error: "Missing ?query=" });
+    const result = await ytsearch(query);
+    const video = result.videos && result.videos[0];
+    if (!video) return res.status(404).json({ error: "Could not find that song." });
+    res.json({
+      title: video.title,
+      url: video.url,
+      thumbnail: video.thumbnail,
+      duration: video.timestamp,
+      author: video.author && video.author.name,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Could not search for that song." });
+  }
+});
+
+freeApiRouter.get("/api/free/song/download", async (req, res) => {
+  try {
+    const url = String(req.query.url || "").trim();
+    if (!url || !ytdl.validateURL(url)) return res.status(400).json({ error: "That's not a valid YouTube link." });
+    const info = await ytdl.getInfo(url);
+    const format = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });
+    if (!format) return res.status(404).json({ error: "No downloadable audio found for that video." });
+    res.json({
+      title: info.videoDetails.title,
+      thumbnail: info.videoDetails.thumbnails.slice(-1)[0]?.url,
+      duration: info.videoDetails.lengthSeconds,
+      downloadUrl: format.url,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Could not fetch that song's audio." });
+  }
+});
+
+freeApiRouter.get("/api/free/song/from-query", async (req, res) => {
+  try {
+    const query = String(req.query.query || "").trim();
+    if (!query) return res.status(400).json({ error: "Missing ?query=" });
+    const result = await ytsearch(query);
+    const video = result.videos && result.videos[0];
+    if (!video) return res.status(404).json({ error: "Could not find that song." });
+    const info = await ytdl.getInfo(video.url);
+    const format = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });
+    if (!format) return res.status(404).json({ error: "No downloadable audio found for that song." });
+    res.json({
+      title: video.title,
+      thumbnail: video.thumbnail,
+      duration: video.timestamp,
+      downloadUrl: format.url,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Could not fetch that song." });
+  }
+});
+
+
+freeApiRouter.get("/api/free/lyrics", async (req, res) => {
+  try {
+    const artist = String(req.query.artist || req.query.a || "").trim();
+    const title = String(req.query.title || req.query.t || "").trim();
+    if (!artist || !title) return res.status(400).json({ error: "Missing ?artist= and ?title=" });
+    const data = await fetchJson(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
+    if (!data || !data.lyrics) return res.status(404).json({ error: "Lyrics not found." });
+    res.json({ lyrics: data.lyrics.trim() });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: "Lyrics not found." });
+  }
+});
+
+freeApiRouter.get("/api/free/canvas/book", async (req, res) => {
+  try {
+    const text = String(req.query.text || "").trim();
+    if (!text) return res.status(400).json({ error: "Missing ?text=" });
+    const w = 800, h = 1000;
+    const lines = wrapText(text, 55).slice(0, 40);
+    const svg = `
+      <svg width="${w}" height="${h}">
+        <rect x="0" y="0" width="${w}" height="${h}" fill="#f5ecd7"/>
+        <rect x="30" y="30" width="${w - 60}" height="${h - 60}" fill="none" stroke="#c9b98a" stroke-width="2"/>
+        ${lines.map((line, i) => `<text x="60" y="${90 + i * 28}" font-size="20" font-family="Georgia, serif" fill="#2b2214">${escapeXml(line)}</text>`).join("")}
+      </svg>`;
+    const out = await sharp(Buffer.from(svg)).png().toBuffer();
+    res.set("Content-Type", "image/png");
+    res.send(out);
+  } catch (err) {
+    res.status(500).json({ error: "Could not build that page image." });
+  }
+});
+
+freeApiRouter.get("/api/free/imagine", async (req, res) => {
+  try {
+    const prompt = String(req.query.prompt || "").trim();
+    if (!prompt) return res.status(400).json({ error: "Missing ?prompt=" });
+    const seed = Math.floor(Math.random() * 1e9);
+    const imgRes = await fetch(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&seed=${seed}&nologo=true`);
+    if (!imgRes.ok) return res.status(502).json({ error: "Could not generate that image right now." });
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    res.set("Content-Type", "image/png");
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: "Could not generate that image right now." });
+  }
+});
+
+freeApiRouter.get("/api/free/screenshot", async (req, res) => {
+  try {
+    const url = String(req.query.url || "").trim();
+    if (!url || !/^https?:\/\//i.test(url)) return res.status(400).json({ error: "Missing or invalid ?url=" });
+    const shotRes = await fetch(`https://s.wordpress.com/mshots/v1/${encodeURIComponent(url)}?w=1200&h=900`);
+    if (!shotRes.ok) return res.status(502).json({ error: "Could not capture that page right now." });
+    const buffer = Buffer.from(await shotRes.arrayBuffer());
+    res.set("Content-Type", "image/png");
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: "Could not capture that page right now." });
+  }
+});
+
+freeApiRouter.get("/api/free/removebg", async (req, res) => {
+  try {
+    const imageUrl = String(req.query.url || "").trim();
+    if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) return res.status(400).json({ error: "Missing or invalid ?url=" });
+    const blob = await removeBackground(imageUrl);
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    res.set("Content-Type", "image/png");
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: "Could not remove the background from that image." });
+  }
+});
+
+freeApiRouter.get("/api/free/technews", async (req, res) => {
+  try {
+    const feedRes = await fetch("https://techcrunch.com/feed/");
+    const xml = await feedRes.text();
+    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map((m) => m[1]);
+    if (!items.length) return res.status(502).json({ error: "Could not fetch tech news right now." });
+    const pick = items[Math.floor(Math.random() * Math.min(items.length, 15))];
+    const grab = (tag) => {
+      const m = pick.match(new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`));
+      return m ? m[1].trim() : null;
+    };
+    const title = grab("title");
+    const link = grab("link");
+    const description = (grab("description") || "").replace(/<[^>]+>/g, "").trim();
+    const imageMatch = pick.match(/<media:content[^>]+url="([^"]+)"/) || pick.match(/<img[^>]+src="([^"]+)"/);
+    res.json({
+      title,
+      link,
+      description,
+      image: imageMatch ? imageMatch[1] : null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Could not fetch tech news right now." });
+  }
+});
+
+
+freeApiRouter.get("/api/free/canvas/fakewa", async (req, res) => {
+  try {
+    const name = String(req.query.name || "Unknown").trim();
+    const number = String(req.query.number || "").trim();
+    const status = String(req.query.status || "").trim();
+    const w = 720, h = 300;
+    const initial = escapeXml((name[0] || "?").toUpperCase());
+    const svg = `
+      <svg width="${w}" height="${h}">
+        <rect x="0" y="0" width="${w}" height="${h}" fill="#0b141a"/>
+        <rect x="0" y="0" width="${w}" height="70" fill="#1f2c34"/>
+        <text x="24" y="45" font-size="24" font-family="Helvetica, Arial, sans-serif" fill="#e9edef" font-weight="bold">WhatsApp</text>
+        <circle cx="90" cy="170" r="60" fill="#00a884"/>
+        <text x="90" y="185" font-size="48" font-family="Helvetica, Arial, sans-serif" fill="white" text-anchor="middle" font-weight="bold">${initial}</text>
+        <text x="180" y="150" font-size="30" font-family="Helvetica, Arial, sans-serif" fill="#e9edef" font-weight="bold">${escapeXml(name)}</text>
+        <text x="180" y="185" font-size="20" font-family="Helvetica, Arial, sans-serif" fill="#8696a0">${escapeXml(number)}</text>
+        ${status ? `<text x="180" y="220" font-size="18" font-family="Helvetica, Arial, sans-serif" fill="#8696a0" font-style="italic">${escapeXml(status)}</text>` : ""}
+      </svg>`;
+    const out = await sharp(Buffer.from(svg)).png().toBuffer();
+    res.set("Content-Type", "image/png");
+    res.send(out);
+  } catch (err) {
+    res.status(500).json({ error: "Could not build that image." });
+  }
+});
+
+freeApiRouter.get("/api/free/canvas/caption", async (req, res) => {
+  try {
+    const imageUrl = String(req.query.image || "").trim();
+    const text = String(req.query.text || "").trim();
+    if (!imageUrl) return res.status(400).json({ error: "Missing ?image=" });
+    if (!/^https?:\/\//i.test(imageUrl)) return res.status(400).json({ error: "?image= must be a full http(s) URL." });
+
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) return res.status(400).json({ error: "Could not download that image." });
+    const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+
+    const base = sharp(imgBuffer).resize(720, null, { withoutEnlargement: true });
+    const meta = await base.metadata();
+    const w = meta.width || 720;
+    const barHeight = 90;
+    const lines = wrapText(text, 30).slice(0, 2);
+    const svg = `
+      <svg width="${w}" height="${barHeight}">
+        <rect x="0" y="0" width="${w}" height="${barHeight}" fill="black"/>
+        ${lines.map((line, i) => `<text x="${w / 2}" y="${40 + i * 32}" font-size="28" font-family="Impact, Arial, sans-serif" fill="white" text-anchor="middle" font-weight="bold">${escapeXml(line.toUpperCase())}</text>`).join("")}
+      </svg>`;
+    const barBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+
+    const out = await base
+      .composite([{ input: barBuffer, gravity: "south" }])
+      .png()
+      .toBuffer();
+    res.set("Content-Type", "image/png");
+    res.send(out);
+  } catch (err) {
+    res.status(500).json({ error: "Could not build that image." });
+  }
+});
+
+freeApiRouter.post("/api/free/ai/chat", async (req, res) => {
+  try {
+    const prompt = String(req.body?.prompt || "").trim();
+    if (!prompt) return res.status(400).json({ error: "Missing prompt." });
+    const aiRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai`);
+    if (!aiRes.ok) return res.status(502).json({ error: "AI service is unavailable right now." });
+    const text = await aiRes.text();
+    res.json({ reply: text.trim(), model: "pollinations/openai (not affiliated with OpenAI)" });
+  } catch (err) {
+    res.status(500).json({ error: "AI service is unavailable right now." });
+  }
+});
+
+freeApiRouter.post("/api/free/imgscan", async (req, res) => {
+  try {
+    const imageUrl = String(req.body?.url || "").trim();
+    if (!imageUrl) return res.status(400).json({ error: "Missing image url." });
+    if (!process.env.HF_API_TOKEN) {
+      return res.status(503).json({ error: "Image scanning is not configured yet (missing HF_API_TOKEN)." });
+    }
+    const imgRes = await fetch(imageUrl);
+    const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+    const hfRes = await fetch("https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.HF_API_TOKEN}`, "Content-Type": "application/octet-stream" },
+      body: imgBuffer,
+    });
+    const data = await hfRes.json();
+    const caption = Array.isArray(data) && data[0] && data[0].generated_text;
+    if (!caption) return res.status(502).json({ error: "Could not describe that image right now." });
+    res.json({ result: caption });
+  } catch (err) {
+    res.status(500).json({ error: "Could not describe that image right now." });
+  }
+});
+
+freeApiRouter.get("/api/free/gdrive", async (req, res) => {
+  try {
+    const inputUrl = String(req.query.url || "").trim();
+    const idMatch = inputUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || inputUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (!idMatch) return res.status(400).json({ error: "Could not find a file ID in that link." });
+    const fileId = idMatch[1];
+    const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+
+    let head = await fetch(directUrl, { method: "GET", redirect: "follow" });
+    const contentType = head.headers.get("content-type") || "";
+    if (contentType.includes("text/html")) {
+      const html = await head.text();
+      const confirmMatch = html.match(/confirm=([0-9A-Za-z_]+)/);
+      if (confirmMatch) {
+        head = await fetch(`${directUrl}&confirm=${confirmMatch[1]}`, { method: "GET", redirect: "follow" });
+      }
+    }
+
+    const disposition = head.headers.get("content-disposition") || "";
+    const nameMatch = disposition.match(/filename="?([^";]+)"?/);
+    res.json({
+      name: nameMatch ? decodeURIComponent(nameMatch[1]) : "Unknown",
+      size: head.headers.get("content-length") || "Unknown",
+      mimeType: head.headers.get("content-type") || "Unknown",
+      downloadLink: head.url,
+      thumbnail: `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Could not read that Google Drive link." });
+  }
+});
+
+freeApiRouter.get("/api/free/resolve", async (req, res) => {
+  try {
+    const url = String(req.query.url || "").trim();
+    if (!url || !/^https?:\/\//i.test(url)) return res.status(400).json({ error: "Missing or invalid ?url=" });
+    const head = await fetch(url, { method: "GET", redirect: "follow" });
+    res.json({
+      finalUrl: head.url,
+      contentType: head.headers.get("content-type") || "Unknown",
+      size: head.headers.get("content-length") || "Unknown",
+      status: head.status,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Could not resolve that link." });
+  }
+});
+
+freeApiRouter.get("/api/free/apk", async (req, res) => {
+  try {
+    const query = String(req.query.query || "").trim();
+    if (!query) return res.status(400).json({ error: "Missing ?query=" });
+    const searchRes = await fetch(`https://apkcombo.com/search?q=${encodeURIComponent(query)}`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    const html = await searchRes.text();
+    const $ = cheerio.load(html);
+    const firstResult = $("a.app-w").first();
+    const appPath = firstResult.attr("href");
+    const appName = firstResult.find(".name").text().trim() || query;
+    const icon = firstResult.find("img").attr("src") || firstResult.find("img").attr("data-src");
+    if (!appPath) return res.status(404).json({ error: "Could not find that app." });
+    res.json({
+      name: appName,
+      icon,
+      infoPage: new URL(appPath, "https://apkcombo.com").toString(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Could not search for that app right now." });
+  }
+});
+
+freeApiRouter.get("/api/free/instagram/stalk", async (req, res) => {
+  try {
+    const username = String(req.query.username || "").trim().replace(/^@/, "");
+    if (!username) return res.status(400).json({ error: "Missing ?username=" });
+    const pageRes = await fetch(`https://www.instagram.com/${encodeURIComponent(username)}/`, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept-Language": "en-US,en;q=0.9" },
+    });
+    const html = await pageRes.text();
+    const jsonMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    if (!jsonMatch) return res.status(404).json({ error: "Could not find that Instagram profile." });
+    const data = JSON.parse(jsonMatch[1]);
+    res.json({
+      username,
+      name: data.name || username,
+      bio: data.description || "",
+      avatar: data.image || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Could not find that Instagram profile right now." });
   }
 });
