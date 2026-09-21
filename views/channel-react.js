@@ -207,6 +207,7 @@ altcha-widget{--altcha-max-width:100%}
 .cr-rules a{color:var(--accent);text-decoration:none;font-weight:600}
 .cr-foot{text-align:center;font-size:.68rem;color:var(--muted2);line-height:1.6;padding:4px 0 10px}
 .cr-history-list{max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.cr-history-empty{padding:16px 4px;text-align:center;font-size:.76rem;color:var(--muted)}
 .cr-history-item{padding:12px 13px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid var(--border)}
 :root[data-theme="light"] .cr-history-item{background:var(--card)}
 .cr-history-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
@@ -307,7 +308,7 @@ altcha-widget{--altcha-max-width:100%}
     <div class="cr-cmd cr-hide" id="cmdBox"></div>
   </div>
 
-  <div class="cr-card cr-hide" id="crHistoryCard">
+  <div class="cr-card" id="crHistoryCard">
     <div class="cr-card-title">History</div>
     <div class="cr-card-sub">Your last 5 requests. Each can take up to 6 hours to be confirmed.</div>
     <div class="cr-history-list" id="crHistoryList"></div>
@@ -532,8 +533,7 @@ altcha-widget{--altcha-max-width:100%}
   }
 
   function renderHistory(list){
-    if(!list.length){ crHistoryCard.classList.add('cr-hide'); return; }
-    crHistoryCard.classList.remove('cr-hide');
+    if(!list.length){ crHistoryList.innerHTML = '<div class="cr-history-empty">No requests yet. Your submitted links will show up here.</div>'; return; }
     crHistoryList.innerHTML = list.map(historyItemHtml).join('');
     crHistoryList.querySelectorAll('[data-copy-link]').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -566,7 +566,7 @@ altcha-widget{--altcha-max-width:100%}
       const data = await getJSON('/api/channel-react/history');
       renderHistory(data.entries || []);
     } catch (err) {
-      crHistoryCard.classList.add('cr-hide');
+      crHistoryList.innerHTML = '<div class="cr-history-empty">Could not load your history right now.</div>';
     }
   }
 

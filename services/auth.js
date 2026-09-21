@@ -1735,7 +1735,11 @@ async function followUser(followerUid, targetUid) {
     });
   });
   if (created) {
-    const followerProfile = await getUserProfile(followerUid).catch(() => null);
+    let followerProfile = await getUserProfile(followerUid).catch(() => null);
+    if (!followerProfile) {
+      const freshSnap = await db.collection("users").doc(followerUid).get().catch(() => null);
+      followerProfile = freshSnap && freshSnap.exists ? freshSnap.data() : null;
+    }
     const name = followerProfile ? `${followerProfile.firstName || ""} ${followerProfile.lastName || ""}`.trim() : "";
     const label = name || (followerProfile?.username ? `@${followerProfile.username}` : "Someone");
     await addNotification(targetUid, "follow", `${label} started following you.`, { followerUid });
