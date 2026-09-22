@@ -5,32 +5,26 @@ import sharp from "sharp";
 import * as cheerio from "cheerio";
 import ytdl from "@distube/ytdl-core";
 import ytsearch from "yt-search";
-
-function parseCookieHeader(header) {
-  return String(header || "")
-    .split(";")
-    .map((pair) => pair.trim())
-    .filter(Boolean)
-    .map((pair) => {
-      const idx = pair.indexOf("=");
-      return { name: pair.slice(0, idx), value: pair.slice(idx + 1), domain: ".youtube.com" };
-    });
-}
-
-function buildYtdlAgent() {
-  const cookieHeader = process.env.YOUTUBE_COOKIE;
-  const proxyUrl = process.env.YTDL_PROXY_URL;
-  const cookies = cookieHeader ? parseCookieHeader(cookieHeader) : undefined;
-  try {
-    if (proxyUrl) return ytdl.createProxyAgent({ uri: proxyUrl }, cookies);
-    if (cookies && cookies.length) return ytdl.createAgent(cookies);
-  } catch {
-  }
-  return undefined;
-}
 import { removeBackground } from "@imgly/background-removal-node";
 import { db } from "../config/firebase.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
+
+function buildYtdlOptions() {
+  const cookieHeader = process.env.YOUTUBE_COOKIE;
+  const proxyUrl = process.env.YTDL_PROXY_URL;
+  const options = {};
+  if (proxyUrl) {
+    try {
+      options.agent = ytdl.createProxyAgent({ uri: proxyUrl });
+    } catch (err) {
+      console.error("Could not build a ytdl-core proxy agent, using default:", err.message);
+    }
+  }
+  if (cookieHeader) {
+    options.requestOptions = { headers: { cookie: cookieHeader } };
+  }
+  return options;
+}
 
 export const freeApiRouter = express.Router();
 
@@ -483,7 +477,7 @@ freeApiRouter.get("/api/free/youtube/video", async (req, res) => {
   try {
     const url = String(req.query.url || "").trim();
     if (!url || !ytdl.validateURL(url)) return res.status(400).json({ error: "That's not a valid YouTube link." });
-    const info = await ytdl.getInfo(url, buildYtdlAgent() ? { agent: buildYtdlAgent() } : undefined);
+    const info = await ytdl.getInfo(url, buildYtdlOptions());
     const format = ytdl.chooseFormat(info.formats, { quality: "18" }) || ytdl.chooseFormat(info.formats, { filter: "videoandaudio" });
     if (!format) return res.status(404).json({ error: "No downloadable format found for that video." });
     res.json({
@@ -521,7 +515,7 @@ freeApiRouter.get("/api/free/song/download", async (req, res) => {
   try {
     const url = String(req.query.url || "").trim();
     if (!url || !ytdl.validateURL(url)) return res.status(400).json({ error: "That's not a valid YouTube link." });
-    const info = await ytdl.getInfo(url, buildYtdlAgent() ? { agent: buildYtdlAgent() } : undefined);
+    const info = await ytdl.getInfo(url, buildYtdlOptions());
     const format = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });
     if (!format) return res.status(404).json({ error: "No downloadable audio found for that video." });
     res.json({
@@ -542,7 +536,7 @@ freeApiRouter.get("/api/free/song/from-query", async (req, res) => {
     const result = await ytsearch(query);
     const video = result.videos && result.videos[0];
     if (!video) return res.status(404).json({ error: "Could not find that song." });
-    const info = await ytdl.getInfo(video.url, buildYtdlAgent() ? { agent: buildYtdlAgent() } : undefined);
+    const info = await ytdl.getInfo(video.url, buildYtdlOptions());
     const format = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });
     if (!format) return res.status(404).json({ error: "No downloadable audio found for that song." });
     res.json({

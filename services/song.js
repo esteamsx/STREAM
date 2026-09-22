@@ -1,28 +1,24 @@
 import ytdl from "@distube/ytdl-core";
 import ytsearch from "yt-search";
 
-function parseCookieHeader(header) {
-  return String(header || "")
-    .split(";")
-    .map((pair) => pair.trim())
-    .filter(Boolean)
-    .map((pair) => {
-      const idx = pair.indexOf("=");
-      return { name: pair.slice(0, idx), value: pair.slice(idx + 1), domain: ".youtube.com" };
-    });
-}
-
-function buildYtdlAgent() {
+function buildYtdlOptions() {
   const cookieHeader = process.env.YOUTUBE_COOKIE;
   const proxyUrl = process.env.YTDL_PROXY_URL;
-  const cookies = cookieHeader ? parseCookieHeader(cookieHeader) : undefined;
-  try {
-    if (proxyUrl) return ytdl.createProxyAgent({ uri: proxyUrl }, cookies);
-    if (cookies && cookies.length) return ytdl.createAgent(cookies);
-  } catch (err) {
-    console.error("Could not build a ytdl-core agent, using default:", err.message);
+  const options = {};
+  if (proxyUrl) {
+    try {
+      options.agent = ytdl.createProxyAgent({ uri: proxyUrl });
+    } catch (err) {
+      console.error("Could not build a ytdl-core proxy agent, using default:", err.message);
+    }
   }
-  return undefined;
+  if (cookieHeader) {
+    options.requestOptions = { headers: { cookie: cookieHeader } };
+    console.log(`Using YOUTUBE_COOKIE (${cookieHeader.length} chars) for this request.`);
+  } else {
+    console.log("No YOUTUBE_COOKIE set for this request.");
+  }
+  return options;
 }
 
 function isRateLimitError(err) {
@@ -58,8 +54,8 @@ export async function fetchSongByQuery(query) {
 
   let info;
   try {
-    const agent = buildYtdlAgent();
-    info = await getInfoWithRetry(video.url, agent ? { agent } : undefined);
+    const options = buildYtdlOptions();
+    info = await getInfoWithRetry(video.url, Object.keys(options).length ? options : undefined);
   } catch (err) {
     console.error("ytdl.getInfo failed:", err.message);
     const friendly = isRateLimitError(err)
