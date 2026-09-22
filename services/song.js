@@ -25,6 +25,30 @@ function buildYtdlAgent() {
   return undefined;
 }
 
+function isRateLimitError(err) {
+  return err.statusCode === 429 || /\b429\b/.test(err.message || "");
+}
+
+async function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function getInfoWithRetry(url, options) {
+  const delaysMs = [1500, 4000];
+  let lastErr;
+  for (let attempt = 0; attempt <= delaysMs.length; attempt++) {
+    try {
+      return await ytdl.getInfo(url, options);
+    } catch (err) {
+      lastErr = err;
+      if (!isRateLimitError(err) || attempt === delaysMs.length) throw err;
+      console.error(`ytdl.getInfo hit a rate limit, retrying in ${delaysMs[attempt]}ms...`);
+      await sleep(delaysMs[attempt]);
+    }
+  }
+  throw lastErr;
+}
+
 export async function fetchSongByQuery(query) {
   const searched = await ytsearch(query).catch(() => null);
   const video = searched && searched.videos && searched.videos[0];
@@ -35,10 +59,13 @@ export async function fetchSongByQuery(query) {
   let info;
   try {
     const agent = buildYtdlAgent();
-    info = await ytdl.getInfo(video.url, agent ? { agent } : undefined);
+    info = await getInfoWithRetry(video.url, agent ? { agent } : undefined);
   } catch (err) {
     console.error("ytdl.getInfo failed:", err.message);
-    throw Object.assign(new Error(`Found a match but could not read its download info (${err.message}).`), { status: 502 });
+    const friendly = isRateLimitError(err)
+      ? "YouTube is rate-limiting this server right now, try again in a minute."
+      : `Found a match but could not read its download info (${err.message}).`;
+    throw Object.assign(new Error(friendly), { status: 502 });
   }
 
   const audioFormat = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });

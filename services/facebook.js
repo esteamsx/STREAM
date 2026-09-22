@@ -55,6 +55,20 @@ async function fetchHtml(url) {
   }
 }
 
+function extractVideoId(url) {
+  const patterns = [
+    /\/reel\/(\d+)/,
+    /\/videos\/(\d+)/,
+    /[?&]v=(\d+)/,
+    /\/watch\/?\?.*\bv=(\d+)/,
+  ];
+  for (const re of patterns) {
+    const match = url.match(re);
+    if (match) return match[1];
+  }
+  return null;
+}
+
 export async function resolveFacebookVideo(url) {
   let parsed;
   try {
@@ -66,9 +80,22 @@ export async function resolveFacebookVideo(url) {
     throw Object.assign(new Error("URL must be a facebook.com or fb.watch link."), { status: 400 });
   }
 
-  const mbasicUrl = new URL(url);
-  mbasicUrl.hostname = "mbasic.facebook.com";
-  mbasicUrl.protocol = "https:";
+  let canonicalUrl = url;
+  try {
+    const head = await fetch(url, { method: "GET", redirect: "follow", headers: { "User-Agent": UA }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    canonicalUrl = head.url || url;
+  } catch {
+  }
+
+  const videoId = extractVideoId(canonicalUrl) || extractVideoId(url);
+  const mbasicUrl = new URL("https://mbasic.facebook.com/");
+  if (videoId) {
+    mbasicUrl.pathname = "/watch/";
+    mbasicUrl.searchParams.set("v", videoId);
+  } else {
+    mbasicUrl.pathname = new URL(canonicalUrl).pathname;
+    mbasicUrl.search = new URL(canonicalUrl).search;
+  }
 
   const html = await fetchHtml(mbasicUrl);
 
