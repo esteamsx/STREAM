@@ -1,12 +1,23 @@
 const FETCH_TIMEOUT_MS = 15000;
 const UA = "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
 
+let proxyAgentPromise = null;
+async function getProxyDispatcher() {
+  if (!process.env.YTDL_PROXY_URL) return undefined;
+  if (!proxyAgentPromise) {
+    proxyAgentPromise = import("undici").then((m) => new m.ProxyAgent(process.env.YTDL_PROXY_URL));
+  }
+  return proxyAgentPromise;
+}
+
 async function tryCobalt(url) {
+  const dispatcher = await getProxyDispatcher();
   const res = await fetch("https://api.cobalt.tools/api/json", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ url }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    ...(dispatcher ? { dispatcher } : {}),
   });
   const data = await res.json();
   if (!res.ok || !data || (data.status !== "stream" && data.status !== "redirect") || !data.url) {
@@ -43,10 +54,12 @@ async function fetchHtml(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
+    const dispatcher = await getProxyDispatcher();
     const res = await fetch(url, {
       headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
       redirect: "follow",
       signal: controller.signal,
+      ...(dispatcher ? { dispatcher } : {}),
     });
     if (!res.ok) throw Object.assign(new Error(`Facebook responded ${res.status}.`), { status: 502 });
     return await res.text();
