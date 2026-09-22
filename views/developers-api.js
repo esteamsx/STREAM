@@ -2226,6 +2226,15 @@ ${musicPlayerHtml()}
     chart: { title: 'Try it - Chart Generator', method: 'POST', path: '/api/v1/dev/chart', label: 'Type | Labels (comma-separated) | Data (comma-separated numbers)', placeholder: 'bar | Mon,Tue,Wed | 10,20,15', parts: ['type', 'labels', 'data'], splitOn: ' | ', body: true },
     linkpreview: { title: 'Try it - Link Preview', method: 'GET', path: '/api/v1/dev/linkpreview', param: 'url', label: 'Website URL', placeholder: 'https://esteamstv.devs.surf' },
     sticker: { title: 'Try it - Sticker Maker', method: 'POST', path: '/api/v1/dev/sticker', param: 'image_url', label: 'Image URL', placeholder: 'https://example.com/photo.jpg', body: true, isImage: true },
+    twitter: { title: 'Try it - Twitter/X Downloader', method: 'GET', path: '/api/v1/dev/twitter', param: 'url', label: 'Tweet URL', placeholder: 'https://x.com/user/status/...' },
+    tiktokstalk: { title: 'Try it - TikTok Profile Lookup', method: 'GET', path: '/api/v1/dev/tiktokstalk', param: 'username', label: 'TikTok username', placeholder: 'someuser' },
+    igstalk: { title: 'Try it - Instagram Profile Lookup', method: 'GET', path: '/api/v1/dev/igstalk', param: 'username', label: 'Instagram username', placeholder: 'someuser' },
+    apk: { title: 'Try it - APK Search', method: 'GET', path: '/api/v1/dev/apk', param: 'query', label: 'App name', placeholder: 'whatsapp' },
+    gdrive: { title: 'Try it - Google Drive Info', method: 'GET', path: '/api/v1/dev/gdrive', param: 'url', label: 'Google Drive share link', placeholder: 'https://drive.google.com/file/d/.../view' },
+    downloadweb: { title: 'Try it - Link Resolver', method: 'GET', path: '/api/v1/dev/downloadweb', param: 'url', label: 'Link to resolve', placeholder: 'https://example.com/file.zip' },
+    book: { title: 'Try it - Book Page Image', method: 'GET', path: '/api/v1/dev/book', param: 'text', label: 'Page text', placeholder: 'Once upon a time...', isImage: true },
+    fakewa: { title: 'Try it - Fake WhatsApp Card', method: 'GET', path: '/api/v1/dev/fakewa', label: 'Name | Number | Status', placeholder: 'John | 2348012345678 | Busy', parts: ['name', 'number', 'status'], splitOn: ' | ', isImage: true },
+    caption: { title: 'Try it - Caption Meme', method: 'GET', path: '/api/v1/dev/caption', label: 'Image URL | Caption text', placeholder: 'https://example.com/pic.jpg | hello', parts: ['image', 'text'], splitOn: ' | ', isImage: true },
   };
 
   function buildQueryParams(ep, val){

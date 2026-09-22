@@ -69,6 +69,22 @@ function extractVideoId(url) {
   return null;
 }
 
+function extractFromHtml(html) {
+  let hd = null;
+  let sd = null;
+  for (const key of JSON_FIELD_KEYS) {
+    const value = extractJsonField(html, key);
+    if (!value) continue;
+    if (key.includes("hd") || key === "playable_url_quality_hd") hd = hd || value;
+    else sd = sd || value;
+  }
+  if (!hd && !sd) {
+    const direct = extractVideoTagSrc(html);
+    if (direct) sd = direct;
+  }
+  return { hd, sd };
+}
+
 export async function resolveFacebookVideo(url) {
   let parsed;
   try {
@@ -87,32 +103,34 @@ export async function resolveFacebookVideo(url) {
   } catch {
   }
 
-  const videoId = extractVideoId(canonicalUrl) || extractVideoId(url);
-  const mbasicUrl = new URL("https://mbasic.facebook.com/");
-  if (videoId) {
-    mbasicUrl.pathname = "/watch/";
-    mbasicUrl.searchParams.set("v", videoId);
-  } else {
-    mbasicUrl.pathname = new URL(canonicalUrl).pathname;
-    mbasicUrl.search = new URL(canonicalUrl).search;
+  let html;
+  let result;
+  try {
+    const mUrl = new URL(canonicalUrl);
+    mUrl.hostname = "m.facebook.com";
+    mUrl.protocol = "https:";
+    html = await fetchHtml(mUrl);
+    result = extractFromHtml(html);
+  } catch {
+    result = { hd: null, sd: null };
   }
 
-  const html = await fetchHtml(mbasicUrl);
-
-  let hd = null;
-  let sd = null;
-  for (const key of JSON_FIELD_KEYS) {
-    const value = extractJsonField(html, key);
-    if (!value) continue;
-    if (key.includes("hd") || key === "playable_url_quality_hd") hd = hd || value;
-    else sd = sd || value;
+  if (!result.hd && !result.sd) {
+    const videoId = extractVideoId(canonicalUrl) || extractVideoId(url);
+    const mbasicUrl = new URL("https://mbasic.facebook.com/");
+    if (videoId) {
+      mbasicUrl.pathname = "/watch/";
+      mbasicUrl.searchParams.set("v", videoId);
+    } else {
+      const fallback = new URL(canonicalUrl);
+      mbasicUrl.pathname = fallback.pathname;
+      mbasicUrl.search = fallback.search;
+    }
+    html = await fetchHtml(mbasicUrl);
+    result = extractFromHtml(html);
   }
-  if (!hd && !sd) {
-    const direct = extractVideoTagSrc(html);
-    if (direct) sd = direct;
-  }
 
-  if (!hd && !sd) {
+  if (!result.hd && !result.sd) {
     throw Object.assign(
       new Error("Could not find a downloadable video on that page. It may be private, age-restricted, or the link is wrong."),
       { status: 404 }
@@ -122,5 +140,5 @@ export async function resolveFacebookVideo(url) {
   const titleMatch = html.match(/<title>([^<]*)<\/title>/);
   const title = titleMatch ? titleMatch[1].replace(/\s*\|\s*Facebook$/, "").trim() : "facebook-video";
 
-  return { hd, sd, title };
+  return { hd: result.hd, sd: result.sd, title };
 }
