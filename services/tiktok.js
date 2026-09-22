@@ -43,3 +43,25 @@ export async function resolveTikTokMedia(url) {
     images,
   };
 }
+
+export async function getTikTokProfile(username) {
+  const handle = String(username || "").trim().replace(/^@/, "");
+  if (!handle) throw Object.assign(new Error("Missing username."), { status: 400 });
+  const data = await fetchJson(`https://tikwm.com/api/user/info?unique_id=${encodeURIComponent(handle)}`);
+  if (data.code !== 0 || !data.data) {
+    throw Object.assign(new Error(data.msg || "Could not find that TikTok user."), { status: 404 });
+  }
+  const u = data.data.user || {};
+  const s = data.data.stats || {};
+  return {
+    uniqueId: u.uniqueId,
+    nickname: u.nickname,
+    verified: !!u.verified,
+    bio: u.signature || "",
+    avatar: u.avatarLarger,
+    followers: s.followerCount,
+    following: s.followingCount,
+    likes: s.heartCount,
+    videos: s.videoCount,
+  };
+}

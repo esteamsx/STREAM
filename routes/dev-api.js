@@ -5,8 +5,12 @@ import { extractTextFromImageUrl } from "../services/ocr.js";
 import { fetchSongByQuery } from "../services/song.js";
 import { analyzeImage } from "../services/vision.js";
 import { resolveFacebookVideo } from "../services/facebook.js";
-import { resolveInstagramMedia } from "../services/instagram.js";
-import { resolveTikTokMedia } from "../services/tiktok.js";
+import { resolveInstagramMedia, getInstagramProfile } from "../services/instagram.js";
+import { resolveTikTokMedia, getTikTokProfile } from "../services/tiktok.js";
+import { resolveTwitterVideo } from "../services/twitter.js";
+import { searchApk } from "../services/apk.js";
+import { getGoogleDriveFileInfo } from "../services/gdrive.js";
+import { makeFakeWhatsAppCard, makeCaptionMeme, makeBookPage } from "../services/canvas.js";
 import { askFreeAI } from "../services/ai.js";
 import { searchMovie } from "../services/movies.js";
 import { searchSportsTeam } from "../services/sportsdb.js";
@@ -44,7 +48,7 @@ import {
 } from "../services/lookup.js";
 import { signDownloadToken, verifyDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
 import { watermarkImageBuffer } from "../services/image-watermark.js";
-import { generatePassword, encodeBase64, decodeBase64, hashText, translateText, captureScreenshot, getLinkPreview, buildChartUrl, makeSticker } from "../services/utils-tools.js";
+import { generatePassword, encodeBase64, decodeBase64, hashText, translateText, captureScreenshot, getLinkPreview, buildChartUrl, makeSticker, resolveDirectUrl } from "../services/utils-tools.js";
 import {
   requireAuth,
   createDevApiKey,
@@ -394,6 +398,124 @@ router.get("/api/v1/dev/tiktok", requireDevApiKey, tiktokLimiter, async (req, re
     res.json(out);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not fetch that TikTok media." });
+  }
+});
+
+const tiktokstalkLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+router.get("/api/v1/dev/tiktokstalk", requireDevApiKey, tiktokstalkLimiter, async (req, res) => {
+  const username = String(req.query.username || "").trim();
+  if (!username) return res.status(400).json({ error: "Missing username query parameter." });
+  try {
+    res.json(await getTikTokProfile(username));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that TikTok user." });
+  }
+});
+
+const igstalkLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+router.get("/api/v1/dev/igstalk", requireDevApiKey, igstalkLimiter, async (req, res) => {
+  const username = String(req.query.username || "").trim();
+  if (!username) return res.status(400).json({ error: "Missing username query parameter." });
+  try {
+    res.json(await getInstagramProfile(username));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that Instagram profile." });
+  }
+});
+
+const twitterLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+router.get("/api/v1/dev/twitter", requireDevApiKey, twitterLimiter, async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing url query parameter." });
+  try {
+    const tweet = await resolveTwitterVideo(url);
+    const filename = sanitizeFilename("twitter-video");
+    res.json({
+      text: tweet.text,
+      thumbnail: tweet.thumbnail,
+      download_url: `${PUBLIC_BASE}/api/v1/dev/dl/${signDownloadToken({ url: tweet.video, mime: "video/mp4", filename: `${filename}.mp4`, watermark: !req.devApiNoAds }, DL_TTL_MS)}`,
+      expires_at: new Date(Date.now() + DL_TTL_MS).toISOString(),
+    });
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch that tweet's video." });
+  }
+});
+
+const apkLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+router.get("/api/v1/dev/apk", requireDevApiKey, apkLimiter, async (req, res) => {
+  const query = String(req.query.query || "").trim();
+  if (!query) return res.status(400).json({ error: "Missing query parameter." });
+  try {
+    res.json(await searchApk(query));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not find that app." });
+  }
+});
+
+const gdriveLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+router.get("/api/v1/dev/gdrive", requireDevApiKey, gdriveLimiter, async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing url query parameter." });
+  try {
+    res.json(await getGoogleDriveFileInfo(url));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not read that Google Drive link." });
+  }
+});
+
+const downloadwebLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+router.get("/api/v1/dev/downloadweb", requireDevApiKey, downloadwebLimiter, async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing url query parameter." });
+  try {
+    res.json(await resolveDirectUrl(url));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not resolve that link." });
+  }
+});
+
+const bookLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+router.get("/api/v1/dev/book", requireDevApiKey, bookLimiter, async (req, res) => {
+  const text = String(req.query.text || "").trim();
+  if (!text) return res.status(400).json({ error: "Missing text query parameter." });
+  try {
+    let buffer = await makeBookPage(text);
+    if (!req.devApiNoAds) buffer = await watermarkImageBuffer(buffer, "ES TEAMS TV").catch(() => buffer);
+    res.set("Content-Type", "image/png");
+    res.send(buffer);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not build that page image." });
+  }
+});
+
+const fakewaLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+router.get("/api/v1/dev/fakewa", requireDevApiKey, fakewaLimiter, async (req, res) => {
+  const name = String(req.query.name || "").trim();
+  const number = String(req.query.number || "").trim();
+  const status = String(req.query.status || "").trim();
+  if (!name) return res.status(400).json({ error: "Missing name query parameter." });
+  try {
+    let buffer = await makeFakeWhatsAppCard({ name, number, status });
+    if (!req.devApiNoAds) buffer = await watermarkImageBuffer(buffer, "ES TEAMS TV").catch(() => buffer);
+    res.set("Content-Type", "image/png");
+    res.send(buffer);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not build that image." });
+  }
+});
+
+const captionLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+router.get("/api/v1/dev/caption", requireDevApiKey, captionLimiter, async (req, res) => {
+  const image = String(req.query.image || "").trim();
+  const text = String(req.query.text || "").trim();
+  if (!image || !text) return res.status(400).json({ error: "Missing image or text query parameter." });
+  try {
+    let buffer = await makeCaptionMeme(image, text);
+    if (!req.devApiNoAds) buffer = await watermarkImageBuffer(buffer, "ES TEAMS TV").catch(() => buffer);
+    res.set("Content-Type", "image/png");
+    res.send(buffer);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not build that image." });
   }
 });
 

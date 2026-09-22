@@ -65,3 +65,23 @@ export async function resolveInstagramMedia(url) {
     caption: description || null,
   };
 }
+
+export async function getInstagramProfile(username) {
+  const handle = String(username || "").trim().replace(/^@/, "");
+  if (!handle) throw Object.assign(new Error("Missing username."), { status: 400 });
+  const html = await fetchHtml(new URL(`https://www.instagram.com/${handle}/`));
+  const jsonMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  if (!jsonMatch) throw Object.assign(new Error("Could not find that Instagram profile."), { status: 404 });
+  let data;
+  try {
+    data = JSON.parse(jsonMatch[1]);
+  } catch {
+    throw Object.assign(new Error("Could not read that Instagram profile."), { status: 502 });
+  }
+  return {
+    username: handle,
+    name: data.name || handle,
+    bio: data.description || "",
+    avatar: data.image || null,
+  };
+}

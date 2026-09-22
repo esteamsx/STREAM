@@ -203,3 +203,26 @@ export async function captureScreenshot(url) {
     clearTimeout(timer);
   }
 }
+
+export async function resolveDirectUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw Object.assign(new Error("Please pass a valid http(s) url."), { status: 400 });
+  }
+  if (!/^https?:$/.test(parsed.protocol)) {
+    throw Object.assign(new Error("Only http/https links are supported."), { status: 400 });
+  }
+  try {
+    const head = await fetch(parsed.toString(), { method: "GET", redirect: "follow", signal: AbortSignal.timeout(15000) });
+    return {
+      finalUrl: head.url,
+      contentType: head.headers.get("content-type") || "Unknown",
+      size: head.headers.get("content-length") || "Unknown",
+      status: head.status,
+    };
+  } catch (err) {
+    throw Object.assign(new Error("Could not resolve that link."), { status: 502 });
+  }
+}

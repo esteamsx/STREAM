@@ -1,6 +1,20 @@
 const FETCH_TIMEOUT_MS = 15000;
 const UA = "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
 
+async function tryCobalt(url) {
+  const res = await fetch("https://api.cobalt.tools/api/json", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ url }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  const data = await res.json();
+  if (!res.ok || !data || (data.status !== "stream" && data.status !== "redirect") || !data.url) {
+    throw new Error((data && (data.text || data.status)) || `HTTP ${res.status}`);
+  }
+  return data.url;
+}
+
 const JSON_FIELD_KEYS = [
   "browser_native_hd_url",
   "playable_url_quality_hd",
@@ -54,10 +68,17 @@ export async function resolveFacebookVideo(url) {
   if (!/(^|\.)facebook\.com$|(^|\.)fb\.watch$/.test(parsed.hostname)) {
     throw Object.assign(new Error("URL must be a facebook.com or fb.watch link."), { status: 400 });
   }
-  parsed.hostname = "mbasic.facebook.com";
-  parsed.protocol = "https:";
 
-  const html = await fetchHtml(parsed);
+  const cobaltUrl = await tryCobalt(url).catch(() => null);
+  if (cobaltUrl) {
+    return { hd: cobaltUrl, sd: null, title: "facebook-video" };
+  }
+
+  const mbasicUrl = new URL(url);
+  mbasicUrl.hostname = "mbasic.facebook.com";
+  mbasicUrl.protocol = "https:";
+
+  const html = await fetchHtml(mbasicUrl);
 
   let hd = null;
   let sd = null;
