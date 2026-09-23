@@ -375,6 +375,7 @@ export function siteHead({ title, description, path = "/", image = "/og.png", ty
   const absoluteImage = image.startsWith("http") ? image : origin + image;
 
   return `${ICON_TAGS}
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6305690414575516" crossorigin="anonymous"></script>
 <meta name="theme-color" id="themeColorMeta" content="${SITE.themeColor}">
 <meta name="application-name" content="${escapeAttr(SITE.name)}">
 <meta name="apple-mobile-web-app-title" content="${escapeAttr(SITE.short)}">
