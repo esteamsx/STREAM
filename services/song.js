@@ -1,5 +1,6 @@
 import ytdl from "@distube/ytdl-core";
 import ytsearch from "yt-search";
+import { getYoutubeStreams } from "./youtube-innertube.js";
 
 function buildYtdlOptions() {
   const cookieHeader = process.env.YOUTUBE_COOKIE;
@@ -14,9 +15,6 @@ function buildYtdlOptions() {
   }
   if (cookieHeader) {
     options.requestOptions = { headers: { cookie: cookieHeader } };
-    console.log(`Using YOUTUBE_COOKIE (${cookieHeader.length} chars) for this request.`);
-  } else {
-    console.log("No YOUTUBE_COOKIE set for this request.");
   }
   return options;
 }
@@ -45,6 +43,20 @@ async function getInfoWithRetry(url, options) {
   throw lastErr;
 }
 
+async function fetchViaYtdlCore(videoUrl) {
+  const options = buildYtdlOptions();
+  const info = await getInfoWithRetry(videoUrl, Object.keys(options).length ? options : undefined);
+  const audioFormat = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });
+  const videoFormat = ytdl.chooseFormat(info.formats, { quality: "18" }) || ytdl.chooseFormat(info.formats, { filter: "videoandaudio" });
+  if (!audioFormat && !videoFormat) {
+    throw Object.assign(new Error("Found a match but it has no downloadable formats available."), { status: 502 });
+  }
+  return {
+    audioUrl: audioFormat ? audioFormat.url : null,
+    videoUrl: videoFormat ? videoFormat.url : null,
+  };
+}
+
 export async function fetchSongByQuery(query) {
   const searched = await ytsearch(query).catch(() => null);
   const video = searched && searched.videos && searched.videos[0];
@@ -52,29 +64,35 @@ export async function fetchSongByQuery(query) {
     throw Object.assign(new Error("Could not find a match for that search."), { status: 404 });
   }
 
-  let info;
+  let audioUrl = null;
+  let videoUrl = null;
+  let thumbnail = video.thumbnail || null;
+  let title = video.title || "Untitled";
+
   try {
-    const options = buildYtdlOptions();
-    info = await getInfoWithRetry(video.url, Object.keys(options).length ? options : undefined);
+    const streams = await getYoutubeStreams(video.url);
+    audioUrl = streams.audioUrl;
+    videoUrl = streams.videoUrl;
+    thumbnail = streams.thumbnail || thumbnail;
+    title = streams.title || title;
   } catch (err) {
-    console.error("ytdl.getInfo failed:", err.message);
-    const friendly = isRateLimitError(err)
-      ? "YouTube is rate-limiting this server right now, try again in a minute."
-      : `Found a match but could not read its download info (${err.message}).`;
-    throw Object.assign(new Error(friendly), { status: 502 });
+    console.error("InnerTube (ANDROID_VR) fetch failed, falling back to ytdl-core:", err.message);
+    try {
+      const fallback = await fetchViaYtdlCore(video.url);
+      audioUrl = fallback.audioUrl;
+      videoUrl = fallback.videoUrl;
+    } catch (fallbackErr) {
+      console.error("ytdl-core fallback also failed:", fallbackErr.message);
+      const friendly = isRateLimitError(fallbackErr)
+        ? "YouTube is rate-limiting this server right now, try again in a minute."
+        : `Found a match but could not read its download info (${fallbackErr.message}).`;
+      throw Object.assign(new Error(friendly), { status: 502 });
+    }
   }
 
-  const audioFormat = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });
-  const videoFormat = ytdl.chooseFormat(info.formats, { quality: "18" }) || ytdl.chooseFormat(info.formats, { filter: "videoandaudio" });
-
-  if (!audioFormat && !videoFormat) {
+  if (!audioUrl && !videoUrl) {
     throw Object.assign(new Error("Found a match but it has no downloadable formats available."), { status: 502 });
   }
 
-  return {
-    title: video.title || "Untitled",
-    thumbnail: video.thumbnail || null,
-    audioUrl: audioFormat ? audioFormat.url : null,
-    videoUrl: videoFormat ? videoFormat.url : null,
-  };
+  return { title, thumbnail, audioUrl, videoUrl };
 }

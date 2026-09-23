@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import sharp from "sharp";
 import * as cheerio from "cheerio";
 import ytdl from "@distube/ytdl-core";
+import { getYoutubeStreams } from "../services/youtube-innertube.js";
 import ytsearch from "yt-search";
 import { removeBackground } from "@imgly/background-removal-node";
 import { db } from "../config/firebase.js";
@@ -474,9 +475,23 @@ freeApiRouter.get("/api/free/instagram", async (req, res) => {
 });
 
 freeApiRouter.get("/api/free/youtube/video", async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing ?url=" });
   try {
-    const url = String(req.query.url || "").trim();
-    if (!url || !ytdl.validateURL(url)) return res.status(400).json({ error: "That's not a valid YouTube link." });
+    const streams = await getYoutubeStreams(url);
+    if (!streams.videoUrl) return res.status(404).json({ error: "No downloadable video format found for that video." });
+    return res.json({
+      title: streams.title,
+      thumbnail: streams.thumbnail,
+      duration: streams.duration,
+      quality: streams.videoQuality || (streams.videoIsMuxed ? "audio+video" : "video only"),
+      downloadUrl: streams.videoUrl,
+    });
+  } catch (err) {
+    console.error("InnerTube fetch failed, falling back to ytdl-core:", err.message);
+  }
+  try {
+    if (!ytdl.validateURL(url)) return res.status(400).json({ error: "That's not a valid YouTube link." });
     const info = await ytdl.getInfo(url, buildYtdlOptions());
     const format = ytdl.chooseFormat(info.formats, { quality: "18" }) || ytdl.chooseFormat(info.formats, { filter: "videoandaudio" });
     if (!format) return res.status(404).json({ error: "No downloadable format found for that video." });
@@ -512,9 +527,22 @@ freeApiRouter.get("/api/free/song/search", async (req, res) => {
 });
 
 freeApiRouter.get("/api/free/song/download", async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing ?url=" });
   try {
-    const url = String(req.query.url || "").trim();
-    if (!url || !ytdl.validateURL(url)) return res.status(400).json({ error: "That's not a valid YouTube link." });
+    const streams = await getYoutubeStreams(url);
+    if (!streams.audioUrl) return res.status(404).json({ error: "No downloadable audio found for that video." });
+    return res.json({
+      title: streams.title,
+      thumbnail: streams.thumbnail,
+      duration: streams.duration,
+      downloadUrl: streams.audioUrl,
+    });
+  } catch (err) {
+    console.error("InnerTube fetch failed, falling back to ytdl-core:", err.message);
+  }
+  try {
+    if (!ytdl.validateURL(url)) return res.status(400).json({ error: "That's not a valid YouTube link." });
     const info = await ytdl.getInfo(url, buildYtdlOptions());
     const format = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });
     if (!format) return res.status(404).json({ error: "No downloadable audio found for that video." });
@@ -536,6 +564,21 @@ freeApiRouter.get("/api/free/song/from-query", async (req, res) => {
     const result = await ytsearch(query);
     const video = result.videos && result.videos[0];
     if (!video) return res.status(404).json({ error: "Could not find that song." });
+
+    try {
+      const streams = await getYoutubeStreams(video.url);
+      if (streams.audioUrl) {
+        return res.json({
+          title: streams.title || video.title,
+          thumbnail: streams.thumbnail || video.thumbnail,
+          duration: video.timestamp,
+          downloadUrl: streams.audioUrl,
+        });
+      }
+    } catch (err) {
+      console.error("InnerTube fetch failed, falling back to ytdl-core:", err.message);
+    }
+
     const info = await ytdl.getInfo(video.url, buildYtdlOptions());
     const format = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });
     if (!format) return res.status(404).json({ error: "No downloadable audio found for that song." });
