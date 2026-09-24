@@ -1,7 +1,25 @@
+import { ProxyAgent } from "undici";
 
 const INNERTUBE_API_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
 const INNERTUBE_URL = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_API_KEY}`;
 const CLIENT_VERSION = "1.60.19";
+
+let cachedDispatcher = null;
+let cachedProxyUrl = null;
+
+function getProxyDispatcher() {
+  const proxyUrl = process.env.YTDL_PROXY_URL;
+  if (!proxyUrl) return undefined;
+  if (cachedDispatcher && cachedProxyUrl === proxyUrl) return cachedDispatcher;
+  try {
+    cachedDispatcher = new ProxyAgent(proxyUrl);
+    cachedProxyUrl = proxyUrl;
+    return cachedDispatcher;
+  } catch (err) {
+    console.error("Could not build an InnerTube proxy dispatcher, using default:", err.message);
+    return undefined;
+  }
+}
 
 function androidVrContext() {
   return {
@@ -33,6 +51,7 @@ function extractVideoId(input) {
 }
 
 async function fetchPlayerData(videoId) {
+  const dispatcher = getProxyDispatcher();
   const res = await fetch(INNERTUBE_URL, {
     method: "POST",
     headers: {
@@ -44,6 +63,7 @@ async function fetchPlayerData(videoId) {
       context: androidVrContext(),
     }),
     signal: AbortSignal.timeout(20000),
+    dispatcher,
   });
   if (!res.ok) {
     throw Object.assign(new Error(`YouTube InnerTube responded ${res.status}.`), { status: 502 });
