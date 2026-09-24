@@ -3,29 +3,12 @@ import crypto from "node:crypto";
 import QRCode from "qrcode";
 import sharp from "sharp";
 import * as cheerio from "cheerio";
-import ytdl from "@distube/ytdl-core";
-import { getYoutubeStreams } from "../services/youtube-innertube.js";
+import { fetchYoutubeMp3, fetchYoutubeMp4 } from "../services/silvatech.js";
+import { fetchMp3ByQuery } from "../services/song.js";
 import ytsearch from "yt-search";
 import { removeBackground } from "@imgly/background-removal-node";
 import { db } from "../config/firebase.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
-
-function buildYtdlOptions() {
-  const cookieHeader = process.env.YOUTUBE_COOKIE;
-  const proxyUrl = process.env.YTDL_PROXY_URL;
-  const options = {};
-  if (proxyUrl) {
-    try {
-      options.agent = ytdl.createProxyAgent({ uri: proxyUrl });
-    } catch (err) {
-      console.error("Could not build a ytdl-core proxy agent, using default:", err.message);
-    }
-  }
-  if (cookieHeader) {
-    options.requestOptions = { headers: { cookie: cookieHeader } };
-  }
-  return options;
-}
 
 export const freeApiRouter = express.Router();
 
@@ -478,32 +461,16 @@ freeApiRouter.get("/api/free/youtube/video", async (req, res) => {
   const url = String(req.query.url || "").trim();
   if (!url) return res.status(400).json({ error: "Missing ?url=" });
   try {
-    const streams = await getYoutubeStreams(url);
-    if (!streams.videoUrl) return res.status(404).json({ error: "No downloadable video format found for that video." });
-    return res.json({
-      title: streams.title,
-      thumbnail: streams.thumbnail,
-      duration: streams.duration,
-      quality: streams.videoQuality || (streams.videoIsMuxed ? "audio+video" : "video only"),
-      downloadUrl: streams.videoUrl,
-    });
-  } catch (err) {
-    console.error("InnerTube fetch failed, falling back to ytdl-core:", err.message);
-  }
-  try {
-    if (!ytdl.validateURL(url)) return res.status(400).json({ error: "That's not a valid YouTube link." });
-    const info = await ytdl.getInfo(url, buildYtdlOptions());
-    const format = ytdl.chooseFormat(info.formats, { quality: "18" }) || ytdl.chooseFormat(info.formats, { filter: "videoandaudio" });
-    if (!format) return res.status(404).json({ error: "No downloadable format found for that video." });
+    const result = await fetchYoutubeMp4(url);
     res.json({
-      title: info.videoDetails.title,
-      thumbnail: info.videoDetails.thumbnails.slice(-1)[0]?.url,
-      duration: info.videoDetails.lengthSeconds,
-      quality: format.qualityLabel || "audio+video",
-      downloadUrl: format.url,
+      title: result.title,
+      thumbnail: result.thumbnail,
+      duration: result.duration,
+      quality: result.quality || "audio+video",
+      downloadUrl: result.videoUrl,
     });
   } catch (err) {
-    res.status(500).json({ error: "Could not fetch that YouTube video." });
+    res.status(err.status || 500).json({ error: err.message || "Could not fetch that YouTube video." });
   }
 });
 
@@ -530,30 +497,15 @@ freeApiRouter.get("/api/free/song/download", async (req, res) => {
   const url = String(req.query.url || "").trim();
   if (!url) return res.status(400).json({ error: "Missing ?url=" });
   try {
-    const streams = await getYoutubeStreams(url);
-    if (!streams.audioUrl) return res.status(404).json({ error: "No downloadable audio found for that video." });
-    return res.json({
-      title: streams.title,
-      thumbnail: streams.thumbnail,
-      duration: streams.duration,
-      downloadUrl: streams.audioUrl,
-    });
-  } catch (err) {
-    console.error("InnerTube fetch failed, falling back to ytdl-core:", err.message);
-  }
-  try {
-    if (!ytdl.validateURL(url)) return res.status(400).json({ error: "That's not a valid YouTube link." });
-    const info = await ytdl.getInfo(url, buildYtdlOptions());
-    const format = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });
-    if (!format) return res.status(404).json({ error: "No downloadable audio found for that video." });
+    const result = await fetchYoutubeMp3(url);
     res.json({
-      title: info.videoDetails.title,
-      thumbnail: info.videoDetails.thumbnails.slice(-1)[0]?.url,
-      duration: info.videoDetails.lengthSeconds,
-      downloadUrl: format.url,
+      title: result.title,
+      thumbnail: result.thumbnail,
+      duration: result.duration,
+      downloadUrl: result.audioUrl,
     });
   } catch (err) {
-    res.status(500).json({ error: "Could not fetch that song's audio." });
+    res.status(err.status || 500).json({ error: err.message || "Could not fetch that song's audio." });
   }
 });
 
@@ -561,35 +513,15 @@ freeApiRouter.get("/api/free/song/from-query", async (req, res) => {
   try {
     const query = String(req.query.query || "").trim();
     if (!query) return res.status(400).json({ error: "Missing ?query=" });
-    const result = await ytsearch(query);
-    const video = result.videos && result.videos[0];
-    if (!video) return res.status(404).json({ error: "Could not find that song." });
-
-    try {
-      const streams = await getYoutubeStreams(video.url);
-      if (streams.audioUrl) {
-        return res.json({
-          title: streams.title || video.title,
-          thumbnail: streams.thumbnail || video.thumbnail,
-          duration: video.timestamp,
-          downloadUrl: streams.audioUrl,
-        });
-      }
-    } catch (err) {
-      console.error("InnerTube fetch failed, falling back to ytdl-core:", err.message);
-    }
-
-    const info = await ytdl.getInfo(video.url, buildYtdlOptions());
-    const format = ytdl.chooseFormat(info.formats, { filter: "audioonly", quality: "highestaudio" });
-    if (!format) return res.status(404).json({ error: "No downloadable audio found for that song." });
+    const song = await fetchMp3ByQuery(query);
+    if (!song.audioUrl) return res.status(404).json({ error: "No downloadable audio found for that song." });
     res.json({
-      title: video.title,
-      thumbnail: video.thumbnail,
-      duration: video.timestamp,
-      downloadUrl: format.url,
+      title: song.title,
+      thumbnail: song.thumbnail,
+      downloadUrl: song.audioUrl,
     });
   } catch (err) {
-    res.status(500).json({ error: "Could not fetch that song." });
+    res.status(err.status || 500).json({ error: err.message || "Could not fetch that song." });
   }
 });
 

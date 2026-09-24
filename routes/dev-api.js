@@ -2,7 +2,7 @@ import express from "express";
 import QRCode from "qrcode";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { extractTextFromImageUrl } from "../services/ocr.js";
-import { fetchSongByQuery } from "../services/song.js";
+import { fetchMp3ByQuery, fetchMp4ByQuery } from "../services/song.js";
 import { analyzeImage } from "../services/vision.js";
 import { resolveFacebookVideo } from "../services/facebook.js";
 import { resolveInstagramMedia, getInstagramProfile } from "../services/instagram.js";
@@ -302,7 +302,7 @@ router.get("/api/v1/dev/mp3", requireDevApiKey, mp3Limiter, async (req, res) => 
   if (!query) return res.status(400).json({ error: "Missing query parameter." });
 
   try {
-    const song = await fetchSongByQuery(query);
+    const song = await fetchMp3ByQuery(query);
     if (!song.audioUrl) throw Object.assign(new Error("No audio found for that search."), { status: 404 });
     const filename = `${sanitizeFilename(song.title)}.mp3`;
     const token = signDownloadToken({ url: song.audioUrl, mime: "audio/mpeg", filename, watermark: !req.devApiNoAds }, DL_TTL_MS);
@@ -322,7 +322,7 @@ router.get("/api/v1/dev/mp4", requireDevApiKey, mp4Limiter, async (req, res) => 
   if (!query) return res.status(400).json({ error: "Missing query parameter." });
 
   try {
-    const song = await fetchSongByQuery(query);
+    const song = await fetchMp4ByQuery(query);
     if (!song.videoUrl) throw Object.assign(new Error("No video found for that search."), { status: 404 });
     const filename = `${sanitizeFilename(song.title)}.mp4`;
     const token = signDownloadToken({ url: song.videoUrl, mime: "video/mp4", filename, watermark: !req.devApiNoAds }, DL_TTL_MS);
