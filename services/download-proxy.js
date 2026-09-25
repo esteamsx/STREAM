@@ -49,13 +49,26 @@ export function verifyDownloadToken(token) {
   return payload;
 }
 
+async function fetchWithRetry(url, headers, attempts) {
+  let lastResponse = null;
+  for (let i = 0; i < attempts; i++) {
+    const response = await fetch(url, { headers, redirect: "follow" });
+    if (response.ok || response.status < 500) return response;
+    lastResponse = response;
+    if (i < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 800 * (i + 1)));
+    }
+  }
+  return lastResponse;
+}
+
 export async function streamProxiedFile(payload, req, res) {
   try {
     const headers = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     };
     if (req.headers.range) headers.Range = req.headers.range;
-    const upstream = await fetch(payload.url, { headers, redirect: "follow" });
+    const upstream = await fetchWithRetry(payload.url, headers, 3);
     const ct = payload.mime || upstream.headers.get("content-type");
 
     if (payload.watermark && upstream.ok && ct && ct.startsWith("image/")) {

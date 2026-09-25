@@ -63,6 +63,7 @@ import {
   DEV_API_PLANS,
   redeemBonusCode,
   getEffectiveBonusRequests,
+  isAdminEmail,
 } from "../services/auth.js";
 
 const router = express.Router();
@@ -100,8 +101,9 @@ async function requireDevApiKey(req, res, next) {
     req.apiKeyUid = found.uid;
 
     const ownerProfile = await getUserProfile(found.uid).catch(() => null);
-    const plan = getDevApiPlanConfig(ownerProfile);
-    req.devApiPlanKey = getEffectiveDevApiPlan(ownerProfile);
+    const isAdminAccount = isAdminEmail(ownerProfile && ownerProfile.email);
+    const plan = isAdminAccount ? DEV_API_PLANS.max : getDevApiPlanConfig(ownerProfile);
+    req.devApiPlanKey = isAdminAccount ? "max" : getEffectiveDevApiPlan(ownerProfile);
     req.devApiNoAds = !!plan.noAds;
 
     const originalJson = res.json.bind(res);
@@ -122,18 +124,20 @@ async function requireDevApiKey(req, res, next) {
       return originalJson(body);
     };
 
-    if (!getRpsLimiter(plan.requestsPerSecond).check(found.id)) {
+    if (!isAdminAccount && !getRpsLimiter(plan.requestsPerSecond).check(found.id)) {
       return res.status(429).json({ error: "Too many requests per second for your plan." });
     }
 
-    const monthlyLimit = plan.monthlyRequests + getEffectiveBonusRequests(ownerProfile, "devapi");
-    const usage = await checkAndIncrementAccountDevApiUsage(found.uid, monthlyLimit);
-    if (!usage.allowed) {
-      return res.status(429).json({
-        error: "Monthly request limit reached for this account.",
-        requests_this_month: usage.requestsThisMonth,
-        monthly_limit: usage.monthlyLimit,
-      });
+    if (!isAdminAccount) {
+      const monthlyLimit = plan.monthlyRequests + getEffectiveBonusRequests(ownerProfile, "devapi");
+      const usage = await checkAndIncrementAccountDevApiUsage(found.uid, monthlyLimit);
+      if (!usage.allowed) {
+        return res.status(429).json({
+          error: "Monthly request limit reached for this account.",
+          requests_this_month: usage.requestsThisMonth,
+          monthly_limit: usage.monthlyLimit,
+        });
+      }
     }
     next();
   } catch (err) {
