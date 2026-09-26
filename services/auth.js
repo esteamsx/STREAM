@@ -631,6 +631,7 @@ const DEV_API_PLANS = {
 const PURCHASABLE_DEV_API_PLANS = ["standard", "pro", "max"];
 
 function getEffectiveDevApiPlan(data) {
+  if (isAdminEmail(data && data.email)) return "max";
   if (!data) return "free";
   if (data.devApiPlanPaid && DEV_API_PLANS[data.devApiPlanPaid] && data.devApiPlanExpiresAt && Date.now() < data.devApiPlanExpiresAt) {
     return data.devApiPlanPaid;
