@@ -27,5 +27,7 @@ export async function fetchMp4ByQuery(query) {
     title: result.title || video.title || "Untitled",
     thumbnail: result.thumbnail || video.thumbnail || null,
     videoUrl: result.videoUrl,
+    fallbackVideoUrl: result.fallbackVideoUrl,
+    fallbackAudioUrl: result.fallbackAudioUrl,
   };
 }

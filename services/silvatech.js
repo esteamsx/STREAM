@@ -39,5 +39,7 @@ export async function fetchYoutubeMp4(videoUrl) {
     duration: Number(result.duration || 0),
     quality: result.quality || null,
     videoUrl: videoUrlOut,
+    fallbackVideoUrl: result.direct_video_url || null,
+    fallbackAudioUrl: result.direct_audio_url || null,
   };
 }

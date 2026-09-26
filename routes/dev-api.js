@@ -329,7 +329,14 @@ router.get("/api/v1/dev/mp4", requireDevApiKey, mp4Limiter, async (req, res) => 
     const song = await fetchMp4ByQuery(query);
     if (!song.videoUrl) throw Object.assign(new Error("No video found for that search."), { status: 404 });
     const filename = `${sanitizeFilename(song.title)}.mp4`;
-    const token = signDownloadToken({ url: song.videoUrl, mime: "video/mp4", filename, watermark: !req.devApiNoAds }, DL_TTL_MS);
+    const token = signDownloadToken({
+      url: song.videoUrl,
+      mime: "video/mp4",
+      filename,
+      watermark: !req.devApiNoAds,
+      fallbackVideoUrl: song.fallbackVideoUrl || null,
+      fallbackAudioUrl: song.fallbackAudioUrl || null,
+    }, DL_TTL_MS);
     res.json({
       title: song.title,
       thumbnail: song.thumbnail,

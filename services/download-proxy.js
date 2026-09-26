@@ -4,6 +4,7 @@ import path from "path";
 import { Readable } from "stream";
 import { watermarkImageBuffer } from "./image-watermark.js";
 import { watermarkVideoBuffer, watermarkAudioBuffer, canWatermarkSize } from "./video-watermark.js";
+import { muxRemoteAvToBuffer } from "./av-mux.js";
 
 function getDlTokenSecret() {
   if (process.env.STREAM_TOKEN_SECRET) return process.env.STREAM_TOKEN_SECRET;
@@ -69,6 +70,24 @@ export async function streamProxiedFile(payload, req, res) {
     };
     if (req.headers.range) headers.Range = req.headers.range;
     const upstream = await fetchWithRetry(payload.url, headers, 3);
+
+    if (!upstream.ok && payload.fallbackVideoUrl && payload.fallbackAudioUrl) {
+      try {
+        const muxed = await muxRemoteAvToBuffer(payload.fallbackVideoUrl, payload.fallbackAudioUrl);
+        res.status(200);
+        res.set("Content-Type", "video/mp4");
+        res.set("Content-Length", String(muxed.length));
+        res.set("Accept-Ranges", "none");
+        res.set("Cache-Control", "no-store");
+        if (payload.filename) {
+          res.set("Content-Disposition", `attachment; filename="${payload.filename.replace(/[^\w.\-]/g, "_")}"`);
+        }
+        return res.end(muxed);
+      } catch (muxErr) {
+        console.error("dev-api mux fallback failed:", muxErr.message);
+      }
+    }
+
     const ct = payload.mime || upstream.headers.get("content-type");
 
     if (payload.watermark && upstream.ok && ct && ct.startsWith("image/")) {
@@ -117,7 +136,6 @@ export async function streamProxiedFile(payload, req, res) {
     const cl = upstream.headers.get("content-length");
     const cr = upstream.headers.get("content-range");
     if (ct) res.set("Content-Type", ct);
-    if (cl) res.set("Content-Length", cl);
     if (cr) res.set("Content-Range", cr);
     res.set("Accept-Ranges", "bytes");
     res.set("Cache-Control", "no-store");
@@ -125,8 +143,33 @@ export async function streamProxiedFile(payload, req, res) {
       res.set("Content-Disposition", `attachment; filename="${payload.filename.replace(/[^\w.\-]/g, "_")}"`);
     }
 
-    if (upstream.body) Readable.fromWeb(upstream.body).pipe(res);
-    else res.end();
+    const declaredSize = Number(cl || 0);
+    const canBufferWhole = upstream.ok && !req.headers.range && declaredSize > 0 && declaredSize <= 80 * 1024 * 1024;
+
+    if (canBufferWhole) {
+      try {
+        const fullBuffer = Buffer.from(await upstream.arrayBuffer());
+        res.set("Content-Length", String(fullBuffer.length));
+        return res.end(fullBuffer);
+      } catch (bufferErr) {
+        console.error("dev-api download proxy buffering failed:", bufferErr.message);
+        if (!res.headersSent) return res.status(502).json({ error: "Could not download that file completely." });
+        return res.end();
+      }
+    }
+
+    if (cl) res.set("Content-Length", cl);
+
+    if (upstream.body) {
+      const nodeStream = Readable.fromWeb(upstream.body);
+      nodeStream.on("error", (streamErr) => {
+        console.error("dev-api download proxy stream error:", streamErr.message);
+        res.destroy();
+      });
+      nodeStream.pipe(res);
+    } else {
+      res.end();
+    }
   } catch (err) {
     console.error("dev-api download proxy error:", err.message);
     if (!res.headersSent) res.status(502).json({ error: "Could not reach the file source." });
