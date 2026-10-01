@@ -46,7 +46,7 @@ import {
   getGithubRepo,
   getAnimeInfo,
 } from "../services/lookup.js";
-import { signDownloadToken, verifyDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
+import { signDownloadToken, inspectDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
 import { watermarkImageBuffer } from "../services/image-watermark.js";
 import { generatePassword, encodeBase64, decodeBase64, hashText, translateText, captureScreenshot, getLinkPreview, buildChartUrl, makeSticker, resolveDirectUrl } from "../services/utils-tools.js";
 import {
@@ -1098,9 +1098,18 @@ router.get("/api/v1/dev/wa-check", requireDevApiKey, wacheckLimiter, async (req,
 });
 
 router.get("/api/v1/dev/dl/:token", dlLimiter, async (req, res) => {
-  const payload = verifyDownloadToken(req.params.token);
-  if (!payload) return res.status(403).type("text/plain").send("Invalid or expired download link.");
-  await streamProxiedFile(payload, req, res);
+  try {
+    const checked = inspectDownloadToken(req.params.token);
+    if (checked.error) {
+      console.error(`dev-api dl token rejected: ${checked.error}`);
+      return res.status(checked.status).json({ error: checked.error });
+    }
+    await streamProxiedFile(checked.payload, req, res);
+  } catch (err) {
+    console.error(`dev-api dl handler failed: ${err && err.stack ? err.stack : err}`);
+    if (!res.headersSent) return res.status(500).json({ error: "Download failed" });
+    res.end();
+  }
 });
 
 export { router as devApiRouter };

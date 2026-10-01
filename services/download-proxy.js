@@ -33,34 +33,74 @@ export function signDownloadToken(payload, ttlMs) {
   return `${payloadB64}.${sig}`;
 }
 
-export function verifyDownloadToken(token) {
-  if (!token || typeof token !== "string" || !token.includes(".")) return null;
+export function inspectDownloadToken(token) {
+  const invalid = { status: 403, error: "Invalid token" };
+  if (!token || typeof token !== "string" || !token.includes(".")) return invalid;
   const [payloadB64, sig] = token.split(".");
   const expectedSig = crypto.createHmac("sha256", DL_TOKEN_SECRET).update("dev-dl:" + payloadB64).digest("hex").slice(0, 32);
   const sigBuf = Buffer.from(sig || "", "hex");
   const expBuf = Buffer.from(expectedSig, "hex");
-  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return null;
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return invalid;
   let payload;
   try {
     payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString());
   } catch {
-    return null;
+    return invalid;
   }
-  if (!payload.url || !payload.exp || Date.now() > payload.exp) return null;
-  return payload;
+  if (!payload.url || !payload.exp) return invalid;
+  if (Date.now() > payload.exp) return { status: 410, error: "Token expired" };
+  return { payload };
+}
+
+export function verifyDownloadToken(token) {
+  return inspectDownloadToken(token).payload || null;
+}
+
+const UPSTREAM_HEADERS_TIMEOUT_MS = 20000;
+
+function sourceHost(url) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "unknown";
+  }
+}
+
+function logDlError(stage, err, payload, extra) {
+  const cause = err && err.cause ? ` cause=${err.cause.code || ""} ${err.cause.message || err.cause}` : "";
+  const detail = err && err.stack ? err.stack : String(err);
+  console.error(`dev-api dl ${stage} host=${sourceHost(payload && payload.url)}${extra ? " " + extra : ""}${cause}: ${detail}`);
+}
+
+async function fetchOnce(url, headers) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_HEADERS_TIMEOUT_MS);
+  try {
+    return await fetch(url, { headers, redirect: "follow", signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function fetchWithRetry(url, headers, attempts) {
   let lastResponse = null;
+  let lastError = null;
   for (let i = 0; i < attempts; i++) {
-    const response = await fetch(url, { headers, redirect: "follow" });
-    if (response.ok || response.status < 500) return response;
-    lastResponse = response;
+    try {
+      const response = await fetchOnce(url, headers);
+      if (response.ok || (response.status < 500 && response.status !== 429)) return response;
+      if (lastResponse && lastResponse.body) lastResponse.body.cancel().catch(() => {});
+      lastResponse = response;
+      lastError = null;
+    } catch (err) {
+      lastError = err;
+    }
     if (i < attempts - 1) {
       await new Promise((resolve) => setTimeout(resolve, 800 * (i + 1)));
     }
   }
-  return lastResponse;
+  if (lastResponse) return lastResponse;
+  throw lastError;
 }
 
 export async function streamProxiedFile(payload, req, res) {
@@ -84,8 +124,24 @@ export async function streamProxiedFile(payload, req, res) {
         }
         return res.end(muxed);
       } catch (muxErr) {
-        console.error("dev-api mux fallback failed:", muxErr.message);
+        logDlError("mux fallback", muxErr, payload);
       }
+    }
+
+    if (!upstream.ok && upstream.status !== 416) {
+      if (upstream.body) upstream.body.cancel().catch(() => {});
+      console.error(`dev-api dl upstream rejected host=${sourceHost(payload.url)} status=${upstream.status}`);
+      const gone = upstream.status === 404 || upstream.status === 410;
+      const limited = upstream.status === 429;
+      const outStatus = gone ? 404 : limited ? 503 : 502;
+      const message = gone
+        ? "Source file is no longer available"
+        : limited
+          ? "Source is rate limiting requests"
+          : upstream.status === 401 || upstream.status === 403
+            ? "Source rejected the request, source link may have expired"
+            : "Source returned an error";
+      return res.status(outStatus).json({ error: message, upstream_status: upstream.status });
     }
 
     const ct = payload.mime || upstream.headers.get("content-type");
@@ -152,7 +208,7 @@ export async function streamProxiedFile(payload, req, res) {
         res.set("Content-Length", String(fullBuffer.length));
         return res.end(fullBuffer);
       } catch (bufferErr) {
-        console.error("dev-api download proxy buffering failed:", bufferErr.message);
+        logDlError("buffering", bufferErr, payload);
         if (!res.headersSent) return res.status(502).json({ error: "Could not download that file completely." });
         return res.end();
       }
@@ -163,7 +219,7 @@ export async function streamProxiedFile(payload, req, res) {
     if (upstream.body) {
       const nodeStream = Readable.fromWeb(upstream.body);
       nodeStream.on("error", (streamErr) => {
-        console.error("dev-api download proxy stream error:", streamErr.message);
+        logDlError("stream", streamErr, payload);
         res.destroy();
       });
       nodeStream.pipe(res);
@@ -171,9 +227,12 @@ export async function streamProxiedFile(payload, req, res) {
       res.end();
     }
   } catch (err) {
-    console.error("dev-api download proxy error:", err.message);
-    if (!res.headersSent) res.status(502).json({ error: "Could not reach the file source." });
-    else res.end();
+    logDlError("proxy", err, payload);
+    const timedOut = err && (err.name === "AbortError" || err.name === "TimeoutError");
+    if (!res.headersSent) {
+      if (timedOut) res.status(504).json({ error: "Source timed out" });
+      else res.status(502).json({ error: "Could not reach the file source." });
+    } else res.end();
   }
 }
 
