@@ -41,6 +41,12 @@ export const PAGES = {
     description: "Manage your account, security and privacy settings.",
     auth: "required",
   },
+  promote: {
+    path: "/promote",
+    title: `Promote on ${SITE.name}`,
+    description: "Run your ad across the site and track views and clicks.",
+    auth: "required",
+  },
   user: {
     path: "/u/:username",
     description: `A profile on ${SITE.name}.`,

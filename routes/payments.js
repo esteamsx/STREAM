@@ -38,6 +38,7 @@ import {
 } from "../services/auth.js";
 import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
+import { finalizeAdPayment } from "../services/ads.js";
 
 const router = express.Router();
 
@@ -386,6 +387,7 @@ router.post("/api/paystack/webhook", webhookLimiter, async (req, res) => {
       await finalizeCoinPurchasePayment(event.data.reference, paystackData);
       await finalizeCoinRequestPayment(event.data.reference, paystackData);
       await finalizeTradingPlanPayment(event.data.reference, paystackData);
+      await finalizeAdPayment(event.data.reference, paystackData);
     }
     res.status(200).json({ received: true });
   } catch (err) {
