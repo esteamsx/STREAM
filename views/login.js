@@ -246,8 +246,13 @@ body:has(.page-overlay.show){overflow:hidden}
   box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
 }
 .overlay-spinner{
-  width:30px;height:30px;border:3px solid var(--border-strong);border-top-color:var(--accent);
-  border-radius:50%;animation:spin .7s linear infinite;
+  position:relative;width:64px;height:64px;border-radius:50%;
+  background:url(/favicon.svg) center/56% no-repeat;
+}
+.overlay-spinner::after{
+  content:"";position:absolute;inset:0;border-radius:50%;
+  border:3px solid var(--border-strong);border-top-color:var(--accent);
+  animation:spin .8s linear infinite;
 }
 .overlay-text{font-size:.85rem;color:var(--text);font-weight:600}
 .overlay-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem}

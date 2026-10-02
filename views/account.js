@@ -67,6 +67,15 @@ input{font-family:inherit}
 .acc-deploy-fab:active{transform:scale(.94)}
 .acc-deploy-fab svg{width:24px;height:24px}
 
+.acc-promote-fab{
+  position:fixed;right:20px;bottom:196px;z-index:90;width:48px;height:48px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
+  cursor:pointer;transition:transform .15s var(--ease);text-decoration:none;
+}
+.acc-promote-fab:active{transform:scale(.94)}
+.acc-promote-fab svg{width:21px;height:21px}
+
 .acc-cert-fab{
   position:fixed;right:20px;bottom:140px;z-index:90;width:48px;height:48px;border-radius:50%;
   background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
@@ -839,8 +848,13 @@ body:has(.page-overlay.show){overflow:hidden}
   min-height:70vh;position:relative;z-index:1;
 }
 .acc-loader-ring{
-  width:34px;height:34px;border:3px solid var(--border-strong);border-top-color:var(--accent);
-  border-radius:50%;animation:accSpin .7s linear infinite;
+  position:relative;width:56px;height:56px;border-radius:50%;
+  background:url(/favicon.svg) center/56% no-repeat;
+}
+.acc-loader-ring::after{
+  content:"";position:absolute;inset:0;border-radius:50%;
+  border:3px solid var(--border-strong);border-top-color:var(--accent);
+  animation:accSpin .8s linear infinite;
 }
 .acc-loader-text{color:var(--muted);font-size:.82rem}
 @keyframes accSpin{to{transform:rotate(360deg)}}
@@ -2081,6 +2095,10 @@ body:has(.page-overlay.show){overflow:hidden}
 <button type="button" class="acc-cert-fab dead" id="certFab" aria-label="Certificate" title="Certificate">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/></svg>
 </button>
+
+<a class="acc-promote-fab" href="/promote" aria-label="Promote" title="Promote">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M18.5 5.5a9 9 0 010 13"/></svg>
+</a>
 
 <a class="acc-deploy-fab" href="/deploy-bot" aria-label="Deploy Bot" title="Deploy Bot">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">

@@ -28,9 +28,13 @@ function pageLockHtml(pageKey, untilMs) {
   }
   .box{max-width:380px;display:flex;flex-direction:column;align-items:center}
   .ring{
-    width:56px;height:56px;border-radius:50%;
+    position:relative;width:72px;height:72px;border-radius:50%;
+    background:url(/favicon.svg) center/56% no-repeat;margin-bottom:24px;
+  }
+  .ring::after{
+    content:"";position:absolute;inset:0;border-radius:50%;
     border:3px solid rgba(255,255,255,.12);border-top-color:#00E0FF;
-    animation:spin 0.9s linear infinite;margin-bottom:24px;
+    animation:spin 0.9s linear infinite;
   }
   @keyframes spin{to{transform:rotate(360deg)}}
   h1{font-family:'Space Grotesk',system-ui,sans-serif;font-size:1.15rem;margin:0 0 10px;font-weight:700}

@@ -41,12 +41,6 @@ export const PAGES = {
     description: "Manage your account, security and privacy settings.",
     auth: "required",
   },
-  promote: {
-    path: "/promote",
-    title: `Promote on ${SITE.name}`,
-    description: "Run your ad across the site and track views and clicks.",
-    auth: "required",
-  },
   user: {
     path: "/u/:username",
     description: `A profile on ${SITE.name}.`,
@@ -76,6 +70,12 @@ export const PAGES = {
     path: "/developers/api",
     description: "The ES TEAMS TV Developer API: media and AI tools for your own site or bot.",
     auth: "public",
+  },
+  promote: {
+    path: "/promote",
+    title: `Promote your ad on ${SITE.name}`,
+    description: "Create an ad, pay securely and track its views and clicks.",
+    auth: "required",
   },
   deployBot: {
     path: "/deploy-bot",
@@ -414,7 +414,7 @@ export function siteHeadFor(key, overrides = {}) {
     description: page.description,
     path: page.path && !page.path.includes(":") ? page.path : "/",
     ...overrides,
-  });
+  }) + `\n<script nonce="__CSP_NONCE__" src="/select-overlay.js" defer></script>`;
 }
 
 export const WEB_MANIFEST = {

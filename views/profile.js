@@ -110,8 +110,13 @@ input{font-family:inherit}
   min-height:70vh;position:relative;z-index:1;
 }
 .pf-loader-ring{
-  width:34px;height:34px;border:3px solid var(--border-strong);border-top-color:var(--accent);
-  border-radius:50%;animation:pfSpin .7s linear infinite;
+  position:relative;width:56px;height:56px;border-radius:50%;
+  background:url(/favicon.svg) center/56% no-repeat;
+}
+.pf-loader-ring::after{
+  content:"";position:absolute;inset:0;border-radius:50%;
+  border:3px solid var(--border-strong);border-top-color:var(--accent);
+  animation:pfSpin .8s linear infinite;
 }
 .pf-loader-text{color:var(--muted);font-size:.82rem}
 @keyframes pfSpin{to{transform:rotate(360deg)}}
@@ -518,7 +523,7 @@ body:has(.page-overlay.show){overflow:hidden}
 .btn-spinner{width:14px;height:14px;border:2px solid rgba(4,20,26,.35);border-top-color:#04141a;border-radius:50%;display:inline-block;vertical-align:-2px;margin-right:7px;animation:spin .6s linear infinite}
 .btn-spinner-light{width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;display:inline-block;vertical-align:-2px;margin-right:7px;animation:spin .6s linear infinite}
 .pf-posts-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:26px 0}
-.pf-posts-loading .pf-loader-ring{width:26px;height:26px}
+.pf-posts-loading .pf-loader-ring{width:44px;height:44px}
 
 .pf-feed-fab{
   position:fixed;right:20px;bottom:20px;z-index:90;width:52px;height:52px;border-radius:50%;

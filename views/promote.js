@@ -213,6 +213,7 @@ textarea.pm-in{resize:vertical;min-height:74px;line-height:1.45}
 <div class="pm-toast" id="pmToast" role="status"></div>
 
 <script nonce="__CSP_NONCE__">window.PM_PAYSTACK_KEY = ${JSON.stringify(cfg.paystackPublicKey || "")};</script>
+<script nonce="__CSP_NONCE__" src="/select-overlay.js" defer></script>
 <script nonce="__CSP_NONCE__" src="/promote.js" defer></script>
 </body>
 </html>`;
