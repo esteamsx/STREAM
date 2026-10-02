@@ -10,6 +10,7 @@ import { liveTV } from "./data/channels.js";
 import { renderLogin } from "./views/login.js";
 import { renderVerify } from "./views/verify.js";
 import { renderAccount } from "./views/account.js";
+import { renderPromote } from "./views/promote.js";
 import { renderProfile } from "./views/profile.js";
 import { renderReset } from "./views/reset.js";
 import { renderDmca } from "./views/dmca.js";
@@ -306,6 +307,9 @@ import {
 } from "./services/auth.js";
 import { chargeAuthorization } from "./services/paystack.js";
 import { paymentsRouter } from "./routes/payments.js";
+import { promoteRouter } from "./routes/promote.js";
+import { injectPromoSlot } from "./middleware/promo-slot.js";
+import { flushAdStats } from "./services/ads.js";
 import { rewardsRouter } from "./routes/rewards.js";
 import { payLinkRouter } from "./routes/pay-link.js";
 import { db, auth as firebaseAuth } from "./config/firebase.js";
@@ -356,6 +360,7 @@ app.use(domainLock);
 app.use(compression());
 
 app.use(cspNonce);
+app.use(injectPromoSlot);
 app.use(helmetMiddleware);
 app.use(securityHeaders);
 app.use(permissionsPolicy);
@@ -383,7 +388,7 @@ app.get("/outbound-ip", async (req, res) => {
   }
 });
 
-const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js"]);
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js"]);
 
 app.use(
   express.static(path.join(__dirname, "public"), {
@@ -620,6 +625,7 @@ app.use(toolsRouter);
 app.use(freeApiRouter);
 app.get("/s/:code", handleShortlinkRedirect);
 app.use(paymentsRouter);
+app.use(promoteRouter);
 app.use(rewardsRouter);
 app.use(payLinkRouter);
 
@@ -741,6 +747,7 @@ a, button, [role="button"] {
 const cachedLoginHtml = renderLogin(authPageConfig);
 const cachedVerifyHtml = renderVerify(authPageConfig);
 const cachedAccountHtml = renderAccount(authPageConfig);
+const cachedPromoHtml = renderPromote(authPageConfig);
 const cachedAccountGuestHtml = wrapWithGuestBlur(cachedAccountHtml, "/account");
 const cachedProfileHtml = renderProfile(authPageConfig);
 const cachedAdminHtml = renderAdmin(authPageConfig);
@@ -1852,6 +1859,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 .mc-btn:active::after{opacity:.8;transform:translateX(220%) rotate(8deg);transition:transform .5s var(--ease),opacity .2s var(--ease)}
 
 .mc-lock.locked{background:rgba(0,224,255,.22);box-shadow:0 2px 10px rgba(0,224,255,.35),inset 0 1px 0 rgba(255,255,255,.2)}
+.mc-pip.active{background:rgba(0,224,255,.22);box-shadow:0 2px 10px rgba(0,224,255,.35),inset 0 1px 0 rgba(255,255,255,.2)}
 
 .media-controls.mc-locked .mc-btn:not(.mc-lock),
 .media-controls.mc-locked .mc-vol-slider{
@@ -2401,6 +2409,11 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           <button class="mc-btn mc-lock" id="mcLock" aria-label="Lock controls">
             <svg id="mcLockIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/>
+            </svg>
+          </button>
+          <button class="mc-btn mc-pip" id="mcPip" aria-label="Picture in picture" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="8" height="6" rx="1" fill="currentColor" stroke="none"/>
             </svg>
           </button>
           <button class="mc-btn mc-layout" id="mcLayout" aria-label="Toggle layout">
@@ -3136,6 +3149,28 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     }
     mcLock.addEventListener('click', function(){ locked = !locked; syncLock(); });
     syncLock();
+
+    var mcPip = document.getElementById('mcPip');
+    var pipStandard = !!(document.pictureInPictureEnabled && vid.requestPictureInPicture);
+    var pipWebkit = typeof vid.webkitSetPresentationMode === 'function';
+    if(mcPip && (pipStandard || pipWebkit)){
+      mcPip.style.display = '';
+      mcPip.addEventListener('click', function(){
+        try {
+          if(pipStandard){
+            if(document.pictureInPictureElement) document.exitPictureInPicture().catch(function(){});
+            else vid.requestPictureInPicture().catch(function(){});
+          } else {
+            vid.webkitSetPresentationMode(vid.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture');
+          }
+        } catch(e){}
+      });
+      vid.addEventListener('enterpictureinpicture', function(){ mcPip.classList.add('active'); });
+      vid.addEventListener('leavepictureinpicture', function(){ mcPip.classList.remove('active'); });
+      vid.addEventListener('webkitpresentationmodechanged', function(){
+        mcPip.classList.toggle('active', vid.webkitPresentationMode === 'picture-in-picture');
+      });
+    }
   })();
 
   (function(){
@@ -3856,6 +3891,10 @@ app.get("/account", scrapeGate, async (req, res) => {
   const profile = await getUserProfile(uid);
   if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.send(cachedAccountGuestHtml);
   res.send(cachedAccountHtml);
+});
+
+app.get("/promote", scrapeGate, requireUser, (req, res) => {
+  res.send(cachedPromoHtml);
 });
 
 app.get("/profile", scrapeGate, requireUser, (req, res) => {
@@ -7274,6 +7313,7 @@ function shutdown(signal, code = 0) {
   server.closeIdleConnections?.();
   server.close(async () => {
     await flushCompletedDays(true).catch(() => {});
+    await flushAdStats().catch(() => {});
     clearTimeout(force);
     console.log("ES TEAMS TV stopped cleanly.");
     process.exit(code);

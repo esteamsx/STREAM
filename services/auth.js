@@ -4777,6 +4777,7 @@ export {
   getFollowingFeed,
   getFollowingFeedUnseenCount,
   addNotification,
+  claimPendingPayment,
   broadcastNotification,
   getNotifications,
   hasUnreadNotifications,
