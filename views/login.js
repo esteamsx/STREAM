@@ -246,14 +246,24 @@ body:has(.page-overlay.show){overflow:hidden}
   box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
 }
 .overlay-spinner{
-  position:relative;width:64px;height:64px;border-radius:50%;
-  background:url(/favicon.svg) center/56% no-repeat;
+  position:relative;width:26px;height:26px;border-radius:50%;flex-shrink:0;margin:18px 0;
+  background:url(/favicon.svg) center/cover no-repeat;
+  box-shadow:0 0 14px var(--accent);
+}
+.overlay-spinner::before,.overlay-spinner::after{
+  content:"";position:absolute;border-radius:50%;box-sizing:border-box;
+  border:2.5px solid transparent;
+}
+.overlay-spinner::before{
+  inset:-18px;border-top-color:var(--accent);border-right-color:var(--accent);
+  animation:spin 1.1s linear infinite;
 }
 .overlay-spinner::after{
-  content:"";position:absolute;inset:0;border-radius:50%;
-  border:3px solid var(--border-strong);border-top-color:var(--accent);
-  animation:spin .8s linear infinite;
+  inset:-8px;border-width:2px;border-bottom-color:var(--accent);border-left-color:var(--accent);opacity:.75;
+  animation:ssRevLogin .85s linear infinite;
 }
+@keyframes ssRevLogin{to{transform:rotate(-360deg)}}
+#pageOverlay .overlay-card{background:none;border:none;box-shadow:none;backdrop-filter:none;padding:0}
 .overlay-text{font-size:.85rem;color:var(--text);font-weight:600}
 .overlay-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem}
 .overlay-sub{font-size:.82rem;color:var(--muted);line-height:1.5;text-align:center}

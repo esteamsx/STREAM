@@ -110,14 +110,23 @@ input{font-family:inherit}
   min-height:70vh;position:relative;z-index:1;
 }
 .pf-loader-ring{
-  position:relative;width:56px;height:56px;border-radius:50%;
-  background:url(/favicon.svg) center/56% no-repeat;
+  position:relative;width:28px;height:28px;border-radius:50%;flex-shrink:0;margin:20px 0;
+  background:url(/favicon.svg) center/cover no-repeat;
+  box-shadow:0 0 14px var(--accent);
+}
+.pf-loader-ring::before,.pf-loader-ring::after{
+  content:"";position:absolute;border-radius:50%;box-sizing:border-box;
+  border:2.5px solid transparent;
+}
+.pf-loader-ring::before{
+  inset:-20px;border-top-color:var(--accent);border-right-color:var(--accent);
+  animation:pfSpin 1.1s linear infinite;
 }
 .pf-loader-ring::after{
-  content:"";position:absolute;inset:0;border-radius:50%;
-  border:3px solid var(--border-strong);border-top-color:var(--accent);
-  animation:pfSpin .8s linear infinite;
+  inset:-9px;border-width:2px;border-bottom-color:var(--accent);border-left-color:var(--accent);opacity:.75;
+  animation:ssRevPf .85s linear infinite;
 }
+@keyframes ssRevPf{to{transform:rotate(-360deg)}}
 .pf-loader-text{color:var(--muted);font-size:.82rem}
 @keyframes pfSpin{to{transform:rotate(360deg)}}
 
@@ -523,7 +532,9 @@ body:has(.page-overlay.show){overflow:hidden}
 .btn-spinner{width:14px;height:14px;border:2px solid rgba(4,20,26,.35);border-top-color:#04141a;border-radius:50%;display:inline-block;vertical-align:-2px;margin-right:7px;animation:spin .6s linear infinite}
 .btn-spinner-light{width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;display:inline-block;vertical-align:-2px;margin-right:7px;animation:spin .6s linear infinite}
 .pf-posts-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:26px 0}
-.pf-posts-loading .pf-loader-ring{width:44px;height:44px}
+.pf-posts-loading .pf-loader-ring{width:22px;height:22px;margin:16px 0}
+.pf-posts-loading .pf-loader-ring::before{inset:-15px}
+.pf-posts-loading .pf-loader-ring::after{inset:-7px}
 
 .pf-feed-fab{
   position:fixed;right:20px;bottom:20px;z-index:90;width:52px;height:52px;border-radius:50%;

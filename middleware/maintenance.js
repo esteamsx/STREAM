@@ -48,14 +48,23 @@ function maintenanceHtml(untilMs) {
   }
   .box{max-width:380px;display:flex;flex-direction:column;align-items:center}
   .ring{
-    position:relative;width:72px;height:72px;border-radius:50%;
-    background:url(/favicon.svg) center/56% no-repeat;margin-bottom:24px;
+    position:relative;width:30px;height:30px;border-radius:50%;flex-shrink:0;margin:22px 0 46px;
+    background:url(/favicon.svg) center/cover no-repeat;
+    box-shadow:0 0 14px #00E0FF;
+  }
+  .ring::before,.ring::after{
+    content:"";position:absolute;border-radius:50%;box-sizing:border-box;
+    border:2.5px solid transparent;
+  }
+  .ring::before{
+    inset:-22px;border-top-color:#00E0FF;border-right-color:#00E0FF;
+    animation:spin 1.1s linear infinite;
   }
   .ring::after{
-    content:"";position:absolute;inset:0;border-radius:50%;
-    border:3px solid rgba(255,255,255,.12);border-top-color:#00E0FF;
-    animation:spin 0.9s linear infinite;
+    inset:-10px;border-width:2px;border-bottom-color:#00E0FF;border-left-color:#00E0FF;opacity:.75;
+    animation:ssRev .85s linear infinite;
   }
+  @keyframes ssRev{to{transform:rotate(-360deg)}}
   @keyframes spin{to{transform:rotate(360deg)}}
   h1{font-family:'Space Grotesk',system-ui,sans-serif;font-size:1.15rem;margin:0 0 10px;font-weight:700}
   p{color:rgba(255,255,255,.55);font-size:.85rem;line-height:1.6;margin:0}

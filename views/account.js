@@ -848,14 +848,23 @@ body:has(.page-overlay.show){overflow:hidden}
   min-height:70vh;position:relative;z-index:1;
 }
 .acc-loader-ring{
-  position:relative;width:56px;height:56px;border-radius:50%;
-  background:url(/favicon.svg) center/56% no-repeat;
+  position:relative;width:28px;height:28px;border-radius:50%;flex-shrink:0;margin:20px 0;
+  background:url(/favicon.svg) center/cover no-repeat;
+  box-shadow:0 0 14px var(--accent);
+}
+.acc-loader-ring::before,.acc-loader-ring::after{
+  content:"";position:absolute;border-radius:50%;box-sizing:border-box;
+  border:2.5px solid transparent;
+}
+.acc-loader-ring::before{
+  inset:-20px;border-top-color:var(--accent);border-right-color:var(--accent);
+  animation:accSpin 1.1s linear infinite;
 }
 .acc-loader-ring::after{
-  content:"";position:absolute;inset:0;border-radius:50%;
-  border:3px solid var(--border-strong);border-top-color:var(--accent);
-  animation:accSpin .8s linear infinite;
+  inset:-9px;border-width:2px;border-bottom-color:var(--accent);border-left-color:var(--accent);opacity:.75;
+  animation:ssRevAcc .85s linear infinite;
 }
+@keyframes ssRevAcc{to{transform:rotate(-360deg)}}
 .acc-loader-text{color:var(--muted);font-size:.82rem}
 @keyframes accSpin{to{transform:rotate(360deg)}}
 
@@ -2029,7 +2038,7 @@ body:has(.page-overlay.show){overflow:hidden}
       <button class="overlay-cancel" id="verifyCancel1">Cancel</button>
     </div>
     <div class="overlay-step" id="verifyStepProcessing">
-      <div class="acc-loader-ring" style="margin:6px auto"></div>
+      <div class="acc-loader-ring" style="margin:24px auto"></div>
       <div class="overlay-sub" style="text-align:center">Confirming your payment…</div>
     </div>
     <div class="overlay-step" id="verifyStepSuccess">
