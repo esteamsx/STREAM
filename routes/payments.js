@@ -392,7 +392,7 @@ router.post("/api/paystack/webhook", webhookLimiter, async (req, res) => {
     res.status(200).json({ received: true });
   } catch (err) {
     console.error("Paystack webhook error:", err.message);
-    res.status(200).json({ received: true });
+    res.status(500).json({ received: false });
   }
 });
 

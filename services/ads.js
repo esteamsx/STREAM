@@ -225,7 +225,8 @@ export async function finalizeAdPayment(reference, paystackData) {
   const record = claim.record;
   const adRef = db.collection("ads").doc(record.adId);
   const outcome = await db.runTransaction(async (tx) => {
-    const snap = await tx.get(adRef);
+    const [snap, paySnap] = await Promise.all([tx.get(adRef), tx.get(ref)]);
+    if (paySnap.exists && paySnap.data().status === "success") return { applied: true };
     if (!snap.exists || snap.data().status === "removed") return null;
     const ad = snap.data();
     const now = Date.now();
@@ -240,8 +241,11 @@ export async function finalizeAdPayment(reference, paystackData) {
       totalDays: FieldValue.increment(record.days),
       totalPaidKobo: FieldValue.increment(record.amountKobo),
     });
+    tx.update(ref, { status: "success", confirmedAt: now });
     return { endsAt, title: ad.title };
   });
+
+  if (outcome && outcome.applied) return { alreadyProcessed: true, uid: record.uid };
 
   if (!outcome) {
     await ref.update({ status: "needs_refund", confirmedAt: Date.now() });
@@ -250,7 +254,6 @@ export async function finalizeAdPayment(reference, paystackData) {
   }
 
   activeCache.at = 0;
-  await ref.update({ status: "success", confirmedAt: Date.now() });
   await addNotification(record.uid, "ad_live", `Your ad "${outcome.title}" is live`, { adId: record.adId, endsAt: outcome.endsAt });
   return { alreadyProcessed: false, uid: record.uid, adId: record.adId, endsAt: outcome.endsAt };
 }
@@ -537,22 +540,121 @@ export async function getAdImage(adId) {
   return buf;
 }
 
+const ADMIN_LIST_LIMIT = 500;
+const ADMIN_CHART_DAYS = 30;
+
+function statusOf(ad, now) {
+  if (ad.status === "removed") return "removed";
+  if (ad.status === "draft") return "draft";
+  return ad.status === "active" && ad.endsAt > now ? "live" : "ended";
+}
+
+function unflushedByAd() {
+  const map = new Map();
+  for (const e of buffer.values()) {
+    const held = map.get(e.adId) || { impressions: 0, clicks: 0 };
+    held.impressions += e.impressions;
+    held.clicks += e.clicks;
+    map.set(e.adId, held);
+  }
+  return map;
+}
+
+async function ownersFor(uids) {
+  const owners = new Map();
+  await Promise.all(
+    Array.from(new Set(uids)).map(async (uid) => {
+      try {
+        const profile = await getUserProfile(uid);
+        owners.set(uid, { username: (profile && profile.username) || null, email: (profile && profile.email) || null });
+      } catch {
+        owners.set(uid, { username: null, email: null });
+      }
+    })
+  );
+  return owners;
+}
+
+function adminRow(id, ad, owner, held, now) {
+  const impressions = (ad.impressions || 0) + held.impressions;
+  const clicks = (ad.clicks || 0) + held.clicks;
+  const status = statusOf(ad, now);
+  return {
+    id,
+    uid: ad.uid,
+    owner: owner || { username: null, email: null },
+    title: ad.title,
+    body: ad.body,
+    cta: ad.cta,
+    url: ad.url,
+    img: ad.hasImage ? `/api/sp/img/${id}?v=${ad.createdAt}` : null,
+    status,
+    createdAt: ad.createdAt,
+    startsAt: ad.startsAt || null,
+    endsAt: ad.endsAt || null,
+    remainingMs: status === "live" ? ad.endsAt - now : 0,
+    impressions,
+    clicks,
+    ctr: ctrOf(impressions, clicks),
+    totalDays: ad.totalDays || 0,
+    spentNgn: Math.round((ad.totalPaidKobo || 0) / 100),
+  };
+}
+
 export async function adminListAds() {
-  const snap = await db.collection("ads").orderBy("createdAt", "desc").limit(100).get();
-  return snap.docs.map((doc) => {
+  const snap = await db.collection("ads").orderBy("createdAt", "desc").limit(ADMIN_LIST_LIMIT).get();
+  const now = Date.now();
+  const held = unflushedByAd();
+  const owners = await ownersFor(snap.docs.map((doc) => doc.data().uid));
+  const ads = snap.docs.map((doc) => {
     const ad = doc.data();
-    return {
-      id: doc.id,
-      uid: ad.uid,
-      title: ad.title,
-      body: ad.body,
-      url: ad.url,
-      status: ad.status,
-      endsAt: ad.endsAt || null,
-      impressions: ad.impressions || 0,
-      clicks: ad.clicks || 0,
-    };
+    return adminRow(doc.id, ad, owners.get(ad.uid), held.get(doc.id) || { impressions: 0, clicks: 0 }, now);
   });
+
+  const summary = { live: 0, ended: 0, draft: 0, removed: 0, impressions: 0, clicks: 0, revenueNgn: 0 };
+  for (const ad of ads) {
+    summary[ad.status] += 1;
+    summary.impressions += ad.impressions;
+    summary.clicks += ad.clicks;
+    summary.revenueNgn += ad.spentNgn;
+  }
+  summary.ctr = ctrOf(summary.impressions, summary.clicks);
+  return { summary, ads };
+}
+
+export async function adminAdDetail(adId) {
+  const id = String(adId || "");
+  const snap = await db.collection("ads").doc(id).get();
+  if (!snap.exists) throw fail("Ad not found.", 404);
+  const ad = snap.data();
+  const [daySnap, owners] = await Promise.all([
+    db.collection("adDaily").where("adId", "==", id).limit(400).get(),
+    ownersFor([ad.uid]),
+  ]);
+
+  const series = new Map();
+  daySnap.forEach((doc) => {
+    const d = doc.data();
+    series.set(d.day, { impressions: d.impressions || 0, clicks: d.clicks || 0 });
+  });
+  const held = { impressions: 0, clicks: 0 };
+  for (const e of buffer.values()) {
+    if (e.adId !== id) continue;
+    held.impressions += e.impressions;
+    held.clicks += e.clicks;
+    const cur = series.get(e.day) || { impressions: 0, clicks: 0 };
+    cur.impressions += e.impressions;
+    cur.clicks += e.clicks;
+    series.set(e.day, cur);
+  }
+
+  const row = adminRow(id, ad, owners.get(ad.uid), held, Date.now());
+  const daily = recentDays(ADMIN_CHART_DAYS).map((day) => {
+    const point = series.get(day) || { impressions: 0, clicks: 0 };
+    return { day, impressions: point.impressions, clicks: point.clicks };
+  });
+  const activeDays = daily.filter((d) => d.impressions > 0).length;
+  return { ad: row, daily, activeDays };
 }
 
 export async function adminRemoveAd(adId) {

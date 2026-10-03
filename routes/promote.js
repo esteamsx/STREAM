@@ -17,6 +17,7 @@ import {
   listAdsWithStats,
   getAdImage,
   adminListAds,
+  adminAdDetail,
   adminRemoveAd,
 } from "../services/ads.js";
 
@@ -173,10 +174,21 @@ async function requireAdminUser(req, res, next) {
 
 router.get("/api/promote/admin/list", requireAuth, requireAdminUser, async (req, res) => {
   try {
-    res.json({ ads: await adminListAds() });
+    res.set("Cache-Control", "no-store");
+    res.json(await adminListAds());
   } catch (err) {
     console.error("promote admin list failed:", err && err.message);
     res.status(500).json({ error: "Could not load ads." });
+  }
+});
+
+router.get("/api/promote/admin/ad/:id", requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    res.json(await adminAdDetail(req.params.id));
+  } catch (err) {
+    if (!err.status) console.error("promote admin detail failed:", err && err.message);
+    res.status(err.status || 500).json({ error: err.status ? err.message : "Could not load that ad." });
   }
 });
 

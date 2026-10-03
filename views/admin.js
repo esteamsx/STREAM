@@ -11,6 +11,7 @@ ${cfg.devToolsBlock || ""}
 ${siteHeadFor("admin")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
+<script nonce="__CSP_NONCE__" src="/admin-ads.js" defer></script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -509,6 +510,55 @@ body:has(.ad-overlay.show){overflow:hidden}
 .ad-toppage-row:last-child{border-bottom:none}
 .ad-toppage-path{font-family:ui-monospace,'JetBrains Mono',monospace;font-size:.78rem;color:var(--text);word-break:break-all;padding-right:10px}
 .ad-toppage-count{font-family:var(--font-display);font-weight:700;font-size:.82rem;color:var(--accent);flex-shrink:0}
+.aa-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
+.aa-stat{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:11px 12px}
+.aa-stat-label{font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.aa-stat-value{font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin-top:4px;font-variant-numeric:tabular-nums}
+.aa-tools{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.aa-tools .ad-search-wrap{margin-bottom:0}
+.aa-seg{display:flex;border:1px solid var(--border-strong);border-radius:10px;padding:2px;background:var(--dark3)}
+.aa-seg button{flex:1;background:none;border:0;padding:8px 10px;border-radius:8px;font-size:.76rem;font-weight:700;color:var(--muted);font-family:inherit}
+.aa-seg button span{margin-left:5px;color:var(--muted2);font-variant-numeric:tabular-nums}
+.aa-seg button.on{background:var(--card2);color:var(--text)}
+.aa-row{width:100%;text-align:left;color:inherit;font-family:inherit;cursor:pointer;transition:border-color .18s var(--ease)}
+.aa-row:hover{border-color:var(--accent)}
+.aa-thumb{width:44px;height:44px;border-radius:10px;background:var(--dark3) center/cover no-repeat;border:1px solid var(--border);flex-shrink:0}
+.aa-side{display:flex;align-items:center;flex-shrink:0;align-self:flex-start}
+.aa-row .ad-row-name{display:block}
+.aa-nums{font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;margin-top:3px}
+.aa-pill{display:inline-flex;align-items:center;gap:5px;font-size:.6rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid var(--border-strong);color:var(--muted);white-space:nowrap}
+.aa-pill i{width:6px;height:6px;border-radius:50%;background:var(--muted2);display:block}
+.aa-pill.live{color:#3DDC84;border-color:rgba(61,220,132,.4)}
+.aa-pill.live i{background:#3DDC84}
+.aa-pill.removed{color:var(--red);border-color:rgba(255,59,92,.4)}
+.aa-pill.removed i{background:var(--red)}
+.aa-modal{max-width:480px;max-height:88vh;overflow-y:auto;scrollbar-width:thin}
+body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
+.aa-hero-img{width:100%;aspect-ratio:16/9;border-radius:12px;background:var(--dark3) center/cover no-repeat;border:1px solid var(--border);margin-bottom:14px}
+.aa-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px}
+.aa-head .ad-modal-title{margin-bottom:0;word-break:break-word}
+.aa-x{background:none;border:0;color:var(--muted);font-size:1.4rem;line-height:1;padding:0 4px;font-family:inherit}
+.aa-x:hover{color:var(--text)}
+.aa-owner{font-size:.78rem;color:var(--muted);margin-bottom:10px;word-break:break-word}
+.aa-copy{font-size:.82rem;line-height:1.5;margin-bottom:8px;word-break:break-word}
+.aa-link{display:block;font-size:.72rem;color:var(--accent);text-decoration:none;word-break:break-all;margin-bottom:14px}
+.aa-link:hover{text-decoration:underline}
+.aa-metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
+.aa-facts{border:1px solid var(--border);border-radius:12px;background:var(--card2);padding:4px 12px;margin-bottom:14px}
+.aa-fact{display:flex;justify-content:space-between;gap:12px;font-size:.78rem;padding:8px 0;border-bottom:1px solid var(--border)}
+.aa-fact:last-child{border-bottom:0}
+.aa-fact span:first-child{color:var(--muted)}
+.aa-fact span:last-child{font-weight:600;text-align:right}
+.aa-chart-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.aa-chart-top .aa-stat-label{white-space:nowrap}
+.aa-chart-top .aa-seg{width:190px}
+.aa-chart{display:block;width:100%}
+.aa-chart text{font-size:10px;fill:var(--muted)}
+.aa-chart .grid{stroke:var(--border);stroke-width:1}
+.aa-chart .bar{fill:url(#aaBar)}
+.aa-chart .bar:hover{opacity:.8}
+.aa-skel{height:64px;border-radius:12px;background:linear-gradient(90deg,var(--card2),var(--dark3),var(--card2));background-size:200% 100%;animation:aaSk 1.4s linear infinite}
+@keyframes aaSk{to{background-position:-200% 0}}
 </style>
 </head>
 <body>
@@ -691,6 +741,27 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div></div>
   </div>
 
+  <div class="ad-card accent-gold" id="adsCard">
+    <div class="ad-card-header" id="adsHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1z" stroke-linejoin="round"/><path d="M15.5 8.5a5 5 0 010 7M18.5 6a9 9 0 010 12" stroke-linecap="round"/></svg>
+      <div class="ad-card-header-title">Advertising</div>
+      <div class="ad-card-count" id="adsCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="aa-stats" id="adsStats"></div>
+      <div class="aa-tools">
+        <div class="aa-seg" id="adsFilter" role="group" aria-label="Filter ads"></div>
+        <div class="ad-search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="adsSearch" placeholder="Search by title, user or link" autocomplete="off">
+        </div>
+      </div>
+      <div class="ad-list" id="adsList"></div>
+      <button type="button" class="ad-loadmore" id="adsMore" style="display:none">Show more</button>
+    </div></div>
+  </div>
+
   <div class="ad-section-label">Users &amp; Moderation</div>
 
   <div class="ad-card accent-purple" id="usersCard">
@@ -766,6 +837,10 @@ body:has(.ad-overlay.show){overflow:hidden}
     </div></div>
   </div>
 
+</div>
+
+<div class="ad-overlay" id="adsOverlay" role="dialog" aria-modal="true" aria-label="Ad engagement">
+  <div class="ad-modal aa-modal" id="adsModal"></div>
 </div>
 
 <div class="ad-overlay" id="maintenanceOverlay">

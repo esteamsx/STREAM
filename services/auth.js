@@ -659,18 +659,25 @@ async function getDevApiPlanPayment(reference) {
   return snap.exists ? snap.data() : null;
 }
 
+const PAYMENT_CLAIM_STALE_MS = 5 * 60 * 1000;
+
 async function claimPendingPayment(ref, paystackData) {
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) return { notOurs: true };
     const record = snap.data();
     if (record.status === "success") return { alreadyProcessed: true, uid: record.uid };
-    if (record.status === "claimed") return { inProgress: true };
-    if (paystackData.status !== "success" || paystackData.amount < record.amountKobo) {
+    if (record.status === "needs_refund") return { alreadyProcessed: true, uid: record.uid };
+    if (record.status === "claimed") {
+      const fresh = record.claimedAt && Date.now() - record.claimedAt < PAYMENT_CLAIM_STALE_MS;
+      if (fresh) return { inProgress: true };
+    }
+    const currency = String(paystackData.currency || "").toUpperCase();
+    if (paystackData.status !== "success" || currency !== "NGN" || paystackData.amount < record.amountKobo) {
       tx.update(ref, { status: "failed", failedAt: Date.now() });
       return { failed: true };
     }
-    tx.update(ref, { status: "claimed" });
+    tx.update(ref, { status: "claimed", claimedAt: Date.now() });
     return { claimed: true, record };
   });
 }
