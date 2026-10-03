@@ -743,7 +743,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
 
   <div class="ad-card accent-gold" id="adsCard">
     <div class="ad-card-header" id="adsHeader">
-      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1z" stroke-linejoin="round"/><path d="M15.5 8.5a5 5 0 010 7M18.5 6a9 9 0 010 12" stroke-linecap="round"/></svg>
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 11 18-5v12L3 14v-3z" stroke-linejoin="round"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" stroke-linecap="round"/></svg>
       <div class="ad-card-header-title">Advertising</div>
       <div class="ad-card-count" id="adsCount" style="display:none">0</div>
       <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>

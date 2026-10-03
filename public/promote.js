@@ -497,15 +497,37 @@
   }
 
   function removeDraft(ad) {
-    if (!window.confirm("Delete this unpaid draft?")) return;
-    api("/api/promote/" + encodeURIComponent(ad.id) + "/delete", {})
-      .then(function () {
-        toast("Draft deleted");
-        return load();
-      })
-      .catch(function (e) {
-        toast(e.message);
-      });
+    var err = h("p", { class: "pm-err", role: "alert" });
+    var cancel = h("button", { class: "pm-btn ghost", type: "button", text: "Cancel", style: "flex:1", onclick: closeModal });
+    var confirmBtn = h("button", { class: "pm-btn danger-solid", type: "button", text: "Delete", style: "flex:1" });
+    confirmBtn.addEventListener("click", function () {
+      err.textContent = "";
+      confirmBtn.disabled = true;
+      cancel.disabled = true;
+      confirmBtn.textContent = "Deleting";
+      api("/api/promote/" + encodeURIComponent(ad.id) + "/delete", {})
+        .then(function () {
+          closeModal();
+          toast("Draft deleted");
+          return load();
+        })
+        .catch(function (e) {
+          confirmBtn.disabled = false;
+          cancel.disabled = false;
+          confirmBtn.textContent = "Delete";
+          err.textContent = e.message;
+        });
+    });
+    openModal(
+      h("div", null, [
+        modalHead("Delete this draft?", ad.title),
+        h("p", { class: "pm-note", text: "This unpaid ad will be removed for good. You can always create a new one." }),
+        err,
+        h("div", { style: "display:flex;gap:10px;margin-top:14px" }, [cancel, confirmBtn])
+      ]),
+      true
+    );
+    cancel.focus();
   }
 
   function openCheckout(ad) {

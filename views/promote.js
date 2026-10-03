@@ -71,6 +71,8 @@ button{cursor:pointer}
 .pm-btn.small{padding:8px 13px;font-size:.78rem;border-radius:9px}
 .pm-btn.danger{background:transparent;color:var(--red);border:1px solid rgba(255,59,92,.3)}
 .pm-btn.danger:hover{background:rgba(255,59,92,.1);box-shadow:none}
+.pm-btn.danger-solid{background:var(--red);color:#fff;border:none}
+.pm-btn.danger-solid:hover{box-shadow:0 8px 20px rgba(255,59,92,.28)}
 
 .pm-stat,.pm-panel,.pm-ad,.pm-empty,.pm-modal{background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12)}
 :root[data-theme="light"] .pm-stat,:root[data-theme="light"] .pm-panel,:root[data-theme="light"] .pm-ad,:root[data-theme="light"] .pm-empty,:root[data-theme="light"] .pm-modal{background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);border:1px solid rgba(255,255,255,.55);box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.6)}
