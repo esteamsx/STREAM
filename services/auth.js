@@ -4041,9 +4041,22 @@ async function expireStalePendingRows(rows) {
   await batch.commit().catch(() => {});
 }
 
+let channelReactIndexWarned = false;
+
 async function getChannelReactHistory(uid) {
-  const snap = await db.collection("channelReactLog").where("uid", "==", uid).orderBy("createdAt", "desc").limit(5).get();
-  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  let docs;
+  try {
+    const snap = await db.collection("channelReactLog").where("uid", "==", uid).orderBy("createdAt", "desc").limit(5).get();
+    docs = snap.docs;
+  } catch (err) {
+    if (!channelReactIndexWarned) {
+      channelReactIndexWarned = true;
+      console.error(`channelReactLog history query failed, using fallback. Create the uid + createdAt index in Firestore: ${err && err.message ? err.message : err}`);
+    }
+    const snap = await db.collection("channelReactLog").where("uid", "==", uid).get();
+    docs = snap.docs.sort((a, b) => (b.data().createdAt || 0) - (a.data().createdAt || 0)).slice(0, 5);
+  }
+  const rows = docs.map((d) => ({ id: d.id, ...d.data() }));
   await expireStalePendingRows(rows);
   return rows.map(withComputedStatus);
 }

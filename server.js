@@ -4251,7 +4251,7 @@ app.post("/api/admin/channel-react-log/:id/confirm", requireAuth, requireAdmin, 
     await sendPushToUid(result.uid, {
       title: "ES TEAMS TV",
       body: "Your channel reaction was confirmed",
-      url: "/tools/channel-react",
+      url: "/channel-react",
       tag: "channel-react-" + req.params.id,
     }).catch(() => {});
     res.json({ ok: true });
@@ -4267,7 +4267,7 @@ app.post("/api/admin/channel-react-log/:id/decline", requireAuth, requireAdmin, 
     await sendPushToUid(result.uid, {
       title: "ES TEAMS TV",
       body: "Your channel reaction was declined",
-      url: "/tools/channel-react",
+      url: "/channel-react",
       tag: "channel-react-" + req.params.id,
     }).catch(() => {});
     res.json({ ok: true });
@@ -5629,6 +5629,7 @@ app.get("/api/channel-react/history", requireAuth, botStatusLimiter, async (req,
   try {
     res.json({ entries: await getChannelReactHistory(req.uid) });
   } catch (err) {
+    console.error(`channel-react history failed for ${req.uid}: ${err && err.stack ? err.stack : err}`);
     res.status(500).json({ error: "Could not load your reaction history." });
   }
 });

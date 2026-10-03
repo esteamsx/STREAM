@@ -2694,6 +2694,14 @@ function notifRender(list){
       });
       top.appendChild(viewBtn);
     }
+    if (n.type === 'channel_react_confirmed' || n.type === 'channel_react_declined') {
+      const viewBtn = document.createElement('button');
+      viewBtn.type = 'button';
+      viewBtn.className = 'notif-view-post-btn';
+      viewBtn.textContent = 'View';
+      viewBtn.addEventListener('click', () => { window.location.href = '/channel-react'; });
+      top.appendChild(viewBtn);
+    }
     if (n.type === 'referral_signup' || n.type === 'referral_commission' || n.type === 'coin_redeem' || n.type === 'coin_purchase') {
       const viewBtn = document.createElement('button');
       viewBtn.type = 'button';
