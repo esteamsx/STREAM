@@ -2477,6 +2477,126 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
   return posts;
 }
 
+const DISCOVER_SCAN_LIMIT = 60;
+const POST_IMAGE_TYPES = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=]+)$/;
+
+function feedAuthor(id, data) {
+  return {
+    uid: id,
+    username: data.username || "",
+    firstName: data.firstName || "",
+    lastName: data.lastName || "",
+    photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
+    isAdmin: isAdminEmail(data.email),
+    verified: isVerificationActive(data),
+  };
+}
+
+async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
+  let query = db.collection("posts").orderBy("createdAt", "desc");
+  if (before) query = query.where("createdAt", "<", Number(before));
+  const snap = await query.limit(DISCOVER_SCAN_LIMIT).get();
+  const scanned = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  if (!scanned.length) return { posts: [], nextBefore: null };
+
+  const authorUids = [...new Set(scanned.map((p) => p.uid))];
+  const authorDocs = new Map();
+  for (let i = 0; i < authorUids.length; i += 30) {
+    const chunk = authorUids.slice(i, i + 30);
+    const usnap = await db.collection("users").where(admin.firestore.FieldPath.documentId(), "in", chunk).get();
+    usnap.forEach((d) => authorDocs.set(d.id, d.data()));
+  }
+
+  const needsFollowCheck = [...new Set(
+    scanned
+      .filter((p) => p.uid !== uid)
+      .filter((p) => (p.visibility || "everyone") === "friends" || (authorDocs.get(p.uid) || {}).lockProfile)
+      .map((p) => p.uid)
+  )];
+  const followChecks = await Promise.all(needsFollowCheck.map(async (a) => ({
+    a,
+    viewerFollows: await isFollowing(uid, a),
+    authorFollows: await isFollowing(a, uid),
+  })));
+  const follow = new Map(followChecks.map((c) => [c.a, c]));
+
+  const visible = [];
+  let lastConsidered = null;
+  for (const p of scanned) {
+    lastConsidered = p;
+    const author = authorDocs.get(p.uid);
+    if (!author || !author.username || author.banned || author.pendingDeletion) continue;
+    if (p.uid !== uid) {
+      const vis = p.visibility || "everyone";
+      const rel = follow.get(p.uid) || { viewerFollows: false, authorFollows: false };
+      if (vis === "only_me") continue;
+      if (vis === "friends" && !(rel.viewerFollows && rel.authorFollows)) continue;
+      if (author.lockProfile && !rel.viewerFollows) continue;
+    }
+    visible.push(p);
+    if (visible.length >= limit) break;
+  }
+
+  const statsMap = await resolveEffectivePostStats(visible);
+  const posts = visible.map((p) => {
+    const stats = statsMap.get(p.id) || { likedBy: [], commentsCount: 0, commentsEnabled: true, bonusLikes: 0 };
+    return {
+      id: p.id,
+      author: feedAuthor(p.uid, authorDocs.get(p.uid)),
+      isOwn: p.uid === uid,
+      text: p.text || "",
+      imageUrl: p.imageDataUrl ? `/api/posts/${p.id}/image` : null,
+      createdAt: p.createdAt,
+      likesCount: stats.likedBy.length + (stats.bonusLikes || 0),
+      likedByViewer: stats.likedBy.includes(uid),
+      commentsCount: stats.commentsCount,
+      commentsEnabled: stats.commentsEnabled,
+    };
+  });
+
+  const more = scanned.length === DISCOVER_SCAN_LIMIT || (lastConsidered && lastConsidered.id !== scanned[scanned.length - 1].id);
+  return { posts, nextBefore: more && lastConsidered ? lastConsidered.createdAt : null };
+}
+
+async function getPostImage(viewerUid, postId) {
+  const snap = await db.collection("posts").doc(String(postId || "")).get();
+  if (!snap.exists) return null;
+  const post = snap.data();
+  const match = POST_IMAGE_TYPES.exec(String(post.imageDataUrl || ""));
+  if (!match) return null;
+  if (post.uid !== viewerUid) {
+    const vis = post.visibility || "everyone";
+    if (vis === "only_me") return null;
+    if (vis === "friends" && !(await isFollowing(post.uid, viewerUid))) return null;
+  }
+  return { mime: match[1], buffer: Buffer.from(match[2], "base64") };
+}
+
+async function getSuggestedUsers(uid, limit = 6) {
+  const [popular, recent, followingUids] = await Promise.all([
+    db.collection("users").orderBy("followersCount", "desc").limit(40).get(),
+    db.collection("users").orderBy("createdAt", "desc").limit(40).get(),
+    getFollowingUids(uid),
+  ]);
+  const following = new Set(followingUids);
+  const seen = new Set();
+  const pool = [];
+  for (const doc of [...popular.docs, ...recent.docs]) {
+    if (seen.has(doc.id)) continue;
+    seen.add(doc.id);
+    const u = doc.data();
+    if (doc.id === uid || following.has(doc.id)) continue;
+    if (!u.username || u.banned || u.pendingDeletion) continue;
+    pool.push({ ...feedAuthor(doc.id, u), followersCount: u.followersCount || 0 });
+  }
+  const top = pool.slice(0, 24);
+  for (let i = top.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [top[i], top[j]] = [top[j], top[i]];
+  }
+  return top.slice(0, limit);
+}
+
 async function getFollowingFeedUnseenCount(uid, cachedProfile) {
   const followingUids = await getFollowingUids(uid);
   if (!followingUids.length) return 0;
@@ -4214,7 +4334,7 @@ function primeMaintenanceCache(status) {
 
 const LOCKABLE_PAGES = {
   "/login": { label: "/login", apiPrefixes: ["/api/session", "/api/2fa", "/api/resolve-login-identifier", "/api/passkey", "/api/telegram-auth", "/api/github-auth"] },
-  "/main": { label: "/main", pagePaths: ["/"], apiPrefixes: ["/api/channels", "/api/notifications"] },
+  "/main": { label: "/main", pagePaths: ["/", "/live"], apiPrefixes: ["/api/channels", "/api/notifications"] },
   "/account": { label: "/account", pagePaths: ["/account", "/profile", "/u/"], apiPrefixes: ["/api/account", "/api/support", "/api/users", "/api/plan", "/api/coins", "/api/withdraw", "/api/referral"] },
   "/api": { label: "/api", pagePaths: ["/developers/api"], apiPrefixes: ["/api/dev"] },
   "/tools": { label: "/tools", pagePaths: ["/tools"], apiPrefixes: ["/api/tools"] },
@@ -4796,6 +4916,9 @@ export {
   getFollowList,
   getFollowingFeed,
   getFollowingFeedUnseenCount,
+  getDiscoverFeed,
+  getPostImage,
+  getSuggestedUsers,
   addNotification,
   claimPendingPayment,
   broadcastNotification,
