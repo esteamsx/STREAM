@@ -152,6 +152,9 @@ button{cursor:pointer}
 .hm-menu.open{display:flex}
 .hm-menu-head{padding:8px 10px 10px;border-bottom:1px solid var(--border);margin-bottom:4px}
 .hm-menu-name{font-weight:700;font-size:.85rem;line-height:1.2}
+.hm-me-name,.hm-menu-name,.sd-name{display:flex;align-items:center;min-width:0}
+.hm-name-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.hm-me-name .pf-verified,.hm-menu-name .pf-verified,.sd-name .pf-verified,.hm-person-name .pf-verified{top:0;vertical-align:baseline;flex-shrink:0}
 .hm-menu-user{font-size:.72rem;color:var(--muted)}
 .hm-menu-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;border:none;background:transparent;color:var(--text);font-size:.82rem;font-weight:600;width:100%;text-align:left;transition:background .15s var(--ease)}
 .hm-menu-item:hover{background:rgba(0,224,255,.09);color:var(--accent)}
@@ -179,7 +182,7 @@ button{cursor:pointer}
 .hm-me{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px}
 .hm-me[hidden]{display:none}
 .hm-me-info{min-width:0;flex:1}
-.hm-me-name{font-weight:700;font-size:.86rem;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hm-me-name{font-weight:700;font-size:.86rem;line-height:1.2}
 .hm-me-user{font-size:.74rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hm-side-foot{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.72rem;color:var(--muted2);padding:0 6px}
 .hm-side-foot a:hover{color:var(--accent)}

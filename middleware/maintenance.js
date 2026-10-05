@@ -9,6 +9,15 @@ import {
 const ALLOWED_PATHS = new Set([
   "/login",
   "/api/session",
+  "/api/session/exchange",
+  "/api/facescan/verify",
+  "/api/resend-code",
+  "/api/verify-email",
+  "/api/request-password-reset",
+  "/api/verify-reset-code",
+  "/api/reset-password",
+  "/verify",
+  "/reset",
   "/api/2fa/login-verify",
   "/api/resolve-login-identifier",
   "/api/passkey/authentication-options",
@@ -161,6 +170,15 @@ function maintenanceHtml(untilMs) {
 </html>`;
 }
 
+async function withRetry(fn) {
+  try {
+    return await fn();
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return fn();
+  }
+}
+
 export async function maintenanceGate(req, res, next) {
   let status;
   try {
@@ -171,15 +189,22 @@ export async function maintenanceGate(req, res, next) {
   if (!status.maintenanceMode) return next();
   if (isAllowedPath(req.path)) return next();
 
+  let uid = null;
   try {
     const sessionId = req.cookies?.session;
-    const uid = sessionId ? await verifySession(sessionId) : null;
+    uid = sessionId ? await withRetry(() => verifySession(sessionId)) : null;
     if (uid) {
-      const profile = await getUserProfile(uid);
+      const profile = await withRetry(() => getUserProfile(uid));
       if (profile && isAdminEmail(profile.email)) return next();
       if (profile && isVerificationActive(profile)) return next();
     }
   } catch {
+  }
+
+  const wantsPage = req.method === "GET" && !req.path.startsWith("/api/") && !req.path.startsWith("/embed/") && req.accepts(["html", "json"]) === "html";
+  if (!uid && wantsPage) {
+    res.set("Cache-Control", "no-store");
+    return res.redirect(302, "/login");
   }
 
   res.set("Cache-Control", "no-store");

@@ -103,7 +103,8 @@
     paintAvatar($("hmNavAvatar"), me);
     paintAvatar($("hmComposerAvatar"), me);
     var menuName = $("hmMenuName");
-    menuName.textContent = nameOf(me);
+    menuName.textContent = "";
+    menuName.appendChild(h("span", { class: "hm-name-text", text: nameOf(me) }));
     var menuBadge = badgeFor(me);
     if (menuBadge) menuName.appendChild(menuBadge);
     $("hmMenuUser").textContent = me.username ? "@" + me.username : "";
@@ -114,7 +115,7 @@
     var av = h("span", { class: "hm-avatar big" });
     paintAvatar(av, me);
     card.appendChild(av);
-    card.appendChild(h("div", { class: "hm-me-info" }, [h("div", { class: "hm-me-name" }, [nameOf(me), badgeFor(me)]), h("div", { class: "hm-me-user", text: me.username ? "@" + me.username : "" })]));
+    card.appendChild(h("div", { class: "hm-me-info" }, [h("div", { class: "hm-me-name" }, [h("span", { class: "hm-name-text", text: nameOf(me) }), badgeFor(me)]), h("div", { class: "hm-me-user", text: me.username ? "@" + me.username : "" })]));
     $("hmAdminLink").hidden = !me.isAdmin;
     $("hmMenuAdmin").hidden = !me.isAdmin;
   }
@@ -189,7 +190,7 @@
           paintAvatar(av, u);
           var item = h("button", { class: "sd-item", type: "button", "data-nospin": "1" }, [
             av,
-            h("span", { class: "sd-info" }, [h("div", { class: "sd-name" }, [nameOf(u), badgeFor(u)]), h("div", { class: "sd-user", text: "@" + u.username })])
+            h("span", { class: "sd-info" }, [h("div", { class: "sd-name" }, [h("span", { class: "hm-name-text", text: nameOf(u) }), badgeFor(u)]), h("div", { class: "sd-user", text: "@" + u.username })])
           ]);
           item.addEventListener("click", function () {
             closeSearch();

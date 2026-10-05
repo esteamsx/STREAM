@@ -25,8 +25,8 @@ body.es-replaced-nav.es-has-nav{padding-bottom:0}
 .es-menu-sep{height:1px;background:var(--border);margin:6px 4px}
 .es-menu-me{display:flex;align-items:center;gap:12px;padding:6px 18px 8px;text-decoration:none;color:inherit}
 .es-menu-avatar{width:42px;height:42px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--accent2)) center/cover no-repeat;color:#04141a;font-family:var(--font-display);font-weight:700;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.es-menu-name{font-weight:700;font-size:.9rem;line-height:1.2}
-.es-menu-name .pf-verified{display:inline-flex;vertical-align:middle;margin-left:5px;position:relative;top:-1px}
+.es-menu-name{font-weight:700;font-size:.9rem;line-height:1.2;display:flex;align-items:center}
+.es-menu-name .pf-verified{display:inline-flex;margin-left:5px;position:relative;top:0;flex-shrink:0}
 .es-menu-user{font-size:.76rem;color:var(--muted)}
 .es-menu-card{max-width:380px;max-height:88vh}
 .es-busy{position:relative!important;pointer-events:none!important;color:transparent!important;text-shadow:none!important;transition:none!important}
@@ -41,7 +41,7 @@ body.es-replaced-nav.es-has-nav{padding-bottom:0}
   body.es-home .es-menu-fab{display:none}
 }
 @media (max-width:899px){
-  body.es-has-nav .acc-deploy-fab,body.es-has-nav .acc-promote-fab,body.es-has-nav .acc-cert-fab,body.es-has-nav .acc-support-fab,body.es-has-nav .pf-feed-fab,body.es-has-nav .cr-support-fab,body.es-has-nav .tr-settings-fab,body.es-has-nav .tr-fab-stack,body.es-has-nav .acc-toast,body.es-has-nav .pf-toast,body.es-has-nav .db-toast,body.es-has-nav .pm-toast,body.es-has-nav .tr-toast,body.es-has-nav .pn-card{transform:translateY(calc(-1 * (var(--bnav-h) + env(safe-area-inset-bottom,0px))))}
+  body.es-has-nav .acc-deploy-fab,body.es-has-nav .acc-promote-fab,body.es-has-nav .acc-cert-fab,body.es-has-nav .acc-support-fab,body.es-has-nav .pf-feed-fab,body.es-has-nav .cr-support-fab,body.es-has-nav .tr-settings-fab,body.es-has-nav .tr-fab-stack,body.es-has-nav .acc-toast,body.es-has-nav .pf-toast,body.es-has-nav .music-player,body.es-has-nav .db-toast,body.es-has-nav .pm-toast,body.es-has-nav .tr-toast,body.es-has-nav .pn-card{transform:translateY(calc(-1 * (var(--bnav-h) + env(safe-area-inset-bottom,0px))))}
 }
 `;
 (function () {
