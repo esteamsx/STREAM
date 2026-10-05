@@ -23,8 +23,10 @@ const NAV_PATHS = [
   "/developers",
 ];
 
-const SPONSOR_TAG = '<script nonce="__CSP_NONCE__" src="/sponsor.js" defer></script>';
-const NAV_TAG = '<script nonce="__CSP_NONCE__" src="/site-ui.js" defer></script>';
+const BUILD = Date.now().toString(36);
+
+const SPONSOR_TAG = `<script nonce="__CSP_NONCE__" src="/sponsor.js?v=${BUILD}" defer></script>`;
+const NAV_TAG = `<script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defer></script>`;
 
 function matches(path, list) {
   return list.some((entry) => (entry.endsWith("/") ? path.startsWith(entry) : path === entry || path.startsWith(entry + "/")));

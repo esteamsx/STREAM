@@ -320,8 +320,20 @@
     return box;
   }
 
+  var waitTries = 0;
+
   function loadFeed(reset) {
-    if (state.loading || !window.EsPosts) return;
+    if (!window.EsPosts) {
+      waitTries += 1;
+      if (waitTries < 40) {
+        setTimeout(function () { loadFeed(reset); }, 150);
+      } else {
+        feedEl.textContent = "";
+        feedEl.appendChild(emptyBox("The feed could not start. Reload the page and try again.", "Reload", function () { location.reload(); }));
+      }
+      return;
+    }
+    if (state.loading) return;
     state.loading = true;
     var token = state.token;
     var done = null;
@@ -484,6 +496,7 @@
   });
   moreBtn.addEventListener("click", function () { loadFeed(false); });
 
+  window.__hmReady = true;
   syncComposer();
   loadMe();
   loadPeople();

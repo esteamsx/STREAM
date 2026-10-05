@@ -1,3 +1,5 @@
+const BUILD = Date.now().toString(36);
+
 const ICONS = {
   home: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/>',
   live: '<rect x="2" y="4" width="20" height="14" rx="2.5"/><path stroke-linecap="round" d="M8 21h8"/><path d="M10.5 8.5l4 2.5-4 2.5z" fill="currentColor" stroke="none"/>',
@@ -315,9 +317,33 @@ button{cursor:pointer}
   </aside>
 </div>
 
-<script nonce="__CSP_NONCE__" src="/site-ui.js" defer></script>
-<script nonce="__CSP_NONCE__" src="/post-ui.js" defer></script>
-<script nonce="__CSP_NONCE__" src="/home.js" defer></script>
+<script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defer></script>
+<script nonce="__CSP_NONCE__" src="/post-ui.js?v=${BUILD}" defer></script>
+<script nonce="__CSP_NONCE__" src="/home.js?v=${BUILD}" defer></script>
+<script nonce="__CSP_NONCE__">
+setTimeout(function(){
+  if (window.__hmReady) return;
+  var f = document.getElementById("hmFeed");
+  if (!f || f.children.length) return;
+  var box = document.createElement("div");
+  box.className = "feed-empty";
+  box.appendChild(document.createTextNode("The feed did not load. This is usually an out of date saved copy of the page."));
+  box.appendChild(document.createElement("br"));
+  var b = document.createElement("button");
+  b.type = "button";
+  b.className = "hm-btn small";
+  b.style.marginTop = "12px";
+  b.textContent = "Reload fresh copy";
+  b.onclick = function(){
+    var jobs = [];
+    if (window.caches && caches.keys) jobs.push(caches.keys().then(function(k){ return Promise.all(k.map(function(x){ return caches.delete(x); })); }));
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) jobs.push(navigator.serviceWorker.getRegistrations().then(function(r){ return Promise.all(r.map(function(x){ return x.unregister(); })); }));
+    Promise.all(jobs).catch(function(){}).then(function(){ location.reload(); });
+  };
+  box.appendChild(b);
+  f.appendChild(box);
+}, 6000);
+</script>
 </body>
 </html>`;
 }
