@@ -393,7 +393,7 @@ app.get("/outbound-ip", async (req, res) => {
   }
 });
 
-const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "admin-ads.js", "select-overlay.js"]);
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js"]);
 
 app.use(
   express.static(path.join(__dirname, "public"), {
