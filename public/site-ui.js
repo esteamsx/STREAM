@@ -45,6 +45,8 @@ body.es-replaced-nav.es-has-nav{padding-bottom:0}
   body.es-home .es-menu-fab{display:none}
 }
 @media (max-width:899px){
+  body.es-has-nav .acc-fab-toggle{bottom:calc(20px + var(--bnav-h) + env(safe-area-inset-bottom,0px))}
+  body.es-has-nav .acc-fab-stack{bottom:calc(84px + var(--bnav-h) + env(safe-area-inset-bottom,0px))}
   body.es-has-nav .acc-deploy-fab,body.es-has-nav .acc-promote-fab,body.es-has-nav .acc-cert-fab,body.es-has-nav .acc-support-fab,body.es-has-nav .pf-feed-fab,body.es-has-nav .cr-support-fab,body.es-has-nav .tr-settings-fab,body.es-has-nav .tr-fab-stack,body.es-has-nav .acc-toast,body.es-has-nav .pf-toast,body.es-has-nav .music-player,body.es-has-nav .db-toast,body.es-has-nav .pm-toast,body.es-has-nav .tr-toast,body.es-has-nav .pn-card{transform:translateY(calc(-1 * (var(--bnav-h) + env(safe-area-inset-bottom,0px))))}
 }
 `;
