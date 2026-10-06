@@ -395,7 +395,7 @@ body:has(.page-overlay.show){overflow:hidden}
   border-left:1.8px solid currentColor;border-bottom:1.8px solid currentColor;transform:rotate(-45deg)}
 .pf-post{padding:16px 0;border-top:1px solid var(--border)}
 .pf-post:first-child{border-top:none;padding-top:0}
-.pf-post-text{font-size:.88rem;color:var(--text);line-height:1.5;white-space:pre-wrap}
+.pf-post-text{font-size:.88rem;color:var(--text);line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word }
 .pf-post-text a{color:var(--accent);text-decoration:none;font-weight:600}
 .pf-post-image{width:100%;max-height:340px;object-fit:cover;border-radius:12px;margin-top:8px;display:block;cursor:zoom-in}
 .img-lightbox-overlay{background:rgba(0,0,0,.92);flex-direction:column;gap:16px;z-index:400}
@@ -507,7 +507,7 @@ body:has(.page-overlay.show){overflow:hidden}
 .comment-name{font-size:.82rem;font-weight:700}
 .comment-pin-badge{display:inline-flex;align-items:center;gap:3px;font-size:.66rem;color:var(--accent);font-weight:700}
 .comment-pin-badge svg{width:11px;height:11px}
-.comment-text{font-size:.85rem;color:var(--text);line-height:1.45;margin-top:2px;white-space:pre-wrap}
+.comment-text{font-size:.85rem;color:var(--text);line-height:1.45;margin-top:2px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word }
 .comment-meta{display:flex;align-items:center;gap:14px;margin-top:6px}
 .comment-time{font-size:.68rem;color:var(--muted)}
 .comment-like-btn{background:transparent;border:none;color:var(--muted);display:flex;align-items:center;gap:5px;font-size:.7rem;font-weight:600}
@@ -561,7 +561,7 @@ body:has(.page-overlay.show){overflow:hidden}
 .feed-post-body{flex:1;min-width:0}
 .feed-post-name{font-size:.83rem;font-weight:600;cursor:pointer;display:inline}
 .feed-post-time{font-size:.7rem;color:var(--muted);margin-top:1px}
-.feed-post-text{font-size:.85rem;color:var(--text);line-height:1.45;white-space:pre-wrap;margin-top:4px}
+.feed-post-text{font-size:.85rem;color:var(--text);line-height:1.45;white-space:pre-wrap;margin-top:4px;overflow-wrap:anywhere;word-break:break-word }
 .feed-post-image{width:100%;max-height:260px;object-fit:cover;border-radius:10px;margin-top:8px;display:block}
 .feed-post-footer{display:flex;align-items:center;gap:6px;margin-top:8px}
 .feed-empty{color:var(--muted);font-size:.83rem;text-align:center;padding:30px 0}
@@ -2644,7 +2644,7 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
               user.locked = false;
               const lockedCard = document.getElementById('pfLockedCard');
               if (lockedCard) lockedCard.remove();
-              loadPosts(user.username, false);
+              loadPosts(user.username, !!user.isSelf);
             }
           } catch (err) {}
         }
@@ -2685,7 +2685,7 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
         '<div><b>This profile is locked.</b><br>Only friends who follow each other can view posts.</div>';
       document.getElementById('pfInfoSlot').appendChild(lockedCard);
     } else {
-      loadPosts(user.username, false);
+      loadPosts(user.username, !!user.isSelf);
     }
     return;
   }

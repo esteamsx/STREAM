@@ -387,7 +387,7 @@ router.get("/embed/:channel", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
   if (!check.valid) {
-    let visitUrl = PUBLIC_BASE;
+    let visitUrl = `${PUBLIC_BASE}/developers/live-tv`;
     const decoded = decodeStreamToken(token);
     if (decoded.ok && decoded.keyId) {
       try {
@@ -401,31 +401,57 @@ router.get("/embed/:channel", async (req, res) => {
       } catch {
       }
     }
-    res.status(403).type("html").send(`<!doctype html><html><head><meta charset="utf-8">
+    res.status(403).type("html").send(`<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Link expired | ES TEAMS TV</title>
 <style>
-  *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:#0b0b12;color:#fff;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
-  .wrap{display:flex;align-items:center;justify-content:center;height:100vh;padding:24px}
-  .card{max-width:340px;width:100%;text-align:center}
-  .title{font-size:1.08rem;font-weight:700;margin:0 0 8px;line-height:1.45}
-  .sub{font-size:.82rem;color:rgba(255,255,255,.55);margin:0 0 20px}
-  .visit-btn{
-    display:inline-flex;align-items:center;gap:8px;padding:11px 24px;border-radius:10px;
-    background:linear-gradient(90deg,#00E0FF,#7c5cff);color:#04121a;font-weight:700;font-size:.85rem;
-    text-decoration:none;
-  }
-  .visit-btn svg{width:15px;height:15px;flex-shrink:0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#0A0A0F;color:#F3F3FA;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;overflow-x:hidden;overflow-y:auto}
+  .aurora{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+  .blob{position:absolute;border-radius:50%;filter:blur(60px);mix-blend-mode:screen}
+  .b1{width:420px;height:420px;background:radial-gradient(circle,#00E0FF,transparent 70%);opacity:.42;top:-140px;left:-120px;animation:driftA 14s ease-in-out infinite alternate}
+  .b2{width:380px;height:380px;background:radial-gradient(circle,#7c5cff,transparent 70%);opacity:.4;bottom:-140px;right:-100px;animation:driftB 16s ease-in-out infinite alternate}
+  .b3{width:300px;height:300px;background:radial-gradient(circle,#ff5cb8,transparent 70%);opacity:.22;top:40%;left:55%;animation:driftC 18s ease-in-out infinite alternate}
+  @keyframes driftA{to{transform:translate(70px,50px) scale(1.12)}}
+  @keyframes driftB{to{transform:translate(-60px,-40px) scale(1.1)}}
+  @keyframes driftC{to{transform:translate(-80px,30px) scale(.9)}}
+  .wrap{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;min-height:100%;padding:20px}
+  .card{width:100%;max-width:340px;text-align:center;padding:30px 24px 26px;border-radius:20px;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.12);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);animation:cardIn .6s cubic-bezier(.22,1,.36,1) both}
+  @keyframes cardIn{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
+  .logo{position:relative;width:34px;height:34px;margin:22px auto 34px;border-radius:9px;box-shadow:0 0 18px rgba(0,224,255,.55);animation:pulse 2.6s ease-in-out infinite}
+  .logo img{display:block;width:100%;height:100%;border-radius:9px}
+  .logo::before,.logo::after{content:"";position:absolute;border-radius:50%;border:2.5px solid transparent;box-sizing:border-box}
+  .logo::before{inset:-18px;border-top-color:#00E0FF;border-right-color:#00E0FF;animation:spin 1.1s linear infinite}
+  .logo::after{inset:-8px;border-width:2px;border-bottom-color:#00E0FF;border-left-color:#00E0FF;opacity:.75;animation:spinRev .85s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes spinRev{to{transform:rotate(-360deg)}}
+  @keyframes pulse{50%{box-shadow:0 0 26px rgba(124,92,255,.7)}}
+  .title{font-size:1.06rem;font-weight:700;line-height:1.45;margin-bottom:8px;animation:fadeUp .6s .15s cubic-bezier(.22,1,.36,1) both}
+  .sub{font-size:.82rem;color:rgba(255,255,255,.55);margin-bottom:22px;animation:fadeUp .6s .28s cubic-bezier(.22,1,.36,1) both}
+  .visit-btn{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:8px;padding:11px 24px;border-radius:10px;background:linear-gradient(90deg,#00E0FF,#7c5cff);color:#04121a;font-weight:700;font-size:.85rem;text-decoration:none;transition:transform .18s ease,box-shadow .18s ease;animation:fadeUp .6s .4s cubic-bezier(.22,1,.36,1) both}
+  .visit-btn::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:40%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-20deg);animation:sweep 3.2s 1s ease-in-out infinite}
+  @keyframes sweep{0%{left:-60%}55%,100%{left:130%}}
+  .visit-btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,224,255,.3)}
+  .visit-btn:active{transform:scale(.97)}
+  .visit-btn svg{width:15px;height:15px;flex-shrink:0;transition:transform .18s ease}
+  .visit-btn:hover svg{transform:translate(2px,-2px)}
+  .brand{margin-top:18px;font-size:.62rem;letter-spacing:.14em;color:rgba(255,255,255,.28);text-transform:uppercase;animation:fadeUp .6s .52s cubic-bezier(.22,1,.36,1) both}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @media (max-height:320px){.wrap{padding:10px}.card{padding:10px 16px 14px}.logo{width:26px;height:26px;margin:16px auto 22px}.logo::before{inset:-14px}.logo::after{inset:-6px}.title{font-size:.92rem;margin-bottom:4px}.sub{margin-bottom:12px}.brand{display:none}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style></head>
 <body>
+<div class="aurora"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
 <div class="wrap">
   <div class="card">
+    <div class="logo"><img src="${PUBLIC_BASE}/favicon.svg" alt="" width="34" height="34"></div>
     <div class="title">This video streaming link has expired / Invalid</div>
     <div class="sub">Want more access?</div>
     <a class="visit-btn" href="${escapeAttr(visitUrl)}" target="_top" rel="noopener">
       Visit Page
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
     </a>
+    <div class="brand">ES TEAMS TV</div>
   </div>
 </div>
 </body></html>`);

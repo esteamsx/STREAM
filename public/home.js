@@ -512,6 +512,11 @@
   });
   moreBtn.addEventListener("click", function () { loadFeed(false); });
 
+  window.__esRefreshFeed = function () {
+    state.token += 1;
+    state.loading = false;
+    loadFeed(true);
+  };
   window.__hmReady = true;
   syncComposer();
   loadMe();

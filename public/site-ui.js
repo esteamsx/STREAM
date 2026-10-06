@@ -6,6 +6,10 @@ const SITE_UI_CSS = "@keyframes skWave{0%{background-position:100% 0}100%{backgr
 
 const ES_EXTRA_CSS = `
 .es-nav-hidden{display:none!important}
+#esBottomNav{transition:transform .22s var(--ease)}
+.es-menu-fab{transition:opacity .2s var(--ease),transform .15s var(--ease)}
+body:has(.page-overlay.show,.pm-overlay.show,.tr-overlay.show) #esBottomNav{transform:translateY(110%);pointer-events:none}
+body:has(.page-overlay.show,.pm-overlay.show,.tr-overlay.show) .es-menu-fab{opacity:0;pointer-events:none}
 body.es-has-nav{padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom,0px))}
 body.es-replaced-nav.es-has-nav{padding-bottom:0}
 .es-bottom-nav{z-index:300}

@@ -122,9 +122,9 @@ button{cursor:pointer}
 .pm-skel{height:150px;border-radius:14px;background:linear-gradient(90deg,var(--card),var(--card2),var(--card));background-size:200% 100%;animation:pmsk 1.4s linear infinite}
 @keyframes pmsk{to{background-position:-200% 0}}
 
-.pm-overlay{position:fixed;inset:0;z-index:100;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center;padding:0}
+.pm-overlay{position:fixed;inset:0;z-index:420;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center;padding:0}
 .pm-overlay.show{display:flex}
-.pm-modal{width:100%;max-width:760px;max-height:92vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:24px 22px;scrollbar-width:thin}
+.pm-modal{width:100%;max-width:760px;max-height:92vh;max-height:92dvh;overflow-y:auto;overscroll-behavior:contain;border-radius:16px 16px 0 0;padding:24px 22px calc(24px + env(safe-area-inset-bottom,0px));scrollbar-width:thin}
 body:has(.pm-overlay.show){overflow:hidden}
 .pm-modal.narrow{max-width:460px}
 .pm-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
@@ -160,7 +160,7 @@ textarea.pm-in{resize:vertical;min-height:74px;line-height:1.45}
 .pm-sum-row span:last-child{font-variant-numeric:tabular-nums}
 .pm-note{font-size:.7rem;color:var(--muted);line-height:1.5;margin-top:12px}
 .pm-err{color:var(--red);font-size:.78rem;min-height:1.1em;margin:0 0 10px}
-.pm-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;z-index:120;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;font-size:.82rem;font-weight:700;padding:10px 16px;border-radius:10px;pointer-events:none;transition:transform .22s var(--ease),opacity .22s}
+.pm-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;z-index:640;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;font-size:.82rem;font-weight:700;padding:10px 16px;border-radius:10px;pointer-events:none;transition:transform .22s var(--ease),opacity .22s}
 .pm-toast.show{transform:translate(-50%,0);opacity:1}
 
 @media (min-width:720px){
