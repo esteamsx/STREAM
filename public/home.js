@@ -17,7 +17,7 @@
   var previewEl = $("hmPreview");
   var previewImg = $("hmPreviewImg");
 
-  var state = { me: null, profile: null, tab: "discover", before: null, loading: false, token: 0, image: null, posting: false, people: [] };
+  var state = { me: null, profile: null, tab: "discover", before: null, loading: false, token: 0, image: null, posting: false, people: [], peopleLoaded: false };
 
   function h(tag, props, kids) {
     var node = document.createElement(tag);
@@ -278,9 +278,19 @@
   }
 
   function inlinePeopleBlock() {
-    var rows = state.people.slice(0, 3);
-    if (!rows.length) return null;
     var wrap = h("div", { class: "hm-people-inline", id: "hmPeopleInline" }, [h("div", { class: "hm-section-title", text: "People to follow" })]);
+    var rows = state.people.slice(0, 3);
+    if (!rows.length) {
+      wrap.appendChild(h("div", { class: "sd-no-result", text: state.peopleLoaded ? "No suggestions right now" : "Loading" }));
+      if (state.peopleLoaded) {
+        wrap.appendChild(h("button", { class: "hm-btn small ghost", type: "button", text: "Search people", style: "margin:4px auto 0;display:flex", onclick: function () {
+          var toggle = $("hmSearchToggle");
+          if (toggle && toggle.offsetParent !== null) toggle.click();
+          else $("hmSearchInput").focus();
+        } }));
+      }
+      return wrap;
+    }
     rows.forEach(function (u) { wrap.appendChild(peopleRow(u)); });
     return wrap;
   }
@@ -290,9 +300,11 @@
     if (old && old.parentNode) old.parentNode.removeChild(old);
     if (state.tab !== "discover") return;
     var block = inlinePeopleBlock();
-    if (!block) return;
     var posts = feedEl.querySelectorAll(".feed-post");
-    if (!posts.length) return;
+    if (!posts.length) {
+      if (!feedEl.querySelector(".pf-post")) feedEl.appendChild(block);
+      return;
+    }
     var anchor = posts[Math.min(INLINE_PEOPLE_AT, posts.length) - 1];
     anchor.parentNode.insertBefore(block, anchor.nextSibling);
   }
@@ -301,12 +313,15 @@
     return api("/api/users/suggested")
       .then(function (data) {
         state.people = data.results || [];
+        state.peopleLoaded = true;
         fillPeople();
         placeInlinePeople();
       })
       .catch(function () {
+        state.peopleLoaded = true;
         $("hmPeople").textContent = "";
         $("hmPeople").appendChild(h("div", { class: "sd-no-result", text: "Could not load suggestions" }));
+        placeInlinePeople();
       });
   }
 

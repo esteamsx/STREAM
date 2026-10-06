@@ -1,4 +1,5 @@
 import { siteHeadFor } from "../config/site.js";
+import { VERIFICATION_PRICE_NGN } from "../services/paystack.js";
 
 export function renderAccount(cfg) {
   return `<!DOCTYPE html>
@@ -2027,9 +2028,11 @@ body:has(.page-overlay.show){overflow:hidden}
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified badge on your profile</div>
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Unlimited use of every free tool</div>
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>A downloadable verification certificate</div>
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>No ads on your account</div>
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Free bot deployment</div>
       </div>
       <div class="verify-price-row">
-        <span class="verify-price" id="verifyPriceLabel">₦1,500</span>
+        <span class="verify-price" id="verifyPriceLabel">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span>
         <span class="verify-price-period">/ 30 days</span>
       </div>
       <div class="rw-hint" style="font-size:.72rem;line-height:1.55;margin-bottom:10px">Your card is saved securely for renewals. Auto-renew stays off until you switch it on in Account settings, and you can remove the card there any time.</div>

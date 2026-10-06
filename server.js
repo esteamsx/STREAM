@@ -3837,7 +3837,7 @@ app.get("/api/users/suggested", requireAuth, async (req, res) => {
     res.set("Cache-Control", "no-store");
     res.json({ results: await getSuggestedUsers(req.uid, 6) });
   } catch (err) {
-    console.error(`suggested users failed: ${err && err.message ? err.message : err}`);
+    console.error(`suggested users failed: ${err && err.stack ? err.stack : err}`);
     res.json({ results: [] });
   }
 });

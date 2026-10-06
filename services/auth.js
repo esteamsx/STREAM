@@ -2581,15 +2581,22 @@ async function getPostImage(viewerUid, postId) {
 }
 
 async function getSuggestedUsers(uid, limit = 6) {
-  const [popular, recent, followingUids] = await Promise.all([
-    db.collection("users").orderBy("followersCount", "desc").limit(40).get(),
-    db.collection("users").orderBy("createdAt", "desc").limit(40).get(),
-    getFollowingUids(uid),
+  const [popular, recent, plain, followingUids] = await Promise.all([
+    db.collection("users").orderBy("followersCount", "desc").limit(40).get().catch(() => null),
+    db.collection("users").orderBy("createdAt", "desc").limit(40).get().catch(() => null),
+    db.collection("users").limit(80).get().catch(() => null),
+    getFollowingUids(uid).catch(() => []),
   ]);
+  if (!popular && !recent && !plain) throw new Error("users query failed");
   const following = new Set(followingUids);
   const seen = new Set();
   const pool = [];
-  for (const doc of [...popular.docs, ...recent.docs]) {
+  const docs = [
+    ...(popular ? popular.docs : []),
+    ...(recent ? recent.docs : []),
+    ...(plain ? plain.docs : []),
+  ];
+  for (const doc of docs) {
     if (seen.has(doc.id)) continue;
     seen.add(doc.id);
     const u = doc.data();

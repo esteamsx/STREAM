@@ -829,7 +829,7 @@ const esBusy = { last: null, lastAt: 0 };
 
 function esBusyOn(btn) {
   if (!btn || btn.classList.contains("es-busy") || btn.hasAttribute("data-nospin")) return null;
-  if (btn.matches && btn.matches(".pf-post-heart,.comment-like-btn,.flist-close,.es-post-fab,.pf-post-more-btn,.post-opt-btn")) return null;
+  if (btn.matches && btn.matches(".pf-post-heart,.comment-like-btn,.flist-close,.es-post-fab,.pf-post-more-btn,.post-opt-btn,.pf-composer-send-btn,.pf-post-reshare-btn,.pf-post-comment-btn")) return null;
   const cs = getComputedStyle(btn);
   const color = cs.color;
   btn.style.setProperty("--es-ring", color);
