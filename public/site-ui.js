@@ -587,6 +587,7 @@ const ES_LINKS = [
   { href: "/profile", label: "Profile", icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>' },
   { href: "/football", label: "Football", icon: '<circle cx="12" cy="12" r="9"/><path stroke-linejoin="round" d="M12 8l3.5 2.5-1.3 4h-4.4l-1.3-4z"/><path stroke-linecap="round" d="M12 3v5M20.5 9.5L15.5 10.5M17.5 19l-3.3-4.5M6.5 19l3.3-4.5M3.5 9.5l5 1"/>' },
   { href: "/tools", label: "Tools", icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>' },
+  { href: "/tools/trading", label: "Trading", icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 7h6v6"/>' },
   { href: "/promote", label: "Promote", icon: '<path d="m3 11 18-5v12L3 14v-3z" stroke-linejoin="round"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" stroke-linecap="round"/>' },
   { href: "/channel-react", label: "Channel Reaction", icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z"/>' },
   { href: "/deploy-bot", label: "Deploy Bot", icon: '<rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="8.5" cy="16" r="1" fill="currentColor"/><circle cx="15.5" cy="16" r="1" fill="currentColor"/><path stroke-linecap="round" d="M12 11V7M9 3h6"/>' },
@@ -652,6 +653,7 @@ function esActivePath() {
 function esIsActive(href) {
   const p = esActivePath();
   if (href === "/") return p === "/";
+  if (href === "/tools" && (p === "/tools/trading" || p.indexOf("/tools/trading/") === 0)) return false;
   return p === href || p.indexOf(href + "/") === 0 || (href === "/profile" && p.indexOf("/u/") === 0 && esState.me && p === "/u/" + esState.me.username);
 }
 

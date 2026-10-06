@@ -59,43 +59,33 @@ button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
-.acc-deploy-fab{
-  position:fixed;right:20px;bottom:20px;z-index:90;width:52px;height:52px;border-radius:50%;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
-  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
-  cursor:pointer;transition:transform .15s var(--ease);text-decoration:none;
+.acc-fab-toggle{
+  position:fixed;right:20px;bottom:20px;z-index:92;width:52px;height:52px;border-radius:50%;
+  background:var(--card);border:1px solid var(--border-strong);color:var(--text);display:flex;
+  align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.28);
+  transition:transform .25s var(--ease);
 }
-.acc-deploy-fab:active{transform:scale(.94)}
-.acc-deploy-fab svg{width:24px;height:24px}
-
-.acc-promote-fab{
-  position:fixed;right:20px;bottom:196px;z-index:90;width:48px;height:48px;border-radius:50%;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
-  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
-  cursor:pointer;transition:transform .15s var(--ease);text-decoration:none;
+.acc-fab-toggle svg{width:22px;height:22px;transition:transform .25s var(--ease),opacity .2s var(--ease)}
+.acc-fab-toggle.open{transform:rotate(90deg)}
+.acc-fab-stack{
+  position:fixed;right:20px;bottom:84px;z-index:91;display:flex;flex-direction:column;gap:12px;
+  opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .22s var(--ease),transform .22s var(--ease);
 }
-.acc-promote-fab:active{transform:scale(.94)}
-.acc-promote-fab svg{width:21px;height:21px}
-
-.acc-cert-fab{
-  position:fixed;right:20px;bottom:140px;z-index:90;width:48px;height:48px;border-radius:50%;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
-  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
-  cursor:pointer;transition:transform .15s var(--ease),opacity .2s var(--ease);
+.acc-fab-stack.open{opacity:1;pointer-events:auto;transform:translateY(0)}
+.acc-fab-sub{
+  position:relative;height:44px;border-radius:22px;background:var(--card);border:1px solid var(--border-strong);
+  color:var(--text);display:flex;align-items:center;justify-content:flex-end;gap:10px;box-shadow:0 6px 16px rgba(0,0,0,.26);
+  margin-left:auto;padding:0 14px;white-space:nowrap;text-decoration:none;
 }
-.acc-cert-fab:active{transform:scale(.94)}
-.acc-cert-fab svg{width:21px;height:21px}
-.acc-cert-fab.dead{background:var(--card2);color:var(--muted2);box-shadow:none;border:1px solid var(--border-strong);opacity:.65}
-.acc-cert-fab.dead:active{transform:none}
-
-.acc-support-fab{
-  position:fixed;right:20px;bottom:84px;z-index:90;width:48px;height:48px;border-radius:50%;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#04141a;
-  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.4);
-  cursor:pointer;transition:transform .15s var(--ease);
-}
-.acc-support-fab:active{transform:scale(.94)}
-.acc-support-fab svg{width:21px;height:21px}
+.acc-fab-sub svg{width:19px;height:19px;flex-shrink:0}
+.acc-fab-sub-label{font-family:var(--font-display);font-weight:700;font-size:.8rem}
+.acc-fab-sub.dead{opacity:.65;color:var(--muted2)}
+#promoteFab{color:#FFC400}
+#certFab{color:#12c48b}
+#supportFab{color:#22d1ee}
+#deployFab{color:var(--accent2)}
+.acc-fab-sub.dead{color:var(--muted2)}
+.acc-fab-toggle .fab-badge{top:-4px;right:-4px}
 .fab-badge{
   position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;
   background:var(--red);color:#fff;font-size:.64rem;font-weight:800;display:none;align-items:center;justify-content:center;
@@ -2099,27 +2089,56 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 </div>
 
-<button type="button" class="acc-support-fab" id="supportFab" aria-label="Customer Care" title="Customer Care">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0116 0v1"/><rect x="2" y="13" width="5" height="7" rx="2"/><rect x="17" y="13" width="5" height="7" rx="2"/><path d="M20 20a4 4 0 01-4 4h-2"/></svg>
-  <span class="fab-badge" id="supportFabBadge"></span>
+<div class="acc-fab-stack" id="accFabStack">
+  <a class="acc-fab-sub" id="promoteFab" href="/promote" aria-label="Promote" title="Promote">
+    <span class="acc-fab-sub-label">Promote</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+  </a>
+  <button type="button" class="acc-fab-sub dead" id="certFab" aria-label="Certificate" title="Certificate">
+    <span class="acc-fab-sub-label">Certificate</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/></svg>
+  </button>
+  <button type="button" class="acc-fab-sub" id="supportFab" aria-label="Customer Care" title="Customer Care">
+    <span class="acc-fab-sub-label">Customer Care</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0116 0v1"/><rect x="2" y="13" width="5" height="7" rx="2"/><rect x="17" y="13" width="5" height="7" rx="2"/><path d="M20 20a4 4 0 01-4 4h-2"/></svg>
+    <span class="fab-badge" id="supportFabBadge"></span>
+  </button>
+  <a class="acc-fab-sub" id="deployFab" href="/deploy-bot" aria-label="Deploy Bot" title="Deploy Bot">
+    <span class="acc-fab-sub-label">Deploy Bot</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="10" rx="2"/>
+      <circle cx="8.5" cy="16" r="1.2" fill="currentColor" stroke="none"/>
+      <circle cx="15.5" cy="16" r="1.2" fill="currentColor" stroke="none"/>
+      <path d="M12 11V7m-3 0h6"/>
+    </svg>
+  </a>
+</div>
+
+<button type="button" class="acc-fab-toggle" id="accFabToggle" aria-label="Menu" aria-expanded="false">
+  <svg class="acc-fab-icon-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>
+  <svg class="acc-fab-icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="display:none"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+  <span class="fab-badge" id="accFabToggleBadge"></span>
 </button>
 
-<button type="button" class="acc-cert-fab dead" id="certFab" aria-label="Certificate" title="Certificate">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/></svg>
-</button>
-
-<a class="acc-promote-fab" href="/promote" aria-label="Promote" title="Promote">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
-</a>
-
-<a class="acc-deploy-fab" href="/deploy-bot" aria-label="Deploy Bot" title="Deploy Bot">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="3" y="11" width="18" height="10" rx="2"/>
-    <circle cx="8.5" cy="16" r="1.2" fill="currentColor" stroke="none"/>
-    <circle cx="15.5" cy="16" r="1.2" fill="currentColor" stroke="none"/>
-    <path d="M12 11V7m-3 0h6"/>
-  </svg>
-</a>
+<script nonce="__CSP_NONCE__">
+(function(){
+  var toggle = document.getElementById('accFabToggle');
+  var stack = document.getElementById('accFabStack');
+  function setOpen(open){
+    stack.classList.toggle('open', open);
+    toggle.classList.toggle('open', open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.querySelector('.acc-fab-icon-grid').style.display = open ? 'none' : 'block';
+    toggle.querySelector('.acc-fab-icon-x').style.display = open ? 'block' : 'none';
+  }
+  toggle.addEventListener('click', function(){ setOpen(!stack.classList.contains('open')); });
+  stack.addEventListener('click', function(e){ if (e.target.closest('.acc-fab-sub')) setOpen(false); });
+  document.addEventListener('click', function(e){
+    if (stack.classList.contains('open') && !e.target.closest('#accFabStack') && !e.target.closest('#accFabToggle')) setOpen(false);
+  });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') setOpen(false); });
+})();
+</script>
 
 <script nonce="__CSP_NONCE__">
 const params = new URLSearchParams(window.location.search);
@@ -3873,6 +3892,8 @@ async function refreshSupportUnread(){
     const badge = document.getElementById('supportFabBadge');
     badge.textContent = count > 99 ? '99+' : (count || '');
     badge.classList.toggle('show', count > 0);
+    const tb = document.getElementById('accFabToggleBadge');
+    if (tb) { tb.textContent = badge.textContent; tb.classList.toggle('show', count > 0); }
   } catch (err) {}
 }
 
