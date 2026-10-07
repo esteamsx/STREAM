@@ -26,7 +26,7 @@ body.es-replaced-nav.es-has-nav{padding-bottom:0}
 .es-menu-list .user-menu-item[hidden]{display:none}
 .es-menu-list .user-menu-item .notif-menu-dot{position:static;margin-left:auto;display:none;width:8px;height:8px;border-radius:50%;background:var(--red)}
 .es-menu-list .user-menu-item .notif-menu-dot.show{display:block}
-.es-menu-sep{height:1px;background:var(--border);margin:6px 4px}
+.es-menu-sep{height:1px;background:var(--border);margin:6px 4px}\n.es-menu-label{padding:10px 12px 4px;font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .es-menu-me{display:flex;align-items:center;gap:12px;padding:6px 18px 8px;text-decoration:none;color:inherit}
 .es-menu-avatar{width:42px;height:42px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--accent2)) center/cover no-repeat;color:#04141a;font-family:var(--font-display);font-weight:700;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .es-menu-name{font-weight:700;font-size:.9rem;line-height:1.2;display:flex;align-items:center}
@@ -723,12 +723,38 @@ function esBuildMenu() {
     const b = esEl("button", { type: "button", class: "user-menu-item" + (extra ? " " + extra : ""), onclick: fn }, [esSvg(icon, 20), label]);
     return b;
   }
-  ES_LINKS.slice(0, 2).forEach((l) => list.appendChild(item(l)));
+  function link(href, label) {
+    const l = ES_LINKS.find((x) => x.href === href);
+    return item({ href: href, label: label || l.label, icon: l.icon });
+  }
+  function section(title, first) {
+    if (!first) list.appendChild(esEl("div", { class: "es-menu-sep" }));
+    list.appendChild(esEl("div", { class: "es-menu-label", text: title }));
+  }
+  section("Explore", true);
+  list.appendChild(link("/"));
+  list.appendChild(link("/live"));
+  list.appendChild(link("/football"));
+
+  section("Social");
+  list.appendChild(link("/profile"));
   const notif = action("Notifications", ES_ICON_BELL, esOpenNotifications);
   notif.appendChild(esEl("span", { class: "notif-menu-dot js-dot" }));
   list.appendChild(notif);
   list.appendChild(action("Find people", ES_ICON_SEARCH, esOpenSearch));
-  ES_LINKS.slice(2).forEach((l) => list.appendChild(item(l)));
+
+  section("Tools & Earn");
+  list.appendChild(link("/tools"));
+  list.appendChild(link("/tools/trading"));
+  list.appendChild(link("/promote"));
+  list.appendChild(link("/channel-react"));
+
+  section("Build");
+  list.appendChild(link("/deploy-bot"));
+  list.appendChild(link("/developers"));
+
+  section("Account");
+  list.appendChild(link("/account"));
   const admin = item({ href: "/admin", label: "Admin", icon: ES_ICON_SHIELD });
   admin.hidden = true;
   admin.id = "esMenuAdmin";

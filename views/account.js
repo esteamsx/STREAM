@@ -1711,7 +1711,12 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
 
     <div id="rwClaimReady" style="display:none">
-      <div class="rw-hint">The face check makes sure one person is not claiming with several accounts. It is only used for the daily claim. Each claim costs &#8358;100, paid with Apple Pay or Paystack. If the face check fails, your payment is kept and you can try again without paying twice.</div>
+      <div class="rw-hint">A quick face check keeps daily claims fair.
+        <details style="margin-top:6px">
+          <summary style="cursor:pointer;color:var(--accent);font-weight:600;list-style:none">Learn more</summary>
+          <div style="margin-top:6px">The face check makes sure one person is not claiming with several accounts. It is only used for the daily claim. Each claim costs &#8358;100, paid with Apple Pay or Paystack. If the face check fails, your payment is kept and you can try again without paying twice.</div>
+        </details>
+      </div>
       <div style="margin:12px 0"><altcha-widget id="rwClaimAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>
       <div class="acc-msg" id="rwClaimMsg"></div>
       <button class="acc-btn" id="rwClaimContinueBtn" type="button" style="width:100%" disabled>Continue</button>
