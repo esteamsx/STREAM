@@ -35,6 +35,13 @@ import {
   createTradingPlanPayment,
   getTradingPlanPayment,
   finalizeTradingPlanPayment,
+  isAdminEmail,
+  DAILY_CLAIM_FEE_NGN,
+  hasClaimedDailyToday,
+  createClaimPayment,
+  getClaimPayment,
+  findUnusedClaimPayment,
+  finalizeClaimPayment,
 } from "../services/auth.js";
 import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN, normalizePaymentMethod, ngnToUsd, NGN_PER_USD } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
@@ -393,6 +400,62 @@ router.post("/api/coins/confirm", requireAuth, confirmLimiter, async (req, res) 
   }
 });
 
+router.post("/api/rewards/claim-pay/initialize", requireAuth, initLimiter, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.uid);
+    if (!profile) return res.status(404).json({ error: "Account not found." });
+    if (isAdminEmail(profile.email)) return res.json({ free: true });
+    if (hasClaimedDailyToday(profile)) return res.status(400).json({ error: "You've already claimed today's coins. Come back tomorrow." });
+    if (!profile.email) return res.status(400).json({ error: "Add an email to your account before claiming." });
+
+    const existing = await findUnusedClaimPayment(req.uid);
+    if (existing) return res.json({ paid: true, reference: existing });
+
+    const amountKobo = DAILY_CLAIM_FEE_NGN * 100;
+    const data = await initializeTransaction({
+      method: normalizePaymentMethod(req.body?.method),
+      email: profile.email,
+      amountKobo,
+      metadata: { uid: req.uid, purpose: "daily_claim" },
+    });
+    await createClaimPayment(req.uid, data.reference, amountKobo);
+
+    res.json({
+      reference: data.reference,
+      accessCode: data.access_code,
+      publicKey: PAYSTACK_PUBLIC_KEY,
+      method: normalizePaymentMethod(req.body?.method),
+      ngnPerUsd: NGN_PER_USD,
+      amountUsd: ngnToUsd(DAILY_CLAIM_FEE_NGN),
+      email: profile.email,
+      amountKobo,
+      priceNgn: DAILY_CLAIM_FEE_NGN,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 400).json({ error: err.message || "Could not start claim payment." });
+  }
+});
+
+router.post("/api/rewards/claim-pay/confirm", requireAuth, confirmLimiter, async (req, res) => {
+  try {
+    const reference = String(req.body?.reference || "").trim();
+    if (!reference) return res.status(400).json({ error: "Missing payment reference." });
+
+    const record = await getClaimPayment(reference);
+    if (!record || record.uid !== req.uid) return res.status(404).json({ error: "Payment not found." });
+
+    if (record.status !== "success") {
+      const paystackData = await verifyTransaction(reference);
+      await finalizeClaimPayment(reference, paystackData);
+    }
+    res.json({ reference, paid: true });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Could not confirm payment." });
+  }
+});
+
 router.post("/api/paystack/webhook", webhookLimiter, async (req, res) => {
   try {
     const signature = req.get("x-paystack-signature");
@@ -407,6 +470,7 @@ router.post("/api/paystack/webhook", webhookLimiter, async (req, res) => {
       await finalizeCoinPurchasePayment(event.data.reference, paystackData);
       await finalizeCoinRequestPayment(event.data.reference, paystackData);
       await finalizeTradingPlanPayment(event.data.reference, paystackData);
+      await finalizeClaimPayment(event.data.reference, paystackData);
       await finalizeAdPayment(event.data.reference, paystackData);
     }
     res.status(200).json({ received: true });

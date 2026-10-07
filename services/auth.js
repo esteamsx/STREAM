@@ -623,9 +623,9 @@ const DEV_API_PLAN_DAYS = 30;
 const DEV_API_PLANS = {
   free: { name: "Free", apiKeys: 1, requestsPerSecond: 3, monthlyRequests: 100, noAds: false, customAdsLink: false, priceNgn: 0 },
   starter: { name: "Starter", apiKeys: 3, requestsPerSecond: 10, monthlyRequests: 200, noAds: false, customAdsLink: false, priceNgn: 0 },
-  standard: { name: "Standard", apiKeys: 5, requestsPerSecond: 20, monthlyRequests: 350, noAds: false, customAdsLink: false, priceNgn: 3000 },
-  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: false, priceNgn: 5000 },
-  max: { name: "Max", apiKeys: 15, requestsPerSecond: 50, monthlyRequests: 1000, noAds: true, customAdsLink: true, priceNgn: 10000 },
+  standard: { name: "Standard", apiKeys: 5, requestsPerSecond: 20, monthlyRequests: 350, noAds: false, customAdsLink: false, priceNgn: 4500 },
+  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: false, priceNgn: 7500 },
+  max: { name: "Max", apiKeys: 15, requestsPerSecond: 50, monthlyRequests: 1000, noAds: true, customAdsLink: true, priceNgn: 15000 },
 };
 
 const PURCHASABLE_DEV_API_PLANS = ["standard", "pro", "max"];
@@ -2904,9 +2904,9 @@ const API_PLAN_DAYS = 30;
 const API_PLANS = {
   free: { name: "Free", apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 50 },
   starter: { name: "Starter", apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 50 },
-  standard: { name: "Standard", apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, priceNgn: 3000, monthlyRequests: 100 },
-  pro: { name: "Pro", apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, priceNgn: 5000, monthlyRequests: 100 },
-  max: { name: "Max", apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, priceNgn: 10000, monthlyRequests: Infinity },
+  standard: { name: "Standard", apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, priceNgn: 4500, monthlyRequests: 100 },
+  pro: { name: "Pro", apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, priceNgn: 7500, monthlyRequests: 100 },
+  max: { name: "Max", apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, priceNgn: 15000, monthlyRequests: Infinity },
 };
 
 const MAX_PASSKEYS_VERIFIED = 3;
@@ -3559,19 +3559,19 @@ const MIN_COIN_TRANSFER = 5;
 const MAX_COIN_TRANSFER = 100;
 
 const COIN_STORE_ITEMS = {
-  boost30: { label: "+30 request limit", coinCost: 40, bonusAmount: 30 },
-  boost50: { label: "+50 request limit", coinCost: 80, bonusAmount: 50 },
-  boost100: { label: "+100 request limit", coinCost: 160, bonusAmount: 100 },
-  verify3d: { label: "3-day account verification", coinCost: 220 },
+  boost30: { label: "+30 request limit", coinCost: 60, bonusAmount: 30 },
+  boost50: { label: "+50 request limit", coinCost: 120, bonusAmount: 50 },
+  boost100: { label: "+100 request limit", coinCost: 240, bonusAmount: 100 },
+  verify3d: { label: "3-day account verification", coinCost: 330 },
 };
 
 const COIN_PACKAGES = {
-  pack25: { coins: 25, priceNgn: 200 },
-  pack50: { coins: 50, priceNgn: 400 },
-  pack150: { coins: 150, priceNgn: 1000 },
-  pack350: { coins: 350, priceNgn: 1800 },
-  pack500: { coins: 500, priceNgn: 2400 },
-  pack1000: { coins: 1000, priceNgn: 4000 },
+  pack25: { coins: 25, priceNgn: 300 },
+  pack50: { coins: 50, priceNgn: 600 },
+  pack150: { coins: 150, priceNgn: 1500 },
+  pack350: { coins: 350, priceNgn: 2700 },
+  pack500: { coins: 500, priceNgn: 3600 },
+  pack1000: { coins: 1000, priceNgn: 6000 },
 };
 
 async function generateReferralCode() {
@@ -3641,21 +3641,73 @@ async function getReferralsForUser(uid) {
   return snap.docs.map((d) => d.data()).sort((a, b) => b.referredAt - a.referredAt);
 }
 
-async function claimDailyCoins(uid, faceDescriptor) {
+const DAILY_CLAIM_FEE_NGN = 100;
+
+function hasClaimedDailyToday(profile) {
+  return !!profile && profile.lastDailyCoinClaimDay === currentUsageDay();
+}
+
+async function createClaimPayment(uid, reference, amountKobo) {
+  await db.collection("claimPayments").doc(reference).set({ uid, amountKobo, status: "pending", used: false, createdAt: Date.now() });
+}
+
+async function getClaimPayment(reference) {
+  const snap = await db.collection("claimPayments").doc(reference).get();
+  return snap.exists ? snap.data() : null;
+}
+
+async function findUnusedClaimPayment(uid) {
+  const snap = await db.collection("claimPayments").where("uid", "==", uid).where("status", "==", "success").where("used", "==", false).limit(1).get();
+  return snap.empty ? null : snap.docs[0].id;
+}
+
+async function finalizeClaimPayment(reference, paystackData) {
+  const ref = db.collection("claimPayments").doc(reference);
+  const claim = await claimPendingPayment(ref, paystackData);
+  if (claim.notOurs) return { notOurs: true };
+  if (claim.alreadyProcessed) return { alreadyProcessed: true, uid: claim.uid };
+  if (claim.inProgress) return { alreadyProcessed: true };
+  if (claim.failed) throw new Error("Payment was not successful.");
+  await ref.update({ status: "success", confirmedAt: Date.now() });
+  return { alreadyProcessed: false, uid: claim.record.uid };
+}
+
+async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
   const probes = await checkClaimFace(uid, faceDescriptor);
   const today = currentUsageDay();
   const ref = db.collection("users").doc(uid);
+  const reference = String(paymentReference || "").trim();
   let amount = DAILY_COIN_CLAIM_AMOUNT;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new Error("Account not found.");
     const data = snap.data();
+    const free = isAdminEmail(data.email);
+    let payRef = null;
+    let paySnap = null;
+    if (!free) {
+      if (!reference) {
+        throw Object.assign(new Error(`Pay \u20A6${DAILY_CLAIM_FEE_NGN} to claim your daily coins.`), { status: 402 });
+      }
+      payRef = db.collection("claimPayments").doc(reference);
+      paySnap = await tx.get(payRef);
+    }
     if (data.lastDailyCoinClaimDay === today) {
       throw Object.assign(new Error("You've already claimed today's coins. Come back tomorrow."), { status: 400 });
     }
-    if (isAdminEmail(data.email)) amount = ADMIN_DAILY_COIN_CLAIM_AMOUNT;
-    const ledger = appendCoinLedger(tx, ref, data, amount, "daily_claim", { day: today });
+    if (!free) {
+      const pay = paySnap.exists ? paySnap.data() : null;
+      if (!pay || pay.uid !== uid || pay.status !== "success") {
+        throw Object.assign(new Error("Payment not confirmed yet. Please try again in a moment."), { status: 402 });
+      }
+      if (pay.used) {
+        throw Object.assign(new Error("That payment was already used for a claim."), { status: 400 });
+      }
+    }
+    if (free) amount = ADMIN_DAILY_COIN_CLAIM_AMOUNT;
+    const ledger = appendCoinLedger(tx, ref, data, amount, "daily_claim", { day: today, ...(free ? {} : { reference }) });
     tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(amount), lastDailyCoinClaimDay: today, ...ledger }, { merge: true });
+    if (payRef) tx.update(payRef, { used: true, usedAt: Date.now() });
   });
   invalidateUserProfileCache(uid);
   await saveClaimFace(uid, probes);
@@ -4838,6 +4890,12 @@ export {
   findUserByReferralCode,
   getReferralsForUser,
   claimDailyCoins,
+  DAILY_CLAIM_FEE_NGN,
+  hasClaimedDailyToday,
+  createClaimPayment,
+  getClaimPayment,
+  findUnusedClaimPayment,
+  finalizeClaimPayment,
   redeemCoinsForLimit,
   redeemCoinsForVerification,
   createCoinPurchasePayment,

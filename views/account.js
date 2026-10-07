@@ -1711,7 +1711,7 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
 
     <div id="rwClaimReady" style="display:none">
-      <div class="rw-hint">The face check makes sure one person is not claiming with several accounts. It is only used for the daily claim.</div>
+      <div class="rw-hint">The face check makes sure one person is not claiming with several accounts. It is only used for the daily claim. Each claim costs &#8358;100, paid with Apple Pay or Paystack. If the face check fails, your payment is kept and you can try again without paying twice.</div>
       <div style="margin:12px 0"><altcha-widget id="rwClaimAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>
       <div class="acc-msg" id="rwClaimMsg"></div>
       <button class="acc-btn" id="rwClaimContinueBtn" type="button" style="width:100%" disabled>Continue</button>
@@ -4677,7 +4677,7 @@ async function loadRewardsSummary(){
     claimBtn.textContent = 'Claimed Today';
   } else {
     claimBtn.disabled = false;
-    claimBtn.textContent = 'Claim';
+    claimBtn.textContent = rewardsSummary.dailyClaimFree ? 'Claim' : ('Claim · ₦' + (rewardsSummary.dailyClaimFeeNgn || 100));
   }
 
   const refList = document.getElementById('rwReferralList');
@@ -4913,6 +4913,9 @@ document.getElementById('rwDailyClaimBtn').addEventListener('click', async () =>
   claimMsg.className = 'acc-msg';
   claimMsg.textContent = '';
   claimContinueBtn.disabled = !claimCaptchaPassed;
+  claimContinueBtn.textContent = (rewardsSummary && (rewardsSummary.dailyClaimFree || rewardsSummary.claimCreditRef))
+    ? 'Continue'
+    : ('Pay ₦' + ((rewardsSummary && rewardsSummary.dailyClaimFeeNgn) || 100) + ' & Continue');
   setClaimState('checking');
   openRwOverlay(rwClaimOverlay);
   let enabled = false;
@@ -4926,6 +4929,33 @@ document.getElementById('rwDailyClaimBtn').addEventListener('click', async () =>
   if (enabled) import('/claim-face.js').then((m) => m.preloadClaimFaceModels()).catch(() => {});
 });
 
+async function ensureClaimPaid(){
+  if (rewardsSummary && rewardsSummary.claimCreditRef) return { ref: rewardsSummary.claimCreditRef };
+  if (!PAYSTACK_PUBLIC_KEY || typeof PaystackPop === 'undefined') {
+    throw new Error('Payments are temporarily unavailable. Please try again later.');
+  }
+  const fee = (rewardsSummary && rewardsSummary.dailyClaimFeeNgn) || 100;
+  const payMethod = await esPay.choose({ ngn: fee });
+  if (!payMethod) return null;
+  const data = await postJSON('/api/rewards/claim-pay/initialize', { method: payMethod });
+  if (data.free) return { ref: '' };
+  if (data.paid && data.reference) {
+    if (rewardsSummary) rewardsSummary.claimCreditRef = data.reference;
+    return { ref: data.reference };
+  }
+  const reference = await new Promise(function(resolve, reject){
+    esPay.open(data, {
+      onSuccess: function(ref){ resolve(ref); },
+      onClose: function(){ resolve(null); },
+      onError: function(err){ reject(err || new Error('Could not open payment.')); },
+    });
+  });
+  if (!reference) return null;
+  await postJSON('/api/rewards/claim-pay/confirm', { reference });
+  if (rewardsSummary) rewardsSummary.claimCreditRef = reference;
+  return { ref: reference };
+}
+
 claimContinueBtn.addEventListener('click', async () => {
   if (!claimCaptchaPassed) {
     flashMsg(claimMsg, 'Complete the captcha first.', false);
@@ -4933,6 +4963,26 @@ claimContinueBtn.addEventListener('click', async () => {
   }
   const original = claimContinueBtn.innerHTML;
   claimContinueBtn.disabled = true;
+
+  let paidRef = '';
+  if (!(rewardsSummary && rewardsSummary.dailyClaimFree)) {
+    claimContinueBtn.innerHTML = '<span class="btn-spinner"></span>Starting payment…';
+    try {
+      const paid = await ensureClaimPaid();
+      if (!paid) {
+        claimContinueBtn.innerHTML = original;
+        claimContinueBtn.disabled = !claimCaptchaPassed;
+        return;
+      }
+      paidRef = paid.ref;
+    } catch (err) {
+      claimContinueBtn.innerHTML = original;
+      claimContinueBtn.disabled = !claimCaptchaPassed;
+      flashMsg(claimMsg, (err && err.message) || 'Could not start payment.', false);
+      return;
+    }
+  }
+
   claimContinueBtn.innerHTML = '<span class="btn-spinner"></span>Opening camera…';
 
   let claimModule = null;
@@ -4955,7 +5005,9 @@ claimContinueBtn.addEventListener('click', async () => {
     const result = await postJSON('/api/rewards/daily-claim', {
       altcha: claimCaptchaValue,
       faceDescriptor,
+      paymentReference: paidRef,
     });
+    if (rewardsSummary) rewardsSummary.claimCreditRef = null;
     closeRwOverlay(rwClaimOverlay);
     try { claimModule.playCoinSound(); } catch (e) {}
     showToast('You have successfully claimed daily coins');
@@ -4963,7 +5015,7 @@ claimContinueBtn.addEventListener('click', async () => {
     await loadRewardsSummary();
   } catch (err) {
     if (/Face Id not Set/i.test(err.message || '')) setClaimState('nofaceid');
-    else flashMsg(claimMsg, err.message, false);
+    else flashMsg(claimMsg, paidRef ? ((err.message || 'Claim failed.') + ' Your ₦' + ((rewardsSummary && rewardsSummary.dailyClaimFeeNgn) || 100) + ' payment is saved, tap Continue to try again.') : err.message, false);
   } finally {
     claimContinueBtn.innerHTML = original;
     claimContinueBtn.disabled = !claimCaptchaPassed;

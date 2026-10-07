@@ -4,6 +4,8 @@ import {
   requireAuth,
   getUserProfile,
   claimDailyCoins,
+  DAILY_CLAIM_FEE_NGN,
+  findUnusedClaimPayment,
   redeemCoinsForLimit,
   redeemCoinsForVerification,
   getReferralsForUser,
@@ -67,10 +69,11 @@ const TRANSFER_USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res) => {
   try {
     const profile = req.userProfile;
-    const [referralCode, referrals, withdrawals] = await Promise.all([
+    const [referralCode, referrals, withdrawals, claimCreditRef] = await Promise.all([
       ensureReferralCode(req.uid, profile),
       getReferralsForUser(req.uid),
       listWithdrawalRequestsForUser(req.uid),
+      findUnusedClaimPayment(req.uid).catch(() => null),
     ]);
     res.json({
       referralCode,
@@ -78,6 +81,9 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
       coinBalance: profile.coinBalance || 0,
       nairaBalance: profile.nairaBalance || 0,
       lastDailyCoinClaimDay: profile.lastDailyCoinClaimDay || null,
+      dailyClaimFeeNgn: DAILY_CLAIM_FEE_NGN,
+      dailyClaimFree: isAdminEmail(profile.email),
+      claimCreditRef: claimCreditRef || null,
       bankDetails: profile.bankDetails || null,
       verified: isAdminEmail(profile.email) || isVerificationActive(profile),
       minWithdrawalNgn: MIN_WITHDRAWAL_NGN,
@@ -117,7 +123,7 @@ router.post("/api/rewards/daily-claim", requireAuth, requireSiteOrigin, claimLim
     if (!(await verifyCaptcha(req.body?.altcha))) {
       return res.status(400).json({ error: "Captcha not completed." });
     }
-    const result = await claimDailyCoins(req.uid, req.body?.faceDescriptor);
+    const result = await claimDailyCoins(req.uid, req.body?.faceDescriptor, req.body?.paymentReference);
     res.json({ ok: true, amount: result.amount });
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "Could not claim daily coins." });
