@@ -317,6 +317,7 @@ import { injectPromoSlot } from "./middleware/promo-slot.js";
 import { flushAdStats } from "./services/ads.js";
 import { rewardsRouter } from "./routes/rewards.js";
 import { payLinkRouter } from "./routes/pay-link.js";
+import { statusRouter } from "./routes/status.js";
 import { db, auth as firebaseAuth } from "./config/firebase.js";
 import {
   PUSH_ENABLED,
@@ -393,7 +394,7 @@ app.get("/outbound-ip", async (req, res) => {
   }
 });
 
-const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js"]);
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js"]);
 
 app.use(
   express.static(path.join(__dirname, "public"), {
@@ -633,6 +634,7 @@ app.use(paymentsRouter);
 app.use(promoteRouter);
 app.use(rewardsRouter);
 app.use(payLinkRouter);
+app.use(statusRouter);
 
 function domainLockHash(str) {
   let hash = 5381;

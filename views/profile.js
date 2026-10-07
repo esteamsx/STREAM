@@ -12,6 +12,7 @@ ${siteHeadFor("profile")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <script nonce="__CSP_NONCE__" src="/guest-gate.js" defer></script>
+<script nonce="__CSP_NONCE__" src="/status-ui.js" defer></script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2595,6 +2596,10 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
     document.getElementById('pfLoader').style.display = 'none';
     document.getElementById('pfWrap').style.display = 'block';
     setAvatar(user);
+    if (window.EsStatus) {
+      EsStatus.init();
+      EsStatus.ring(document.getElementById('pfAvatar'), user.uid, document.getElementById('pfAvatarWrap'));
+    }
     document.getElementById('pfName').innerHTML =
       (((user.firstName || '') + ' ' + (user.lastName || '')).trim() || ('@' + user.username)) +
       ((user.isAdmin || user.verified) ? VERIFIED_BADGE : '');
@@ -2706,6 +2711,12 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
   editBadge.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
   document.getElementById('pfAvatarWrap').appendChild(editBadge);
   setAvatar(profile);
+  if (window.EsStatus) {
+    EsStatus.init({ me: profile });
+    EsStatus.ring(document.getElementById('pfAvatar'), profile.uid, document.getElementById('pfAvatarWrap'));
+    window.addEventListener('es-status-changed', function(){ EsStatus.ring(document.getElementById('pfAvatar'), profile.uid, document.getElementById('pfAvatarWrap')); });
+    if (new URLSearchParams(location.search).get('status') === 'mine') EsStatus.openMine();
+  }
   document.getElementById('pfName').innerHTML =
     (((profile.firstName || '') + ' ' + (profile.lastName || '')).trim() || 'Unnamed') +
     ((profile.isAdmin || profile.verified) ? VERIFIED_BADGE : '');

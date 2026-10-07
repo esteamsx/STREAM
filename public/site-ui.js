@@ -238,6 +238,14 @@ function notifRender(list){
       btn.dataset.uid = n.meta.followerUid;
       top.appendChild(btn);
     }
+    if (n.type === 'status_comment' && n.meta && n.meta.link) {
+      const stBtn = document.createElement('button');
+      stBtn.type = 'button';
+      stBtn.className = 'notif-view-post-btn';
+      stBtn.textContent = 'View Status';
+      stBtn.addEventListener('click', () => { window.location.href = n.meta.link; });
+      top.appendChild(stBtn);
+    }
     if ((n.type === 'like' || n.type === 'tag' || n.type === 'reshare' || n.type === 'comment') && n.meta && n.meta.postUrl) {
       const viewBtn = document.createElement('button');
       viewBtn.type = 'button';

@@ -322,6 +322,7 @@ button{cursor:pointer}
 
 <script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defer></script>
 <script nonce="__CSP_NONCE__" src="/post-ui.js?v=${BUILD}" defer></script>
+<script nonce="__CSP_NONCE__" src="/status-ui.js?v=${BUILD}" defer></script>
 <script nonce="__CSP_NONCE__" src="/home.js?v=${BUILD}" defer></script>
 <script nonce="__CSP_NONCE__">
 setTimeout(function(){

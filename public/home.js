@@ -114,7 +114,9 @@
     card.textContent = "";
     var av = h("span", { class: "hm-avatar big" });
     paintAvatar(av, me);
+    av.setAttribute("data-st-self", "1");
     card.appendChild(av);
+    if (window.EsStatus) window.EsStatus.refreshRings();
     card.appendChild(h("div", { class: "hm-me-info" }, [h("div", { class: "hm-me-name" }, [h("span", { class: "hm-name-text", text: nameOf(me) }), badgeFor(me)]), h("div", { class: "hm-me-user", text: me.username ? "@" + me.username : "" })]));
     $("hmAdminLink").hidden = !me.isAdmin;
     $("hmMenuAdmin").hidden = !me.isAdmin;
