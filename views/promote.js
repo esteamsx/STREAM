@@ -14,7 +14,8 @@ ${siteHeadFor("promote")}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v1/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="/pay-method.js?v=1"></script>
 <style>
 ${cfg.protectionCSS || ""}
 :root{

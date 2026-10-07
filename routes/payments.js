@@ -36,7 +36,7 @@ import {
   getTradingPlanPayment,
   finalizeTradingPlanPayment,
 } from "../services/auth.js";
-import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN } from "../services/paystack.js";
+import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN, normalizePaymentMethod, ngnToUsd, NGN_PER_USD } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { finalizeAdPayment } from "../services/ads.js";
 
@@ -73,6 +73,7 @@ router.post("/api/verification/initialize", requireAuth, initLimiter, async (req
 
     const amountKobo = VERIFICATION_PRICE_NGN * 100;
     const data = await initializeTransaction({
+      method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
       amountKobo,
       metadata: { uid: req.uid, purpose: "verification" },
@@ -83,6 +84,9 @@ router.post("/api/verification/initialize", requireAuth, initLimiter, async (req
       reference: data.reference,
       accessCode: data.access_code,
       publicKey: PAYSTACK_PUBLIC_KEY,
+      method: normalizePaymentMethod(req.body?.method),
+      ngnPerUsd: NGN_PER_USD,
+      amountUsd: ngnToUsd(amountKobo / 100),
       email: profile.email,
       amountKobo,
       priceNgn: VERIFICATION_PRICE_NGN,
@@ -127,6 +131,7 @@ router.post("/api/plan/initialize", requireAuth, initLimiter, async (req, res) =
 
     const amountKobo = API_PLANS[plan].priceNgn * 100;
     const data = await initializeTransaction({
+      method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
       amountKobo,
       metadata: { uid: req.uid, purpose: "api_plan", plan },
@@ -137,6 +142,9 @@ router.post("/api/plan/initialize", requireAuth, initLimiter, async (req, res) =
       reference: data.reference,
       accessCode: data.access_code,
       publicKey: PAYSTACK_PUBLIC_KEY,
+      method: normalizePaymentMethod(req.body?.method),
+      ngnPerUsd: NGN_PER_USD,
+      amountUsd: ngnToUsd(amountKobo / 100),
       email: profile.email,
       amountKobo,
       priceNgn: API_PLANS[plan].priceNgn,
@@ -191,6 +199,7 @@ router.post("/api/trading-plan/initialize", requireAuth, initLimiter, async (req
 
     const amountKobo = TRADING_PLANS[plan].priceNgn * 100;
     const data = await initializeTransaction({
+      method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
       amountKobo,
       metadata: { uid: req.uid, purpose: "trading_plan", plan },
@@ -201,6 +210,9 @@ router.post("/api/trading-plan/initialize", requireAuth, initLimiter, async (req
       reference: data.reference,
       accessCode: data.access_code,
       publicKey: PAYSTACK_PUBLIC_KEY,
+      method: normalizePaymentMethod(req.body?.method),
+      ngnPerUsd: NGN_PER_USD,
+      amountUsd: ngnToUsd(amountKobo / 100),
       email: profile.email,
       amountKobo,
       priceNgn: TRADING_PLANS[plan].priceNgn,
@@ -265,6 +277,7 @@ router.post("/api/devplan/initialize", requireAuth, initLimiter, async (req, res
 
     const amountKobo = DEV_API_PLANS[plan].priceNgn * 100;
     const data = await initializeTransaction({
+      method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
       amountKobo,
       metadata: { uid: req.uid, purpose: "dev_api_plan", plan },
@@ -275,6 +288,9 @@ router.post("/api/devplan/initialize", requireAuth, initLimiter, async (req, res
       reference: data.reference,
       accessCode: data.access_code,
       publicKey: PAYSTACK_PUBLIC_KEY,
+      method: normalizePaymentMethod(req.body?.method),
+      ngnPerUsd: NGN_PER_USD,
+      amountUsd: ngnToUsd(amountKobo / 100),
       email: profile.email,
       amountKobo,
       priceNgn: DEV_API_PLANS[plan].priceNgn,
@@ -329,6 +345,7 @@ router.post("/api/coins/initialize", requireAuth, initLimiter, async (req, res) 
 
     const amountKobo = pkg.priceNgn * 100;
     const data = await initializeTransaction({
+      method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
       amountKobo,
       metadata: { uid: req.uid, purpose: "coin_purchase", packageKey },
@@ -339,6 +356,9 @@ router.post("/api/coins/initialize", requireAuth, initLimiter, async (req, res) 
       reference: data.reference,
       accessCode: data.access_code,
       publicKey: PAYSTACK_PUBLIC_KEY,
+      method: normalizePaymentMethod(req.body?.method),
+      ngnPerUsd: NGN_PER_USD,
+      amountUsd: ngnToUsd(amountKobo / 100),
       email: profile.email,
       amountKobo,
       priceNgn: pkg.priceNgn,

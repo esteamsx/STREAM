@@ -393,7 +393,7 @@ app.get("/outbound-ip", async (req, res) => {
   }
 });
 
-const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js"]);
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js"]);
 
 app.use(
   express.static(path.join(__dirname, "public"), {
@@ -666,7 +666,8 @@ app.get("/.well-known/apple-developer-merchantid-domain-association", (req, res)
   fs.readFile(APPLE_MERCHANT_FILE, (err, buf) => {
     if (err) return res.status(404).end();
     res.set("Cache-Control", "public, max-age=300");
-    res.type("text/plain").send(buf);
+    res.set("Content-Type", "application/text"); // Paystack requires exactly this content-type
+    res.send(buf);
   });
 });
 

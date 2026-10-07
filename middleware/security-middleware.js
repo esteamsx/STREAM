@@ -246,7 +246,7 @@ export const ipBlocklist = (req, res, next) => {
 export const permissionsPolicy = (req, res, next) => {
   res.setHeader(
     "Permissions-Policy",
-    "camera=(self), microphone=(self), geolocation=(), usb=(), payment=(), interest-cohort=()"
+    "camera=(self), microphone=(self), geolocation=(), usb=(), payment=(self \"https://checkout.paystack.com\" \"https://js.paystack.co\"), interest-cohort=()"
   );
   next();
 };

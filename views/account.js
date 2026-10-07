@@ -18,7 +18,8 @@ ${siteHeadFor("account")}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
 <script nonce="__CSP_NONCE__" async defer src="https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js" type="module"></script>
-<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v1/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="/pay-method.js?v=1"></script>
 <style>
 ${cfg.protectionCSS || ""}
 :root{
@@ -2022,7 +2023,7 @@ body:has(.page-overlay.show){overflow:hidden}
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Free bot deployment</div>
       </div>
       <div class="verify-price-row">
-        <span class="verify-price" id="verifyPriceLabel">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span>
+        <span class="verify-price" id="verifyPriceLabel">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span> <span class="verify-price-usd" style="font-size:.72rem;color:var(--muted)">≈ $${(VERIFICATION_PRICE_NGN / 1500).toFixed(2)}</span>
         <span class="verify-price-period">/ 30 days</span>
       </div>
       <div class="rw-hint" style="font-size:.72rem;line-height:1.55;margin-bottom:10px">Your card is saved securely for renewals. Auto-renew stays off until you switch it on in Account settings, and you can remove the card there any time.</div>
@@ -4508,11 +4509,13 @@ document.getElementById('verifyPayBtn').addEventListener('click', async () => {
     flashMsg(msg, 'Payments are temporarily unavailable. Please try again later.', false);
     return;
   }
+  const payMethod = await esPay.choose({ ngn: esPay.parseNgn(document.getElementById('verifyPriceLabel').textContent) });
+  if (!payMethod) return;
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner"></span>Starting…';
   let data;
   try {
-    data = await postJSON('/api/verification/initialize', {});
+    data = await postJSON('/api/verification/initialize', { method: payMethod });
   } catch (err) {
     btn.disabled = false;
     btn.textContent = 'Pay & Verify';
@@ -4521,19 +4524,13 @@ document.getElementById('verifyPayBtn').addEventListener('click', async () => {
   }
   btn.disabled = false;
   btn.textContent = 'Pay & Verify';
-  const handler = PaystackPop.setup({
-    key: data.publicKey,
-    email: data.email,
-    amount: data.amountKobo,
-    ref: data.reference,
-    currency: 'NGN',
-    onClose: function(){},
-    callback: function(response){
+  esPay.open(data, {
+    onSuccess: function(reference){
       showVerifyStep('verifyStepProcessing');
-      confirmVerificationPayment(response.reference);
+      confirmVerificationPayment(reference);
     },
+    onError: function(err){ flashMsg(msg, (err && err.message) || 'Could not open payment.', false); },
   });
-  handler.openIframe();
 });
 
 async function confirmVerificationPayment(reference){
@@ -4709,7 +4706,7 @@ async function loadRewardsSummary(){
   buyGrid.innerHTML = Object.keys(rewardsSummary.coinPackages).map((key) => {
     const pkg = rewardsSummary.coinPackages[key];
     return '<div class="rw-buy-item"><div class="rw-buy-item-label">' + pkg.coins + ' coins</div>' +
-      '<div class="rw-buy-item-cost">' + fmtNgn(pkg.priceNgn) + '</div>' +
+      '<div class="rw-buy-item-cost">' + fmtNgn(pkg.priceNgn) + ' <span style="font-size:.7rem;opacity:.7">≈ ' + esPay.fmtUsd(pkg.priceNgn) + '</span></div>' +
       '<button type="button" class="acc-btn acc-btn-ghost" data-buy-pkg="' + key + '">Buy</button></div>';
   }).join('');
   buyGrid.querySelectorAll('[data-buy-pkg]').forEach((btn) => {
@@ -4994,28 +4991,23 @@ async function buyCoinPackage(packageKey, btn){
     flashMsg(msg, 'Payments are temporarily unavailable. Please try again later.', false);
     return;
   }
+  const coinPkg = (rewardsSummary && rewardsSummary.coinPackages && rewardsSummary.coinPackages[packageKey]) || {};
+  const payMethod = await esPay.choose({ ngn: coinPkg.priceNgn });
+  if (!payMethod) return;
   btn.disabled = true;
   let data;
   try {
-    data = await postJSON('/api/coins/initialize', { packageKey });
+    data = await postJSON('/api/coins/initialize', { packageKey, method: payMethod });
   } catch (err) {
     btn.disabled = false;
     flashMsg(msg, err.message || 'Could not start payment.', false);
     return;
   }
   btn.disabled = false;
-  const handler = PaystackPop.setup({
-    key: data.publicKey,
-    email: data.email,
-    amount: data.amountKobo,
-    ref: data.reference,
-    currency: 'NGN',
-    onClose: function(){},
-    callback: function(response){
-      confirmCoinPurchase(response.reference);
-    },
+  esPay.open(data, {
+    onSuccess: function(reference){ confirmCoinPurchase(reference); },
+    onError: function(err){ flashMsg(msg, (err && err.message) || 'Could not open payment.', false); },
   });
-  handler.openIframe();
 }
 
 async function confirmCoinPurchase(reference){

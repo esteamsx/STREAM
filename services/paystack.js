@@ -25,13 +25,28 @@ async function paystackRequest(method, endpoint, body) {
   return data.data;
 }
 
-export async function initializeTransaction({ email, amountKobo, metadata }) {
-  return paystackRequest("POST", "/transaction/initialize", {
+export const NGN_PER_USD = 1500;
+export const PAYMENT_METHODS = ["paystack", "apple_pay"];
+
+export function normalizePaymentMethod(value) {
+  const m = String(value || "").trim().toLowerCase();
+  return PAYMENT_METHODS.includes(m) ? m : "paystack";
+}
+
+export function ngnToUsd(amountNgn) {
+  return Math.round((Number(amountNgn) / NGN_PER_USD) * 100) / 100;
+}
+
+export async function initializeTransaction({ email, amountKobo, metadata, method }) {
+  const payMethod = normalizePaymentMethod(method);
+  const body = {
     email,
     amount: amountKobo,
     currency: "NGN",
-    metadata,
-  });
+    metadata: { ...(metadata || {}), payment_method: payMethod },
+  };
+  if (payMethod === "apple_pay") body.channels = ["apple_pay"];
+  return paystackRequest("POST", "/transaction/initialize", body);
 }
 
 export async function verifyTransaction(reference) {

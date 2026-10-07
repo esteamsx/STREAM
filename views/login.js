@@ -382,7 +382,7 @@ html.embed-mode .auth-wrap{max-width:100%;margin:0}
     <form class="auth-form active" id="loginForm">
       <div class="field">
         <label>Email or Username</label>
-        <input type="text" id="loginEmail" placeholder="you@example.com or username" required autocomplete="username">
+        <input type="text" id="loginEmail" placeholder="you@example.com or username" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
       </div>
       <div class="field">
         <label>Password</label>
@@ -440,11 +440,11 @@ html.embed-mode .auth-wrap{max-width:100%;margin:0}
       </div>
       <div class="field">
         <label>Email</label>
-        <input type="email" id="suEmail" placeholder="you@example.com" required autocomplete="email">
+        <input type="email" id="suEmail" placeholder="you@example.com" required autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false">
       </div>
       <div class="field">
         <label>Username</label>
-        <input type="text" id="suUsername" placeholder="username" required autocomplete="off" minlength="3" maxlength="20">
+        <input type="text" id="suUsername" placeholder="username" required autocomplete="off" minlength="3" maxlength="20" autocapitalize="none" autocorrect="off" spellcheck="false">
         <div class="uname-status" id="suUsernameStatus"></div>
       </div>
       <div class="field">
@@ -972,7 +972,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   clearError();
   if (!loginCaptchaPassed) { showError('Please complete the captcha.'); return; }
-  const identifier = document.getElementById('loginEmail').value.trim();
+  let identifier = document.getElementById('loginEmail').value.trim();
+  if (identifier.indexOf('@') !== -1) identifier = identifier.toLowerCase();
   const password = document.getElementById('loginPassword').value;
   const remember = document.getElementById('rememberMe').checked;
   
@@ -1009,7 +1010,7 @@ document.getElementById('signupForm').addEventListener('submit', async (e) => {
   if (!captchaPassed) { showError('Please complete the captcha.'); return; }
   const firstName = document.getElementById('suFirst').value.trim();
   const lastName = document.getElementById('suLast').value.trim();
-  const email = document.getElementById('suEmail').value.trim();
+  const email = document.getElementById('suEmail').value.trim().toLowerCase();
   const username = suUsername.value.trim().toLowerCase();
   const password = document.getElementById('suPassword').value;
   const confirmPassword = document.getElementById('suConfirmPassword').value;

@@ -12,7 +12,8 @@ ${siteHeadFor("trading")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <script nonce="__CSP_NONCE__" src="https://s3.tradingview.com/tv.js"></script>
-<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v1/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="/pay-method.js?v=1"></script>
 <title>Trading - ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1251,7 +1252,7 @@ button:active{transform:scale(.96)}
 
         <div class="plan-card" data-plan="standard">
           <div class="plan-name">Standard</div>
-          <div class="plan-price">&#8358;5,000<span> / 30 days</span></div>
+          <div class="plan-price">&#8358;5,000<span> &middot; &asymp; $3.33 &middot; 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>14 Manual Trades</div>
@@ -1266,7 +1267,7 @@ button:active{transform:scale(.96)}
 
         <div class="plan-card highlight" data-plan="pro">
           <div class="plan-name">Pro</div>
-          <div class="plan-price">&#8358;10,000<span> / 30 days</span></div>
+          <div class="plan-price">&#8358;10,000<span> &middot; &asymp; $6.67 &middot; 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>30 Manual Trades</div>
@@ -1281,7 +1282,7 @@ button:active{transform:scale(.96)}
 
         <div class="plan-card" data-plan="max">
           <div class="plan-name">Max</div>
-          <div class="plan-price">&#8358;15,000<span> / 30 days</span></div>
+          <div class="plan-price">&#8358;15,000<span> &middot; &asymp; $10.00 &middot; 30 days</span></div>
           <div class="plan-note"></div>
           <div class="plan-features">
             <div class="plan-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>50 Manual Trades</div>
@@ -3279,21 +3280,17 @@ button:active{transform:scale(.96)}
       toast('Payments are not available right now.');
       return;
     }
+    var priceEl = btn.closest('.plan-card').querySelector('.plan-price');
+    var payMethod = await esPay.choose({ ngn: esPay.parseNgn(priceEl ? priceEl.textContent : '') });
+    if (!payMethod) return;
     setBtnLoading(btn, 'Starting...');
     try {
-      var data = await postJSON('/api/trading-plan/initialize', { plan: planKey });
+      var data = await postJSON('/api/trading-plan/initialize', { plan: planKey, method: payMethod });
       clearBtnLoading(btn);
-      var handler = PaystackPop.setup({
-        key: data.publicKey,
-        email: data.email,
-        amount: data.amountKobo,
-        ref: data.reference,
-        onClose: function(){},
-        callback: function(){
-          confirmPlanPayment(data.reference);
-        },
+      esPay.open(data, {
+        onSuccess: function(reference){ confirmPlanPayment(reference || data.reference); },
+        onError: function(err){ toast((err && err.message) || 'Could not open payment.'); },
       });
-      handler.openIframe();
     } catch (err) {
       clearBtnLoading(btn);
       toast(err.message || 'Could not start payment.');

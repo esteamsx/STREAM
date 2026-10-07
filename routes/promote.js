@@ -1,6 +1,6 @@
 import express from "express";
 import { requireAuth, getUserProfile, isAdminEmail } from "../services/auth.js";
-import { initializeTransaction, verifyTransaction } from "../services/paystack.js";
+import { initializeTransaction, verifyTransaction, normalizePaymentMethod, ngnToUsd, NGN_PER_USD } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import {
   AD_PRICE_PER_DAY_NGN,
@@ -122,7 +122,9 @@ router.post("/api/promote/pay/init", requireAuth, payInitLimiter, async (req, re
 
     const priceNgn = AD_PRICE_PER_DAY_NGN * days;
     const amountKobo = priceNgn * 100;
+    const method = normalizePaymentMethod(req.body && req.body.method);
     const data = await initializeTransaction({
+      method,
       email: profile.email,
       amountKobo,
       metadata: { uid: req.uid, purpose: "ad_campaign", adId, days },
@@ -136,6 +138,9 @@ router.post("/api/promote/pay/init", requireAuth, payInitLimiter, async (req, re
       email: profile.email,
       amountKobo,
       priceNgn,
+      method,
+      ngnPerUsd: NGN_PER_USD,
+      amountUsd: ngnToUsd(priceNgn),
       days,
     });
   } catch (err) {

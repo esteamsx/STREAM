@@ -16,7 +16,8 @@ ${siteHeadFor("developersLiveTv")}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v1/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="/pay-method.js?v=1"></script>
 <style>
 ${cfg.protectionCSS || ""}
 :root{
@@ -629,7 +630,7 @@ ${musicPlayerHtml()}
       var cls = 'plan-card' + (isCurrent ? ' current' : '') + (p.highlight ? ' highlight' : '');
       var priceHtml = p.priceNgn === 0
         ? (p.key === 'starter' ? '<div class="plan-price">Free<span> · with verification</span></div>' : '<div class="plan-price">Free</div>')
-        : '<div class="plan-price">' + fmtNgn(p.priceNgn) + '<span> / 30 days</span></div>';
+        : '<div class="plan-price">' + fmtNgn(p.priceNgn) + '<span> / 30 days &middot; &asymp; ' + esPay.fmtUsd(p.priceNgn) + '</span></div>';
 
       var cta;
       if(!loggedIn){
@@ -682,7 +683,7 @@ ${musicPlayerHtml()}
     var def = matches[0];
     if(!def) return;
     document.getElementById('planPayTitle').textContent = 'Upgrade to ' + def.name;
-    document.getElementById('planPaySub').textContent = fmtNgn(def.priceNgn) + ' for 30 days: ' + def.apiKeys + ' API keys, ' + fmtHours(def.streamHours) + ' links' + (!def.watermark ? ', no watermark' : '') + (def.customVisitPage ? ', custom visit page' : '') + '.';
+    document.getElementById('planPaySub').textContent = fmtNgn(def.priceNgn) + ' (≈ ' + esPay.fmtUsd(def.priceNgn) + ') for 30 days: ' + def.apiKeys + ' API keys, ' + fmtHours(def.streamHours) + ' links' + (!def.watermark ? ', no watermark' : '') + (def.customVisitPage ? ', custom visit page' : '') + '.';
     var payBtn = document.getElementById('planPayBtn');
     payBtn.setAttribute('data-plan', planKey);
     payBtn.disabled = false;
@@ -704,33 +705,31 @@ ${musicPlayerHtml()}
       msg.textContent = 'Payments are temporarily unavailable. Please try again later.';
       return;
     }
+    var planDef = PLAN_DEFS.filter(function(p){ return p.key === plan; })[0] || {};
+    esPay.choose({ ngn: planDef.priceNgn }).then(function(payMethod){
+    if(!payMethod) return;
     btn.disabled = true;
     btn.innerHTML = '<span class="btn-spinner"></span>Starting…';
-    fetch('/api/plan/initialize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: plan }) })
+    fetch('/api/plan/initialize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: plan, method: payMethod }) })
       .then(function(r){ return r.json().then(function(data){ return { ok: r.ok, data: data }; }); })
       .then(function(res){
         btn.disabled = false;
         btn.textContent = 'Pay & Upgrade';
         if(!res.ok){ msg.textContent = res.data.error || 'Could not start payment.'; return; }
-        var handler = PaystackPop.setup({
-          key: res.data.publicKey,
-          email: res.data.email,
-          amount: res.data.amountKobo,
-          ref: res.data.reference,
-          currency: 'NGN',
-          onClose: function(){},
-          callback: function(response){
+        esPay.open(res.data, {
+          onSuccess: function(reference){
             showPlanPayStep('planPayStepProcessing');
-            confirmPlanPayment(response.reference);
+            confirmPlanPayment(reference);
           },
+          onError: function(err){ msg.textContent = (err && err.message) || 'Could not open payment.'; },
         });
-        handler.openIframe();
       })
       .catch(function(){
         btn.disabled = false;
         btn.textContent = 'Pay & Upgrade';
         msg.textContent = 'Could not start payment.';
       });
+    });
   });
 
   function confirmPlanPayment(reference){

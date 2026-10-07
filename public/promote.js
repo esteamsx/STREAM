@@ -553,7 +553,7 @@
     function paint() {
       rowDays.textContent = days + (days === 1 ? " day" : " days") + " \u00d7 " + money(price);
       rowHours.textContent = days * 24 + " hours";
-      rowTotal.textContent = money(days * price);
+      rowTotal.textContent = money(days * price) + " \u2248 " + esPay.fmtUsd(days * price);
       payBtn.textContent = "Pay " + money(days * price);
       chipNodes.forEach(function (node) {
         node.classList.toggle("on", Number(node.dataset.days) === days);
@@ -616,30 +616,30 @@
       err.textContent = "Payments are temporarily unavailable. Please try again later.";
       return;
     }
-    btn.disabled = true;
-    btn.textContent = "Starting";
-    api("/api/promote/pay/init", { adId: ad.id, days: days })
-      .then(function (data) {
-        btn.disabled = false;
-        paint();
-        var handler = PaystackPop.setup({
-          key: data.publicKey,
-          email: data.email,
-          amount: data.amountKobo,
-          ref: data.reference,
-          currency: "NGN",
-          onClose: function () {},
-          callback: function (response) {
-            confirmPayment(response.reference);
-          }
+    var perDay = (state.data && state.data.pricePerDayNgn) || 2500;
+    esPay.choose({ ngn: days * perDay }).then(function (payMethod) {
+      if (!payMethod) return;
+      btn.disabled = true;
+      btn.textContent = "Starting";
+      api("/api/promote/pay/init", { adId: ad.id, days: days, method: payMethod })
+        .then(function (data) {
+          btn.disabled = false;
+          paint();
+          esPay.open(data, {
+            onSuccess: function (reference) {
+              confirmPayment(reference);
+            },
+            onError: function (e) {
+              err.textContent = (e && e.message) || "Could not open payment.";
+            }
+          });
+        })
+        .catch(function (e) {
+          btn.disabled = false;
+          paint();
+          err.textContent = e.message;
         });
-        handler.openIframe();
-      })
-      .catch(function (e) {
-        btn.disabled = false;
-        paint();
-        err.textContent = e.message;
-      });
+    });
   }
 
   function confirmPayment(reference) {

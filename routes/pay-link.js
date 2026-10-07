@@ -6,7 +6,7 @@ import {
   finalizeCoinRequestPayment,
   COIN_REQUEST_NGN_PER_COIN,
 } from "../services/auth.js";
-import { initializeTransaction, verifyTransaction } from "../services/paystack.js";
+import { initializeTransaction, verifyTransaction, normalizePaymentMethod, ngnToUsd, NGN_PER_USD } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 
 const router = express.Router();
@@ -199,6 +199,7 @@ ${PAGE_HEAD_FONTS}
 
     <div class="amount-box">
       <div class="amount-val">${naira(link.amountNgn)}</div>
+      <div class="amount-usd" style="font-size:.78rem;opacity:.7;margin-top:2px">&asymp; $${ngnToUsd(link.amountNgn).toFixed(2)}</div>
       <div class="amount-coins">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5a2 2 0 013-1.7M15.5 14.5a2 2 0 01-3 1.7"/></svg>
         ${link.coins} coins
@@ -229,7 +230,8 @@ ${PAGE_HEAD_FONTS}
 
   <div class="foot">Payments are processed securely. Coins are added to the recipient's ES TEAMS TV balance.</div>
 </div>
-<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v1/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="/pay-method.js?v=1"></script>
 <script nonce="__CSP_NONCE__">
 (function(){
   var TOKEN = ${JSON.stringify(link.token)};
@@ -294,11 +296,13 @@ ${PAGE_HEAD_FONTS}
       setMsg('Payments are temporarily unavailable. Please try again later.', false);
       return;
     }
+    var payMethod = await esPay.choose({ ngn: ${link.amountNgn} });
+    if (!payMethod) return;
     btn.disabled = true;
     setMsg('Starting secure checkout…', true);
     var data;
     try {
-      data = await postJSON('/pay/' + encodeURIComponent(TOKEN) + '/initialize', { email: email });
+      data = await postJSON('/pay/' + encodeURIComponent(TOKEN) + '/initialize', { email: email, method: payMethod });
     } catch (err) {
       btn.disabled = false;
       setMsg(err.message || 'Could not start the payment.', false);
@@ -306,16 +310,11 @@ ${PAGE_HEAD_FONTS}
     }
     btn.disabled = false;
     setMsg('');
-    var handler = PaystackPop.setup({
-      key: data.publicKey,
-      email: data.email,
-      amount: data.amountKobo,
-      ref: data.reference,
-      currency: 'NGN',
+    esPay.open(data, {
       onClose: function(){ setMsg('Payment cancelled.', false); },
-      callback: function(response){ confirmPayment(response.reference); },
+      onSuccess: function(reference){ confirmPayment(reference); },
+      onError: function(err){ setMsg((err && err.message) || 'Could not open payment.', false); },
     });
-    handler.openIframe();
   });
 })();
 </script>
@@ -347,7 +346,9 @@ router.post("/pay/:token/initialize", payInitLimiter, async (req, res) => {
       return res.status(410).json({ error: "This payment link has expired." });
     }
     const amountKobo = link.amountNgn * 100;
+    const method = normalizePaymentMethod(req.body?.method);
     const data = await initializeTransaction({
+      method,
       email,
       amountKobo,
       metadata: { uid: link.uid, purpose: "coin_request", token: link.token, coins: link.coins },
@@ -355,9 +356,13 @@ router.post("/pay/:token/initialize", payInitLimiter, async (req, res) => {
     await createCoinRequestPayment(link.token, data.reference, amountKobo, email);
     res.json({
       reference: data.reference,
+      accessCode: data.access_code,
       publicKey: PAYSTACK_PUBLIC_KEY,
       email,
       amountKobo,
+      method,
+      ngnPerUsd: NGN_PER_USD,
+      amountUsd: ngnToUsd(link.amountNgn),
       coins: link.coins,
     });
   } catch (err) {
