@@ -661,6 +661,15 @@ app.get(["/.well-known/security.txt", "/security.txt"], (req, res) => {
   res.type("text/plain").send(SECURITY_TXT);
 });
 
+const APPLE_MERCHANT_FILE = path.join(__dirname, "public", ".well-known", "apple-developer-merchantid-domain-association");
+app.get("/.well-known/apple-developer-merchantid-domain-association", (req, res) => {
+  fs.readFile(APPLE_MERCHANT_FILE, (err, buf) => {
+    if (err) return res.status(404).end();
+    res.set("Cache-Control", "public, max-age=300");
+    res.type("text/plain").send(buf);
+  });
+});
+
 const DOMAIN_LOCK_ALLOWED_HASHES = JSON.stringify(
   Array.from(new Set([...DOMAIN_LOCK_HOSTS, "localhost", "127.0.0.1"])).map(domainLockHash)
 );
