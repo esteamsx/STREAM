@@ -45,7 +45,7 @@ export async function initializeTransaction({ email, amountKobo, metadata, metho
     currency: "NGN",
     metadata: { ...(metadata || {}), payment_method: payMethod },
   };
-  if (payMethod === "apple_pay") body.channels = ["apple_pay"];
+  if (payMethod === "apple_pay") body.channels = ["card", "apple_pay"];
   return paystackRequest("POST", "/transaction/initialize", body);
 }
 
