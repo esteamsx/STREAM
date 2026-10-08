@@ -113,8 +113,6 @@ deviceBansRouter.delete("/api/devices/bans/:id", requireAuth, async (req, res) =
   }
 });
 
-/* ---------- admin ---------- */
-
 async function requireAdmin(req, res, next) {
   try {
     const profile = req.userProfile || (await getUserProfile(req.uid));
