@@ -3657,7 +3657,7 @@ async function loadDevices(){
     const note = document.createElement('div');
     note.className = 'tfa-toggle-sub';
     note.style.marginTop = '6px';
-    note.textContent = 'Only one device can be signed in at a time. A trusted device stays signed in while you use it and signs out after 3 hours of inactivity, or when your account is signed in on another device.';
+    note.textContent = 'Only one device can be signed in at a time. A trusted device stays signed in while you use it and signs out after 5 days of inactivity, or when your account is signed in on another device.';
     body.appendChild(note);
 
     const msg = document.createElement('div');

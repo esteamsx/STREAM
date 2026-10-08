@@ -47,7 +47,7 @@ body.es-replaced-nav.es-has-nav{padding-bottom:0}
 @media (max-width:899px){
   body.es-has-nav .acc-fab-toggle{bottom:calc(20px + var(--bnav-h) + env(safe-area-inset-bottom,0px))}
   body.es-has-nav .acc-fab-stack{bottom:calc(84px + var(--bnav-h) + env(safe-area-inset-bottom,0px))}
-  body.es-has-nav .acc-deploy-fab,body.es-has-nav .acc-promote-fab,body.es-has-nav .acc-cert-fab,body.es-has-nav .acc-support-fab,body.es-has-nav .pf-feed-fab,body.es-has-nav .cr-support-fab,body.es-has-nav .tr-settings-fab,body.es-has-nav .tr-fab-stack,body.es-has-nav .acc-toast,body.es-has-nav .pf-toast,body.es-has-nav .music-player,body.es-has-nav .db-toast,body.es-has-nav .pm-toast,body.es-has-nav .tr-toast,body.es-has-nav .pn-card{transform:translateY(calc(-1 * (var(--bnav-h) + env(safe-area-inset-bottom,0px))))}
+  body.es-has-nav .acc-deploy-fab,body.es-has-nav .acc-promote-fab,body.es-has-nav .acc-cert-fab,body.es-has-nav .acc-support-fab,body.es-has-nav .pf-feed-fab,body.es-has-nav .cr-support-fab,body.es-has-nav .tr-settings-fab,body.es-has-nav .tr-fab-stack,body.es-has-nav .music-player,body.es-has-nav .pn-card{transform:translateY(calc(-1 * (var(--bnav-h) + env(safe-area-inset-bottom,0px))))}\nbody.es-has-nav .acc-toast,body.es-has-nav .pf-toast,body.es-has-nav .db-toast,body.es-has-nav .pm-toast,body.es-has-nav .tr-toast{translate:0 calc(-1 * (var(--bnav-h) + env(safe-area-inset-bottom,0px)))}
 }
 `;
 (function () {
@@ -696,7 +696,7 @@ function esMaybeTrustPrompt() {
       ov.appendChild(esEl("div", { class: "overlay-card" }, [
         esEl("div", { class: "overlay-title", text: "Trust this device?" }),
         esEl("div", { class: "overlay-sub", text: sub }),
-        esEl("div", { class: "overlay-sub", text: "A trusted device stays signed in while you use it and signs out after 3 hours of inactivity, or when your account is signed in on another device." }),
+        esEl("div", { class: "overlay-sub", text: "A trusted device stays signed in while you use it and signs out after 5 days of inactivity, or when your account is signed in on another device." }),
         yes,
         no,
       ]));

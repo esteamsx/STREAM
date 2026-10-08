@@ -131,7 +131,7 @@
     ".st-cmt{font-size:.84rem;margin-top:3px;white-space:pre-wrap;word-break:break-word}",
     ".st-confirm{padding:22px 20px;text-align:center}",
     ".st-confirm p{font-size:.9rem;margin-bottom:16px}",
-    ".st-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:9700;background:var(--card2,#1B1B27);border:1px solid var(--border-strong,rgba(255,255,255,.13));border-radius:12px;padding:11px 16px;font-size:.82rem;color:var(--text,#F3F3FA);box-shadow:0 12px 32px rgba(0,0,0,.5);max-width:88vw;text-align:center;font-family:var(--font-body,Inter,sans-serif)}"
+    ".st-toast{position:fixed;left:50%;bottom:calc(var(--bnav-h,0px) + 28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9700;background:var(--card2,#1B1B27);border:1px solid var(--border-strong,rgba(255,255,255,.13));border-radius:12px;padding:11px 16px;font-size:.82rem;color:var(--text,#F3F3FA);box-shadow:0 12px 32px rgba(0,0,0,.5);max-width:88vw;text-align:center;font-family:var(--font-body,Inter,sans-serif)}"
   ].join("\n");
 
   var ICONS = {

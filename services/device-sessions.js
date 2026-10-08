@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db } from "../config/firebase.js";
 
-export const TRUSTED_IDLE_MS = 3 * 60 * 60 * 1000;
+export const TRUSTED_IDLE_MS = 5 * 24 * 60 * 60 * 1000;
 export const TRUSTED_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const SESSIONS = "deviceSessions";
