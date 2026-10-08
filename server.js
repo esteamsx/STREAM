@@ -321,6 +321,8 @@ import { rewardsRouter } from "./routes/rewards.js";
 import { payLinkRouter } from "./routes/pay-link.js";
 import { statusRouter } from "./routes/status.js";
 import { devicesRouter } from "./routes/devices.js";
+import { deviceBansRouter, enforceLoginDevice } from "./routes/device-bans.js";
+import { blacklistMiddleware } from "./services/device-bans.js";
 import { db, auth as firebaseAuth } from "./config/firebase.js";
 import {
   PUSH_ENABLED,
@@ -608,6 +610,7 @@ app.use(crossOriginWriteGuard);
 
 app.use(express.json({ limit: "25mb", verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(cookieParser());
+app.use(blacklistMiddleware);
 app.use(trackPageView);
 
 const REFERRAL_CODE_RE = /^[A-Z0-9]{4,16}$/;
@@ -643,6 +646,7 @@ app.use(rewardsRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
 app.use(devicesRouter);
+app.use(deviceBansRouter);
 
 function domainLockHash(str) {
   let hash = 5381;
@@ -3164,6 +3168,8 @@ app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, re
   try {
     const { idToken, remember, altcha } = req.body;
     const decoded = await withDeadline(firebaseAuth.verifyIdToken(idToken), "firebaseAuth.verifyIdToken");
+    const deviceBlock = await enforceLoginDevice(req, decoded.uid);
+    if (deviceBlock) return res.status(deviceBlock.status).json(deviceBlock.body);
     if (decoded.firebase.sign_in_provider === "google.com") {
       const googleResult = await withDeadline(ensureGoogleUserProfile(decoded), "ensureGoogleUserProfile");
       if (googleResult.isNew) {

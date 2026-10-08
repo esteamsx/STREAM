@@ -1581,6 +1581,17 @@ function bestDistanceBetween(probes, stored) {
   return best;
 }
 
+async function userHasFaceId(uid) {
+  const own = await getFaceScanForUser(uid);
+  return !!(own && storedFaceSamples(own).length);
+}
+
+async function verifyLoginFace(uid, input) {
+  const probes = normalizeFaceSamples(input);
+  if (!probes.length) throw Object.assign(new Error("Face scan required."), { status: 400, code: "device/face-required" });
+  return verifyOwnFaceId(uid, probes);
+}
+
 async function verifyOwnFaceId(uid, probes) {
   const own = await getFaceScanForUser(uid);
   if (!own) throw faceIdNotSetError();
@@ -4951,6 +4962,8 @@ export {
   findUserByReferralCode,
   getReferralsForUser,
   claimDailyCoins,
+  userHasFaceId,
+  verifyLoginFace,
   createDeviceSession,
   sessionSid,
   reissueSessionToken,

@@ -288,3 +288,18 @@ export async function removeTrustedDevice(uid, deviceId) {
   });
   await batch.commit().catch(() => {});
 }
+
+export async function revokeSessionsForDevice(uid, deviceId, reason) {
+  if (!deviceId) return;
+  const snap = await db.collection(SESSIONS).where("uid", "==", uid).where("revoked", "==", false).get().catch(() => null);
+  if (!snap || snap.empty) return;
+  const batch = db.batch();
+  const now = Date.now();
+  snap.docs.forEach((d) => {
+    if (d.data().deviceId === deviceId) {
+      batch.update(d.ref, { revoked: true, revokedAt: now, revokedReason: reason || "device_banned" });
+      cache.delete(d.id);
+    }
+  });
+  await batch.commit().catch(() => {});
+}

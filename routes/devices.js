@@ -1,5 +1,6 @@
 import express from "express";
 import { requireAuth, sessionSid, reissueSessionToken, SESSION_TTL_MS } from "../services/auth.js";
+import { listUserBans } from "../services/device-bans.js";
 import { getDeviceSession, listDevices, setTrusted, removeTrustedDevice, revokeDeviceSession } from "../services/device-sessions.js";
 
 export const devicesRouter = express.Router();
@@ -11,7 +12,13 @@ function cookieOpts(maxAge) {
 devicesRouter.get("/api/devices", requireAuth, async (req, res) => {
   try {
     const sid = sessionSid(req.cookies?.session);
-    res.json(await listDevices(req.uid, sid));
+    const [data, bans] = await Promise.all([listDevices(req.uid, sid), listUserBans(req.uid).catch(() => [])]);
+    const now = Date.now();
+    data.history.forEach((row) => {
+      const b = bans.find((x) => x.deviceId && row.deviceId && x.deviceId === row.deviceId);
+      if (b) row.ban = { id: b.id, state: (b.expiresAt || 0) > now ? "banned" : "face_required", expiresAt: b.expiresAt };
+    });
+    res.json(data);
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not load devices." });

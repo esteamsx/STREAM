@@ -3568,7 +3568,7 @@ function devAgo(ts){
   return d + (d === 1 ? ' day ago' : ' days ago');
 }
 
-function devRow(title, sub, btnLabel, onClick, titleExtra, detail){
+function devRow(title, sub, btnLabel, onClick, titleExtra, detail, extra){
   const row = document.createElement('div');
   row.className = 'tfa-toggle-row';
   row.style.marginBottom = '14px';
@@ -3598,6 +3598,7 @@ function devRow(title, sub, btnLabel, onClick, titleExtra, detail){
     b.addEventListener('click', () => onClick(b));
     row.appendChild(b);
   }
+  if (extra) row.appendChild(extra);
   return row;
 }
 
@@ -3617,7 +3618,8 @@ const DEV_ICONS = {
   browser: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path stroke-linecap="round" d="M3 9h18M7 6.5h.01M10 6.5h.01"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M3 12h18M12 3c2.6 2.4 4 5.6 4 9s-1.4 6.6-4 9c-2.6-2.4-4-5.6-4-9s1.4-6.6 4-9z"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>',
-  shield: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/>'
+  shield: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/>',
+  ban: '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M5.6 5.6l12.8 12.8"/>'
 };
 
 function devSvg(key, size){
@@ -3662,7 +3664,7 @@ function openDeviceDetails(d){
   const dot = document.createElement('span');
   dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + (d.active ? '#25D366' : 'var(--muted)');
   const chipText = document.createElement('span');
-  chipText.textContent = d.active ? 'Active now' : devReason(d.revokedReason);
+  chipText.textContent = d.ban ? (d.ban.state === 'banned' ? 'Blocked until ' + new Date(d.ban.expiresAt).toLocaleString() : 'Face ID required to sign in') : (d.active ? 'Active now' : devReason(d.revokedReason));
   chip.appendChild(dot);
   chip.appendChild(chipText);
   card.appendChild(chip);
@@ -3708,6 +3710,104 @@ function openDeviceDetails(d){
   document.body.appendChild(ov);
 }
 
+function devConfirm(o){
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.className = 'page-overlay show';
+    const card = document.createElement('div');
+    card.className = 'overlay-card';
+    const iw = document.createElement('div');
+    iw.className = 'verify-icon-wrap';
+    iw.appendChild(devSvg(o.icon || 'shield', 26));
+    card.appendChild(iw);
+    const t = document.createElement('div');
+    t.className = 'overlay-title';
+    t.style.textAlign = 'center';
+    t.textContent = o.title;
+    card.appendChild(t);
+    const sub = document.createElement('div');
+    sub.className = 'overlay-sub';
+    sub.style.textAlign = 'center';
+    sub.textContent = o.text;
+    card.appendChild(sub);
+    const yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'acc-btn' + (o.danger ? ' acc-btn-danger' : '');
+    yes.style.cssText = 'width:100%;margin-top:6px' + (o.danger ? ';border-color:var(--red)' : '');
+    yes.textContent = o.confirmLabel || 'Confirm';
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'overlay-cancel';
+    no.textContent = 'Cancel';
+    function done(v){ ov.remove(); resolve(v); }
+    yes.addEventListener('click', () => done(true));
+    no.addEventListener('click', () => done(false));
+    ov.addEventListener('click', (e) => { if (e.target === ov) done(false); });
+    card.appendChild(yes);
+    card.appendChild(no);
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+  });
+}
+
+function devFlash(text, ok){
+  const el = document.getElementById('devicesMsg');
+  if (el) flashMsg(el, text, ok);
+}
+
+function devBanButton(h){
+  const banned = !!h.ban;
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.setAttribute('aria-label', banned ? 'Remove block' : 'Block this device');
+  b.style.cssText = 'width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--red);background:' + (banned ? 'rgba(255,59,92,.18)' : 'transparent') + ';border:1px solid ' + (banned ? 'var(--red)' : 'var(--border-strong)');
+  b.appendChild(devSvg('ban', 19));
+  b.addEventListener('click', async () => {
+    if (banned) {
+      const ok = await devConfirm({ icon: 'ban', title: 'Remove this block?', text: 'This device will be allowed to try signing in to your account again.', confirmLabel: 'Remove block' });
+      if (!ok) return;
+      try {
+        const r = await fetch('/api/devices/bans/' + encodeURIComponent(h.ban.id), { method: 'DELETE', credentials: 'same-origin' });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'Could not remove the block.');
+        await loadDevices();
+        devFlash('Block removed.', true);
+      } catch (err) { devFlash(err.message, false); }
+      return;
+    }
+    const ok = await devConfirm({
+      icon: 'ban', danger: true,
+      title: 'Block this device?',
+      text: [h.name, h.browser, h.ip].filter(Boolean).join(' · ') + '. It will be signed out and can not log in to your account for 72 hours. After that it must pass your Face ID every time it tries to sign in.',
+      confirmLabel: 'Block device'
+    });
+    if (!ok) return;
+    try {
+      const r = await fetch('/api/devices/' + encodeURIComponent(h.sid) + '/ban', { method: 'POST', credentials: 'same-origin' });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        if (d.code === 'face-id-not-set') {
+          const go = await devConfirm({ icon: 'ban', title: 'Set up Face ID first', text: 'Blocking a device only works when Face ID is set on your account, because it is used to let a blocked device back in.', confirmLabel: 'Go to Face ID' });
+          if (go) {
+            const card = document.getElementById('faceScanCard');
+            if (card) {
+              card.classList.add('open');
+              card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              card.classList.add('flash-highlight');
+              setTimeout(() => card.classList.remove('flash-highlight'), 1800);
+            }
+          }
+          return;
+        }
+        throw new Error(d.error || 'Could not block that device.');
+      }
+      await loadDevices();
+      devFlash('Device blocked for 72 hours.', true);
+    } catch (err) { devFlash(err.message, false); }
+  });
+  return b;
+}
+
 function devInfo(d){
   return [d.browser, d.os, d.ip].filter(Boolean).join(' · ');
 }
@@ -3724,6 +3824,10 @@ async function loadDevices(){
     if (data.current) {
       const c = data.current;
       body.appendChild(devRow(c.name, '', c.trusted ? 'Remove trust' : 'Trust', async (btn) => {
+        if (!c.trusted) {
+          const ok = await devConfirm({ icon: 'shield', title: 'Trust this device?', text: 'Only trust a device that belongs to you. It will stay signed in until 5 days of inactivity, or until your account is signed in on another device.', confirmLabel: 'Yes, trust it' });
+          if (!ok) return;
+        }
         btn.disabled = true;
         try {
           await postJSON('/api/devices/trust', { trusted: !c.trusted });
@@ -3769,7 +3873,7 @@ async function loadDevices(){
       historyBox.className = 'dev-scroll';
       body.appendChild(historyBox);
       data.history.forEach((h) => {
-        historyBox.appendChild(devRow(h.name, '', null, null, h.current ? '(current)' : '', h));
+        historyBox.appendChild(devRow(h.name, '', null, null, h.current ? '(current)' : '', h, h.current ? null : devBanButton(h)));
       });
     }
 

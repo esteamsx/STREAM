@@ -763,7 +763,11 @@ async function postJSON(url, body){
     clearTimeout(timer);
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || ('Request to ' + url + ' failed (HTTP ' + res.status + ').'));
+  if (!res.ok) {
+    const failure = new Error(data.error || ('Request to ' + url + ' failed (HTTP ' + res.status + ').'));
+    if (data.code) failure.code = data.code;
+    throw failure;
+  }
   return data;
 }
 
@@ -817,8 +821,34 @@ function goToSignInTarget(){
   window.location.href = target;
 }
 
-async function establishSession(idToken, remember, altcha){
-  const data = await postJSON('/api/session', { idToken, remember, altcha });
+async function captureFaceForDevice(){
+  const overlay = document.getElementById('pageOverlay');
+  document.getElementById('pageOverlayText').textContent = 'Face ID required to sign in from this device…';
+  overlay.classList.add('show');
+  try {
+    const { captureFaceDescriptor } = await import('/face-scan.js');
+    return await captureFaceDescriptor({
+      requireLiveness: false,
+      showCamera: false,
+      voice: false,
+      verify: async (descriptor, samples) => [descriptor].concat(samples || []),
+    });
+  } finally {
+    overlay.classList.remove('show');
+  }
+}
+
+async function establishSession(idToken, remember, altcha, faceDescriptor){
+  let data;
+  try {
+    data = await postJSON('/api/session', { idToken, remember, altcha, faceDescriptor });
+  } catch (err) {
+    if (err.code === 'device/face-required' && !faceDescriptor) {
+      const descriptor = await captureFaceForDevice();
+      return establishSession(idToken, remember, altcha, descriptor);
+    }
+    throw err;
+  }
   document.getElementById('pageOverlay').classList.remove('show');
   if (data.requires2FA) {
     await promptTwoFactor(data.pendingToken);

@@ -729,6 +729,18 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div></div>
   </div>
 
+  <div class="ad-card accent-gold" id="deviceBansCard">
+    <div class="ad-card-header" id="deviceBansHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M5.6 5.6l12.8 12.8"/></svg>
+      <div class="ad-card-header-title">Flagged Devices</div>
+      <div class="ad-card-count" id="deviceBansCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="bonus-list" id="deviceBansList"><div class="ad-empty">Loading...</div></div>
+    </div></div>
+  </div>
+
   <div class="ad-card accent-gold" id="crlogCard">
     <div class="ad-card-header" id="crlogHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M8 15s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>
@@ -1298,6 +1310,74 @@ function loadWithdrawals(){
     withdrawalsCount.textContent = String(list.length);
     renderWithdrawalsList(list);
   }).catch(() => { withdrawalsList.innerHTML = '<div class="ad-empty">Could not load withdrawal requests.</div>'; });
+}
+
+document.getElementById('deviceBansHeader').addEventListener('click', () => {
+  document.getElementById('deviceBansCard').classList.toggle('open');
+});
+
+const deviceBansList = document.getElementById('deviceBansList');
+const deviceBansCount = document.getElementById('deviceBansCount');
+
+function deviceBanItemHtml(b){
+  const pill = b.blacklistId
+    ? '<span class="status-pill bad">Blacklisted</span>'
+    : (b.state === 'banned' ? '<span class="status-pill bad">Blocked 72h</span>' : '<span class="status-pill">Face ID required</span>');
+  const when = b.state === 'banned' ? 'blocked until ' + new Date(b.expiresAt).toLocaleString() : 'block expired, Face ID required to sign in';
+  return '<div class="withdrawal-item">' +
+    '<div class="withdrawal-item-head">' +
+      '<div class="withdrawal-item-amount" style="font-size:.95rem">' + esc(b.name || 'Device') + '</div>' + pill +
+    '</div>' +
+    '<div class="withdrawal-item-meta">' +
+      '@' + esc(b.username || 'user') + (b.email ? ' &middot; ' + esc(b.email) : '') + '<br>' +
+      esc([b.browser, b.os, b.ip].filter(Boolean).join(' · ')) + '<br>' +
+      'Strikes: ' + esc(b.strikes) + ' &middot; ' + esc(when) +
+    '</div>' +
+    (b.blacklistId
+      ? '<button type="button" class="withdrawal-confirm-btn" data-unbl="' + esc(b.blacklistId) + '">Unban device</button>'
+      : '<button type="button" class="withdrawal-confirm-btn" data-bl="' + esc(b.id) + '" style="background:var(--red);color:#fff">Blacklist device</button>') +
+  '</div>';
+}
+
+function renderDeviceBans(list){
+  if (!list.length) { deviceBansList.innerHTML = '<div class="ad-empty">No flagged devices.</div>'; return; }
+  deviceBansList.innerHTML = list.map(deviceBanItemHtml).join('');
+  deviceBansList.querySelectorAll('[data-bl]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Permanently blacklist this device? It will be blocked from the whole site until you unban it.')) return;
+      btn.disabled = true;
+      try {
+        await postJSON('/api/admin/device-bans/' + encodeURIComponent(btn.getAttribute('data-bl')) + '/blacklist', {});
+        showToast('Device blacklisted.');
+        loadDeviceBans();
+      } catch (err) {
+        showToast(err.message || 'Could not blacklist that device.');
+        btn.disabled = false;
+      }
+    });
+  });
+  deviceBansList.querySelectorAll('[data-unbl]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await postJSON('/api/admin/device-blacklist/' + encodeURIComponent(btn.getAttribute('data-unbl')) + '/remove', {});
+        showToast('Device unbanned.');
+        loadDeviceBans();
+      } catch (err) {
+        showToast(err.message || 'Could not unban that device.');
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+function loadDeviceBans(){
+  getJSON('/api/admin/device-bans').then((data) => {
+    const list = data.bans || [];
+    deviceBansCount.style.display = list.length ? '' : 'none';
+    deviceBansCount.textContent = String(list.length);
+    renderDeviceBans(list);
+  }).catch(() => { deviceBansList.innerHTML = '<div class="ad-empty">Could not load flagged devices.</div>'; });
 }
 
 const crlogList = document.getElementById('crlogList');
@@ -2748,6 +2828,7 @@ loadMaintenanceStatus();
 loadBonusCodes();
 loadTpCodes();
 loadWithdrawals();
+loadDeviceBans();
 loadCrlog();
 loadUsersPage(true);
 loadBannedUsers();
