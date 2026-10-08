@@ -672,6 +672,39 @@ function esSetDots(on) {
   document.querySelectorAll(".js-dot").forEach((el) => el.classList.toggle("show", !!on));
 }
 
+function esMaybeTrustPrompt() {
+  try { if (sessionStorage.getItem("es_trust_asked")) return; } catch (e) {}
+  fetch("/api/devices/prompt", { credentials: "same-origin" })
+    .then((r) => (r.ok ? r.json() : { prompt: false }))
+    .then((d) => {
+      if (!d.prompt) return;
+      try { sessionStorage.setItem("es_trust_asked", "1"); } catch (e) {}
+      const ov = esEl("div", { class: "page-overlay show", id: "esTrustOverlay" });
+      const yes = esEl("button", { type: "button", class: "mpv-view-btn", text: "Trust this device" });
+      const no = esEl("button", { type: "button", class: "overlay-cancel", text: "Not now" });
+      function answer(trusted) {
+        yes.disabled = true; no.disabled = true;
+        fetch("/api/devices/trust", {
+          method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trusted: trusted }),
+        }).catch(() => {}).then(() => ov.remove());
+      }
+      yes.addEventListener("click", () => answer(true));
+      no.addEventListener("click", () => answer(false));
+      const sub = [d.device && d.device.name, d.device && d.device.browser, d.device && d.device.os].filter(Boolean).join(" \u00b7 ");
+      ov.appendChild(esEl("div", { class: "overlay-card" }, [
+        esEl("div", { class: "overlay-title", text: "Trust this device?" }),
+        esEl("div", { class: "overlay-sub", text: sub }),
+        esEl("div", { class: "overlay-sub", text: "A trusted device stays signed in while you use it and signs out after 3 hours of inactivity, or when your account is signed in on another device." }),
+        yes,
+        no,
+      ]));
+      document.body.appendChild(ov);
+    })
+    .catch(() => {});
+}
+
 function esSetCount(key, n) {
   document.querySelectorAll('[data-es-count="' + key + '"]').forEach((el) => {
     el.textContent = n > 99 ? "99+" : String(n);
@@ -955,6 +988,7 @@ window.EsUI = {
     esState.ready = true;
     (esState.waiters || []).forEach((fn) => fn(esState.me));
     esRefreshDots();
+    esMaybeTrustPrompt();
     setInterval(esRefreshDots, 60000);
     document.addEventListener("visibilitychange", esRefreshDots);
   }

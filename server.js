@@ -200,6 +200,7 @@ import {
   issueResetToken,
   consumeResetToken,
   createSession,
+  createDeviceSession,
   verifySession,
   refreshSession,
   deleteSession,
@@ -319,6 +320,7 @@ import { flushAdStats } from "./services/ads.js";
 import { rewardsRouter } from "./routes/rewards.js";
 import { payLinkRouter } from "./routes/pay-link.js";
 import { statusRouter } from "./routes/status.js";
+import { devicesRouter } from "./routes/devices.js";
 import { db, auth as firebaseAuth } from "./config/firebase.js";
 import {
   PUSH_ENABLED,
@@ -369,6 +371,10 @@ app.use(compression());
 app.use(cspNonce);
 app.use(injectPromoSlot);
 app.use(helmetMiddleware);
+app.use((req, res, next) => {
+  res.setHeader("Accept-CH", "Sec-CH-UA-Model, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version");
+  next();
+});
 app.use(securityHeaders);
 app.use(permissionsPolicy);
 app.use(hppGuard);
@@ -636,6 +642,7 @@ app.use(promoteRouter);
 app.use(rewardsRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
+app.use(devicesRouter);
 
 function domainLockHash(str) {
   let hash = 5381;
@@ -3177,12 +3184,12 @@ app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, re
       const pendingToken = await withDeadline(issueTwoFactorPendingLogin(decoded.uid, remember), "issueTwoFactorPendingLogin");
       return res.json({ requires2FA: true, pendingToken });
     }
-    const sessionId = await withDeadline(createSession(decoded.uid), "createSession");
-    res.cookie("session", sessionId, {
+    const login = await withDeadline(createDeviceSession(decoded.uid, req, res), "createSession");
+    res.cookie("session", login.token, {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
-      ...(remember ? { maxAge: SESSION_TTL_MS } : {}),
+      ...((remember || login.trusted) ? { maxAge: login.maxAge } : {}),
     });
     res.json({ ok: true });
   } catch (err) {
@@ -3270,12 +3277,12 @@ app.post("/api/2fa/login-verify", twoFactorLoginLimiter, async (req, res) => {
     const valid = await verifyTwoFactorCode(pending.uid, code);
     if (!valid) return res.status(400).json({ error: "Incorrect code." });
     await deleteTwoFactorPendingLogin(pendingToken);
-    const sessionId = await createSession(pending.uid);
-    res.cookie("session", sessionId, {
+    const login = await createDeviceSession(pending.uid, req, res);
+    res.cookie("session", login.token, {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
-      ...(pending.remember ? { maxAge: SESSION_TTL_MS } : {}),
+      ...((pending.remember || login.trusted) ? { maxAge: login.maxAge } : {}),
     });
     res.json({ ok: true });
   } catch (err) {

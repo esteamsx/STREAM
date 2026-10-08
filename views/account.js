@@ -1332,6 +1332,19 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
   </div>
 
+  <div class="tfa-card" id="devicesCard">
+    <div class="tfa-header" id="devicesHeader">
+      <svg class="tfa-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2" stroke-linecap="round"/></svg>
+      <div class="tfa-header-title">Trusted Devices</div>
+      <svg class="tfa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="tfa-body">
+      <div class="tfa-body-inner" id="devicesBody">
+        <div class="tfa-toggle-sub">Loading...</div>
+      </div>
+    </div>
+  </div>
+
   <div class="tfa-card" id="privacyCard">
     <div class="tfa-header" id="privacyHeader">
       <svg class="tfa-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 16c0-3 4-5 9-5s9 2 9 5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12c1-3 4-5 7-5s6 2 7 5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="15" r="1.6"/><circle cx="16" cy="15" r="1.6"/><path d="M9.6 15h4.8" stroke-linecap="round"/></svg>
@@ -3535,6 +3548,135 @@ document.getElementById('addEmailConfirmBtn').addEventListener('click', async ()
 
 document.getElementById('tfaHeader').addEventListener('click', () => {
   document.getElementById('tfaCard').classList.toggle('open');
+});
+
+function devAgo(ts){
+  if (!ts) return '';
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + ' min ago';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago');
+  const d = Math.floor(h / 24);
+  return d + (d === 1 ? ' day ago' : ' days ago');
+}
+
+function devRow(title, sub, btnLabel, onClick, titleExtra){
+  const row = document.createElement('div');
+  row.className = 'tfa-toggle-row';
+  row.style.marginBottom = '14px';
+  const left = document.createElement('div');
+  const t = document.createElement('div');
+  t.className = 'tfa-toggle-label';
+  t.textContent = title + (titleExtra ? ' ' + titleExtra : '');
+  const s = document.createElement('div');
+  s.className = 'tfa-toggle-sub';
+  s.textContent = sub;
+  left.appendChild(t);
+  left.appendChild(s);
+  row.appendChild(left);
+  if (btnLabel) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pv-configure';
+    b.textContent = btnLabel;
+    b.addEventListener('click', () => onClick(b));
+    row.appendChild(b);
+  }
+  return row;
+}
+
+function devHeading(text){
+  const h = document.createElement('div');
+  h.className = 'tfa-toggle-sub';
+  h.style.cssText = 'margin:6px 0 10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.68rem';
+  h.textContent = text;
+  return h;
+}
+
+function devInfo(d){
+  return [d.browser, d.os, d.ip].filter(Boolean).join(' · ');
+}
+
+async function loadDevices(){
+  const body = document.getElementById('devicesBody');
+  try {
+    const res = await fetch('/api/devices', { credentials: 'same-origin' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load devices.');
+    body.textContent = '';
+
+    body.appendChild(devHeading('This device'));
+    if (data.current) {
+      const c = data.current;
+      body.appendChild(devRow(c.name, devInfo(c) + (c.trusted ? ' · Trusted' : ' · Not trusted'), c.trusted ? 'Remove trust' : 'Trust', async (btn) => {
+        btn.disabled = true;
+        try {
+          await postJSON('/api/devices/trust', { trusted: !c.trusted });
+          flashMsg(document.getElementById('devicesMsg'), c.trusted ? 'This device is no longer trusted.' : 'This device is now trusted.', true);
+          loadDevices();
+        } catch (err) {
+          btn.disabled = false;
+          flashMsg(document.getElementById('devicesMsg'), err.message || 'Could not update this device.', false);
+        }
+      }, '(current)'));
+    } else {
+      const none = document.createElement('div');
+      none.className = 'tfa-toggle-sub';
+      none.style.marginBottom = '14px';
+      none.textContent = 'Log out and sign in again to register this device.';
+      body.appendChild(none);
+    }
+
+    const others = data.trusted.filter((t) => !t.isCurrent);
+    if (others.length) {
+      body.appendChild(devHeading('Trusted devices'));
+      others.forEach((t) => {
+        body.appendChild(devRow(t.name, [t.browser, t.os, t.ip].filter(Boolean).join(' · ') + ' · last used ' + devAgo(t.lastUsedAt), 'Remove', async (btn) => {
+          btn.disabled = true;
+          try {
+            const r = await fetch('/api/devices/trusted/' + encodeURIComponent(t.deviceId), { method: 'DELETE', credentials: 'same-origin' });
+            if (!r.ok) throw new Error((await r.json()).error || 'Could not remove device.');
+            loadDevices();
+          } catch (err) {
+            btn.disabled = false;
+            flashMsg(document.getElementById('devicesMsg'), err.message, false);
+          }
+        }));
+      });
+    }
+
+    if (data.history.length) {
+      body.appendChild(devHeading('Recent logins'));
+      data.history.forEach((h) => {
+        const status = h.active ? 'Active now' : (h.revokedReason === 'another_login' ? 'Signed out: logged in elsewhere' : (h.revokedReason === 'idle' ? 'Signed out: inactive' : 'Signed out'));
+        body.appendChild(devRow(h.name, devInfo(h) + ' · ' + devAgo(h.createdAt) + ' · ' + status, null, null, h.current ? '(current)' : ''));
+      });
+    }
+
+    const note = document.createElement('div');
+    note.className = 'tfa-toggle-sub';
+    note.style.marginTop = '6px';
+    note.textContent = 'Only one device can be signed in at a time. A trusted device stays signed in while you use it and signs out after 3 hours of inactivity, or when your account is signed in on another device.';
+    body.appendChild(note);
+
+    const msg = document.createElement('div');
+    msg.className = 'acc-msg';
+    msg.id = 'devicesMsg';
+    body.appendChild(msg);
+  } catch (err) {
+    body.textContent = '';
+    const e = document.createElement('div');
+    e.className = 'tfa-toggle-sub';
+    e.textContent = err.message || 'Could not load devices.';
+    body.appendChild(e);
+  }
+}
+
+document.getElementById('devicesHeader').addEventListener('click', () => {
+  const card = document.getElementById('devicesCard');
+  card.classList.toggle('open');
+  if (card.classList.contains('open')) loadDevices();
 });
 
 document.getElementById('privacyHeader').addEventListener('click', () => {

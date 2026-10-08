@@ -12,6 +12,7 @@ import { checkQuotaError } from "../middleware/quota-guard.js";
 import { VERIFICATION_PRICE_NGN } from "./paystack.js";
 import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEmail } from "./mailer.js";
 import { appendCoinLedger, coinLedgerMismatch, verifyCoinLedgerChain } from "./coin-ledger.js";
+import { openDeviceSession, checkDeviceSession, touchDeviceSession, revokeDeviceSession, revokeAllDeviceSessions, TRUSTED_SESSION_TTL_MS } from "./device-sessions.js";
 
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
@@ -870,12 +871,47 @@ async function createSession(uid) {
   return signSessionToken({ uid, iat: now, exp: now + SESSION_TTL_MS });
 }
 
+async function createDeviceSession(uid, req, res) {
+  const now = Date.now();
+  let sid = null;
+  let trusted = false;
+  let kicked = [];
+  let device = null;
+  try {
+    ({ sid, trusted, kicked, device } = await openDeviceSession({ uid, req, res }));
+  } catch (err) {
+    console.error("[device-sessions] could not record device, using plain session:", err.message);
+  }
+  if (kicked.length) {
+    const who = device && device.name ? device.name : "a new device";
+    addNotification(uid, "new_login", `Your account was signed in on ${who}${device && device.browser ? " (" + device.browser + ")" : ""}. Other devices were signed out. If this wasn't you, change your password.`, {}).catch(() => {});
+  }
+  const ttl = trusted ? TRUSTED_SESSION_TTL_MS : SESSION_TTL_MS;
+  const token = signSessionToken({ uid, iat: now, exp: now + ttl, ...(sid ? { sid } : {}) });
+  return { token, trusted, maxAge: ttl };
+}
+
+function sessionSid(token) {
+  const p = readSessionToken(token);
+  return p && typeof p.sid === "string" ? p.sid : null;
+}
+
+function reissueSessionToken(oldToken, trusted) {
+  const p = readSessionToken(oldToken);
+  if (!p) return null;
+  const now = Date.now();
+  const ttl = trusted ? TRUSTED_SESSION_TTL_MS : SESSION_TTL_MS;
+  const exp = trusted ? now + ttl : Math.min(p.exp || now + ttl, now + ttl);
+  return { token: signSessionToken({ ...p, exp }), maxAge: ttl };
+}
+
 async function verifySession(sessionId) {
   if (!sessionId) return null;
 
   const payload = readSessionToken(sessionId);
   if (payload) {
     if (typeof payload.exp !== "number" || Date.now() >= payload.exp) return null;
+    if (payload.sid && !(await checkDeviceSession(payload.sid, payload.uid))) return null;
     return payload.uid;
   }
 
@@ -899,11 +935,14 @@ async function refreshSession(sessionId) {
 }
 
 async function deleteSession(sessionId) {
+  const sid = sessionSid(sessionId);
+  if (sid) await revokeDeviceSession(sid, "logout");
   if (!sessionId || !LEGACY_SESSION_ID.test(sessionId)) return;
   await db.collection("sessions").doc(sessionId).delete().catch(() => {});
 }
 
 async function revokeAllSessions(uid) {
+  await revokeAllDeviceSessions(uid);
   await db.collection("users").doc(uid).update({ sessionsValidFrom: Date.now() }).catch(() => {});
   await db.collection("sessions").where("uid", "==", uid).get().then((snap) => {
     return Promise.all(snap.docs.map((d) => d.ref.delete()));
@@ -2686,6 +2725,8 @@ async function searchUsersByUsername(query, excludeUid, limit = 15) {
 
 const LAST_ACTIVE_UPDATE_THROTTLE_MS = 2 * 60 * 1000;
 
+const BACKGROUND_POLL_PATHS = ["/api/notifications/unread", "/api/feed/following/unseen-count", "/api/status/unseen-count", "/api/devices/prompt"];
+
 function requireAuth(req, res, next) {
   const sessionId = req.cookies?.session;
   verifySession(sessionId)
@@ -2698,6 +2739,8 @@ function requireAuth(req, res, next) {
       }
       req.uid = uid;
       req.userProfile = profile;
+      const activeSid = sessionSid(sessionId);
+      if (activeSid && !BACKGROUND_POLL_PATHS.some((p) => req.path.startsWith(p))) touchDeviceSession(activeSid);
       if (!profile.lastActiveAt || Date.now() - profile.lastActiveAt > LAST_ACTIVE_UPDATE_THROTTLE_MS) {
         updateUserProfile(uid, { lastActiveAt: Date.now() }).catch(() => {});
       }
@@ -3683,10 +3726,17 @@ async function finalizeClaimPayment(reference, paystackData) {
 }
 
 async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
+  const reference = String(paymentReference || "").trim();
+  const pre = await getUserProfile(uid);
+  if (!(pre && isAdminEmail(pre.email))) {
+    const prePay = reference ? await getClaimPayment(reference) : null;
+    if (!prePay || prePay.uid !== uid || prePay.status !== "success" || prePay.used) {
+      throw Object.assign(new Error(`Pay \u20A6${DAILY_CLAIM_FEE_NGN} to claim your daily coins.`), { status: 402 });
+    }
+  }
   const probes = await checkClaimFace(uid, faceDescriptor);
   const today = currentUsageDay();
   const ref = db.collection("users").doc(uid);
-  const reference = String(paymentReference || "").trim();
   let amount = DAILY_COIN_CLAIM_AMOUNT;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -4900,6 +4950,9 @@ export {
   findUserByReferralCode,
   getReferralsForUser,
   claimDailyCoins,
+  createDeviceSession,
+  sessionSid,
+  reissueSessionToken,
   DAILY_CLAIM_FEE_NGN,
   hasClaimedDailyToday,
   createClaimPayment,
