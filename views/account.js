@@ -3551,6 +3551,12 @@ document.getElementById('tfaHeader').addEventListener('click', () => {
   document.getElementById('tfaCard').classList.toggle('open');
 });
 
+(function(){
+  const st = document.createElement('style');
+  st.textContent = '.dev-scroll{max-height:250px;overflow-y:auto;overscroll-behavior:contain;margin-bottom:6px;padding-right:4px}';
+  document.head.appendChild(st);
+})();
+
 function devAgo(ts){
   if (!ts) return '';
   const m = Math.floor((Date.now() - ts) / 60000);
@@ -3632,8 +3638,11 @@ async function loadDevices(){
     const others = data.trusted.filter((t) => !t.isCurrent);
     if (others.length) {
       body.appendChild(devHeading('Trusted devices'));
+      const trustedBox = document.createElement('div');
+      trustedBox.className = 'dev-scroll';
+      body.appendChild(trustedBox);
       others.forEach((t) => {
-        body.appendChild(devRow(t.name, [t.browser, t.os, t.ip].filter(Boolean).join(' · ') + ' · last used ' + devAgo(t.lastUsedAt), 'Remove', async (btn) => {
+        trustedBox.appendChild(devRow(t.name, [t.browser, t.os, t.ip].filter(Boolean).join(' · ') + ' · last used ' + devAgo(t.lastUsedAt), 'Remove', async (btn) => {
           btn.disabled = true;
           try {
             const r = await fetch('/api/devices/trusted/' + encodeURIComponent(t.deviceId), { method: 'DELETE', credentials: 'same-origin' });
@@ -3649,9 +3658,12 @@ async function loadDevices(){
 
     if (data.history.length) {
       body.appendChild(devHeading('Recent logins'));
+      const historyBox = document.createElement('div');
+      historyBox.className = 'dev-scroll';
+      body.appendChild(historyBox);
       data.history.forEach((h) => {
         const status = h.active ? 'Active now' : (h.revokedReason === 'another_login' ? 'Signed out: logged in elsewhere' : (h.revokedReason === 'idle' ? 'Signed out: inactive' : 'Signed out'));
-        body.appendChild(devRow(h.name, devInfo(h) + ' · ' + devAgo(h.createdAt) + ' · ' + status, null, null, h.current ? '(current)' : ''));
+        historyBox.appendChild(devRow(h.name, devInfo(h) + ' · ' + devAgo(h.lastActiveAt || h.createdAt) + ' · ' + status, null, null, h.current ? '(current)' : ''));
       });
     }
 
