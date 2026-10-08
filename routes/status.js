@@ -110,7 +110,7 @@ statusRouter.get("/api/status/feed", requireAuth, async (req, res) => {
     const users = await loadUsers(others.map((o) => o.uid));
     res.json({
       meUid: req.uid,
-      mine: mineEntry ? { count: mineEntry.ids.length, latestAt: mineEntry.latestAt } : null,
+      mine: mineEntry ? { count: mineEntry.ids.length, latestAt: mineEntry.latestAt, allSeen: mineEntry.ids.every((id) => seen.has(id)) } : null,
       users: others.filter((o) => users.has(o.uid)).map((o) => ({ ...o, user: users.get(o.uid) })),
     });
   } catch (err) {
@@ -144,7 +144,7 @@ statusRouter.get("/api/status/summary/:uid", requireAuth, async (req, res) => {
   try {
     const list = await activeStatusesOf(String(req.params.uid || ""));
     if (!list.length) return res.json({ count: 0, allSeen: true });
-    const seen = req.params.uid === req.uid ? new Set() : await seenIdSet(req.uid, list.map((s) => s.id));
+    const seen = await seenIdSet(req.uid, list.map((s) => s.id));
     res.json({ count: list.length, allSeen: list.every((s) => seen.has(s.id)) });
   } catch (err) {
     res.json({ count: 0, allSeen: true });
@@ -157,7 +157,7 @@ statusRouter.get("/api/status/user/:uid", requireAuth, async (req, res) => {
     const isOwner = ownerUid === req.uid;
     const list = await activeStatusesOf(ownerUid);
     if (!list.length) return res.status(404).json({ error: "No status to show." });
-    const [users, seen] = await Promise.all([loadUsers([ownerUid]), isOwner ? Promise.resolve(new Set()) : seenIdSet(req.uid, list.map((s) => s.id))]);
+    const [users, seen] = await Promise.all([loadUsers([ownerUid]), seenIdSet(req.uid, list.map((s) => s.id))]);
     const statuses = [];
     for (const s of list) {
       const item = {
@@ -169,14 +169,14 @@ statusRouter.get("/api/status/user/:uid", requireAuth, async (req, res) => {
         bg: s.bg || BG_COLORS[0],
         createdAt: s.createdAt,
         expiresAt: s.expiresAt,
-        seen: isOwner ? true : seen.has(s.id),
+        seen: seen.has(s.id),
       };
       if (isOwner) {
         const [v, c] = await Promise.all([
-          db.collection("statusViews").where("statusId", "==", s.id).select().get(),
+          db.collection("statusViews").where("statusId", "==", s.id).select("viewerUid").get(),
           db.collection("statusComments").where("statusId", "==", s.id).select().get(),
         ]);
-        item.viewCount = v.size;
+        item.viewCount = v.docs.filter((x) => x.data().viewerUid !== ownerUid).length;
         item.commentCount = c.size;
       }
       statuses.push(item);
@@ -240,7 +240,6 @@ statusRouter.post("/api/status/:id/view", requireAuth, async (req, res) => {
     if (!snap.exists) return res.status(404).json({ error: "Status not found." });
     const s = snap.data();
     if ((s.expiresAt || 0) <= Date.now()) return res.status(404).json({ error: "Status expired." });
-    if (s.uid === req.uid) return res.json({ ok: true });
     const ref = db.collection("statusViews").doc(statusId + "_" + req.uid);
     const existing = await ref.get();
     if (!existing.exists) {
@@ -261,7 +260,7 @@ statusRouter.get("/api/status/:id/details", requireAuth, async (req, res) => {
       db.collection("statusViews").where("statusId", "==", statusId).get(),
       db.collection("statusComments").where("statusId", "==", statusId).get(),
     ]);
-    const views = vSnap.docs.map((d) => d.data()).sort((a, b) => (b.viewedAt || 0) - (a.viewedAt || 0));
+    const views = vSnap.docs.map((d) => d.data()).filter((v) => v.viewerUid !== req.uid).sort((a, b) => (b.viewedAt || 0) - (a.viewedAt || 0));
     const comments = cSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     const users = await loadUsers([...views.map((v) => v.viewerUid), ...comments.map((c) => c.uid)]);
     res.json({

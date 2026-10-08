@@ -102,11 +102,6 @@
     if (!me) return;
     paintAvatar($("hmNavAvatar"), me);
     paintAvatar($("hmComposerAvatar"), me);
-    $("hmNavAvatar").setAttribute("data-st-self", "1");
-    $("hmNavAvatar").setAttribute("data-st-noclick", "1");
-    $("hmComposerAvatar").setAttribute("data-st-self", "1");
-    $("hmComposerAvatar").setAttribute("data-st-noclick", "1");
-    if (window.EsStatus) window.EsStatus.refreshRings();
     var menuName = $("hmMenuName");
     menuName.textContent = "";
     menuName.appendChild(h("span", { class: "hm-name-text", text: nameOf(me) }));
@@ -119,9 +114,7 @@
     card.textContent = "";
     var av = h("span", { class: "hm-avatar big" });
     paintAvatar(av, me);
-    av.setAttribute("data-st-self", "1");
     card.appendChild(av);
-    if (window.EsStatus) window.EsStatus.refreshRings();
     card.appendChild(h("div", { class: "hm-me-info" }, [h("div", { class: "hm-me-name" }, [h("span", { class: "hm-name-text", text: nameOf(me) }), badgeFor(me)]), h("div", { class: "hm-me-user", text: me.username ? "@" + me.username : "" })]));
     $("hmAdminLink").hidden = !me.isAdmin;
     $("hmMenuAdmin").hidden = !me.isAdmin;

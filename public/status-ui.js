@@ -12,7 +12,11 @@
 
   var CSS = [
     ".st-ring{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px " + GREEN + " !important;cursor:pointer}",
-    ".st-ring.seen{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px rgba(150,150,160,.55) !important}",
+    ".st-ring.seen{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px rgba(255,255,255,.85) !important}",
+    ".st-ring.st-in{box-shadow:inset 0 0 0 3px " + GREEN + ",inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
+    ".st-ring.st-in.seen{box-shadow:inset 0 0 0 3px rgba(255,255,255,.85),inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
+    ":root[data-theme=\"light\"] .st-ring.seen{box-shadow:0 0 0 2px var(--dark,#F5F6FA),0 0 0 4.5px rgba(120,120,135,.6) !important}",
+    ":root[data-theme=\"light\"] .st-ring.st-in.seen{box-shadow:inset 0 0 0 3px rgba(120,120,135,.6),inset 0 0 0 5px var(--dark,#F5F6FA) !important}",
     /* edge arrow (same look as the account rewards slider, with a glow) */
     ".st-hint{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:250;background:var(--card,#15151F);border:1px solid var(--border-strong,rgba(255,255,255,.13));border-right:none;border-radius:12px 0 0 12px;padding:12px 8px;color:var(--accent,#00E0FF);display:flex;align-items:center;cursor:pointer;box-shadow:-4px 0 18px rgba(0,224,255,.22)}",
     ".st-hint svg{width:16px;height:16px;animation:stHint 1.8s ease-in-out infinite;filter:drop-shadow(0 0 4px rgba(0,224,255,.7))}",
@@ -258,12 +262,13 @@
   }
 
   function markRing(el, uid, info, clickable) {
-    el.classList.remove("st-ring", "seen");
+    el.classList.remove("st-ring", "seen", "st-in");
     if (!info) {
       if (el._stH) { el.removeEventListener("click", el._stH, true); el._stH = null; }
       return;
     }
     el.classList.add("st-ring");
+    if (el.hasAttribute("data-st-uid")) el.classList.add("st-in");
     if (info.allSeen) el.classList.add("seen");
     if (clickable && !el._stH) {
       el._stH = function (e) {
@@ -282,7 +287,7 @@
       f.users.forEach(function (u) { map[u.uid] = u; });
       Array.prototype.forEach.call(els, function (el) {
         var uid = el.hasAttribute("data-st-self") ? f.meUid : el.getAttribute("data-st-uid");
-        var info = uid === f.meUid ? (f.mine ? { allSeen: false } : null) : (map[uid] || null);
+        var info = uid === f.meUid ? (f.mine ? { allSeen: !!f.mine.allSeen } : null) : (map[uid] || null);
         markRing(el, uid, info, !el.hasAttribute("data-st-noclick"));
       });
     }).catch(function () {});
@@ -308,7 +313,7 @@
     var myAv = h("div", { class: "st-av" });
     paint(myAv, state.me || {});
     myAv.appendChild(h("span", { class: "st-av-plus", html: ICONS.plus }));
-    if (f && f.mine) myAv.classList.add("st-ring");
+    if (f && f.mine) { myAv.classList.add("st-ring"); if (f.mine.allSeen) myAv.classList.add("seen"); }
     var myRow = h("button", { class: "st-row", type: "button" }, [
       myAv,
       infoBlock("My status", f && f.mine ? f.mine.count + (f.mine.count === 1 ? " update" : " updates") + " \u00b7 " + ago(f.mine.latestAt) : "Tap to add status update")
@@ -506,12 +511,8 @@
   /* ---------- Viewer ---------- */
   function openUser(uid) {
     api("/api/status/user/" + encodeURIComponent(uid)).then(function (d) {
-      var start = 0;
-      if (!d.isOwner) {
-        var firstUnseen = d.statuses.findIndex(function (s) { return !s.seen; });
-        start = firstUnseen < 0 ? 0 : firstUnseen;
-      }
-      playViewer(d, start);
+      var firstUnseen = d.statuses.findIndex(function (s) { return !s.seen; });
+      playViewer(d, firstUnseen < 0 ? 0 : firstUnseen);
     }).catch(function (err) { toast(err.message || "No status to show."); });
   }
 
@@ -592,7 +593,7 @@
       nm.textContent = d.isOwner ? "My status" : nameOf(d.user);
       tm.textContent = ago(s.createdAt);
       if (d.isOwner) buildOwnerFoot(s); else buildViewerFoot(s);
-      if (!d.isOwner && !s.seen) {
+      if (!s.seen) {
         s.seen = true;
         api("/api/status/" + s.id + "/view", { method: "POST" }).catch(function () {});
       }
