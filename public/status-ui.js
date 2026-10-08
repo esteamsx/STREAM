@@ -13,10 +13,12 @@
   var CSS = [
     ".st-ring{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px " + GREEN + " !important;cursor:pointer}",
     ".st-ring.seen{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px #ffffff !important}",
-    ".st-ring.st-inset{box-shadow:inset 0 0 0 3px " + GREEN + ",inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
-    ".st-ring.st-inset.seen{box-shadow:inset 0 0 0 3px #ffffff,inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
+    ".st-ring.st-inset{position:relative;box-shadow:none !important}",
+    ".st-ring.st-inset::after{content:\"\";position:absolute;inset:0;border-radius:50%;border:4px solid " + GREEN + ";box-shadow:inset 0 0 0 2px var(--dark,#0A0A0F);pointer-events:none}",
+    ".st-ring.st-inset.seen::after{border-color:#ffffff}",
+    ":root[data-theme=\"light\"] .st-ring.st-inset.seen{box-shadow:none !important}",
+    ":root[data-theme=\"light\"] .st-ring.st-inset.seen::after{border-color:rgba(120,120,135,.7);box-shadow:inset 0 0 0 2px var(--dark,#F5F6FA)}",
     ":root[data-theme=\"light\"] .st-ring.seen{box-shadow:0 0 0 2px var(--dark,#F5F6FA),0 0 0 4.5px rgba(120,120,135,.6) !important}",
-    ":root[data-theme=\"light\"] .st-ring.st-inset.seen{box-shadow:inset 0 0 0 3px rgba(120,120,135,.6),inset 0 0 0 5px var(--dark,#F5F6FA) !important}",
     /* edge arrow (same look as the account rewards slider, with a glow) */
     ".st-hint{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:250;background:var(--card,#15151F);border:1px solid var(--border-strong,rgba(255,255,255,.13));border-right:none;border-radius:12px 0 0 12px;padding:12px 8px;color:var(--accent,#00E0FF);display:flex;align-items:center;cursor:pointer;box-shadow:-4px 0 18px rgba(0,224,255,.22)}",
     ".st-hint svg{width:16px;height:16px;animation:stHint 1.8s ease-in-out infinite;filter:drop-shadow(0 0 4px rgba(0,224,255,.7))}",
