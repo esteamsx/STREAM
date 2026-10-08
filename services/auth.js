@@ -266,6 +266,7 @@ const PRIVACY_FIELDS = {
   showLastSeen: (v) => typeof v === "boolean",
   lockProfile: (v) => typeof v === "boolean",
   showProfilePhoto: (v) => typeof v === "boolean",
+  readReceipts: (v) => typeof v === "boolean",
   followersVisibility: (v) => v === "everyone" || v === "only_me" || v === "friends",
   followingVisibility: (v) => v === "everyone" || v === "only_me" || v === "friends",
 };

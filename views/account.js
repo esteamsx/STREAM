@@ -1373,6 +1373,14 @@ body:has(.page-overlay.show){overflow:hidden}
           <div class="tfa-switch" id="showPhotoSwitch"><div class="tfa-switch-dot"></div></div>
         </div>
 
+        <div class="tfa-toggle-row" style="margin-bottom:16px">
+          <div>
+            <div class="tfa-toggle-label">Read Receipts</div>
+            <div class="tfa-toggle-sub" id="readReceiptsSub">On</div>
+          </div>
+          <div class="tfa-switch" id="readReceiptsSwitch"><div class="tfa-switch-dot"></div></div>
+        </div>
+
         <div class="pv-row">
           <div>
             <div class="tfa-toggle-label">See My Followers</div>
@@ -2689,7 +2697,7 @@ function notifRender(list){
       btn.dataset.uid = n.meta.followerUid;
       top.appendChild(btn);
     }
-    if (n.type === 'status_comment' && n.meta && n.meta.link) {
+    if ((n.type === 'status_comment' || n.type === 'status_comment_like' || n.type === 'status_view') && n.meta && n.meta.link) {
       const stBtn = document.createElement('button');
       stBtn.type = 'button';
       stBtn.className = 'notif-view-post-btn';
@@ -3550,6 +3558,9 @@ function renderPrivacyState(){
   document.getElementById('showPhotoSwitch').classList.toggle('on', profile.showProfilePhoto !== false);
   document.getElementById('showPhotoSub').textContent = profile.showProfilePhoto !== false ? 'On' : 'Off';
 
+  document.getElementById('readReceiptsSwitch').classList.toggle('on', profile.readReceipts !== false);
+  document.getElementById('readReceiptsSub').textContent = profile.readReceipts !== false ? 'On' : 'Off';
+
   document.getElementById('followersVisSub').textContent = visibilityLabel(profile.followersVisibility);
   document.getElementById('followingVisSub').textContent = visibilityLabel(profile.followingVisibility);
 }
@@ -3584,6 +3595,9 @@ document.getElementById('lockProfileSwitch').addEventListener('click', () => {
 });
 document.getElementById('showPhotoSwitch').addEventListener('click', () => {
   togglePrivacySwitch('showPhotoSwitch', 'showPhotoSub', 'showProfilePhoto');
+});
+document.getElementById('readReceiptsSwitch').addEventListener('click', () => {
+  togglePrivacySwitch('readReceiptsSwitch', 'readReceiptsSub', 'readReceipts');
 });
 
 function setupVisibilityMenu(configureBtnId, menuId, subId, field){

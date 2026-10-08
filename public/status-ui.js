@@ -12,9 +12,9 @@
 
   var CSS = [
     ".st-ring{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px " + GREEN + " !important;cursor:pointer}",
-    ".st-ring.seen{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px rgba(255,255,255,.85) !important}",
+    ".st-ring.seen{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px #ffffff !important}",
     ".st-ring.st-inset{box-shadow:inset 0 0 0 3px " + GREEN + ",inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
-    ".st-ring.st-inset.seen{box-shadow:inset 0 0 0 3px rgba(255,255,255,.85),inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
+    ".st-ring.st-inset.seen{box-shadow:inset 0 0 0 3px #ffffff,inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
     ":root[data-theme=\"light\"] .st-ring.seen{box-shadow:0 0 0 2px var(--dark,#F5F6FA),0 0 0 4.5px rgba(120,120,135,.6) !important}",
     ":root[data-theme=\"light\"] .st-ring.st-inset.seen{box-shadow:inset 0 0 0 3px rgba(120,120,135,.6),inset 0 0 0 5px var(--dark,#F5F6FA) !important}",
     /* edge arrow (same look as the account rewards slider, with a glow) */
@@ -122,6 +122,10 @@
     ".st-tabs{display:flex;border-bottom:1px solid var(--border,rgba(255,255,255,.07))}",
     ".st-tab{flex:1;padding:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted,rgba(255,255,255,.42));font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit}",
     ".st-tab.on{color:var(--text,#F3F3FA);border-bottom-color:var(--accent,#00E0FF)}",
+    ".st-like{background:none;border:0;color:var(--muted,rgba(255,255,255,.42));width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}",
+    ".st-like svg{width:19px;height:19px}",
+    ".st-like.on{color:#FF3B5C}",
+    ".st-like.on svg{fill:#FF3B5C}",
     ".st-cmt{font-size:.84rem;margin-top:3px;white-space:pre-wrap;word-break:break-word}",
     ".st-confirm{padding:22px 20px;text-align:center}",
     ".st-confirm p{font-size:.9rem;margin-bottom:16px}",
@@ -138,6 +142,7 @@
     send: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>',
     eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s-7.5-4.6-9.5-9.2C1.1 8.4 3 5 6.4 5c2 0 3.4 1.1 4.1 2.3h3C14.2 6.1 15.6 5 17.6 5 21 5 22.9 8.4 21.5 11.8 19.5 16.4 12 21 12 21z"/></svg>',
     palette: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1.2" fill="currentColor"/><circle cx="12" cy="7.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="10" r="1.2" fill="currentColor"/></svg>'
   };
 
@@ -668,7 +673,20 @@
             av._stBefore = function () { sw.remove(); paused = true; };
             av._stAfter = function () { paused = false; };
           }
-          var row = h("div", { class: "st-row", style: "align-items:flex-start" }, [av, info]);
+          var kids = [av, info];
+          if (tab === "comments") {
+            var lk = h("button", { class: "st-like" + (r.liked ? " on" : ""), type: "button", "aria-label": "Like comment", html: ICONS.heart });
+            lk.addEventListener("click", function (e) {
+              e.stopPropagation();
+              lk.disabled = true;
+              api("/api/status/" + s.id + "/comments/" + r.id + "/like", { method: "POST" }).then(function (res) {
+                r.liked = !!res.liked;
+                lk.classList.toggle("on", r.liked);
+              }).catch(function (err) { toast(err.message); }).then(function () { lk.disabled = false; });
+            });
+            kids.push(lk);
+          }
+          var row = h("div", { class: "st-row", style: "align-items:flex-start" }, kids);
           row.addEventListener("click", function () {
             if (r.user.username) window.location.href = "/u/" + r.user.username;
           });

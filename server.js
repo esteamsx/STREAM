@@ -3306,6 +3306,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       showLastSeen: profile.showLastSeen !== false,
       lockProfile: !!profile.lockProfile,
       showProfilePhoto: profile.showProfilePhoto !== false,
+      readReceipts: profile.readReceipts !== false,
       followersVisibility: ["friends", "only_me"].includes(profile.followersVisibility) ? profile.followersVisibility : "everyone",
       followingVisibility: ["friends", "only_me"].includes(profile.followingVisibility) ? profile.followingVisibility : "everyone",
       bio: profile.bio || "",

@@ -173,10 +173,10 @@ statusRouter.get("/api/status/user/:uid", requireAuth, async (req, res) => {
       };
       if (isOwner) {
         const [v, c] = await Promise.all([
-          db.collection("statusViews").where("statusId", "==", s.id).select("viewerUid").get(),
+          db.collection("statusViews").where("statusId", "==", s.id).select("viewerUid", "hidden").get(),
           db.collection("statusComments").where("statusId", "==", s.id).select().get(),
         ]);
-        item.viewCount = v.docs.filter((x) => x.data().viewerUid !== ownerUid).length;
+        item.viewCount = v.docs.filter((x) => x.data().viewerUid !== ownerUid && !x.data().hidden).length;
         item.commentCount = c.size;
       }
       statuses.push(item);
@@ -240,10 +240,24 @@ statusRouter.post("/api/status/:id/view", requireAuth, async (req, res) => {
     if (!snap.exists) return res.status(404).json({ error: "Status not found." });
     const s = snap.data();
     if ((s.expiresAt || 0) <= Date.now()) return res.status(404).json({ error: "Status expired." });
+    const viewer = await getUserProfile(req.uid);
+    const receipts = viewer ? viewer.readReceipts !== false : true;
     const ref = db.collection("statusViews").doc(statusId + "_" + req.uid);
     const existing = await ref.get();
+    let counted = false;
     if (!existing.exists) {
-      await ref.set({ statusId, ownerUid: s.uid, viewerUid: req.uid, viewedAt: Date.now() });
+      await ref.set({ statusId, ownerUid: s.uid, viewerUid: req.uid, viewedAt: Date.now(), hidden: !receipts });
+      counted = receipts;
+    } else if (existing.data().hidden && receipts) {
+      await ref.update({ hidden: false, viewedAt: Date.now() });
+      counted = true;
+    }
+    if (counted && s.uid !== req.uid) {
+      await addNotification(s.uid, "status_view", displayName(viewer || {}) + " viewed your status.", {
+        statusId,
+        viewerUid: req.uid,
+        link: "/profile?status=mine",
+      });
     }
     res.json({ ok: true });
   } catch (err) {
@@ -260,16 +274,43 @@ statusRouter.get("/api/status/:id/details", requireAuth, async (req, res) => {
       db.collection("statusViews").where("statusId", "==", statusId).get(),
       db.collection("statusComments").where("statusId", "==", statusId).get(),
     ]);
-    const views = vSnap.docs.map((d) => d.data()).filter((v) => v.viewerUid !== req.uid).sort((a, b) => (b.viewedAt || 0) - (a.viewedAt || 0));
+    const views = vSnap.docs.map((d) => d.data()).filter((v) => v.viewerUid !== req.uid && !v.hidden).sort((a, b) => (b.viewedAt || 0) - (a.viewedAt || 0));
     const comments = cSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     const users = await loadUsers([...views.map((v) => v.viewerUid), ...comments.map((c) => c.uid)]);
     res.json({
       views: views.map((v) => ({ user: users.get(v.viewerUid) || publicUser(v.viewerUid, null), viewedAt: v.viewedAt })),
-      comments: comments.map((c) => ({ id: c.id, text: c.text, createdAt: c.createdAt, user: users.get(c.uid) || publicUser(c.uid, null) })),
+      comments: comments.map((c) => ({ id: c.id, text: c.text, liked: !!c.liked, createdAt: c.createdAt, user: users.get(c.uid) || publicUser(c.uid, null) })),
     });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not load details." });
+  }
+});
+
+statusRouter.post("/api/status/:id/comments/:cid/like", requireAuth, async (req, res) => {
+  try {
+    const statusId = String(req.params.id || "");
+    const sSnap = await db.collection("statuses").doc(statusId).get();
+    if (!sSnap.exists || sSnap.data().uid !== req.uid) return res.status(404).json({ error: "Status not found." });
+    const cRef = db.collection("statusComments").doc(String(req.params.cid || ""));
+    const cSnap = await cRef.get();
+    if (!cSnap.exists || cSnap.data().statusId !== statusId) return res.status(404).json({ error: "Comment not found." });
+    const c = cSnap.data();
+    const liked = !c.liked;
+    const patch = { liked };
+    if (liked && !c.likeNotified && c.uid !== req.uid) {
+      const me = await getUserProfile(req.uid);
+      await addNotification(c.uid, "status_comment_like", displayName(me || {}) + " liked your comment on their status.", {
+        statusId,
+        link: me && me.username ? "/u/" + me.username : "/",
+      });
+      patch.likeNotified = true;
+    }
+    await cRef.update(patch);
+    res.json({ ok: true, liked });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not update like." });
   }
 });
 
