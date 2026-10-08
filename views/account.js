@@ -1522,11 +1522,11 @@ body:has(.page-overlay.show){overflow:hidden}
         <input type="text" id="rwReferralLinkInput" readonly>
         <button type="button" class="acc-btn" id="rwCopyReferralBtn">Copy</button>
       </div>
-      <div class="rw-hint">Share this link and get +5 coins for every person who joins with it, plus 15% commission on anything they later pay for (except buying coins).</div>
+      <div class="rw-hint">Share this link and get +3 coins for every person who joins with it, plus 15% commission on anything they later pay for (except buying coins).</div>
       <div class="rw-referral-list" id="rwReferralList"><div class="rw-empty">No referrals yet.</div></div>
     </div>
 
-    <div class="acc-card">
+    <div class="acc-card" id="rwCoinStoreCard">
       <div class="acc-card-title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5a2 2 0 013-1.7M15.5 14.5a2 2 0 01-3 1.7"/></svg>
         Coin Store
@@ -1581,8 +1581,8 @@ body:has(.page-overlay.show){overflow:hidden}
     <div class="overlay-title" style="text-align:center">How to Earn</div>
     <div class="overlay-sub" style="text-align:center">Three ways to build up your balance on ES TEAMS TV.</div>
     <div class="verify-benefits">
-      <div class="verify-benefit htw-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span><b>Daily Claim</b>: tap Claim on this page once a day for +2 free coins.</span></div>
-      <div class="verify-benefit htw-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span><b>Refer Friends</b>: share your referral link below. You get +5 coins the moment someone signs up with it, plus 15% cash commission on anything they pay for afterward (except when they buy coins).</span></div>
+      <div class="verify-benefit htw-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span><b>Daily Claim</b>: tap Claim on this page once a day for +1 free coin.</span></div>
+      <div class="verify-benefit htw-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span><b>Refer Friends</b>: share your referral link below. You get +3 coins the moment someone signs up with it, plus 15% cash commission on anything they pay for afterward (except when they buy coins).</span></div>
       <div class="verify-benefit htw-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span><b>Spend or Cash Out</b>: coins can be spent in the Coin Store on request-limit boosts or free verification. Referral commission builds up as real Naira, which a verified account can withdraw to a bank account.</span></div>
     </div>
     <button class="acc-btn" id="howToEarnCloseBtn" style="width:100%">Got It</button>
@@ -1735,7 +1735,8 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="rw-hint">A quick face check keeps daily claims fair.
         <details style="margin-top:6px">
           <summary style="cursor:pointer;color:var(--accent);font-weight:600;list-style:none">Learn more</summary>
-          <div style="margin-top:6px">The face check makes sure one person is not claiming with several accounts. It is only used for the daily claim. Each claim costs &#8358;100, paid with Apple Pay or Paystack. If the face check fails, your payment is kept and you can try again without paying twice.</div>
+          <div style="margin-top:6px">The face check makes sure one person is not claiming with several accounts. It is only used for the daily claim.</div>
+          <div style="margin-top:8px">Want to get more coins? Visit the <a href="#" id="rwClaimGoStore" style="color:var(--accent);font-weight:700;text-decoration:underline">Coin Store</a>.</div>
         </details>
       </div>
       <div style="margin:12px 0"><altcha-widget id="rwClaimAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>
@@ -3654,10 +3655,17 @@ async function loadDevices(){
       });
     }
 
-    const note = document.createElement('div');
+    const note = document.createElement('details');
     note.className = 'tfa-toggle-sub';
     note.style.marginTop = '6px';
-    note.textContent = 'Only one device can be signed in at a time. A trusted device stays signed in while you use it and signs out after 5 days of inactivity, or when your account is signed in on another device.';
+    const noteSum = document.createElement('summary');
+    noteSum.textContent = 'Learn more';
+    noteSum.style.cssText = 'cursor:pointer;color:var(--accent);font-weight:600;list-style:none';
+    const noteText = document.createElement('div');
+    noteText.style.marginTop = '6px';
+    noteText.textContent = 'Only one device can be signed in at a time. A trusted device stays signed in while you use it and signs out after 5 days of inactivity, or when your account is signed in on another device.';
+    note.appendChild(noteSum);
+    note.appendChild(noteText);
     body.appendChild(note);
 
     const msg = document.createElement('div');
@@ -5071,6 +5079,19 @@ document.getElementById('rwClaimGoFaceIdBtn').addEventListener('click', () => {
   const card = document.getElementById('faceScanCard');
   if (!card) return;
   card.classList.add('open');
+  setTimeout(() => {
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('flash-highlight');
+    setTimeout(() => card.classList.remove('flash-highlight'), 1800);
+  }, 380);
+});
+
+document.getElementById('rwClaimGoStore').addEventListener('click', (e) => {
+  e.preventDefault();
+  closeRwOverlay(rwClaimOverlay);
+  showRewards();
+  const card = document.getElementById('rwCoinStoreCard');
+  if (!card) return;
   setTimeout(() => {
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     card.classList.add('flash-highlight');

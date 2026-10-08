@@ -404,7 +404,7 @@ router.post("/api/rewards/claim-pay/initialize", requireAuth, initLimiter, async
   try {
     const profile = await getUserProfile(req.uid);
     if (!profile) return res.status(404).json({ error: "Account not found." });
-    if (isAdminEmail(profile.email)) return res.json({ free: true });
+    if (isAdminEmail(profile.email) || DAILY_CLAIM_FEE_NGN <= 0) return res.json({ free: true });
     if (hasClaimedDailyToday(profile)) return res.status(400).json({ error: "You've already claimed today's coins. Come back tomorrow." });
     if (!profile.email) return res.status(400).json({ error: "Add an email to your account before claiming." });
 

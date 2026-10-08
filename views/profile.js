@@ -2715,7 +2715,12 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
     EsStatus.init({ me: profile });
     EsStatus.ring(document.getElementById('pfAvatar'), profile.uid, document.getElementById('pfAvatarWrap'));
     window.addEventListener('es-status-changed', function(){ EsStatus.ring(document.getElementById('pfAvatar'), profile.uid, document.getElementById('pfAvatarWrap')); });
-    if (new URLSearchParams(location.search).get('status') === 'mine') EsStatus.openMine();
+    const stParams = new URLSearchParams(location.search);
+    if (stParams.get('status') === 'mine') {
+      stParams.delete('status');
+      history.replaceState(null, '', location.pathname + (stParams.toString() ? '?' + stParams.toString() : '') + location.hash);
+      EsStatus.openMine();
+    }
   }
   document.getElementById('pfName').innerHTML =
     (((profile.firstName || '') + ' ' + (profile.lastName || '')).trim() || 'Unnamed') +

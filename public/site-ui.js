@@ -672,6 +672,28 @@ function esSetDots(on) {
   document.querySelectorAll(".js-dot").forEach((el) => el.classList.toggle("show", !!on));
 }
 
+function esTrustCss() {
+  if (document.getElementById("esTrustCss")) return;
+  const st = document.createElement("style");
+  st.id = "esTrustCss";
+  st.textContent = [
+    ".es-trust-ov{position:fixed;inset:0;z-index:9600;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(10,10,15,.75);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font-family:var(--font-body,Inter,-apple-system,sans-serif)}",
+    ".es-trust-card{width:100%;max-width:340px;text-align:center;padding:30px 24px 18px;border-radius:16px;color:var(--text,#F3F3FA);background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.22);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3)}",
+    ":root[data-theme=\"light\"] .es-trust-card{background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);border:1px solid rgba(255,255,255,.65);box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7)}",
+    ".es-trust-icon{width:60px;height:60px;border-radius:18px;margin:0 auto 18px;display:flex;align-items:center;justify-content:center;color:var(--accent,#00E0FF);background:rgba(0,224,255,.12);border:1px solid rgba(0,224,255,.3)}",
+    ".es-trust-title{font-family:var(--font-display,'Space Grotesk',Inter,sans-serif);font-size:1.15rem;font-weight:700;margin-bottom:8px}",
+    ".es-trust-dev{font-size:.84rem;color:var(--muted,rgba(255,255,255,.55));line-height:1.45;margin-bottom:12px}",
+    ".es-trust-more{margin:0 0 20px;font-size:.8rem;color:var(--muted,rgba(255,255,255,.55));line-height:1.5}",
+    ".es-trust-more summary{cursor:pointer;color:var(--accent,#00E0FF);font-weight:600;list-style:none}",
+    ".es-trust-more summary::-webkit-details-marker{display:none}",
+    ".es-trust-more div{margin-top:8px}",
+    ".es-trust-yes{width:100%;padding:13px;border:0;border-radius:12px;font-weight:700;font-size:.92rem;font-family:inherit;cursor:pointer;color:#04141a;background:linear-gradient(135deg,var(--accent,#00E0FF),var(--accent2,#7c5cff))}",
+    ".es-trust-no{width:100%;margin-top:8px;padding:12px;border:0;background:none;color:var(--muted,rgba(255,255,255,.55));font-size:.85rem;font-family:inherit;cursor:pointer}",
+    ".es-trust-yes:disabled,.es-trust-no:disabled{opacity:.6}"
+  ].join("\n");
+  document.head.appendChild(st);
+}
+
 function esMaybeTrustPrompt() {
   try { if (sessionStorage.getItem("es_trust_asked")) return; } catch (e) {}
   fetch("/api/devices/prompt", { credentials: "same-origin" })
@@ -679,9 +701,10 @@ function esMaybeTrustPrompt() {
     .then((d) => {
       if (!d.prompt) return;
       try { sessionStorage.setItem("es_trust_asked", "1"); } catch (e) {}
-      const ov = esEl("div", { class: "page-overlay show", id: "esTrustOverlay" });
-      const yes = esEl("button", { type: "button", class: "mpv-view-btn", text: "Trust this device" });
-      const no = esEl("button", { type: "button", class: "overlay-cancel", text: "Not now" });
+      esTrustCss();
+      const ov = esEl("div", { class: "es-trust-ov", id: "esTrustOverlay" });
+      const yes = esEl("button", { type: "button", class: "es-trust-yes", text: "Trust this device" });
+      const no = esEl("button", { type: "button", class: "es-trust-no", text: "Not now" });
       function answer(trusted) {
         yes.disabled = true; no.disabled = true;
         fetch("/api/devices/trust", {
@@ -693,10 +716,16 @@ function esMaybeTrustPrompt() {
       yes.addEventListener("click", () => answer(true));
       no.addEventListener("click", () => answer(false));
       const sub = [d.device && d.device.name, d.device && d.device.browser, d.device && d.device.os].filter(Boolean).join(" \u00b7 ");
-      ov.appendChild(esEl("div", { class: "overlay-card" }, [
-        esEl("div", { class: "overlay-title", text: "Trust this device?" }),
-        esEl("div", { class: "overlay-sub", text: sub }),
-        esEl("div", { class: "overlay-sub", text: "A trusted device stays signed in while you use it and signs out after 5 days of inactivity, or when your account is signed in on another device." }),
+      const icon = esEl("div", { class: "es-trust-icon" }, [esSvg('<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path stroke-linecap="round" d="M11 18.5h2"/>', 28)]);
+      const more = esEl("details", { class: "es-trust-more" }, [
+        esEl("summary", { text: "Learn more" }),
+        esEl("div", { text: "A trusted device stays signed in while you use it and signs out after 5 days of inactivity, or when your account is signed in on another device." }),
+      ]);
+      ov.appendChild(esEl("div", { class: "es-trust-card" }, [
+        icon,
+        esEl("div", { class: "es-trust-title", text: "Trust this device?" }),
+        esEl("div", { class: "es-trust-dev", text: sub }),
+        more,
         yes,
         no,
       ]));

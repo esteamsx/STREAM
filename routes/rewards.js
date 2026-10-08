@@ -82,7 +82,7 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
       nairaBalance: profile.nairaBalance || 0,
       lastDailyCoinClaimDay: profile.lastDailyCoinClaimDay || null,
       dailyClaimFeeNgn: DAILY_CLAIM_FEE_NGN,
-      dailyClaimFree: isAdminEmail(profile.email),
+      dailyClaimFree: isAdminEmail(profile.email) || DAILY_CLAIM_FEE_NGN <= 0,
       claimCreditRef: claimCreditRef || null,
       bankDetails: profile.bankDetails || null,
       verified: isAdminEmail(profile.email) || isVerificationActive(profile),

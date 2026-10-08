@@ -3601,8 +3601,8 @@ async function redeemTradingPlanCode(uid, rawCode) {
 }
 
 const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const REFERRAL_SIGNUP_COINS = 5;
-const DAILY_COIN_CLAIM_AMOUNT = 2;
+const REFERRAL_SIGNUP_COINS = 3;
+const DAILY_COIN_CLAIM_AMOUNT = 1;
 const ADMIN_DAILY_COIN_CLAIM_AMOUNT = 5;
 const REFERRAL_COMMISSION_RATE = 0.15;
 const MIN_WITHDRAWAL_NGN = 3000;
@@ -3694,7 +3694,7 @@ async function getReferralsForUser(uid) {
   return snap.docs.map((d) => d.data()).sort((a, b) => b.referredAt - a.referredAt);
 }
 
-const DAILY_CLAIM_FEE_NGN = 100;
+const DAILY_CLAIM_FEE_NGN = 0;
 
 function hasClaimedDailyToday(profile) {
   return !!profile && profile.lastDailyCoinClaimDay === currentUsageDay();
@@ -3728,7 +3728,7 @@ async function finalizeClaimPayment(reference, paystackData) {
 async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
   const reference = String(paymentReference || "").trim();
   const pre = await getUserProfile(uid);
-  if (!(pre && isAdminEmail(pre.email))) {
+  if (DAILY_CLAIM_FEE_NGN > 0 && !(pre && isAdminEmail(pre.email))) {
     const prePay = reference ? await getClaimPayment(reference) : null;
     if (!prePay || prePay.uid !== uid || prePay.status !== "success" || prePay.used) {
       throw Object.assign(new Error(`Pay \u20A6${DAILY_CLAIM_FEE_NGN} to claim your daily coins.`), { status: 402 });
@@ -3742,7 +3742,8 @@ async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new Error("Account not found.");
     const data = snap.data();
-    const free = isAdminEmail(data.email);
+    const isAdmin = isAdminEmail(data.email);
+    const free = isAdmin || DAILY_CLAIM_FEE_NGN <= 0;
     let payRef = null;
     let paySnap = null;
     if (!free) {
@@ -3764,7 +3765,7 @@ async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
         throw Object.assign(new Error("That payment was already used for a claim."), { status: 400 });
       }
     }
-    if (free) amount = ADMIN_DAILY_COIN_CLAIM_AMOUNT;
+    if (isAdmin) amount = ADMIN_DAILY_COIN_CLAIM_AMOUNT;
     const ledger = appendCoinLedger(tx, ref, data, amount, "daily_claim", { day: today, ...(free ? {} : { reference }) });
     tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(amount), lastDailyCoinClaimDay: today, ...ledger }, { merge: true });
     if (payRef) tx.update(payRef, { used: true, usedAt: Date.now() });
