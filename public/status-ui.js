@@ -14,7 +14,7 @@
     ".st-ring{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px " + GREEN + " !important;cursor:pointer}",
     ".st-ring.seen{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px #ffffff !important}",
     ".st-ring.st-inset{position:relative;box-shadow:none !important}",
-    ".st-ring.st-inset::after{content:\"\";position:absolute;inset:0;border-radius:50%;border:4px solid " + GREEN + ";box-shadow:inset 0 0 0 2px var(--dark,#0A0A0F);pointer-events:none}",
+    ".st-ring.st-inset::after{content:\"\";position:absolute;inset:0;border-radius:50%;border:2px solid " + GREEN + ";box-shadow:inset 0 0 0 2px var(--dark,#0A0A0F);pointer-events:none}",
     ".st-ring.st-inset.seen::after{border-color:#ffffff}",
     ":root[data-theme=\"light\"] .st-ring.st-inset.seen{box-shadow:none !important}",
     ":root[data-theme=\"light\"] .st-ring.st-inset.seen::after{border-color:rgba(120,120,135,.7);box-shadow:inset 0 0 0 2px var(--dark,#F5F6FA)}",
