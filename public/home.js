@@ -102,6 +102,11 @@
     if (!me) return;
     paintAvatar($("hmNavAvatar"), me);
     paintAvatar($("hmComposerAvatar"), me);
+    $("hmNavAvatar").setAttribute("data-st-self", "1");
+    $("hmNavAvatar").setAttribute("data-st-noclick", "1");
+    $("hmComposerAvatar").setAttribute("data-st-self", "1");
+    $("hmComposerAvatar").setAttribute("data-st-noclick", "1");
+    if (window.EsStatus) window.EsStatus.refreshRings();
     var menuName = $("hmMenuName");
     menuName.textContent = "";
     menuName.appendChild(h("span", { class: "hm-name-text", text: nameOf(me) }));

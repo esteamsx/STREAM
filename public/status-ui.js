@@ -32,6 +32,31 @@
     ".st-ov.st-sheet-ov .st-glass{max-width:440px;max-height:72vh;border-radius:20px 20px 0 0;animation:stUp .3s var(--ease,cubic-bezier(.22,1,.36,1))}",
     "@keyframes stUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}",
     ".st-panel-card{height:640px;max-height:84vh}",
+    ".st-panel{position:fixed;inset:0;z-index:9300;background:rgba(10,10,15,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);color:var(--text,#F3F3FA);transform:translateX(100%);transition:transform .35s cubic-bezier(.22,.61,.36,1);display:flex;flex-direction:column;font-family:var(--font-body,Inter,-apple-system,sans-serif)}",
+    ".st-panel.open{transform:none}",
+    ":root[data-theme=\"light\"] .st-panel{background:rgba(244,246,250,.78)}",
+    ".st-phd{display:flex;align-items:center;gap:6px;padding:max(14px,env(safe-area-inset-top)) 12px 10px;border-bottom:1px solid var(--border,rgba(255,255,255,.07))}",
+    ".st-phd .st-title{flex:1;font-size:1.2rem}",
+    ".st-panel .st-list{padding:8px 12px 140px}",
+    ".st-fabs{position:absolute;right:18px;bottom:calc(24px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;align-items:flex-end}",
+    ".st-fab{width:50px;height:50px;border-radius:16px;border:1px solid rgba(255,255,255,.22);background:" + GLASS_DARK + ";-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:var(--text,#F3F3FA);box-shadow:0 8px 24px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;cursor:pointer}",
+    ".st-fab.main{width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#25D366,#128C7E);border:none;color:#fff}",
+    ".st-fab svg{width:24px;height:24px}",
+    ".st-full{position:fixed;inset:0;z-index:9400;display:flex;flex-direction:column;color:#fff;font-family:var(--font-body,Inter,-apple-system,sans-serif)}",
+    ".st-full.glassbg{background:rgba(10,10,15,.8);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}",
+    ".st-full .st-top{display:flex;align-items:center;gap:6px;padding:max(12px,env(safe-area-inset-top)) 12px 8px;position:relative;z-index:2}",
+    ".st-full .st-top .sp{flex:1}",
+    ".st-full .st-x{color:#fff;background:rgba(0,0,0,.28);width:38px;height:38px;border-radius:50%}",
+    ".st-text-area{flex:1;display:flex;align-items:center;justify-content:center;padding:20px 28px}",
+    ".st-text-area textarea{width:100%;max-height:60vh;background:none;border:0;outline:0;resize:none;color:#fff;text-align:center;font-size:1.7rem;font-weight:600;font-family:var(--font-display,'Space Grotesk',Inter,sans-serif);line-height:1.3}",
+    ".st-text-area textarea::placeholder{color:rgba(255,255,255,.7)}",
+    ".st-bottom{display:flex;align-items:center;gap:10px;padding:10px 14px calc(14px + env(safe-area-inset-bottom));position:relative;z-index:2}",
+    ".st-bottom .st-in{flex:1;background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.22);color:#fff}",
+    ".st-bottom .st-in::placeholder{color:rgba(255,255,255,.65)}",
+    ".st-bottom .st-send{width:50px;height:50px}",
+    ".st-pv{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:0 12px}",
+    ".st-pv img{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px}",
+    ".st-full.st-vw{background:rgba(5,5,10,.86);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}",
     ".st-hd{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 8px}",
     ".st-title{font-family:var(--font-display,'Space Grotesk',Inter,sans-serif);font-weight:700;font-size:1.02rem}",
     ".st-x{background:transparent;border:none;color:var(--muted,rgba(255,255,255,.42));width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:all .2s var(--ease,ease)}",
@@ -67,10 +92,10 @@
     /* story viewer (glass frame on the blurred site backdrop) */
     ".st-ov.st-viewer-ov{padding:12px;background:rgba(10,10,15,.82)}",
     ".st-story{position:relative;width:100%;max-width:420px;height:min(88vh,780px);border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.22);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);background:rgba(0,0,0,.4);color:#fff}",
-    ".st-bars{position:absolute;top:0;left:0;right:0;display:flex;gap:4px;padding:10px 10px 0;z-index:3}",
+    ".st-bars{position:absolute;top:0;left:0;right:0;display:flex;gap:4px;padding:max(10px,env(safe-area-inset-top)) 10px 0;z-index:3}",
     ".st-bar{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden}",
     ".st-bar i{display:block;height:100%;width:0;background:#fff}",
-    ".st-vhead{position:absolute;top:10px;left:0;right:0;display:flex;align-items:center;gap:10px;padding:10px 12px;z-index:3;background:linear-gradient(rgba(0,0,0,.55),transparent)}",
+    ".st-vhead{position:absolute;top:calc(max(10px,env(safe-area-inset-top)) + 4px);left:0;right:0;display:flex;align-items:center;gap:10px;padding:10px 12px;z-index:3;background:linear-gradient(rgba(0,0,0,.55),transparent)}",
     ".st-vhead .meta{flex:1;min-width:0}",
     ".st-vhead .nm{font-weight:600;font-size:.88rem}",
     ".st-vhead .tm{font-size:.72rem;opacity:.85}",
@@ -200,7 +225,7 @@
   var state = { feed: null, panel: null, hint: null, list: null, timers: [] };
 
   function anyOverlayOpen() {
-    return !!document.querySelector(".page-overlay.show,.pm-overlay.show,.tr-overlay.show,.st-ov.show");
+    return !!document.querySelector(".page-overlay.show,.pm-overlay.show,.tr-overlay.show,.st-ov.show,.st-full");
   }
 
   /* ---------- Rings ---------- */
@@ -225,11 +250,41 @@
     }).catch(function () {});
   }
 
-  function refreshRings() {
-    var selfEls = document.querySelectorAll("[data-st-self]");
-    if (!selfEls.length) return;
-    api("/api/status/feed").then(function (f) {
-      selfEls.forEach(function (el) { ring(el, f.meUid); });
+  var ringCache = { t: 0, data: null };
+
+  function getRingData(force) {
+    if (!force && ringCache.data && Date.now() - ringCache.t < 20000) return Promise.resolve(ringCache.data);
+    return api("/api/status/feed").then(function (f) { ringCache = { t: Date.now(), data: f }; return f; });
+  }
+
+  function markRing(el, uid, info, clickable) {
+    el.classList.remove("st-ring", "seen");
+    if (!info) {
+      if (el._stH) { el.removeEventListener("click", el._stH, true); el._stH = null; }
+      return;
+    }
+    el.classList.add("st-ring");
+    if (info.allSeen) el.classList.add("seen");
+    if (clickable && !el._stH) {
+      el._stH = function (e) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        openUser(uid);
+      };
+      el.addEventListener("click", el._stH, true);
+    }
+  }
+
+  function refreshRings(force) {
+    var els = document.querySelectorAll("[data-st-self],[data-st-uid]");
+    if (!els.length) return;
+    getRingData(force === true).then(function (f) {
+      var map = {};
+      f.users.forEach(function (u) { map[u.uid] = u; });
+      Array.prototype.forEach.call(els, function (el) {
+        var uid = el.hasAttribute("data-st-self") ? f.meUid : el.getAttribute("data-st-uid");
+        var info = uid === f.meUid ? (f.mine ? { allSeen: false } : null) : (map[uid] || null);
+        markRing(el, uid, info, !el.hasAttribute("data-st-noclick"));
+      });
     }).catch(function () {});
   }
 
@@ -253,7 +308,7 @@
     var myAv = h("div", { class: "st-av" });
     paint(myAv, state.me || {});
     myAv.appendChild(h("span", { class: "st-av-plus", html: ICONS.plus }));
-    if (f && f.mine) myAv.classList.add("st-ring", "seen");
+    if (f && f.mine) myAv.classList.add("st-ring");
     var myRow = h("button", { class: "st-row", type: "button" }, [
       myAv,
       infoBlock("My status", f && f.mine ? f.mine.count + (f.mine.count === 1 ? " update" : " updates") + " \u00b7 " + ago(f.mine.latestAt) : "Tap to add status update")
@@ -286,7 +341,7 @@
 
   function openPanel() {
     if (!state.panel) return;
-    state.panel.classList.add("show");
+    state.panel.classList.add("open");
     document.documentElement.style.overflow = "hidden";
     loadFeed().then(renderList).catch(function () {
       state.list.textContent = "";
@@ -296,11 +351,11 @@
 
   function closePanel() {
     if (!state.panel) return;
-    state.panel.classList.remove("show");
+    state.panel.classList.remove("open");
     document.documentElement.style.overflow = "";
   }
 
-  function panelOpen() { return !!(state.panel && state.panel.classList.contains("show")); }
+  function panelOpen() { return !!(state.panel && state.panel.classList.contains("open")); }
 
   function init(opts) {
     opts = opts || {};
@@ -318,22 +373,18 @@
     document.body.appendChild(hint);
     state.hint = hint;
 
-    var closeBtn = h("button", { class: "st-x", type: "button", "aria-label": "Close", html: ICONS.close });
-    closeBtn.addEventListener("click", closePanel);
+    var backBtn = h("button", { class: "st-x", type: "button", "aria-label": "Back", html: ICONS.back });
+    backBtn.addEventListener("click", closePanel);
     var list = h("div", { class: "st-list" });
-    var bText = h("button", { class: "st-btn ghost", type: "button", html: ICONS.pen });
-    bText.appendChild(document.createTextNode("Text"));
-    var bPhoto = h("button", { class: "st-btn", type: "button", html: ICONS.cam });
-    bPhoto.appendChild(document.createTextNode("Photo"));
-    bText.addEventListener("click", openTextComposer);
-    bPhoto.addEventListener("click", openPhotoPicker);
-    var card = h("div", { class: "st-glass st-panel-card", role: "dialog", "aria-label": "Status" }, [
-      h("div", { class: "st-hd" }, [h("div", { class: "st-title", text: "Status" }), closeBtn]),
+    var fabText = h("button", { class: "st-fab", type: "button", "aria-label": "Text status", html: ICONS.pen });
+    var fabPhoto = h("button", { class: "st-fab main", type: "button", "aria-label": "Photo status", html: ICONS.cam });
+    fabText.addEventListener("click", openTextComposer);
+    fabPhoto.addEventListener("click", openPhotoPicker);
+    var panel = h("div", { class: "st-panel", role: "dialog", "aria-label": "Status" }, [
+      h("div", { class: "st-phd" }, [backBtn, h("div", { class: "st-title", text: "Status" })]),
       list,
-      h("div", { class: "st-actions" }, [bText, bPhoto])
+      h("div", { class: "st-fabs" }, [fabText, fabPhoto])
     ]);
-    var panel = h("div", { class: "st-ov" }, [card]);
-    panel.addEventListener("click", function (e) { if (e.target === panel) closePanel(); });
     document.body.appendChild(panel);
     state.panel = panel;
     state.list = list;
@@ -351,7 +402,7 @@
         var t = e.target;
         if (t && t.closest && t.closest("input,textarea,select,[contenteditable]")) return;
         openPanel();
-      } else if (panelOpen() && dx > 0 && !document.querySelector(".st-over.show")) {
+      } else if (panelOpen() && dx > 0 && !document.querySelector(".st-full,.st-over.show")) {
         closePanel();
       }
     }, { passive: true });
@@ -362,36 +413,25 @@
   /* ---------- Composers ---------- */
   function openTextComposer() {
     var idx = Math.floor(Math.random() * BGS.length);
-    var ta = h("textarea", { maxlength: "700", rows: "4", placeholder: "Type a status" });
-    var prev = h("div", { class: "st-prev", style: "background:" + bgCss(BGS[idx]) }, [ta]);
-    var ov = overlay("st-over");
+    var ta = h("textarea", { maxlength: "700", rows: "3", placeholder: "Type a status" });
+    var wrap = h("div", { class: "st-full", style: "background:" + bgCss(BGS[idx]) });
     var close = h("button", { class: "st-x", type: "button", "aria-label": "Close", html: ICONS.close });
-    var post = h("button", { class: "st-btn", type: "button", text: "Post status" });
-    var swatches = h("div", { class: "st-swatches" });
-    BGS.forEach(function (c, i) {
-      var sw = h("button", { class: "st-sw" + (i === idx ? " on" : ""), type: "button", "aria-label": "Color " + (i + 1), style: "background:" + bgCss(c) });
-      sw.addEventListener("click", function () {
-        idx = i;
-        prev.style.background = bgCss(BGS[idx]);
-        Array.prototype.forEach.call(swatches.children, function (n, k) { n.classList.toggle("on", k === idx); });
-      });
-      swatches.appendChild(sw);
-    });
-    close.addEventListener("click", function () { ov.remove(); });
-    ov.addEventListener("click", function (e) { if (e.target === ov) ov.remove(); });
-    post.addEventListener("click", function () {
+    var pal = h("button", { class: "st-x", type: "button", "aria-label": "Change color", html: ICONS.palette });
+    var send = h("button", { class: "st-send", type: "button", "aria-label": "Post status", html: ICONS.send });
+    close.addEventListener("click", function () { wrap.remove(); });
+    pal.addEventListener("click", function () { idx = (idx + 1) % BGS.length; wrap.style.background = bgCss(BGS[idx]); });
+    send.addEventListener("click", function () {
       var text = ta.value.trim();
       if (!text) { toast("Write something first."); return; }
-      post.disabled = true;
+      send.disabled = true;
       api("/api/status", { method: "POST", body: { type: "text", text: text, bg: BGS[idx] } }).then(function () {
-        ov.remove(); toast("Status posted"); afterPost();
-      }).catch(function (err) { post.disabled = false; toast(err.message); });
+        wrap.remove(); toast("Status posted"); afterPost();
+      }).catch(function (err) { send.disabled = false; toast(err.message); });
     });
-    ov.appendChild(h("div", { class: "st-glass" }, [
-      h("div", { class: "st-hd" }, [h("div", { class: "st-title", text: "Text status" }), close]),
-      h("div", { class: "st-body" }, [prev, swatches, post])
-    ]));
-    document.body.appendChild(ov);
+    wrap.appendChild(h("div", { class: "st-top" }, [close, h("div", { class: "sp" }), pal]));
+    wrap.appendChild(h("div", { class: "st-text-area" }, [ta]));
+    wrap.appendChild(h("div", { class: "st-bottom" }, [h("div", { style: "flex:1" }), send]));
+    document.body.appendChild(wrap);
     setTimeout(function () { ta.focus(); }, 80);
   }
 
@@ -438,30 +478,28 @@
   }
 
   function openPhotoComposer(dataUrl) {
-    var ov = overlay("st-over");
+    var wrap = h("div", { class: "st-full glassbg" });
     var close = h("button", { class: "st-x", type: "button", "aria-label": "Close", html: ICONS.close });
     var cap = h("input", { class: "st-in", type: "text", maxlength: "300", placeholder: "Add a caption..." });
-    var post = h("button", { class: "st-btn", type: "button", text: "Post status" });
-    close.addEventListener("click", function () { ov.remove(); });
-    ov.addEventListener("click", function (e) { if (e.target === ov) ov.remove(); });
-    post.addEventListener("click", function () {
-      post.disabled = true;
+    var send = h("button", { class: "st-send", type: "button", "aria-label": "Post status", html: ICONS.send });
+    close.addEventListener("click", function () { wrap.remove(); });
+    send.addEventListener("click", function () {
+      send.disabled = true;
       api("/api/status", { method: "POST", body: { type: "image", imageDataUrl: dataUrl, caption: cap.value.trim() } }).then(function () {
-        ov.remove(); toast("Status posted"); afterPost();
-      }).catch(function (err) { post.disabled = false; toast(err.message); });
+        wrap.remove(); toast("Status posted"); afterPost();
+      }).catch(function (err) { send.disabled = false; toast(err.message); });
     });
     var img = h("img", { alt: "Status preview" });
     img.src = dataUrl;
-    ov.appendChild(h("div", { class: "st-glass" }, [
-      h("div", { class: "st-hd" }, [h("div", { class: "st-title", text: "Photo status" }), close]),
-      h("div", { class: "st-body" }, [h("div", { class: "st-prev", style: "background:rgba(0,0,0,.25);padding:10px" }, [img]), cap, post])
-    ]));
-    document.body.appendChild(ov);
+    wrap.appendChild(h("div", { class: "st-top" }, [close]));
+    wrap.appendChild(h("div", { class: "st-pv" }, [img]));
+    wrap.appendChild(h("div", { class: "st-bottom" }, [cap, send]));
+    document.body.appendChild(wrap);
   }
 
   function afterPost() {
     loadFeed().then(function () { if (panelOpen()) renderList(); }).catch(function () {});
-    refreshRings();
+    refreshRings(true);
     window.dispatchEvent(new CustomEvent("es-status-changed"));
   }
 
@@ -479,8 +517,8 @@
 
   function playViewer(d, startIndex) {
     var statuses = d.statuses, idx = startIndex, elapsed = 0, paused = false, timer = null, duration = SLIDE_MS;
-    var ov = overlay("st-over st-viewer-ov");
-    var story = h("div", { class: "st-story" });
+    var ov = h("div", { class: "st-full st-vw" });
+    var story = ov;
     var stage = h("div", { class: "st-stage" });
     var barsEl = h("div", { class: "st-bars" });
     var bars = statuses.map(function () { var i = h("i"); barsEl.appendChild(h("div", { class: "st-bar" }, [i])); return i; });
@@ -514,14 +552,14 @@
     story.appendChild(left);
     story.appendChild(right);
     story.appendChild(foot);
-    ov.appendChild(story);
 
     function finish() {
       clearInterval(timer);
       document.removeEventListener("keydown", onKey);
       ov.remove();
       loadFeed().then(function () { if (panelOpen()) renderList(); }).catch(function () {});
-      refreshRings();
+      refreshRings(true);
+      if (window.EsUI && window.EsUI.refreshDots) window.EsUI.refreshDots();
     }
     function onKey(e) {
       if (e.key === "Escape") finish();
@@ -629,7 +667,6 @@
     right.addEventListener("click", next);
     left.addEventListener("click", prev);
     closeBtn.addEventListener("click", finish);
-    ov.addEventListener("click", function (e) { if (e.target === ov) finish(); });
     [left, right].forEach(function (z) {
       z.addEventListener("pointerdown", function () { paused = true; });
       z.addEventListener("pointerup", function () { paused = false; });
@@ -654,4 +691,16 @@
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", refreshRings);
   else refreshRings();
+
+  var obsTimer = null;
+  new MutationObserver(function (muts) {
+    var hit = muts.some(function (m) {
+      return Array.prototype.some.call(m.addedNodes, function (n) {
+        return n.nodeType === 1 && (n.matches("[data-st-uid],[data-st-self]") || n.querySelector("[data-st-uid],[data-st-self]"));
+      });
+    });
+    if (!hit) return;
+    clearTimeout(obsTimer);
+    obsTimer = setTimeout(refreshRings, 350);
+  }).observe(document.body || document.documentElement, { childList: true, subtree: true });
 })();

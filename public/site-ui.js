@@ -26,7 +26,7 @@ body.es-replaced-nav.es-has-nav{padding-bottom:0}
 .es-menu-list .user-menu-item[hidden]{display:none}
 .es-menu-list .user-menu-item .notif-menu-dot{position:static;margin-left:auto;display:none;width:8px;height:8px;border-radius:50%;background:var(--red)}
 .es-menu-list .user-menu-item .notif-menu-dot.show{display:block}
-.es-menu-sep{height:1px;background:var(--border);margin:6px 4px}\n.es-menu-label{padding:10px 12px 4px;font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.es-menu-sep{height:1px;background:var(--border);margin:6px 4px}\n.es-menu-label{padding:10px 12px 4px;font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}\n.es-bottom-nav .bnav-icon-wrap{position:relative;display:inline-flex}\n.es-count{position:absolute;top:-7px;right:-11px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--red,#FF3B5C);color:#fff;font-size:.62rem;font-weight:700;line-height:13px;text-align:center;border:2px solid var(--nav-bg,var(--card2));box-sizing:border-box;display:none;pointer-events:none}\n.es-count.show{display:block}
 .es-menu-me{display:flex;align-items:center;gap:12px;padding:6px 18px 8px;text-decoration:none;color:inherit}
 .es-menu-avatar{width:42px;height:42px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--accent2)) center/cover no-repeat;color:#04141a;font-family:var(--font-display);font-weight:700;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .es-menu-name{font-weight:700;font-size:.9rem;line-height:1.2;display:flex;align-items:center}
@@ -671,13 +671,29 @@ function esSetDots(on) {
   document.querySelectorAll(".js-dot").forEach((el) => el.classList.toggle("show", !!on));
 }
 
+function esSetCount(key, n) {
+  document.querySelectorAll('[data-es-count="' + key + '"]').forEach((el) => {
+    el.textContent = n > 99 ? "99+" : String(n);
+    el.classList.toggle("show", n > 0);
+  });
+}
+
 function esRefreshDots() {
   if (document.visibilityState !== "visible") return;
   fetch("/api/notifications/unread", { credentials: "same-origin" })
-    .then((r) => (r.ok ? r.json() : { hasUnread: false }))
-    .then((d) => esSetDots(!!d.hasUnread))
+    .then((r) => (r.ok ? r.json() : { hasUnread: false, count: 0 }))
+    .then((d) => { esSetDots(!!d.hasUnread); esSetCount("more", d.count || 0); })
+    .catch(() => {});
+  fetch("/api/feed/following/unseen-count", { credentials: "same-origin" })
+    .then((r) => (r.ok ? r.json() : { count: 0 }))
+    .then((d) => esSetCount("home", d.count || 0))
+    .catch(() => {});
+  fetch("/api/status/unseen-count", { credentials: "same-origin" })
+    .then((r) => (r.ok ? r.json() : { count: 0 }))
+    .then((d) => esSetCount("profile", d.count || 0))
     .catch(() => {});
 }
+window.addEventListener("es-status-changed", () => esRefreshDots());
 
 function esThemeToggle() {
   const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
@@ -802,17 +818,17 @@ function esGoCompose() {
 
 function esBuildBottomNav() {
   const nav = esEl("nav", { class: "bottom-nav es-bottom-nav", id: "esBottomNav", "aria-label": "Main" });
-  function tab(href, label, icon, extra) {
+  function tab(href, label, icon, countKey) {
     const wrap = esEl("span", { class: "bnav-icon-wrap" }, [esSvg(icon, 22)]);
-    if (extra) wrap.appendChild(esEl("span", { class: "notif-nav-dot js-dot" }));
+    if (countKey) wrap.appendChild(esEl("span", { class: "es-count", "data-es-count": countKey }));
     return esEl("a", { class: "bnav-item", href: href, "data-es-href": href }, [wrap, label]);
   }
-  nav.appendChild(tab("/", "Home", ES_ICON_HOME));
+  nav.appendChild(tab("/", "Home", ES_ICON_HOME, "home"));
   nav.appendChild(tab("/live", "Live TV", ES_ICON_LIVE));
   nav.appendChild(esEl("button", { type: "button", class: "es-post-fab", "aria-label": "New post", onclick: esGoCompose }, [esSvg(ES_ICON_PLUS, 24)]));
-  nav.appendChild(tab("/profile", "Profile", ES_ICON_USER));
+  nav.appendChild(tab("/profile", "Profile", ES_ICON_USER, "profile"));
   const more = esEl("button", { type: "button", class: "bnav-item", "aria-label": "Menu", onclick: esOpenMenu }, [
-    esEl("span", { class: "bnav-icon-wrap" }, [esSvg(ES_ICON_MENU, 22), esEl("span", { class: "notif-nav-dot js-dot" })]),
+    esEl("span", { class: "bnav-icon-wrap" }, [esSvg(ES_ICON_MENU, 22), esEl("span", { class: "es-count", "data-es-count": "more" })]),
     "More"
   ]);
   nav.appendChild(more);

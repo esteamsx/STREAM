@@ -119,11 +119,32 @@ statusRouter.get("/api/status/feed", requireAuth, async (req, res) => {
   }
 });
 
+statusRouter.get("/api/status/unseen-count", requireAuth, async (req, res) => {
+  try {
+    const snap = await db.collection("statuses").where("expiresAt", ">", Date.now()).select("uid").limit(3000).get();
+    const byUid = new Map();
+    snap.docs.forEach((d) => {
+      const u = d.data().uid;
+      if (u === req.uid) return;
+      if (!byUid.has(u)) byUid.set(u, []);
+      byUid.get(u).push(d.id);
+    });
+    const all = [];
+    byUid.forEach((ids) => all.push(...ids));
+    const seen = await seenIdSet(req.uid, all);
+    let count = 0;
+    byUid.forEach((ids) => { if (!ids.every((id) => seen.has(id))) count++; });
+    res.json({ count: Math.min(count, 99) });
+  } catch (err) {
+    res.json({ count: 0 });
+  }
+});
+
 statusRouter.get("/api/status/summary/:uid", requireAuth, async (req, res) => {
   try {
     const list = await activeStatusesOf(String(req.params.uid || ""));
     if (!list.length) return res.json({ count: 0, allSeen: true });
-    const seen = req.params.uid === req.uid ? new Set(list.map((s) => s.id)) : await seenIdSet(req.uid, list.map((s) => s.id));
+    const seen = req.params.uid === req.uid ? new Set() : await seenIdSet(req.uid, list.map((s) => s.id));
     res.json({ count: list.length, allSeen: list.every((s) => seen.has(s.id)) });
   } catch (err) {
     res.json({ count: 0, allSeen: true });

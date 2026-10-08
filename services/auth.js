@@ -1666,6 +1666,15 @@ async function hasUnreadNotifications(uid) {
   return snap.docs.some((d) => d.data().type !== "comment");
 }
 
+async function countUnreadNotifications(uid) {
+  const snap = await db.collection("notifications")
+    .where("uid", "==", uid)
+    .where("read", "==", false)
+    .limit(100)
+    .get();
+  return snap.docs.filter((d) => d.data().type !== "comment").length;
+}
+
 async function markAllNotificationsRead(uid) {
   const snap = await db.collection("notifications")
     .where("uid", "==", uid)
@@ -4997,6 +5006,7 @@ export {
   broadcastNotification,
   getNotifications,
   hasUnreadNotifications,
+  countUnreadNotifications,
   markAllNotificationsRead,
   notifyProfileViewed,
   searchUsersByUsername,

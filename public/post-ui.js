@@ -1088,6 +1088,7 @@ function createHomePostCard(post){
 
   const avatar = document.createElement('div');
   avatar.className = 'feed-post-avatar';
+  if (author.uid) avatar.setAttribute('data-st-uid', author.uid);
   if (author.photoURL) {
     avatar.style.backgroundImage = 'url(' + author.photoURL + ')';
   } else {

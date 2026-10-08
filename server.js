@@ -249,6 +249,7 @@ import {
   addNotification,
   getNotifications,
   hasUnreadNotifications,
+  countUnreadNotifications,
   markAllNotificationsRead,
   notifyProfileViewed,
   searchUsersByUsername,
@@ -3504,8 +3505,8 @@ app.get("/api/notifications", requireAuth, async (req, res) => {
 
 app.get("/api/notifications/unread", requireAuth, notifPollLimiter, async (req, res) => {
   try {
-    const hasUnread = await hasUnreadNotifications(req.uid);
-    res.json({ hasUnread });
+    const count = await countUnreadNotifications(req.uid);
+    res.json({ hasUnread: count > 0, count });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not check notifications." });
