@@ -13,10 +13,10 @@
   var CSS = [
     ".st-ring{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px " + GREEN + " !important;cursor:pointer}",
     ".st-ring.seen{box-shadow:0 0 0 2px var(--dark,#0A0A0F),0 0 0 4.5px rgba(255,255,255,.85) !important}",
-    ".st-ring.st-in{box-shadow:inset 0 0 0 3px " + GREEN + ",inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
-    ".st-ring.st-in.seen{box-shadow:inset 0 0 0 3px rgba(255,255,255,.85),inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
+    ".st-ring.st-inset{box-shadow:inset 0 0 0 3px " + GREEN + ",inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
+    ".st-ring.st-inset.seen{box-shadow:inset 0 0 0 3px rgba(255,255,255,.85),inset 0 0 0 5px var(--dark,#0A0A0F) !important}",
     ":root[data-theme=\"light\"] .st-ring.seen{box-shadow:0 0 0 2px var(--dark,#F5F6FA),0 0 0 4.5px rgba(120,120,135,.6) !important}",
-    ":root[data-theme=\"light\"] .st-ring.st-in.seen{box-shadow:inset 0 0 0 3px rgba(120,120,135,.6),inset 0 0 0 5px var(--dark,#F5F6FA) !important}",
+    ":root[data-theme=\"light\"] .st-ring.st-inset.seen{box-shadow:inset 0 0 0 3px rgba(120,120,135,.6),inset 0 0 0 5px var(--dark,#F5F6FA) !important}",
     /* edge arrow (same look as the account rewards slider, with a glow) */
     ".st-hint{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:250;background:var(--card,#15151F);border:1px solid var(--border-strong,rgba(255,255,255,.13));border-right:none;border-radius:12px 0 0 12px;padding:12px 8px;color:var(--accent,#00E0FF);display:flex;align-items:center;cursor:pointer;box-shadow:-4px 0 18px rgba(0,224,255,.22)}",
     ".st-hint svg{width:16px;height:16px;animation:stHint 1.8s ease-in-out infinite;filter:drop-shadow(0 0 4px rgba(0,224,255,.7))}",
@@ -262,18 +262,19 @@
   }
 
   function markRing(el, uid, info, clickable) {
-    el.classList.remove("st-ring", "seen", "st-in");
+    el.classList.remove("st-ring", "seen", "st-inset");
     if (!info) {
       if (el._stH) { el.removeEventListener("click", el._stH, true); el._stH = null; }
       return;
     }
     el.classList.add("st-ring");
-    if (el.hasAttribute("data-st-uid")) el.classList.add("st-in");
+    if (el.hasAttribute("data-st-uid")) el.classList.add("st-inset");
     if (info.allSeen) el.classList.add("seen");
     if (clickable && !el._stH) {
       el._stH = function (e) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-        openUser(uid);
+        if (el._stBefore) el._stBefore();
+        openUser(uid, el._stAfter);
       };
       el.addEventListener("click", el._stH, true);
     }
@@ -509,14 +510,14 @@
   }
 
   /* ---------- Viewer ---------- */
-  function openUser(uid) {
+  function openUser(uid, onClose) {
     api("/api/status/user/" + encodeURIComponent(uid)).then(function (d) {
       var firstUnseen = d.statuses.findIndex(function (s) { return !s.seen; });
-      playViewer(d, firstUnseen < 0 ? 0 : firstUnseen);
+      playViewer(d, firstUnseen < 0 ? 0 : firstUnseen, onClose);
     }).catch(function (err) { toast(err.message || "No status to show."); });
   }
 
-  function playViewer(d, startIndex) {
+  function playViewer(d, startIndex, onClose) {
     var statuses = d.statuses, idx = startIndex, elapsed = 0, paused = false, timer = null, duration = SLIDE_MS;
     var ov = h("div", { class: "st-full st-vw" });
     var story = ov;
@@ -527,6 +528,12 @@
     var av = avatar(d.user, true);
     var closeBtn = h("button", { class: "st-x", type: "button", "aria-label": "Close", html: ICONS.close });
     var head = h("div", { class: "st-vhead" }, [av, h("div", { class: "meta" }, [nm, tm])]);
+    if (d.user && d.user.username) {
+      [av, nm].forEach(function (n) {
+        n.style.cursor = "pointer";
+        n.addEventListener("click", function () { window.location.href = d.isOwner ? "/profile" : "/u/" + d.user.username; });
+      });
+    }
     if (d.isOwner) {
       var del = h("button", { class: "st-x", type: "button", "aria-label": "Delete status", html: ICONS.trash });
       del.addEventListener("click", function () {
@@ -561,6 +568,7 @@
       loadFeed().then(function () { if (panelOpen()) renderList(); }).catch(function () {});
       refreshRings(true);
       if (window.EsUI && window.EsUI.refreshDots) window.EsUI.refreshDots();
+      if (onClose) onClose();
     }
     function onKey(e) {
       if (e.key === "Escape") finish();
@@ -654,8 +662,19 @@
             info.appendChild(h("div", { class: "st-cmt", text: r.text }));
             info.appendChild(h("div", { class: "st-sub", text: ago(r.createdAt) }));
           }
-          list.appendChild(h("div", { class: "st-row", style: "cursor:default;align-items:flex-start" }, [avatar(r.user, true), info]));
+          var av = avatar(r.user, true);
+          if (r.user.uid) {
+            av.setAttribute("data-st-uid", r.user.uid);
+            av._stBefore = function () { sw.remove(); paused = true; };
+            av._stAfter = function () { paused = false; };
+          }
+          var row = h("div", { class: "st-row", style: "align-items:flex-start" }, [av, info]);
+          row.addEventListener("click", function () {
+            if (r.user.username) window.location.href = "/u/" + r.user.username;
+          });
+          list.appendChild(row);
         });
+        refreshRings();
       }
       tViews.addEventListener("click", function () { tab = "views"; render(); });
       tCmts.addEventListener("click", function () { tab = "comments"; render(); });
