@@ -3568,7 +3568,7 @@ function devAgo(ts){
   return d + (d === 1 ? ' day ago' : ' days ago');
 }
 
-function devRow(title, sub, btnLabel, onClick, titleExtra){
+function devRow(title, sub, btnLabel, onClick, titleExtra, detail){
   const row = document.createElement('div');
   row.className = 'tfa-toggle-row';
   row.style.marginBottom = '14px';
@@ -3579,6 +3579,14 @@ function devRow(title, sub, btnLabel, onClick, titleExtra){
   const s = document.createElement('div');
   s.className = 'tfa-toggle-sub';
   s.textContent = sub;
+  if (detail) {
+    const a = document.createElement('button');
+    a.type = 'button';
+    a.textContent = 'View Details';
+    a.style.cssText = 'background:none;border:0;padding:0;color:var(--accent);font-weight:700;font-size:inherit;font-family:inherit;cursor:pointer;text-decoration:underline';
+    a.addEventListener('click', () => openDeviceDetails(detail));
+    s.appendChild(a);
+  }
   left.appendChild(t);
   left.appendChild(s);
   row.appendChild(left);
@@ -3601,6 +3609,105 @@ function devHeading(text){
   return h;
 }
 
+const DEV_ICONS = {
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path stroke-linecap="round" d="M11 18.5h2"/>',
+  desktop: '<rect x="3" y="4" width="18" height="12" rx="2"/><path stroke-linecap="round" d="M8 20h8M12 16v4"/>',
+  chrome: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><path stroke-linecap="round" d="M12 8.6h8.2M9.05 13.7L4.9 6.5M14.95 13.7L10.8 20.9"/>',
+  safari: '<circle cx="12" cy="12" r="9"/><path stroke-linejoin="round" d="M15.8 8.2l-2.2 5.4-5.4 2.2 2.2-5.4z"/>',
+  browser: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path stroke-linecap="round" d="M3 9h18M7 6.5h.01M10 6.5h.01"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M3 12h18M12 3c2.6 2.4 4 5.6 4 9s-1.4 6.6-4 9c-2.6-2.4-4-5.6-4-9s1.4-6.6 4-9z"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>',
+  shield: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/>'
+};
+
+function devSvg(key, size){
+  const span = document.createElement('span');
+  span.style.cssText = 'display:inline-flex';
+  span.innerHTML = '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.7">' + DEV_ICONS[key] + '</svg>';
+  return span;
+}
+
+function devReason(r){
+  if (r === 'another_login') return 'Signed out: your account was logged in on another device';
+  if (r === 'idle') return 'Signed out after inactivity';
+  if (r === 'logout_remote') return 'Signed out remotely';
+  if (r === 'revoked_all') return 'Signed out everywhere';
+  return 'Signed out';
+}
+
+function openDeviceDetails(d){
+  const mobile = d.type === 'phone' || d.type === 'tablet' || /Android|iOS|iPadOS/.test(d.os || '');
+  const b = (d.browser || '').toLowerCase();
+  const browserIcon = b.indexOf('chrome') === 0 ? 'chrome' : (b.indexOf('safari') === 0 ? 'safari' : 'browser');
+
+  const ov = document.createElement('div');
+  ov.className = 'page-overlay show';
+  const card = document.createElement('div');
+  card.className = 'overlay-card';
+
+  const iconWrap = document.createElement('div');
+  iconWrap.className = 'verify-icon-wrap';
+  iconWrap.appendChild(devSvg(mobile ? 'phone' : 'desktop', 26));
+  card.appendChild(iconWrap);
+
+  const title = document.createElement('div');
+  title.className = 'overlay-title';
+  title.style.textAlign = 'center';
+  title.textContent = d.name || 'Device';
+  card.appendChild(title);
+
+  const chip = document.createElement('div');
+  chip.className = 'overlay-sub';
+  chip.style.cssText = 'text-align:center;display:flex;align-items:center;justify-content:center;gap:7px';
+  const dot = document.createElement('span');
+  dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + (d.active ? '#25D366' : 'var(--muted)');
+  const chipText = document.createElement('span');
+  chipText.textContent = d.active ? 'Active now' : devReason(d.revokedReason);
+  chip.appendChild(dot);
+  chip.appendChild(chipText);
+  card.appendChild(chip);
+
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin:6px 0 4px';
+  function row(icon, label, value){
+    const r = document.createElement('div');
+    r.style.cssText = 'display:flex;align-items:center;gap:12px';
+    const ic = document.createElement('div');
+    ic.style.cssText = 'width:38px;height:38px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--accent);background:rgba(0,224,255,.1);border:1px solid rgba(0,224,255,.22)';
+    ic.appendChild(devSvg(icon, 19));
+    const tx = document.createElement('div');
+    tx.style.minWidth = '0';
+    const l = document.createElement('div');
+    l.style.cssText = 'font-size:.66rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)';
+    l.textContent = label;
+    const v = document.createElement('div');
+    v.style.cssText = 'font-size:.88rem;font-weight:600;word-break:break-word';
+    v.textContent = value || 'Unknown';
+    tx.appendChild(l);
+    tx.appendChild(v);
+    r.appendChild(ic);
+    r.appendChild(tx);
+    list.appendChild(r);
+  }
+  row('browser' === browserIcon ? 'browser' : browserIcon, 'Browser', d.browser);
+  row(mobile ? 'phone' : 'desktop', 'System', d.os);
+  row('globe', 'IP address', d.ip);
+  const when = d.lastActiveAt || d.createdAt;
+  row('clock', 'Last active', when ? devAgo(when) + ' · ' + new Date(when).toLocaleString() : '');
+  row('shield', 'Trust', d.trusted ? 'Trusted device' : 'Not trusted');
+  card.appendChild(list);
+
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'overlay-cancel';
+  close.textContent = 'Close';
+  close.addEventListener('click', () => ov.remove());
+  card.appendChild(close);
+  ov.appendChild(card);
+  ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
 function devInfo(d){
   return [d.browser, d.os, d.ip].filter(Boolean).join(' · ');
 }
@@ -3616,7 +3723,7 @@ async function loadDevices(){
     body.appendChild(devHeading('This device'));
     if (data.current) {
       const c = data.current;
-      body.appendChild(devRow(c.name, devInfo(c) + (c.trusted ? ' · Trusted' : ' · Not trusted'), c.trusted ? 'Remove trust' : 'Trust', async (btn) => {
+      body.appendChild(devRow(c.name, '', c.trusted ? 'Remove trust' : 'Trust', async (btn) => {
         btn.disabled = true;
         try {
           await postJSON('/api/devices/trust', { trusted: !c.trusted });
@@ -3626,7 +3733,7 @@ async function loadDevices(){
           btn.disabled = false;
           flashMsg(document.getElementById('devicesMsg'), err.message || 'Could not update this device.', false);
         }
-      }, '(current)'));
+      }, '(current)', Object.assign({}, c, { active: true })));
     } else {
       const none = document.createElement('div');
       none.className = 'tfa-toggle-sub';
@@ -3642,7 +3749,7 @@ async function loadDevices(){
       trustedBox.className = 'dev-scroll';
       body.appendChild(trustedBox);
       others.forEach((t) => {
-        trustedBox.appendChild(devRow(t.name, [t.browser, t.os, t.ip].filter(Boolean).join(' · ') + ' · last used ' + devAgo(t.lastUsedAt), 'Remove', async (btn) => {
+        trustedBox.appendChild(devRow(t.name, '', 'Remove', async (btn) => {
           btn.disabled = true;
           try {
             const r = await fetch('/api/devices/trusted/' + encodeURIComponent(t.deviceId), { method: 'DELETE', credentials: 'same-origin' });
@@ -3652,7 +3759,7 @@ async function loadDevices(){
             btn.disabled = false;
             flashMsg(document.getElementById('devicesMsg'), err.message, false);
           }
-        }));
+        }, '', { name: t.name, os: t.os, browser: t.browser, ip: t.ip, lastActiveAt: t.lastUsedAt, trusted: true, active: false, type: /Android|iOS|iPadOS/.test(t.os || '') ? 'phone' : 'desktop' }));
       });
     }
 
@@ -3662,8 +3769,7 @@ async function loadDevices(){
       historyBox.className = 'dev-scroll';
       body.appendChild(historyBox);
       data.history.forEach((h) => {
-        const status = h.active ? 'Active now' : (h.revokedReason === 'another_login' ? 'Signed out: logged in elsewhere' : (h.revokedReason === 'idle' ? 'Signed out: inactive' : 'Signed out'));
-        historyBox.appendChild(devRow(h.name, devInfo(h) + ' · ' + devAgo(h.lastActiveAt || h.createdAt) + ' · ' + status, null, null, h.current ? '(current)' : ''));
+        historyBox.appendChild(devRow(h.name, '', null, null, h.current ? '(current)' : '', h));
       });
     }
 
