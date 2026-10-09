@@ -31,7 +31,7 @@ export function safeNextPath(value) {
   const raw = String(value || "");
   if (!raw || raw.length > 512) return null;
   if (!raw.startsWith("/")) return null;
-  if (raw.startsWith("
+  if (raw.startsWith("//")) return null;
   if (/[\x00-\x1f\x7f]/.test(raw)) return null;
   return raw;
 }

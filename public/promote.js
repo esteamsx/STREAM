@@ -452,7 +452,7 @@
       var payload = { title: title.value, body: body.value, cta: cta.value, url: url.value.trim(), image: draft.image };
       if (payload.title.trim().length < 3) return void (err.textContent = "Add a headline of at least 3 characters.");
       if (payload.body.trim().length < 10) return void (err.textContent = "Add a description of at least 10 characters.");
-      if (!/^https:\/\//i.test(payload.url)) return void (err.textContent = "The link must start with https:
+      if (!/^https:\/\//i.test(payload.url)) return void (err.textContent = "The link must start with https://");
       submit.disabled = true;
       submit.textContent = "Saving";
       api("/api/promote/create", payload)
