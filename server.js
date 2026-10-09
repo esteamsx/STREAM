@@ -323,6 +323,7 @@ import { statusRouter } from "./routes/status.js";
 import { devicesRouter } from "./routes/devices.js";
 import { deviceBansRouter, enforceLoginDevice } from "./routes/device-bans.js";
 import { blacklistMiddleware } from "./services/device-bans.js";
+import { vpnGuard } from "./services/vpn-guard.js";
 import { db, auth as firebaseAuth } from "./config/firebase.js";
 import {
   PUSH_ENABLED,
@@ -383,6 +384,7 @@ app.use(hppGuard);
 app.use(probePathTrap);
 app.use(new RepeatedRefusalGuard(15, 5 * 60 * 1000, 30 * 60 * 1000).middleware());
 app.use(ipBlocklist);
+app.use(vpnGuard);
 app.use(suspiciousRequestDetector);
 const globalLimiter = new SimpleRateLimiter(400, 60000).middleware();
 app.use((req, res, next) => {
