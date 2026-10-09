@@ -422,7 +422,7 @@ app.get("/outbound-ip", async (req, res) => {
   }
 });
 
-const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js"]);
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js", "incognito-guard.js"]);
 
 app.use(
   express.static(path.join(__dirname, "public"), {
@@ -3160,6 +3160,9 @@ app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, re
   try {
     const { idToken, remember, altcha } = req.body;
     const decoded = await withDeadline(firebaseAuth.verifyIdToken(idToken), "firebaseAuth.verifyIdToken");
+    if (req.body && req.body.privateMode === true && !/^(1|true|yes)$/i.test(String(process.env.ALLOW_PRIVATE_BROWSING || process.env.ALLOW_PRIVATE_LOGIN || ""))) {
+      return res.status(403).json({ code: "private-mode", error: "Private browsing detected. Open this page in a normal browser window to log in." });
+    }
     const deviceBlock = await enforceLoginDevice(req, decoded.uid);
     if (deviceBlock) return res.status(deviceBlock.status).json(deviceBlock.body);
     if (decoded.firebase.sign_in_provider === "google.com") {
@@ -3474,6 +3477,7 @@ app.get("/api/users/:username/public", optionalAuth, async (req, res) => {
       isSelf,
       isViewerLoggedIn: !!req.uid,
       isFollowing: following,
+      followsYou: followedBack,
       lastActiveAt: showActiveStatus ? (user.lastActiveAt || null) : null,
       lastSeenMode: !showLastSeen ? "recently" : "exact",
       locked,

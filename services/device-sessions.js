@@ -235,8 +235,16 @@ export async function listDevices(uid, currentSid) {
   ]);
   const all = sessSnap.docs.map((d) => d.data()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
+  const keyOf = new Map();
   const newestPerDevice = new Map();
-  all.forEach((r) => { const k = r.deviceId || r.sid; if (!newestPerDevice.has(k)) newestPerDevice.set(k, r); });
+  all.forEach((r) => {
+    const phone = r.type === "phone" || r.type === "tablet";
+    const key = phone
+      ? "m|" + String(r.model || r.name || "").toLowerCase() + "|" + String(r.browser || "").replace(/\s*\d.*$/, "").toLowerCase() + "|" + String(r.os || "").toLowerCase()
+      : "d|" + (r.deviceId || r.sid);
+    keyOf.set(r.sid, key);
+    if (!newestPerDevice.has(key)) newestPerDevice.set(key, r);
+  });
   const newestSids = new Set(Array.from(newestPerDevice.values()).map((r) => r.sid));
 
   const stale = all.filter((r, i) => r.revoked && (!newestSids.has(r.sid) || i >= MAX_HISTORY || Date.now() - (r.revokedAt || 0) > HISTORY_MAX_AGE_MS));
@@ -257,7 +265,11 @@ export async function listDevices(uid, currentSid) {
       const t = d.data();
       return { deviceId: t.deviceId, name: t.name || "Device", os: t.os || "", browser: t.browser || "", ip: t.ip || "", trustedAt: t.trustedAt || 0, lastUsedAt: t.lastUsedAt || t.trustedAt || 0, isCurrent: !!(current && current.deviceId === t.deviceId) };
     }).sort((a, b) => b.lastUsedAt - a.lastUsedAt),
-    history: devices.slice(0, 20).map((r) => ({ ...publicRec(r), active: isLive(r), current: r.sid === currentSid })),
+    history: devices.slice(0, 20).map((r) => {
+      const key = keyOf.get(r.sid);
+      const group = keep.filter((x) => keyOf.get(x.sid) === key);
+      return { ...publicRec(r), active: group.some(isLive), current: group.some((x) => x.sid === currentSid) };
+    }),
   };
 }
 

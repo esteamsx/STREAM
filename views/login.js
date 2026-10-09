@@ -841,7 +841,7 @@ async function captureFaceForDevice(){
 async function establishSession(idToken, remember, altcha, faceDescriptor){
   let data;
   try {
-    data = await postJSON('/api/session', { idToken, remember, altcha, faceDescriptor });
+    data = await postJSON('/api/session', { idToken, remember, altcha, faceDescriptor, privateMode: window.__esPrivateMode === true });
   } catch (err) {
     if (err.code === 'device/face-required' && !faceDescriptor) {
       const descriptor = await captureFaceForDevice();

@@ -19,11 +19,26 @@ function sessionUid(req) {
   return payload.uid || null;
 }
 
+const PRIVATE_GUARD_TAG = '<script nonce="__CSP_NONCE__" src="/incognito-guard.js" defer></script>';
+const PRIVATE_GUARD_SKIP = ["/api/", "/embed/", "/s/", "/.well-known/"];
+const ALLOW_PRIVATE = /^(1|true|yes)$/i.test(String(process.env.ALLOW_PRIVATE_BROWSING || process.env.ALLOW_PRIVATE_LOGIN || ""));
+
 export const cspNonce = (req, res, next) => {
   const nonce = crypto.randomBytes(16).toString("base64");
   res.locals.nonce = nonce;
   const originalSend = res.send.bind(res);
   res.send = (body) => {
+    if (
+      !ALLOW_PRIVATE &&
+      typeof body === "string" &&
+      res.statusCode < 400 &&
+      /^\s*<(!doctype|html)/i.test(body) &&
+      body.indexOf("</head>") !== -1 &&
+      body.indexOf("/incognito-guard.js") === -1 &&
+      !PRIVATE_GUARD_SKIP.some((p) => req.path.startsWith(p))
+    ) {
+      body = body.replace("</head>", PRIVATE_GUARD_TAG + "</head>");
+    }
     if (typeof body === "string" && body.indexOf("__CSP_NONCE__") !== -1) {
       body = body.split("__CSP_NONCE__").join(nonce);
     }

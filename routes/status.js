@@ -85,6 +85,27 @@ async function deleteStatusCascade(statusId) {
   }
 }
 
+async function mutualSet(uid) {
+  const [out, inn] = await Promise.all([
+    db.collection("follows").where("followerUid", "==", uid).select("targetUid").get(),
+    db.collection("follows").where("targetUid", "==", uid).select("followerUid").get(),
+  ]);
+  const following = new Set(out.docs.map((d) => d.data().targetUid));
+  const mutual = new Set();
+  inn.docs.forEach((d) => { const f = d.data().followerUid; if (following.has(f)) mutual.add(f); });
+  return mutual;
+}
+
+async function canSeeStatus(viewerUid, ownerUid) {
+  if (!viewerUid || !ownerUid) return false;
+  if (viewerUid === ownerUid) return true;
+  const [a, b] = await Promise.all([
+    db.collection("follows").doc(viewerUid + "_" + ownerUid).get(),
+    db.collection("follows").doc(ownerUid + "_" + viewerUid).get(),
+  ]);
+  return a.exists && b.exists;
+}
+
 statusRouter.get("/api/status/feed", requireAuth, async (req, res) => {
   try {
     const now = Date.now();
@@ -97,6 +118,8 @@ statusRouter.get("/api/status/feed", requireAuth, async (req, res) => {
       entry.latestAt = Math.max(entry.latestAt, s.createdAt || 0);
       byUid.set(s.uid, entry);
     });
+    const mutual = await mutualSet(req.uid);
+    Array.from(byUid.keys()).forEach((u) => { if (u !== req.uid && !mutual.has(u)) byUid.delete(u); });
     const allIds = [];
     byUid.forEach((e) => allIds.push(...e.ids));
     const seen = await seenIdSet(req.uid, allIds);
@@ -129,6 +152,8 @@ statusRouter.get("/api/status/unseen-count", requireAuth, async (req, res) => {
       if (!byUid.has(u)) byUid.set(u, []);
       byUid.get(u).push(d.id);
     });
+    const mutual = await mutualSet(req.uid);
+    Array.from(byUid.keys()).forEach((u) => { if (!mutual.has(u)) byUid.delete(u); });
     const all = [];
     byUid.forEach((ids) => all.push(...ids));
     const seen = await seenIdSet(req.uid, all);
@@ -142,6 +167,7 @@ statusRouter.get("/api/status/unseen-count", requireAuth, async (req, res) => {
 
 statusRouter.get("/api/status/summary/:uid", requireAuth, async (req, res) => {
   try {
+    if (!(await canSeeStatus(req.uid, String(req.params.uid || "")))) return res.json({ count: 0, allSeen: true });
     const list = await activeStatusesOf(String(req.params.uid || ""));
     if (!list.length) return res.json({ count: 0, allSeen: true });
     const seen = await seenIdSet(req.uid, list.map((s) => s.id));
@@ -155,6 +181,7 @@ statusRouter.get("/api/status/user/:uid", requireAuth, async (req, res) => {
   try {
     const ownerUid = String(req.params.uid || "");
     const isOwner = ownerUid === req.uid;
+    if (!(await canSeeStatus(req.uid, ownerUid))) return res.status(404).json({ error: "No status to show." });
     const list = await activeStatusesOf(ownerUid);
     if (!list.length) return res.status(404).json({ error: "No status to show." });
     const [users, seen] = await Promise.all([loadUsers([ownerUid]), seenIdSet(req.uid, list.map((s) => s.id))]);
@@ -240,6 +267,7 @@ statusRouter.post("/api/status/:id/view", requireAuth, async (req, res) => {
     if (!snap.exists) return res.status(404).json({ error: "Status not found." });
     const s = snap.data();
     if ((s.expiresAt || 0) <= Date.now()) return res.status(404).json({ error: "Status expired." });
+    if (!(await canSeeStatus(req.uid, s.uid))) return res.status(404).json({ error: "Status not found." });
     const viewer = await getUserProfile(req.uid);
     const receipts = viewer ? viewer.readReceipts !== false : true;
     const ref = db.collection("statusViews").doc(statusId + "_" + req.uid);
@@ -324,6 +352,7 @@ statusRouter.post("/api/status/:id/comments", requireAuth, async (req, res) => {
     const s = snap.data();
     if ((s.expiresAt || 0) <= Date.now()) return res.status(404).json({ error: "This status has expired." });
     if (s.uid === req.uid) return res.status(400).json({ error: "You can't comment on your own status." });
+    if (!(await canSeeStatus(req.uid, s.uid))) return res.status(404).json({ error: "Status not found." });
 
     const mine = await db.collection("statusComments").where("statusId", "==", statusId).where("uid", "==", req.uid).select().get();
     if (mine.size >= MAX_COMMENTS_PER_USER_PER_STATUS) {

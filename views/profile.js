@@ -266,6 +266,8 @@ input{font-family:inherit}
 }
 .pf-follow-btn.following{background:transparent;border:1px solid var(--border-strong);color:var(--text)}
 .pf-follow-btn:disabled{opacity:.6}
+.pf-follow-btn svg{width:18px;height:18px;flex-shrink:0}
+.pf-follow-btn.friends{border-color:rgba(0,224,255,.45);color:var(--accent)}
 
 .page-overlay{
   position:fixed;inset:0;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);
@@ -1027,18 +1029,27 @@ function setAvatar(u){
   }
 }
 
+const FRIENDS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 11.5l2 2 4-4.2"/></svg>';
+
+function setFollowBtn(btn, following, followsYou){
+  btn.classList.toggle('following', !!following);
+  btn.classList.toggle('friends', !!(following && followsYou));
+  if (following && followsYou) btn.innerHTML = FRIENDS_ICON + 'Friends';
+  else if (following) btn.textContent = 'Following';
+  else if (followsYou) btn.textContent = 'Follow Back';
+  else btn.textContent = 'Follow';
+}
+
 async function toggleFollow(uid, btn){
   const isFollowingNow = btn.classList.contains('following');
   btn.disabled = true;
-  const originalText = btn.textContent;
   btn.innerHTML = '<span class="pf-mini-spinner"></span>';
   try {
     const res = await fetch('/api/' + (isFollowingNow ? 'unfollow' : 'follow') + '/' + uid, { method: 'POST' });
     if (!res.ok) throw new Error();
-    btn.classList.toggle('following', !isFollowingNow);
-    btn.textContent = !isFollowingNow ? 'Following' : 'Follow';
+    setFollowBtn(btn, !isFollowingNow, btn._followsYou);
   } catch (err) {
-    btn.textContent = originalText;
+    setFollowBtn(btn, isFollowingNow, btn._followsYou);
   } finally {
     btn.disabled = false;
   }
@@ -2632,8 +2643,9 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
     if (!user.isSelf) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'pf-follow-btn' + (user.isFollowing ? ' following' : '');
-      btn.textContent = user.isFollowing ? 'Following' : 'Follow';
+      btn.className = 'pf-follow-btn';
+      btn._followsYou = !!user.followsYou;
+      setFollowBtn(btn, !!user.isFollowing, btn._followsYou);
       btn.addEventListener('click', async () => {
         if (!user.isViewerLoggedIn) {
           openSignInModal(window.location.pathname);
