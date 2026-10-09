@@ -82,7 +82,7 @@ app.get("/internal/system/storage", async (req, res) => {
 
 const CAP_CACHE_TTL_MS = 5000;
 let activeCapCache = { value: null, at: 0 };
-const mineCapCache = new Map(); // uid -> { value, at }
+const mineCapCache = new Map(); 
 
 async function cachedCountActiveBots() {
   const now = Date.now();
@@ -112,7 +112,7 @@ app.get("/internal/bots/cap", async (req, res) => {
   }
 });
 
-const listCache = new Map(); // uid -> { value, at }
+const listCache = new Map(); 
 const LIST_CACHE_TTL_MS = 4000;
 
 app.get("/internal/bots", async (req, res) => {

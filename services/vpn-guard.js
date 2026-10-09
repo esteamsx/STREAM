@@ -1,5 +1,8 @@
 
-const API_KEY = process.env.PROXYCHECK_API_KEY || "";
+import { clientIp, isPrivateIp } from "./client-ip.js";
+
+const DISABLED = /^(1|true|yes)$/i.test(String(process.env.VPN_BLOCK_DISABLED || ""));
+const API_KEY = DISABLED ? "" : (process.env.PROXYCHECK_API_KEY || "");
 const ALLOWED_IPS = new Set(String(process.env.VPN_ALLOWED_IPS || "").split(",").map((s) => s.trim()).filter(Boolean));
 
 const TTL_RESULT_MS = 12 * 60 * 60 * 1000;
@@ -17,7 +20,7 @@ const EXEMPT_PREFIXES = [
   "/api/paystack/webhook",
   "/.well-known/",
 ];
-const EXEMPT_PATHS = new Set(["/health", "/robots.txt", "/favicon.svg", "/favicon.ico", "/outbound-ip"]);
+const EXEMPT_PATHS = new Set(["/health", "/robots.txt", "/favicon.svg", "/favicon.ico", "/outbound-ip", "/api/security/my-ip"]);
 
 const cache = new Map();
 const inflight = new Map();
@@ -25,15 +28,6 @@ let warnedNoKey = false;
 
 function normalizeIp(ip) {
   return String(ip || "").replace(/^::ffff:/, "").trim();
-}
-
-function isPrivateIp(ip) {
-  if (!ip) return true;
-  if (ip === "::1" || ip === "127.0.0.1" || ip === "localhost") return true;
-  if (/^(10\.|192\.168\.|169\.254\.)/.test(ip)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
-  if (/^(fc|fd|fe80)/i.test(ip)) return true;
-  return false;
 }
 
 async function lookup(ip) {
@@ -47,7 +41,7 @@ async function lookup(ip) {
     const entry = data[ip];
     if (!entry) return { ok: false };
     const type = String(entry.type || "");
-    const vpn = entry.proxy === "yes" && !/^business$/i.test(type);
+    const vpn = entry.proxy === "yes" && /^(vpn|tor|socks|socks4|socks5|http|https|compromised server)$/i.test(type);
     return { ok: true, vpn, type };
   } catch {
     return { ok: false };
@@ -61,9 +55,24 @@ function remember(ip, result) {
   cache.set(ip, { vpn: !!result.vpn, until: Date.now() + (result.ok ? TTL_RESULT_MS : TTL_FAILED_MS) });
 }
 
+const recent = [];
+let pausedUntil = 0;
+function noteResult(ip, result) {
+  if (!result.ok) return;
+  if (result.vpn) console.warn(`[vpn-guard] flagged ip=${ip} type=${result.type}`);
+  recent.push(!!result.vpn);
+  if (recent.length > 40) recent.shift();
+  if (recent.length >= 12 && recent.filter(Boolean).length / recent.length >= 0.8) {
+    pausedUntil = Date.now() + 30 * 60 * 1000;
+    recent.length = 0;
+    console.warn("[vpn-guard] almost every visitor was flagged as VPN. Blocking paused for 30 minutes. Check /api/security/my-ip.");
+  }
+}
+
 function startLookup(ip) {
   if (inflight.has(ip)) return inflight.get(ip);
   const p = lookup(ip).then((result) => {
+    noteResult(ip, result);
     remember(ip, result);
     inflight.delete(ip);
     return result;
@@ -160,9 +169,10 @@ export async function vpnGuard(req, res, next) {
     return next();
   }
   if (isExempt(req)) return next();
+  if (Date.now() < pausedUntil) return next();
   let blocked = false;
   try {
-    blocked = await isVpnIp(req.ip);
+    blocked = await isVpnIp(clientIp(req));
   } catch {
     blocked = false;
   }

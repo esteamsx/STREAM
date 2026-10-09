@@ -324,6 +324,7 @@ import { devicesRouter } from "./routes/devices.js";
 import { deviceBansRouter, enforceLoginDevice } from "./routes/device-bans.js";
 import { blacklistMiddleware } from "./services/device-bans.js";
 import { vpnGuard } from "./services/vpn-guard.js";
+import { clientIp } from "./services/client-ip.js";
 import { db, auth as firebaseAuth } from "./config/firebase.js";
 import {
   PUSH_ENABLED,
@@ -395,6 +396,22 @@ app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
 
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
+app.get("/api/security/my-ip", (req, res) => {
+  res.set("Cache-Control", "no-store").json({
+    clientIp: clientIp(req),
+    expressIp: req.ip,
+    forwardedFor: req.headers["x-forwarded-for"] || null,
+    cfConnectingIp: req.headers["cf-connecting-ip"] || null,
+  });
+});
+
+const devtoolsReportLimiter = new SimpleRateLimiter(5, 60 * 1000).middleware();
+app.post("/api/security/devtools", devtoolsReportLimiter, (req, res) => {
+  const path = String((req.body && req.body.path) || "").slice(0, 120);
+  console.warn(`[devtools] ip=${req.ip} path=${path} ua=${String(req.headers["user-agent"] || "").slice(0, 160)}`);
+  res.status(204).end();
+});
+
 app.get("/outbound-ip", async (req, res) => {
   try {
     const r = await fetch("https://api.ipify.org?format=json");
@@ -405,7 +422,7 @@ app.get("/outbound-ip", async (req, res) => {
   }
 });
 
-const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js"]);
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js"]);
 
 app.use(
   express.static(path.join(__dirname, "public"), {
@@ -734,35 +751,8 @@ document.addEventListener('contextmenu', function(e){
   if (e.target.closest('a, button, img, [role="button"]')) e.preventDefault();
 });
 
-(function(){
-  var shown = false;
-  function notify(){
-    if (shown) return;
-    shown = true;
-    var bar = document.createElement('div');
-    bar.textContent = 'Developer tools detected. This session is logged.';
-    bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#1a0a0f;color:#ff8fa3;font:600 12px system-ui;text-align:center;padding:8px;border-top:1px solid #ff3b5c;';
-    var closeBtn = document.createElement('span');
-    closeBtn.setAttribute('role', 'button');
-    closeBtn.setAttribute('aria-label', 'Dismiss');
-    closeBtn.style.cssText = 'cursor:pointer;margin-left:10px;position:relative;display:inline-block;width:11px;height:11px;vertical-align:-1px;';
-    ['45deg','-45deg'].forEach(function(rot){
-      var bar2 = document.createElement('span');
-      bar2.style.cssText = 'position:absolute;top:50%;left:0;width:11px;height:1.6px;border-radius:1px;background:currentColor;transform:translateY(-50%) rotate(' + rot + ');';
-      closeBtn.appendChild(bar2);
-    });
-    closeBtn.addEventListener('click', function(){ bar.remove(); shown = false; });
-    bar.appendChild(closeBtn);
-    document.body.appendChild(bar);
-  }
-  var threshold = 160;
-  setInterval(function(){
-    var widthDiff = window.outerWidth - window.innerWidth;
-    var heightDiff = window.outerHeight - window.innerHeight;
-    if (widthDiff > threshold || heightDiff > threshold) notify();
-  }, 1000);
-})();
-</script>`,
+</script>
+<script nonce="__CSP_NONCE__" src="/devtools-guard.js" defer></script>`,
   protectionCSS: `
 a, button, [role="button"], img {
   -webkit-touch-callout: none;

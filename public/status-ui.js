@@ -19,14 +19,12 @@
     ":root[data-theme=\"light\"] .st-ring.st-inset.seen{box-shadow:none !important}",
     ":root[data-theme=\"light\"] .st-ring.st-inset.seen::after{border-color:rgba(120,120,135,.7);box-shadow:inset 0 0 0 2px var(--dark,#F5F6FA)}",
     ":root[data-theme=\"light\"] .st-ring.seen{box-shadow:0 0 0 2px var(--dark,#F5F6FA),0 0 0 4.5px rgba(120,120,135,.6) !important}",
-    /* edge arrow (same look as the account rewards slider, with a glow) */
-    ".st-hint{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:250;background:var(--card,#15151F);border:1px solid var(--border-strong,rgba(255,255,255,.13));border-right:none;border-radius:12px 0 0 12px;padding:12px 8px;color:var(--accent,#00E0FF);display:flex;align-items:center;cursor:pointer;box-shadow:-4px 0 18px rgba(0,224,255,.22)}",
+        ".st-hint{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:250;background:var(--card,#15151F);border:1px solid var(--border-strong,rgba(255,255,255,.13));border-right:none;border-radius:12px 0 0 12px;padding:12px 8px;color:var(--accent,#00E0FF);display:flex;align-items:center;cursor:pointer;box-shadow:-4px 0 18px rgba(0,224,255,.22)}",
     ".st-hint svg{width:16px;height:16px;animation:stHint 1.8s ease-in-out infinite;filter:drop-shadow(0 0 4px rgba(0,224,255,.7))}",
     "@keyframes stHint{0%,100%{transform:translateX(0);opacity:.55}50%{transform:translateX(-3px);opacity:1}}",
     ".st-hint .st-dot{position:absolute;top:6px;left:5px;width:8px;height:8px;border-radius:50%;background:" + GREEN + ";display:none}",
     ".st-hint.has-new .st-dot{display:block}",
-    /* site overlay: translucent blurred backdrop + glass card */
-    ".st-ov{position:fixed;inset:0;background:rgba(10,10,15,.75);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:9300;padding:24px;font-family:var(--font-body,Inter,-apple-system,sans-serif)}",
+        ".st-ov{position:fixed;inset:0;background:rgba(10,10,15,.75);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:9300;padding:24px;font-family:var(--font-body,Inter,-apple-system,sans-serif)}",
     ".st-ov.show{display:flex}",
     ".st-ov.st-over{z-index:9400}",
     ".st-ov.st-top{z-index:9500}",
@@ -95,8 +93,7 @@
     ".st-swatches{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}",
     ".st-sw{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}",
     ".st-sw.on{border-color:var(--text,#F3F3FA);box-shadow:0 0 0 2px rgba(0,224,255,.45)}",
-    /* story viewer (glass frame on the blurred site backdrop) */
-    ".st-ov.st-viewer-ov{padding:12px;background:rgba(10,10,15,.82)}",
+        ".st-ov.st-viewer-ov{padding:12px;background:rgba(10,10,15,.82)}",
     ".st-story{position:relative;width:100%;max-width:420px;height:min(88vh,780px);border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.22);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);background:rgba(0,0,0,.4);color:#fff}",
     ".st-bars{position:absolute;top:0;left:0;right:0;display:flex;gap:4px;padding:max(10px,env(safe-area-inset-top)) 10px 0;z-index:3}",
     ".st-bar{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden}",
@@ -239,8 +236,7 @@
     return !!document.querySelector(".page-overlay.show,.pm-overlay.show,.tr-overlay.show,.st-ov.show,.st-full");
   }
 
-  /* ---------- Rings ---------- */
-  function ring(avatarEl, uid, clickEl) {
+    function ring(avatarEl, uid, clickEl) {
     if (!avatarEl || !uid) return;
     clickEl = clickEl || avatarEl;
     api("/api/status/summary/" + encodeURIComponent(uid)).then(function (s) {
@@ -301,8 +297,7 @@
     }).catch(function () {});
   }
 
-  /* ---------- Panel (WhatsApp "Updates" style list, site glass design) ---------- */
-  function loadFeed() {
+    function loadFeed() {
     return api("/api/status/feed").then(function (f) {
       state.feed = f;
       if (state.hint) state.hint.classList.toggle("has-new", f.users.some(function (u) { return !u.allSeen; }));
@@ -423,8 +418,7 @@
     loadFeed().catch(function () {});
   }
 
-  /* ---------- Composers ---------- */
-  function openTextComposer() {
+    function openTextComposer() {
     var idx = Math.floor(Math.random() * BGS.length);
     var ta = h("textarea", { maxlength: "700", rows: "3", placeholder: "Type a status" });
     var wrap = h("div", { class: "st-full", style: "background:" + bgCss(BGS[idx]) });
@@ -516,8 +510,7 @@
     window.dispatchEvent(new CustomEvent("es-status-changed"));
   }
 
-  /* ---------- Viewer ---------- */
-  function openUser(uid, onClose) {
+    function openUser(uid, onClose) {
     api("/api/status/user/" + encodeURIComponent(uid)).then(function (d) {
       var firstUnseen = d.statuses.findIndex(function (s) { return !s.seen; });
       playViewer(d, firstUnseen < 0 ? 0 : firstUnseen, onClose);

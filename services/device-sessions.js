@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { db } from "../config/firebase.js";
+import { clientIp } from "./client-ip.js";
 
 export const TRUSTED_IDLE_MS = 5 * 24 * 60 * 60 * 1000;
 export const TRUSTED_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -107,7 +108,7 @@ export function parseDevice(req) {
     type,
     os: clip(os + (osVersion ? " " + osVersion : ""), 40),
     browser: clip(browser + (bv ? " " + bv : ""), 40),
-    ip: clip(req.ip || req.headers["x-forwarded-for"] || "", 60),
+    ip: clip(clientIp(req), 60),
     userAgent: ua,
   };
 }

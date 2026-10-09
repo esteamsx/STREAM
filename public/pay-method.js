@@ -1,5 +1,3 @@
-/* Shared payment helper: choose Apple Pay or Paystack, show $ amounts (1 USD = 1500 NGN),
-   and open the Paystack v2 popup from a server-created access code. */
 (function () {
   var RATE = 1500;
 
