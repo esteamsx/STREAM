@@ -146,7 +146,7 @@ function showEnded(){
 }
 
 function showEntered(){
-  setCenter(false);
+  setCenter(true);
   card.innerHTML =
     '<div class="gv-state"><div class="gv-ico ok">' + CHECK + '</div><h2>You are in!</h2>' +
     '<p>Your entry for <b>' + esc(status.prize) + '</b> is saved. If you win, you will get a notification in the app with your recharge card PIN.</p></div>' +

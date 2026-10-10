@@ -4,7 +4,7 @@ import { db } from "../config/firebase.js";
 import {
   addNotification,
   getUserProfile,
-  userHasFaceId,
+  getFaceScanForUser,
   validateImageDataUrl,
   normalizeFaceSamples,
   storedFaceSamples,
@@ -57,10 +57,10 @@ export async function getPublicStatus(uid) {
   const out = { open: phase === "open", serverNow: now };
   if (phase !== "open") return out;
 
-  const [entrySnap, profile, hasFaceId] = await Promise.all([
+  const [entrySnap, profile, faceScan] = await Promise.all([
     ENTRIES.doc(`${cfg.roundId}_${uid}`).get(),
     getUserProfile(uid).catch(() => null),
-    userHasFaceId(uid).catch(() => false),
+    getFaceScanForUser(uid).catch(() => null),
   ]);
   return {
     ...out,
@@ -68,7 +68,7 @@ export async function getPublicStatus(uid) {
     prize: cfg.prize,
     endsAt: cfg.endsAt,
     entered: entrySnap.exists,
-    hasFaceId: !!hasFaceId,
+    hasFaceId: !!faceScan,
     username: profile?.username || "",
     name: [profile?.firstName, profile?.lastName].filter(Boolean).join(" "),
   };
@@ -276,9 +276,8 @@ async function claimDueDraw() {
 }
 
 async function notifyWinner(historyId, h) {
-  const message = `You won the ${h.title}! Your ${h.prize} recharge card PIN is ${h.pin}. Load it on your phone to get your airtime. Congratulations!`;
-  await addNotification(h.winnerUid, "giveaway_win", message, { historyId, link: "/giveaway" });
-  sendPushToUid(h.winnerUid, { title: "You won the giveaway!", body: `Open your notifications for your ${h.prize} recharge PIN.`, url: "/" }).catch(() => {});
+  await addNotification(h.winnerUid, "giveaway_win", "You won the giveaway", { historyId, pin: h.pin, link: "/giveaway" });
+  sendPushToUid(h.winnerUid, { title: "You won the giveaway!", body: "Open your notifications to copy your recharge PIN.", url: "/" }).catch(() => {});
   await HISTORY.doc(historyId).update({ notified: true });
 }
 

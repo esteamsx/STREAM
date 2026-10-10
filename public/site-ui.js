@@ -89,6 +89,32 @@ function notifFormatTime(ts){
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) +
     ' · ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
+function esCopyPin(text, btn){
+  const done = () => {
+    showToast('Pin copied');
+    if (btn) { const old = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = old; }, 2000); }
+  };
+  const fallback = () => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      const ok = document.execCommand('copy');
+      ta.remove();
+      if (ok) done(); else showToast('Could not copy, hold the pin to copy it');
+    } catch (e) { showToast('Could not copy, hold the pin to copy it'); }
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, fallback);
+  } else {
+    fallback();
+  }
+}
+
 function showToast(message){
   const toast = document.createElement('div');
   toast.className = 'acc-toast';
@@ -297,6 +323,14 @@ function notifRender(list){
         showRewards();
       });
       top.appendChild(viewBtn);
+    }
+    if (n.type === 'giveaway_win' && n.meta && n.meta.pin) {
+      const pinBtn = document.createElement('button');
+      pinBtn.type = 'button';
+      pinBtn.className = 'notif-view-post-btn';
+      pinBtn.textContent = 'Copy Pin';
+      pinBtn.addEventListener('click', (e) => { e.stopPropagation(); esCopyPin(String(n.meta.pin), pinBtn); });
+      top.appendChild(pinBtn);
     }
     const time = document.createElement('div');
     time.className = 'notif-time';
