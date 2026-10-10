@@ -1032,6 +1032,7 @@ async function cleanupFollowRelationships(uid) {
   ]);
 
   const docs = [...asFollower.docs, ...asTarget.docs];
+  invalidateFollowCache(uid, ...docs.flatMap((d) => [d.data().followerUid, d.data().targetUid]));
   const CHUNK = 400;
   for (let i = 0; i < docs.length; i += CHUNK) {
     const batch = db.batch();
@@ -1783,6 +1784,56 @@ async function notifyProfileViewed(viewerUid, viewerProfile, targetUid) {
   }
 }
 
+const FOLLOW_CACHE_TTL_MS = 2 * 60 * 1000;
+const FOLLOW_CACHE_MAX = 5000;
+const followCache = new Map();
+const followInflight = new Map();
+
+function followCached(key, loader) {
+  const hit = followCache.get(key);
+  if (hit && hit.exp > Date.now()) return Promise.resolve(hit.val);
+  const pending = followInflight.get(key);
+  if (pending) return pending;
+  const p = loader().then((val) => {
+    if (followInflight.get(key) === p) {
+      if (followCache.size >= FOLLOW_CACHE_MAX) {
+        const now = Date.now();
+        for (const [k, v] of followCache) if (v.exp <= now) followCache.delete(k);
+        if (followCache.size >= FOLLOW_CACHE_MAX) followCache.clear();
+      }
+      followCache.set(key, { val, exp: Date.now() + FOLLOW_CACHE_TTL_MS });
+    }
+    return val;
+  }).finally(() => {
+    if (followInflight.get(key) === p) followInflight.delete(key);
+  });
+  followInflight.set(key, p);
+  return p;
+}
+
+function invalidateFollowCache(...uids) {
+  for (const uid of uids) {
+    if (!uid) continue;
+    for (const k of [`following:${uid}`, `mutual:${uid}`]) {
+      followCache.delete(k);
+      followInflight.delete(k);
+    }
+  }
+}
+
+async function getMutualUids(uid) {
+  return followCached(`mutual:${uid}`, async () => {
+    const [out, inn] = await Promise.all([
+      db.collection("follows").where("followerUid", "==", uid).select("targetUid").get(),
+      db.collection("follows").where("targetUid", "==", uid).select("followerUid").get(),
+    ]);
+    const following = new Set(out.docs.map((d) => d.data().targetUid));
+    const mutual = new Set();
+    inn.docs.forEach((d) => { const f = d.data().followerUid; if (following.has(f)) mutual.add(f); });
+    return mutual;
+  });
+}
+
 async function followUser(followerUid, targetUid) {
   if (!targetUid) throw new Error("User not found.");
   if (followerUid === targetUid) throw new Error("You can't follow yourself.");
@@ -1804,6 +1855,7 @@ async function followUser(followerUid, targetUid) {
       followingCount: admin.firestore.FieldValue.increment(1),
     });
   });
+  invalidateFollowCache(followerUid, targetUid);
   if (created) {
     let followerProfile = await getUserProfile(followerUid).catch(() => null);
     if (!followerProfile) {
@@ -1833,6 +1885,7 @@ async function unfollowUser(followerUid, targetUid) {
     followingCount: admin.firestore.FieldValue.increment(-1),
   });
   await batch.commit();
+  invalidateFollowCache(followerUid, targetUid);
   return { following: false };
 }
 
@@ -2466,8 +2519,10 @@ async function getFollowList(uid, type) {
 }
 
 async function getFollowingUids(uid) {
-  const snap = await db.collection("follows").where("followerUid", "==", uid).limit(500).get();
-  return [...new Set(snap.docs.map((d) => d.data().targetUid))];
+  return followCached(`following:${uid}`, async () => {
+    const snap = await db.collection("follows").where("followerUid", "==", uid).limit(500).get();
+    return [...new Set(snap.docs.map((d) => d.data().targetUid))];
+  });
 }
 
 async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
@@ -5042,6 +5097,7 @@ export {
   followUser,
   unfollowUser,
   isFollowing,
+  getMutualUids,
   getFollowStats,
   growAdminFollowerCount,
   validateImageDataUrl,

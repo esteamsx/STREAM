@@ -7,6 +7,7 @@ import {
   validateImageDataUrl,
   isVerificationActive,
   isAdminEmail,
+  getMutualUids,
 } from "../services/auth.js";
 
 export const statusRouter = express.Router();
@@ -85,15 +86,8 @@ async function deleteStatusCascade(statusId) {
   }
 }
 
-async function mutualSet(uid) {
-  const [out, inn] = await Promise.all([
-    db.collection("follows").where("followerUid", "==", uid).select("targetUid").get(),
-    db.collection("follows").where("targetUid", "==", uid).select("followerUid").get(),
-  ]);
-  const following = new Set(out.docs.map((d) => d.data().targetUid));
-  const mutual = new Set();
-  inn.docs.forEach((d) => { const f = d.data().followerUid; if (following.has(f)) mutual.add(f); });
-  return mutual;
+function mutualSet(uid) {
+  return getMutualUids(uid);
 }
 
 async function canSeeStatus(viewerUid, ownerUid) {
