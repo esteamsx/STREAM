@@ -5186,3 +5186,11 @@ export {
   listTradingPlanCodes,
   redeemTradingPlanCode,
 };
+
+export {
+  normalizeFaceSamples,
+  storedFaceSamples,
+  bestDistanceBetween,
+  verifyOwnFaceId,
+  CLAIM_FACE_THRESHOLD,
+};

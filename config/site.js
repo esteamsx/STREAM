@@ -83,6 +83,12 @@ export const PAGES = {
     description: "Create an ad, pay securely and track its views and clicks.",
     auth: "required",
   },
+  giveaway: {
+    path: "/giveaway",
+    title: `Giveaway | ${SITE.name}`,
+    description: "Enter the giveaway for a chance to win an airtime recharge card.",
+    auth: "required",
+  },
   deployBot: {
     path: "/deploy-bot",
     description: "Deploy your own streaming bot in a few clicks.",

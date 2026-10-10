@@ -599,6 +599,7 @@ const ES_LINKS = [
   { href: "/tools", label: "Tools", icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>' },
   { href: "/tools/trading", label: "Trading", icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 7h6v6"/>' },
   { href: "/promote", label: "Promote", icon: '<path d="m3 11 18-5v12L3 14v-3z" stroke-linejoin="round"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" stroke-linecap="round"/>' },
+  { href: "/giveaway", label: "Giveaway", icon: '<rect x="3" y="8" width="18" height="4" rx="1"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8a2.5 2.5 0 010-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 010 5"/>' },
   { href: "/channel-react", label: "Channel Reaction", icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z"/>' },
   { href: "/deploy-bot", label: "Deploy Bot", icon: '<rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="8.5" cy="16" r="1" fill="currentColor"/><circle cx="15.5" cy="16" r="1" fill="currentColor"/><path stroke-linecap="round" d="M12 11V7M9 3h6"/>' },
   { href: "/developers", label: "Developers", icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>' },
@@ -834,6 +835,7 @@ function esBuildMenu() {
   list.appendChild(link("/tools"));
   list.appendChild(link("/tools/trading"));
   list.appendChild(link("/promote"));
+  list.appendChild(link("/giveaway"));
   list.appendChild(link("/channel-react"));
 
   section("Games");

@@ -11,6 +11,7 @@ import { renderLogin } from "./views/login.js";
 import { renderVerify } from "./views/verify.js";
 import { renderAccount } from "./views/account.js";
 import { renderPromote } from "./views/promote.js";
+import { renderGiveaway } from "./views/giveaway.js";
 import { renderHome } from "./views/home.js";
 import { renderLiveTv } from "./views/live-tv.js";
 import { renderProfile } from "./views/profile.js";
@@ -322,6 +323,8 @@ import { rewardsRouter } from "./routes/rewards.js";
 import { payLinkRouter } from "./routes/pay-link.js";
 import { statusRouter } from "./routes/status.js";
 import { visitorSupportRouter } from "./routes/visitor-support.js";
+import { createGiveawayRouter } from "./routes/giveaway.js";
+import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
 import { deviceBansRouter, enforceLoginDevice } from "./routes/device-bans.js";
 import { adminFacesRouter } from "./routes/admin-faces.js";
@@ -666,6 +669,7 @@ app.get("/s/:code", handleShortlinkRedirect);
 app.use(paymentsRouter);
 app.use(promoteRouter);
 app.use(rewardsRouter);
+app.use(createGiveawayRouter({ verifyCaptcha }));
 app.use(payLinkRouter);
 app.use(statusRouter);
 app.use(devicesRouter);
@@ -774,6 +778,7 @@ const cachedLoginHtml = renderLogin(authPageConfig);
 const cachedVerifyHtml = renderVerify(authPageConfig);
 const cachedAccountHtml = renderAccount(authPageConfig);
 const cachedPromoHtml = renderPromote(authPageConfig);
+const cachedGiveawayHtml = renderGiveaway(authPageConfig);
 const cachedAccountGuestHtml = wrapWithGuestBlur(cachedAccountHtml, "/account");
 const cachedProfileHtml = renderProfile(authPageConfig);
 const cachedAdminHtml = renderAdmin(authPageConfig);
@@ -977,6 +982,10 @@ app.get("/account", scrapeGate, async (req, res) => {
 
 app.get("/promote", scrapeGate, requireUser, (req, res) => {
   res.send(cachedPromoHtml);
+});
+
+app.get("/giveaway", scrapeGate, requireUser, (req, res) => {
+  res.send(cachedGiveawayHtml);
 });
 
 app.get("/profile", scrapeGate, requireUser, (req, res) => {
@@ -4413,6 +4422,7 @@ async function runUserSweepIfDue() {
 
 runUserSweepIfDue();
 setInterval(runUserSweepIfDue, 60 * 60 * 1000);
+startGiveawaySweep();
 
 sweepExpiredSupportMessages().catch((err) => console.error("Support message sweep failed:", err));
 setInterval(() => {

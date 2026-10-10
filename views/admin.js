@@ -763,6 +763,20 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div></div>
   </div>
 
+  <div class="ad-card accent-purple" id="giveawayCard">
+    <div class="ad-card-header" id="giveawayHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="8" width="18" height="4" rx="1"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8a2.5 2.5 0 010-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 010 5"/></svg>
+      <div class="ad-card-header-title">Giveaway</div>
+      <div class="ad-card-count" id="giveawayCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body" style="max-height:none"><div class="ad-card-body-inner">
+      <div id="giveawayBody"><div class="ad-empty">Loading...</div></div>
+      <div style="font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px">Winner history</div>
+      <div class="bonus-list" id="giveawayHistory" style="max-height:360px;overflow-y:auto;overscroll-behavior:contain"><div class="ad-empty">Loading...</div></div>
+    </div></div>
+  </div>
+
   <div class="ad-card accent-gold" id="deviceBansCard">
     <div class="ad-card-header" id="deviceBansHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M5.6 5.6l12.8 12.8"/></svg>
@@ -1452,6 +1466,221 @@ document.getElementById('faceCloseBtn').addEventListener('click', () => document
 document.getElementById('faceOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'faceOverlay') document.getElementById('faceOverlay').classList.remove('show');
 });
+
+
+const gvCardEl = document.getElementById('giveawayCard');
+const gvBodyEl = document.getElementById('giveawayBody');
+const gvHistEl = document.getElementById('giveawayHistory');
+const gvCountEl = document.getElementById('giveawayCount');
+let gvState = null;
+let gvOffset = 0;
+let gvRenderKey = '';
+let gvLastWinnerId = null;
+let gvFirstLoad = true;
+let gvDrawPokedFor = '';
+const GV_INPUT = 'width:100%;margin-bottom:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit';
+
+document.getElementById('giveawayHeader').addEventListener('click', () => gvCardEl.classList.toggle('open'));
+
+function gvUnitMs(unit){ return unit === 'days' ? 86400000 : (unit === 'hours' ? 3600000 : 60000); }
+
+function gvFmt(ms){
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(t / 86400), h = Math.floor((t % 86400) / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+  return (d ? d + 'd ' : '') + mtPad(h) + ':' + mtPad(m) + ':' + mtPad(sec);
+}
+
+function gvNow(){ return Date.now() + gvOffset; }
+
+function gvFormHtml(){
+  return '<input type="text" id="gvTitleIn" placeholder="Giveaway title (optional)" maxlength="80" style="' + GV_INPUT + '">' +
+    '<input type="text" id="gvPrizeIn" placeholder="Prize, e.g. N500 MTN airtime" maxlength="80" style="' + GV_INPUT + '">' +
+    '<input type="text" id="gvPinIn" placeholder="Recharge card PIN" maxlength="60" autocomplete="off" style="' + GV_INPUT + '">' +
+    '<div style="font-size:.74rem;color:var(--muted);margin:4px 0 6px">Giveaway page stays open for</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:8px">' +
+      '<input type="number" id="gvOpenVal" min="1" value="60" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit">' +
+      '<select id="gvOpenUnit" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit"><option value="minutes">minutes</option><option value="hours">hours</option><option value="days">days</option></select>' +
+    '</div>' +
+    '<div style="font-size:.74rem;color:var(--muted);margin:4px 0 6px">Pick the winner after entries close, wait</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+      '<input type="number" id="gvDelayVal" min="0" value="0" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit">' +
+      '<select id="gvDelayUnit" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit"><option value="minutes">minutes</option><option value="hours">hours</option></select>' +
+    '</div>' +
+    '<div class="ad-modal-msg" id="gvMsg"></div>' +
+    '<button type="button" class="ad-modal-btn primary" id="gvStartBtn" style="width:100%">Start giveaway</button>';
+}
+
+function gvActiveHtml(c){
+  const pill = c.status === 'drawing' ? 'Drawing...' : (c.phase === 'open' ? 'Open' : 'Waiting for draw');
+  return '<div class="withdrawal-item" style="margin-bottom:10px">' +
+    '<div class="withdrawal-item-head"><div class="withdrawal-item-amount" style="font-size:.95rem">' + esc(c.title) + '</div><span class="status-pill">' + pill + '</span></div>' +
+    '<div class="withdrawal-item-meta">Prize: ' + esc(c.prize) + '</div>' +
+    '<div class="withdrawal-item-meta">PIN: <b>' + esc(c.pin) + '</b></div>' +
+    '<div class="withdrawal-item-meta">Entries: <b id="gvEntries">' + c.entriesCount + '</b></div>' +
+    '<div class="withdrawal-item-meta">Entries close in: <b id="gvLeftOpen"></b></div>' +
+    '<div class="withdrawal-item-meta">Winner picked in: <b id="gvLeftDraw"></b></div>' +
+  '</div>' +
+  '<div class="ad-modal-msg" id="gvMsg"></div>' +
+  '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+    (c.phase === 'open' ? '<button type="button" class="ad-modal-btn ghost" id="gvCloseBtn" style="flex:1">End entries now</button>' : '') +
+    '<button type="button" class="ad-modal-btn primary" id="gvDrawBtn" style="flex:1">Pick winner now</button>' +
+    '<button type="button" class="ad-modal-btn ghost" id="gvCancelBtn" style="flex:1">Cancel</button>' +
+  '</div>';
+}
+
+function gvSetMsg(text){
+  const el = document.getElementById('gvMsg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'ad-modal-msg' + (text ? ' err' : '');
+}
+
+async function gvRun(btn, fn){
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Please wait...';
+  try {
+    gvApply(await fn());
+  } catch (err) {
+    gvSetMsg(err.message || 'Something went wrong.');
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+function gvRenderControls(){
+  const c = gvState && gvState.current;
+  const active = !!(c && (c.status === 'open' || c.status === 'drawing'));
+  const key = active ? (c.roundId + ':' + c.status + ':' + c.phase) : 'form';
+  if (key === gvRenderKey) return;
+  gvRenderKey = key;
+  if (!active) {
+    gvBodyEl.innerHTML = gvFormHtml();
+    document.getElementById('gvStartBtn').addEventListener('click', function(){
+      const openVal = Number(document.getElementById('gvOpenVal').value);
+      const delayVal = Number(document.getElementById('gvDelayVal').value || 0);
+      gvRun(this, () => postJSON('/api/admin/giveaway/start', {
+        title: document.getElementById('gvTitleIn').value,
+        prize: document.getElementById('gvPrizeIn').value,
+        pin: document.getElementById('gvPinIn').value,
+        openMinutes: Math.round(openVal * gvUnitMs(document.getElementById('gvOpenUnit').value) / 60000),
+        drawDelayMinutes: Math.round(delayVal * gvUnitMs(document.getElementById('gvDelayUnit').value) / 60000),
+      }));
+    });
+    return;
+  }
+  gvBodyEl.innerHTML = gvActiveHtml(c);
+  const closeBtn = document.getElementById('gvCloseBtn');
+  if (closeBtn) closeBtn.addEventListener('click', function(){ gvRun(this, () => postJSON('/api/admin/giveaway/close', {})); });
+  document.getElementById('gvDrawBtn').addEventListener('click', function(){
+    if (!confirm('Pick the winner now?')) return;
+    gvRun(this, () => postJSON('/api/admin/giveaway/draw', {}));
+  });
+  document.getElementById('gvCancelBtn').addEventListener('click', function(){
+    if (!confirm('Cancel this giveaway? No winner will be picked and all entries are deleted.')) return;
+    gvRun(this, () => postJSON('/api/admin/giveaway/cancel', {}));
+  });
+}
+
+function gvHistoryItemHtml(h){
+  const isWin = h.type === 'winner';
+  const pill = isWin ? 'Winner' : (h.type === 'cancelled' ? 'Cancelled' : 'No entries');
+  const photo = isWin && h.hasPhoto
+    ? '<img src="/api/admin/giveaway/history/' + encodeURIComponent(h.id) + '/photo" alt="" loading="lazy" style="width:56px;height:56px;border-radius:12px;object-fit:cover;flex-shrink:0;border:1px solid var(--border-strong)">'
+    : '<div style="width:56px;height:56px;border-radius:12px;flex-shrink:0;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--muted)">No photo</div>';
+  const who = isWin ? esc(h.winnerName) : esc(h.title);
+  const line2 = isWin ? '@' + esc(h.winnerUsername) + ' &middot; ' + esc(h.winnerPhone) : esc(h.prize);
+  return '<div class="withdrawal-item" data-gv="' + esc(h.id) + '" style="cursor:pointer;margin-bottom:8px;display:flex;gap:12px;align-items:center">' +
+    photo +
+    '<div style="flex:1;min-width:0">' +
+      '<div class="withdrawal-item-head"><div class="withdrawal-item-amount" style="font-size:.92rem">' + who + '</div><span class="status-pill">' + pill + '</span></div>' +
+      '<div class="withdrawal-item-meta">' + line2 + '</div>' +
+      '<div class="withdrawal-item-meta">PIN: <b>' + esc(h.pin) + '</b> &middot; ' + esc(h.prize) + '</div>' +
+      '<div class="withdrawal-item-meta">' + h.entriesCount + ' entries &middot; ' + esc(new Date(h.drawnAt).toLocaleString()) + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function gvRenderHistory(){
+  const list = (gvState && gvState.history) || [];
+  if (!list.length) { gvHistEl.innerHTML = '<div class="ad-empty">No giveaways yet.</div>'; return; }
+  gvHistEl.innerHTML = list.map(gvHistoryItemHtml).join('');
+  gvHistEl.querySelectorAll('[data-gv]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const h = list.find((x) => x.id === row.getAttribute('data-gv'));
+      if (h && h.type === 'winner') gvShowWinner(h);
+    });
+  });
+}
+
+function gvShowWinner(h){
+  document.getElementById('faceModalName').textContent = 'Giveaway winner';
+  const body = document.getElementById('faceModalBody');
+  body.textContent = '';
+  if (h.hasPhoto) {
+    const img = document.createElement('img');
+    img.src = '/api/admin/giveaway/history/' + encodeURIComponent(h.id) + '/photo';
+    img.alt = 'Face scan of ' + h.winnerName;
+    img.style.cssText = 'width:100%;max-width:280px;border-radius:16px;border:1px solid var(--border-strong);box-shadow:0 8px 28px rgba(0,0,0,.45)';
+    body.appendChild(img);
+  }
+  const lines = [h.winnerName, '@' + h.winnerUsername, h.winnerPhone, 'PIN: ' + h.pin, h.prize];
+  lines.forEach((text, i) => {
+    const d = document.createElement('div');
+    d.style.cssText = i === 0 ? 'margin-top:12px;font-size:1rem;font-weight:700' : 'margin-top:4px;font-size:.85rem;color:var(--muted)';
+    d.textContent = text;
+    body.appendChild(d);
+  });
+  document.getElementById('faceOverlay').classList.add('show');
+}
+
+function gvUpdateTimers(){
+  if (!gvState || !gvState.current) return;
+  const c = gvState.current;
+  if (c.status !== 'open' && c.status !== 'drawing') return;
+  const now = gvNow();
+  const a = document.getElementById('gvLeftOpen');
+  const b = document.getElementById('gvLeftDraw');
+  if (a) a.textContent = now >= c.endsAt ? 'closed' : gvFmt(c.endsAt - now);
+  if (b) b.textContent = now >= c.drawAt ? 'now' : gvFmt(c.drawAt - now);
+  if (now >= c.drawAt && gvDrawPokedFor !== c.roundId + c.status) {
+    gvDrawPokedFor = c.roundId + c.status;
+    setTimeout(gvLoad, 2500);
+  }
+}
+
+function gvApply(state){
+  gvState = state;
+  gvOffset = (state.serverNow || Date.now()) - Date.now();
+  const top = (state.history || []).find((h) => h.type === 'winner');
+  if (!gvFirstLoad && top && top.id !== gvLastWinnerId) {
+    showToast('Giveaway winner picked: ' + top.winnerName);
+    gvShowWinner(top);
+  }
+  if (top) gvLastWinnerId = top.id;
+  gvFirstLoad = false;
+  const c = state.current;
+  const active = !!(c && (c.status === 'open' || c.status === 'drawing'));
+  gvCountEl.style.display = active ? '' : 'none';
+  gvCountEl.textContent = active ? String(c.entriesCount) : '0';
+  gvRenderControls();
+  const entriesEl = document.getElementById('gvEntries');
+  if (entriesEl && active) entriesEl.textContent = String(c.entriesCount);
+  gvRenderHistory();
+  gvUpdateTimers();
+}
+
+function gvLoad(){
+  return getJSON('/api/admin/giveaway').then(gvApply).catch(() => {
+    if (!gvState) {
+      gvBodyEl.innerHTML = '<div class="ad-empty">Could not load the giveaway.</div>';
+      gvHistEl.innerHTML = '';
+    }
+  });
+}
+
+setInterval(gvUpdateTimers, 1000);
+setInterval(() => { if (!document.hidden) gvLoad(); }, 10000);
 
 document.getElementById('deviceBansHeader').addEventListener('click', () => {
   document.getElementById('deviceBansCard').classList.toggle('open');
@@ -3067,6 +3296,7 @@ loadTpCodes();
 loadWithdrawals();
 loadDeviceBans();
 loadFaceIds();
+gvLoad();
 loadCrlog();
 loadUsersPage(true);
 loadBannedUsers();
