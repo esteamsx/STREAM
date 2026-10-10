@@ -198,6 +198,28 @@ body:has(.ad-overlay.show){overflow:hidden}
 .ad-storage-fill{height:100%;border-radius:6px;transition:width .4s var(--ease);background:linear-gradient(90deg,var(--accent),var(--accent2))}
 .ad-storage-fill.warn{background:var(--red)}
 .ad-storage-err{font-size:.78rem;color:var(--muted)}
+
+.dbu-mini{display:flex;align-items:center;gap:14px}
+.dbu-mini-ring{position:relative;width:64px;height:64px;flex-shrink:0}
+.dbu-mini-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.dbu-mini-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:.78rem;font-weight:700}
+.dbu-open-btn{margin-top:12px;width:100%}
+.dbu-gauge{position:relative;width:210px;height:210px;margin:6px auto 18px}
+.dbu-gauge svg{position:absolute;inset:0;width:100%;height:100%}
+.dbu-spin{transform-origin:100px 100px;animation:dbuSpin 16s linear infinite}
+.dbu-orbit{transform-origin:100px 100px;animation:dbuSpin 5s linear infinite}
+.dbu-prog{transform:rotate(-90deg);transform-origin:100px 100px;transition:stroke-dasharray .9s var(--ease),stroke .3s}
+.dbu-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.dbu-pct{font-family:var(--font-display);font-weight:800;font-size:2.1rem;line-height:1}
+.dbu-pct-sub{font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.dbu-stats{display:flex;gap:8px;margin-bottom:16px}
+.dbu-stat{flex:1;padding:10px 6px;border-radius:12px;text-align:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14)}
+.dbu-stat b{display:block;font-family:var(--font-mono);font-size:.95rem}
+.dbu-stat span{font-size:.58rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.dbu-reset{text-align:center;font-size:.74rem;color:var(--muted);margin:2px 0 10px}
+.dbu-reset b{color:var(--accent);font-family:var(--font-mono)}
+@keyframes dbuSpin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.dbu-spin,.dbu-orbit{animation:none}}
 .mt-row{display:flex;align-items:center;gap:14px}
 .mt-icon-btn{
   width:46px;height:46px;flex-shrink:0;border-radius:14px;display:flex;align-items:center;justify-content:center;
@@ -861,6 +883,32 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div></div>
   </div>
 
+  <div class="ad-card accent-blue" id="dbUsageCard">
+    <div class="ad-card-header" id="dbUsageHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
+      <div class="ad-card-header-title">Database Storage</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div id="dbUsageMini"><div class="ad-empty">Loading usage...</div></div>
+      <button type="button" class="ad-modal-btn ghost dbu-open-btn" id="dbUsageOpenBtn" style="width:100%">View live usage</button>
+    </div></div>
+  </div>
+
+</div>
+
+<div class="ad-overlay" id="dbUsageOverlay" role="dialog" aria-modal="true" aria-label="Database usage">
+  <div class="ad-modal ad-modal-wide">
+    <div class="ad-modal-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
+      <span>Database Storage</span>
+    </div>
+    <div class="ad-modal-sub">Today's Firestore daily limit. Resets at midnight Pacific time.</div>
+    <div id="dbUsageBody"><div class="ad-empty">Loading usage...</div></div>
+    <div class="ad-modal-actions single">
+      <button type="button" class="ad-modal-btn ghost" id="dbUsageCloseBtn">Close</button>
+    </div>
+  </div>
 </div>
 
 <div class="ad-overlay" id="adsOverlay" role="dialog" aria-modal="true" aria-label="Ad engagement">
@@ -2344,6 +2392,102 @@ async function loadStorage(){
   }
 }
 
+const DBU_GRAD = '<defs><linearGradient id="dbuGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00E0FF"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs>';
+let dbuData = null;
+let dbuTimer = null;
+let dbuTick = null;
+
+function dbuColor(p){ return p >= 85 ? '#FF3B5C' : (p >= 60 ? '#FFC53D' : 'url(#dbuGrad)'); }
+function dbuNum(n){ return Number(n || 0).toLocaleString(); }
+
+function dbuRenderMini(){
+  const el = document.getElementById('dbUsageMini');
+  if (!dbuData) return;
+  const r = dbuData.reads;
+  el.innerHTML =
+    '<div class="dbu-mini">' +
+      '<div class="dbu-mini-ring"><svg viewBox="0 0 200 200">' + DBU_GRAD +
+        '<circle cx="100" cy="100" r="84" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="18"/>' +
+        '<circle cx="100" cy="100" r="84" fill="none" stroke="' + dbuColor(r.percent) + '" stroke-width="18" stroke-linecap="round" pathLength="100" stroke-dasharray="' + r.percent + ' 100"/>' +
+      '</svg><div class="dbu-mini-pct">' + Math.round(r.percent) + '%</div></div>' +
+      '<div style="min-width:0;flex:1"><div style="font-size:.85rem;font-weight:700">' + dbuNum(r.used) + ' / ' + dbuNum(r.limit) + ' reads</div>' +
+      '<div style="font-size:.74rem;color:var(--muted);margin-top:3px">' + dbuNum(r.left) + ' left today</div></div>' +
+    '</div>';
+}
+
+function dbuBar(label, o){
+  const warn = o.percent >= 85;
+  return '<div class="ad-storage-row"><div class="ad-storage-label"><span>' + label + '</span>' +
+    '<span class="ad-storage-amt">' + dbuNum(o.used) + ' / ' + dbuNum(o.limit) + '</span></div>' +
+    '<div class="ad-storage-track"><div class="ad-storage-fill' + (warn ? ' warn' : '') + '" style="width:' + o.percent + '%"></div></div></div>';
+}
+
+function dbuRenderBody(){
+  const body = document.getElementById('dbUsageBody');
+  if (!dbuData) return;
+  const r = dbuData.reads;
+  const col = dbuColor(r.percent);
+  body.innerHTML =
+    '<div class="dbu-gauge"><svg viewBox="0 0 200 200">' + DBU_GRAD +
+      '<g class="dbu-spin"><circle cx="100" cy="100" r="96" fill="none" stroke="rgba(0,224,255,.45)" stroke-width="2" stroke-dasharray="2 9" stroke-linecap="round"/></g>' +
+      '<circle cx="100" cy="100" r="78" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="14"/>' +
+      '<circle class="dbu-prog" id="dbuProg" cx="100" cy="100" r="78" fill="none" stroke="' + col + '" stroke-width="14" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>' +
+      '<g class="dbu-orbit"><circle cx="100" cy="4" r="4.5" fill="#00E0FF"/></g>' +
+    '</svg><div class="dbu-center"><div class="dbu-pct">' + r.percent + '%</div><div class="dbu-pct-sub">reads used</div></div></div>' +
+    '<div class="dbu-stats">' +
+      '<div class="dbu-stat"><b>' + dbuNum(r.used) + '</b><span>Used</span></div>' +
+      '<div class="dbu-stat"><b>' + dbuNum(r.left) + '</b><span>Left</span></div>' +
+      '<div class="dbu-stat"><b>' + dbuNum(r.limit) + '</b><span>Daily limit</span></div>' +
+    '</div>' +
+    dbuBar('Writes', dbuData.writes) + dbuBar('Deletes', dbuData.deletes) +
+    '<div class="dbu-reset">Resets in <b id="dbuResetText">--:--:--</b></div>';
+  requestAnimationFrame(function(){
+    const p = document.getElementById('dbuProg');
+    if (p) p.setAttribute('stroke-dasharray', r.percent + ' 100');
+  });
+  dbuUpdateReset();
+}
+
+function dbuUpdateReset(){
+  const el = document.getElementById('dbuResetText');
+  if (!el || !dbuData) return;
+  const ms = Math.max(0, dbuData.resetAt - Date.now());
+  const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000), s = Math.floor((ms % 60000) / 1000);
+  el.textContent = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+async function loadDbUsage(){
+  try {
+    dbuData = await getJSON('/api/admin/system/db-usage');
+    dbuRenderMini();
+    if (document.getElementById('dbUsageOverlay').classList.contains('show')) dbuRenderBody();
+  } catch (err) {
+    const msg = (err && err.message) ? err.message : 'Could not load database usage.';
+    document.getElementById('dbUsageMini').innerHTML = '<div class="ad-empty">' + esc(msg) + '</div>';
+    if (!dbuData) document.getElementById('dbUsageBody').innerHTML = '<div class="ad-empty">' + esc(msg) + '</div>';
+  }
+}
+
+function dbuClose(){
+  document.getElementById('dbUsageOverlay').classList.remove('show');
+  clearInterval(dbuTimer); clearInterval(dbuTick);
+}
+document.getElementById('dbUsageHeader').addEventListener('click', function(){
+  document.getElementById('dbUsageCard').classList.toggle('open');
+});
+document.getElementById('dbUsageOpenBtn').addEventListener('click', function(){
+  document.getElementById('dbUsageOverlay').classList.add('show');
+  dbuRenderBody();
+  loadDbUsage();
+  clearInterval(dbuTimer); clearInterval(dbuTick);
+  dbuTimer = setInterval(loadDbUsage, 30000);
+  dbuTick = setInterval(dbuUpdateReset, 1000);
+});
+document.getElementById('dbUsageCloseBtn').addEventListener('click', dbuClose);
+document.getElementById('dbUsageOverlay').addEventListener('click', function(e){
+  if (e.target === this) dbuClose();
+});
+
 let mtHour = 12;
 let mtMinute = 0;
 let mtActiveHand = 'hour';
@@ -2930,6 +3074,7 @@ loadVerifyPage(true);
 loadBotsUsers();
 loadTemplateStatus();
 loadStorage();
+loadDbUsage();
 
 })();
 </script>

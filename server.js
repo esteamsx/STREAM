@@ -24,6 +24,7 @@ import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
 import { quotaMaintenanceGate, checkQuotaError } from "./middleware/quota-guard.js";
+import { getDbUsage } from "./services/db-usage.js";
 import { trackPageView, getAnalytics, flushCompletedDays } from "./middleware/analytics-tracker.js";
 import { verifyCoinLedgerChain } from "./services/coin-ledger.js";
 import { pageLockGate } from "./middleware/page-lock.js";
@@ -1479,6 +1480,20 @@ app.get("/api/admin/system/storage", requireAuth, requireAdmin, async (req, res)
     res.json(await botServiceFetch("/internal/system/storage"));
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || "Could not load bot deployment storage." });
+  }
+});
+
+app.get("/api/admin/system/db-usage", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    res.json(await getDbUsage());
+  } catch (err) {
+    const denied = err.status === 403 || err.status === 401;
+    res.status(denied ? 403 : 500).json({
+      error: denied
+        ? "Google denied access to usage data. In Google Cloud Console, enable the Cloud Monitoring API and give your Firebase service account the Monitoring Viewer role."
+        : (err.message || "Could not load database usage."),
+    });
   }
 });
 
