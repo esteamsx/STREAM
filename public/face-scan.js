@@ -470,7 +470,21 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         const finishCapture = async (collected) => {
           console.log('[face-scan] captured: ' + scanReport());
           const descriptor = averageDescriptors(collected);
-          const payload = returnSamples ? { descriptor, samples: collected } : descriptor;
+          let snapshot = null;
+          if (returnSamples) {
+            try {
+              const sw = video.videoWidth || 0, sh = video.videoHeight || 0;
+              if (sw && sh) {
+                const k = Math.min(1, 320 / Math.max(sw, sh));
+                const snap = document.createElement('canvas');
+                snap.width = Math.round(sw * k);
+                snap.height = Math.round(sh * k);
+                snap.getContext('2d').drawImage(video, 0, 0, snap.width, snap.height);
+                snapshot = snap.toDataURL('image/jpeg', 0.72);
+              }
+            } catch (e) { snapshot = null; }
+          }
+          const payload = returnSamples ? { descriptor, samples: collected, snapshot } : descriptor;
 
           if (!verify) {
             overlay.classList.add('fs-success');

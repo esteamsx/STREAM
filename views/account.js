@@ -3071,8 +3071,8 @@ document.getElementById('setupFaceScanBtn').addEventListener('click', async () =
   btn.innerHTML = '<span class="btn-spinner"></span>Opening camera…';
   try {
     const { captureFaceDescriptor } = await import('/face-scan.js');
-    const { descriptor, samples } = await captureFaceDescriptor({ returnSamples: true });
-    await postJSON('/api/facescan/enroll', { descriptor: [descriptor].concat(samples) });
+    const { descriptor, samples, snapshot } = await captureFaceDescriptor({ returnSamples: true });
+    await postJSON('/api/facescan/enroll', { descriptor: [descriptor].concat(samples), snapshot });
     await loadFaceScanStatus();
     flashMsg(msg, 'Face Scan set up.', true);
   } catch (err) {

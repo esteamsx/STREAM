@@ -1469,7 +1469,7 @@ async function findAccountAlreadyUsingFace(uid, probes) {
   return matchedUid;
 }
 
-async function enrollFaceScan(uid, descriptor) {
+async function enrollFaceScan(uid, descriptor, snapshot) {
   const samples = normalizeFaceSamples(descriptor);
   if (!samples.length) {
     throw new Error("Invalid face scan data. Try again.");
@@ -1485,10 +1485,12 @@ async function enrollFaceScan(uid, descriptor) {
       code: "facescan/duplicate",
     });
   }
+  const photo = validateImageDataUrl(snapshot, 150 * 1024) ? snapshot : null;
   await db.collection("face_recognition_credentials").doc(uid).set({
     descriptor: samples[0],
     samples: samples.map((v) => ({ v })),
     createdAt: Date.now(),
+    ...(photo ? { snapshot: photo, hasSnapshot: true } : {}),
   });
 }
 

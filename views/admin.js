@@ -729,6 +729,18 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div></div>
   </div>
 
+  <div class="ad-card accent-gold" id="faceIdsCard">
+    <div class="ad-card-header" id="faceIdsHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><circle cx="9.5" cy="10" r=".6"/><circle cx="14.5" cy="10" r=".6"/><path stroke-linecap="round" d="M9.5 15c.7.6 1.4.9 2.5.9s1.8-.3 2.5-.9"/></svg>
+      <div class="ad-card-header-title">Face IDs</div>
+      <div class="ad-card-count" id="faceIdsCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="bonus-list" id="faceIdList" style="max-height:340px;overflow-y:auto;overscroll-behavior:contain"><div class="ad-empty">Loading...</div></div>
+    </div></div>
+  </div>
+
   <div class="ad-card accent-gold" id="deviceBansCard">
     <div class="ad-card-header" id="deviceBansHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M5.6 5.6l12.8 12.8"/></svg>
@@ -942,6 +954,19 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     <div class="ad-coins-amount" id="coinsModalAmount">0</div>
     <div class="ad-modal-actions">
       <button type="button" class="ad-modal-btn ghost" id="coinsCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="ad-overlay" id="faceOverlay">
+  <div class="ad-modal">
+    <div class="ad-modal-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/></svg>
+      <span id="faceModalName">Face ID</span>
+    </div>
+    <div id="faceModalBody" style="text-align:center"></div>
+    <div class="ad-modal-actions">
+      <button type="button" class="ad-modal-btn ghost" id="faceCloseBtn">Close</button>
     </div>
   </div>
 </div>
@@ -1311,6 +1336,74 @@ function loadWithdrawals(){
     renderWithdrawalsList(list);
   }).catch(() => { withdrawalsList.innerHTML = '<div class="ad-empty">Could not load withdrawal requests.</div>'; });
 }
+
+document.getElementById('faceIdsHeader').addEventListener('click', () => {
+  document.getElementById('faceIdsCard').classList.toggle('open');
+});
+
+const faceIdList = document.getElementById('faceIdList');
+const faceIdsCount = document.getElementById('faceIdsCount');
+
+function faceIdItemHtml(u){
+  return '<div class="withdrawal-item" data-face="' + esc(u.uid) + '" style="cursor:pointer;margin-bottom:8px">' +
+    '<div class="withdrawal-item-head">' +
+      '<div class="withdrawal-item-amount" style="font-size:.95rem">' + esc(u.name) + '</div>' +
+      '<span class="status-pill">' + (u.hasPhoto ? 'Photo saved' : 'No photo') + '</span>' +
+    '</div>' +
+    '<div class="withdrawal-item-meta">@' + esc(u.username || 'user') + ' &middot; enrolled ' + esc(new Date(u.enrolledAt).toLocaleDateString()) + '</div>' +
+  '</div>';
+}
+
+let faceIdUsers = [];
+
+function renderFaceIds(){
+  if (!faceIdUsers.length) { faceIdList.innerHTML = '<div class="ad-empty">No one has set up Face ID yet.</div>'; return; }
+  faceIdList.innerHTML = faceIdUsers.map(faceIdItemHtml).join('');
+  faceIdList.querySelectorAll('[data-face]').forEach((row) => {
+    row.addEventListener('click', () => openFaceOverlay(faceIdUsers.find((u) => u.uid === row.getAttribute('data-face'))));
+  });
+}
+
+function loadFaceIds(){
+  getJSON('/api/admin/face-ids').then((data) => {
+    faceIdUsers = data.users || [];
+    faceIdsCount.style.display = faceIdUsers.length ? '' : 'none';
+    faceIdsCount.textContent = String(faceIdUsers.length);
+    renderFaceIds();
+  }).catch(() => { faceIdList.innerHTML = '<div class="ad-empty">Could not load Face IDs.</div>'; });
+}
+
+function openFaceOverlay(u){
+  if (!u) return;
+  const body = document.getElementById('faceModalBody');
+  document.getElementById('faceModalName').textContent = u.name;
+  body.textContent = 'Loading...';
+  document.getElementById('faceOverlay').classList.add('show');
+  getJSON('/api/admin/face-ids/' + encodeURIComponent(u.uid) + '/photo').then((d) => {
+    body.textContent = '';
+    if (d.snapshot) {
+      const img = document.createElement('img');
+      img.src = d.snapshot;
+      img.alt = 'Face scan of ' + u.name;
+      img.style.cssText = 'width:100%;max-width:280px;border-radius:16px;border:1px solid var(--border-strong);box-shadow:0 8px 28px rgba(0,0,0,.45)';
+      body.appendChild(img);
+    } else {
+      const none = document.createElement('div');
+      none.className = 'ad-empty';
+      none.textContent = 'No photo was saved for this scan. Photos are only saved for Face Scans set up after this update. The user can remove and set up Face Scan again to add one.';
+      body.appendChild(none);
+    }
+    const meta = document.createElement('div');
+    meta.style.cssText = 'margin-top:12px;font-size:.85rem;color:var(--muted)';
+    meta.textContent = '@' + (u.username || 'user') + ' \u00b7 enrolled ' + new Date(u.enrolledAt).toLocaleString();
+    body.appendChild(meta);
+  }).catch((err) => { body.textContent = err.message || 'Could not load the photo.'; });
+}
+
+document.getElementById('faceCloseBtn').addEventListener('click', () => document.getElementById('faceOverlay').classList.remove('show'));
+document.getElementById('faceOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'faceOverlay') document.getElementById('faceOverlay').classList.remove('show');
+});
 
 document.getElementById('deviceBansHeader').addEventListener('click', () => {
   document.getElementById('deviceBansCard').classList.toggle('open');
@@ -2829,6 +2922,7 @@ loadBonusCodes();
 loadTpCodes();
 loadWithdrawals();
 loadDeviceBans();
+loadFaceIds();
 loadCrlog();
 loadUsersPage(true);
 loadBannedUsers();

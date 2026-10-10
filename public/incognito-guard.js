@@ -2,16 +2,46 @@
   "use strict";
   if (window.EsPrivate) return;
 
-  var GIB = 1024 * 1024 * 1024;
+  var WORKER_SRC =
+    "self.onmessage=async function(){try{" +
+      "var root=await navigator.storage.getDirectory();" +
+      "var name='ig_'+Math.random().toString(36).slice(2);" +
+      "var fh=await root.getFileHandle(name,{create:true});" +
+      "var h=await fh.createSyncAccessHandle();" +
+      "var buf=new Uint8Array(1);var times=[];" +
+      "for(var i=0;i<3;i++){h.write(buf,{at:0});var t0=performance.now();h.flush();times.push(performance.now()-t0);}" +
+      "h.close();await root.removeEntry(name);" +
+      "self.postMessage(Math.min.apply(null,times)<0.1);" +
+    "}catch(e){self.postMessage(null);}};";
+
+  function opfsRun() {
+    return new Promise(function (resolve) {
+      var done = false, url = null, worker = null, timer = null;
+      function finish(v) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try { worker && worker.terminate(); } catch (e) {}
+        try { url && URL.revokeObjectURL(url); } catch (e) {}
+        resolve(v);
+      }
+      try {
+        if (!navigator.storage || typeof navigator.storage.getDirectory !== "function" || typeof Worker === "undefined") return resolve(null);
+        url = URL.createObjectURL(new Blob([WORKER_SRC], { type: "application/javascript" }));
+        worker = new Worker(url);
+        timer = setTimeout(function () { finish(null); }, 3500);
+        worker.onmessage = function (e) { finish(e.data === true ? true : (e.data === false ? false : null)); };
+        worker.onerror = function () { finish(null); };
+        worker.postMessage(1);
+      } catch (e) { finish(null); }
+    });
+  }
 
   function chromiumPrivate() {
-    if (!navigator.storage || !navigator.storage.estimate) return Promise.resolve(null);
-    return navigator.storage.estimate().then(function (est) {
-      var quota = est && est.quota;
-      if (!quota) return null;
-      var heap = (window.performance && performance.memory && performance.memory.jsHeapSizeLimit) || GIB;
-      return quota < heap * 2 && quota < 6 * GIB;
-    }).catch(function () { return null; });
+    return opfsRun().then(function (first) {
+      if (first !== true) return first === false ? false : null;
+      return opfsRun().then(function (second) { return second === true; });
+    });
   }
 
   function firefoxPrivate() {

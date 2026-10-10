@@ -322,6 +322,7 @@ import { payLinkRouter } from "./routes/pay-link.js";
 import { statusRouter } from "./routes/status.js";
 import { devicesRouter } from "./routes/devices.js";
 import { deviceBansRouter, enforceLoginDevice } from "./routes/device-bans.js";
+import { adminFacesRouter } from "./routes/admin-faces.js";
 import { blacklistMiddleware } from "./services/device-bans.js";
 import { vpnGuard } from "./services/vpn-guard.js";
 import { clientIp } from "./services/client-ip.js";
@@ -666,6 +667,7 @@ app.use(payLinkRouter);
 app.use(statusRouter);
 app.use(devicesRouter);
 app.use(deviceBansRouter);
+app.use(adminFacesRouter);
 
 function domainLockHash(str) {
   let hash = 5381;
@@ -4144,8 +4146,8 @@ app.get("/api/facescan/status", requireAuth, async (req, res) => {
 
 app.post("/api/facescan/enroll", requireAuth, async (req, res) => {
   try {
-    const { descriptor } = req.body || {};
-    await enrollFaceScan(req.uid, descriptor);
+    const { descriptor, snapshot } = req.body || {};
+    await enrollFaceScan(req.uid, descriptor, snapshot);
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
