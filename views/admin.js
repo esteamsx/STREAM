@@ -1496,16 +1496,10 @@ function gvFormHtml(){
   return '<input type="text" id="gvTitleIn" placeholder="Giveaway title (optional)" maxlength="80" style="' + GV_INPUT + '">' +
     '<input type="text" id="gvPrizeIn" placeholder="Prize, e.g. N500 MTN airtime" maxlength="80" style="' + GV_INPUT + '">' +
     '<input type="text" id="gvPinIn" placeholder="Recharge card PIN" maxlength="60" autocomplete="off" style="' + GV_INPUT + '">' +
-    '<div style="font-size:.74rem;color:var(--muted);margin:4px 0 6px">Giveaway page stays open for</div>' +
-    '<div style="display:flex;gap:8px;margin-bottom:8px">' +
-      '<input type="number" id="gvOpenVal" min="1" value="60" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit">' +
-      '<select id="gvOpenUnit" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit"><option value="minutes">minutes</option><option value="hours">hours</option><option value="days">days</option></select>' +
-    '</div>' +
-    '<div style="font-size:.74rem;color:var(--muted);margin:4px 0 6px">Pick the winner after entries close, wait</div>' +
-    '<div style="display:flex;gap:8px;margin-bottom:10px">' +
-      '<input type="number" id="gvDelayVal" min="0" value="0" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit">' +
-      '<select id="gvDelayUnit" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit"><option value="minutes">minutes</option><option value="hours">hours</option></select>' +
-    '</div>' +
+    '<div style="font-size:.74rem;color:var(--muted);margin:4px 0 6px">Giveaway page closes at</div>' +
+    '<button type="button" class="ad-modal-btn ghost" id="gvCloseAtBtn" style="width:100%;margin-bottom:10px"></button>' +
+    '<div style="font-size:.74rem;color:var(--muted);margin:4px 0 6px">Winner is picked at</div>' +
+    '<button type="button" class="ad-modal-btn ghost" id="gvDrawAtBtn" style="width:100%;margin-bottom:10px"></button>' +
     '<div class="ad-modal-msg" id="gvMsg"></div>' +
     '<button type="button" class="ad-modal-btn primary" id="gvStartBtn" style="width:100%">Start giveaway</button>';
 }
@@ -1548,6 +1542,42 @@ async function gvRun(btn, fn){
   }
 }
 
+let gvCloseAt = null;
+let gvDrawAt = null;
+
+function gvTimeLabel(ts, empty){
+  return ts ? new Date(ts).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : empty;
+}
+
+function gvRefreshTimeButtons(){
+  const a = document.getElementById('gvCloseAtBtn');
+  const b = document.getElementById('gvDrawAtBtn');
+  if (a) a.textContent = gvTimeLabel(gvCloseAt, 'Tap to set the closing time');
+  if (b) b.textContent = gvTimeLabel(gvDrawAt, 'Same time as closing (tap to change)');
+}
+
+function gvOpenClock(mode){
+  if (mode === 'giveawayDraw' && !gvCloseAt) { gvSetMsg('Set the closing time first.'); return; }
+  gvSetMsg('');
+  mtMode = mode;
+  document.getElementById('mtModalTitle').textContent = mode === 'giveawayClose' ? 'Giveaway closing time' : 'Pick the winner at';
+  document.getElementById('mtModalSub').textContent = mode === 'giveawayClose'
+    ? 'Drag the hands to set the time the giveaway page should close, then pick the date.'
+    : 'Drag the hands to set when the winner is picked, then pick the date.';
+  document.getElementById('mtPageFieldWrap').style.display = 'none';
+  const base = new Date(mode === 'giveawayDraw' ? (gvDrawAt || gvCloseAt) : (gvCloseAt || Date.now() + 3600000));
+  const now = new Date();
+  mtHour = base.getHours();
+  mtMinute = base.getMinutes();
+  mtSetActiveHand('hour');
+  mtDateInput.value = base.getFullYear() + '-' + mtPad(base.getMonth() + 1) + '-' + mtPad(base.getDate());
+  mtDateInput.min = now.getFullYear() + '-' + mtPad(now.getMonth() + 1) + '-' + mtPad(now.getDate());
+  maintenanceMsg.className = 'ad-modal-msg';
+  maintenanceMsg.textContent = '';
+  mtRenderHands();
+  maintenanceOverlay.classList.add('show');
+}
+
 function gvRenderControls(){
   const c = gvState && gvState.current;
   const active = !!(c && (c.status === 'open' || c.status === 'drawing'));
@@ -1556,16 +1586,20 @@ function gvRenderControls(){
   gvRenderKey = key;
   if (!active) {
     gvBodyEl.innerHTML = gvFormHtml();
+    gvRefreshTimeButtons();
+    document.getElementById('gvCloseAtBtn').addEventListener('click', () => gvOpenClock('giveawayClose'));
+    document.getElementById('gvDrawAtBtn').addEventListener('click', () => gvOpenClock('giveawayDraw'));
     document.getElementById('gvStartBtn').addEventListener('click', function(){
-      const openVal = Number(document.getElementById('gvOpenVal').value);
-      const delayVal = Number(document.getElementById('gvDelayVal').value || 0);
+      const now = Date.now();
+      if (!gvCloseAt || gvCloseAt - now < 60000) { gvSetMsg('Set a closing time at least a minute from now.'); return; }
+      const drawAt = gvDrawAt && gvDrawAt > gvCloseAt ? gvDrawAt : gvCloseAt;
       gvRun(this, () => postJSON('/api/admin/giveaway/start', {
         title: document.getElementById('gvTitleIn').value,
         prize: document.getElementById('gvPrizeIn').value,
         pin: document.getElementById('gvPinIn').value,
-        openMinutes: Math.round(openVal * gvUnitMs(document.getElementById('gvOpenUnit').value) / 60000),
-        drawDelayMinutes: Math.round(delayVal * gvUnitMs(document.getElementById('gvDelayUnit').value) / 60000),
-      }));
+        openMinutes: Math.max(1, Math.round((gvCloseAt - now) / 60000)),
+        drawDelayMinutes: Math.round((drawAt - gvCloseAt) / 60000),
+      }).then((state) => { gvCloseAt = null; gvDrawAt = null; return state; }));
     });
     return;
   }
@@ -2722,6 +2756,7 @@ let mtMinute = 0;
 let mtActiveHand = 'hour';
 let mtLiveTimer = null;
 let mtUntil = null;
+let mtMode = 'maintenance';
 
 const mtClock = document.getElementById('mtClock');
 const mtHandHour = document.getElementById('mtHandHour');
@@ -2778,8 +2813,9 @@ function mtUpdatePreview(){
   const m = Math.floor((remain % 3600000) / 60000);
   const s = Math.floor((remain % 60000) / 1000);
   mtPreview.className = 'mt-preview';
-  mtPreview.innerHTML = 'Maintenance will run for <b>' + d + 'd ' + mtPad(h) + 'h ' + mtPad(m) + 'm ' + mtPad(s) + 's</b><br>' +
-    'Ends ' + target.toLocaleString([], { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+  const mtLabel = mtMode === 'giveawayClose' ? 'Entries stay open for' : (mtMode === 'giveawayDraw' ? 'Winner is picked in' : 'Maintenance will run for');
+  mtPreview.innerHTML = mtLabel + ' <b>' + d + 'd ' + mtPad(h) + 'h ' + mtPad(m) + 'm ' + mtPad(s) + 's</b><br>' +
+    (mtMode === 'giveawayClose' || mtMode === 'giveawayDraw' ? 'At ' : 'Ends ') + target.toLocaleString([], { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
 }
 
 function mtAngleFromEvent(ev){
@@ -2966,7 +3002,6 @@ async function loadMaintenanceStatus(){
   }
 }
 
-let mtMode = 'maintenance';
 
 document.getElementById('maintenanceOpenBtn').addEventListener('click', () => {
   mtMode = 'maintenance';
@@ -3020,6 +3055,22 @@ document.getElementById('maintenanceSetBtn').addEventListener('click', async () 
   if (target.getTime() - Date.now() < 60000) {
     maintenanceMsg.className = 'ad-modal-msg err';
     maintenanceMsg.textContent = 'Pick a time at least a minute from now.';
+    return;
+  }
+  if (mtMode === 'giveawayClose' || mtMode === 'giveawayDraw') {
+    if (mtMode === 'giveawayClose') {
+      gvCloseAt = target.getTime();
+      if (gvDrawAt && gvDrawAt < gvCloseAt) gvDrawAt = null;
+    } else {
+      if (target.getTime() < gvCloseAt) {
+        maintenanceMsg.className = 'ad-modal-msg err';
+        maintenanceMsg.textContent = 'Pick a time after the giveaway closes.';
+        return;
+      }
+      gvDrawAt = target.getTime();
+    }
+    maintenanceOverlay.classList.remove('show');
+    gvRefreshTimeButtons();
     return;
   }
   if (mtMode === 'pageLock') {

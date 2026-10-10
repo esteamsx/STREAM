@@ -92,6 +92,8 @@ button{cursor:pointer}
 .gv-ico svg{width:30px;height:30px}
 .gv-ico.ok{background:rgba(18,196,139,.14);color:var(--green)}
 .gv-ico.off{background:rgba(255,255,255,.07);color:var(--muted)}
+.gv-wrap.gv-center{min-height:calc(100vh - 58px);min-height:calc(100dvh - 58px);display:flex;align-items:center;justify-content:center;padding-top:0;padding-bottom:58px}
+.gv-wrap.gv-center .gv-card{width:100%}
 .gv-skel{height:260px;border-radius:14px;background:linear-gradient(90deg,var(--card),var(--card2),var(--card));background-size:200% 100%;animation:gvsk 1.4s linear infinite}
 @keyframes gvsk{to{background-position:-200% 0}}
 .gv-steps{margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;font-size:.74rem;color:var(--muted)}
@@ -115,6 +117,8 @@ button{cursor:pointer}
 
 <script nonce="__CSP_NONCE__" type="module">
 const card = document.getElementById('gvCard');
+const wrap = document.querySelector('.gv-wrap');
+function setCenter(on){ wrap.classList.toggle('gv-center', !!on); }
 const GIFT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 010-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 010 5"/></svg>';
 const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
 const CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
@@ -137,10 +141,12 @@ async function api(path, body){
 
 function showEnded(){
   clearInterval(tick);
+  setCenter(true);
   card.innerHTML = '<div class="gv-state"><div class="gv-ico off">' + CLOCK + '</div><h2>Giveaway has Ended</h2><p>Please try again later.</p></div>';
 }
 
 function showEntered(){
+  setCenter(false);
   card.innerHTML =
     '<div class="gv-state"><div class="gv-ico ok">' + CHECK + '</div><h2>You are in!</h2>' +
     '<p>Your entry for <b>' + esc(status.prize) + '</b> is saved. If you win, you will get a notification in the app with your recharge card PIN.</p></div>' +
@@ -168,6 +174,7 @@ function startTick(){
 }
 
 function showForm(){
+  setCenter(false);
   card.innerHTML =
     '<div class="gv-eyebrow">Live giveaway</div>' +
     '<div class="gv-gift">' + GIFT + '</div>' +
@@ -182,7 +189,7 @@ function showForm(){
     '<div style="margin:6px 0 14px"><altcha-widget id="gvAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>' +
     '<button class="gv-btn" id="gvEnter" type="button" disabled>Enter giveaway</button>' +
     '<div class="gv-steps"><div>1. Fill in your details and pass the captcha.</div><div>2. ' +
-    (status.hasFaceId ? 'Scan your face to confirm it is you.' : 'Set up Face ID with a quick scan. It is saved to your account.') +
+    (status.hasFaceId ? 'Scan your face. It is checked against the Face ID already on your account.' : 'You have no Face ID yet. A one-time scan sets it up and saves it to your account for next time.') +
     '</div><div>3. Done. Wait for the draw.</div></div>';
   startTick();
 
@@ -216,13 +223,18 @@ async function onEnter(){
   btn.disabled = true;
   btn.innerHTML = '<span class="gv-spin"></span>Opening camera...';
   try {
-    const { captureFaceDescriptor } = await import('/face-scan.js');
-    const cap = await captureFaceDescriptor({ returnSamples: true });
-    btn.innerHTML = '<span class="gv-spin"></span>Submitting...';
-
-    if (!status.hasFaceId) {
+    let cap;
+    if (status.hasFaceId) {
+      const claim = await import('/claim-face.js');
+      cap = await claim.captureClaimFace();
+      btn.innerHTML = '<span class="gv-spin"></span>Submitting...';
+    } else {
+      const { captureFaceDescriptor } = await import('/face-scan.js');
+      cap = await captureFaceDescriptor({ returnSamples: true });
+      btn.innerHTML = '<span class="gv-spin"></span>Saving your Face ID...';
       await api('/api/facescan/enroll', { descriptor: [cap.descriptor].concat(cap.samples), snapshot: cap.snapshot });
       status.hasFaceId = true;
+      btn.innerHTML = '<span class="gv-spin"></span>Submitting...';
     }
     await api('/api/giveaway/enter', {
       name,
@@ -235,7 +247,12 @@ async function onEnter(){
     showEntered();
   } catch (err) {
     if (err.status === 409 && /ended/i.test(err.message)) { showEnded(); return; }
-    setMsg(err.message || 'Could not enter the giveaway.');
+    if (/Face Id not Set/i.test(err.message || '')) {
+      status.hasFaceId = false;
+      setMsg('Your Face ID is not set yet. Tap Enter giveaway again to set it up once.');
+    } else {
+      setMsg(err.message || 'Could not enter the giveaway.');
+    }
     if (/captcha/i.test(err.message)) { captchaValue = ''; const w = document.getElementById('gvAltcha'); if (w && w.reset) w.reset(); }
     btn.innerHTML = original;
     btn.disabled = !captchaValue;
@@ -246,6 +263,7 @@ async function load(){
   try {
     status = await api('/api/giveaway/status');
   } catch (err) {
+    setCenter(true);
     card.innerHTML = '<div class="gv-state"><div class="gv-ico off">' + CLOCK + '</div><h2>Could not load</h2><p>' + esc(err.message) + '</p></div>';
     return;
   }
@@ -253,7 +271,8 @@ async function load(){
   if (!status.open) return showEnded();
   if (status.entered) return showEntered();
   showForm();
-  import('/face-scan.js').then((m) => m.preloadFaceModels()).catch(() => {});
+  if (status.hasFaceId) import('/claim-face.js').then((m) => m.preloadClaimFaceModels()).catch(() => {});
+  else import('/face-scan.js').then((m) => m.preloadFaceModels()).catch(() => {});
 }
 load();
 </script>

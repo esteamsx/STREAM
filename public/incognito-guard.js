@@ -37,31 +37,116 @@
     });
   }
 
-  function chromiumPrivate() {
-    return opfsRun().then(function (first) {
-      if (first !== true) return first === false ? false : null;
-      return opfsRun().then(function (second) { return second === true; });
+  var sig = {};
+
+  function timeout(ms, fn) { return setTimeout(fn, ms); }
+
+  function anyTrue(promises) {
+    return new Promise(function (resolve) {
+      var left = promises.length, sawFalse = false;
+      function step(v) {
+        if (v === true) return resolve(true);
+        if (v === false) sawFalse = true;
+        if (--left === 0) resolve(sawFalse ? false : null);
+      }
+      promises.forEach(function (p) { p.then(step, function () { step(null); }); });
     });
+  }
+
+  function quotaSignal() {
+    return new Promise(function (resolve) {
+      var done = false;
+      var timer = timeout(2500, function () { finish(null); });
+      function finish(v) { if (done) return; done = true; clearTimeout(timer); resolve(v); }
+      var heap = 1073741824;
+      try { if (performance && performance.memory && performance.memory.jsHeapSizeLimit) heap = performance.memory.jsHeapSizeLimit; } catch (e) {}
+      var limitMiB = Math.round(heap / 1048576) * 2;
+      sig.quotaLimitMiB = limitMiB;
+      function judge(quota) {
+        if (typeof quota !== "number" || !isFinite(quota)) return finish(null);
+        sig.quotaMiB = Math.round(quota / 1048576);
+        finish(sig.quotaMiB < limitMiB);
+      }
+      try {
+        if (navigator.webkitTemporaryStorage && navigator.webkitTemporaryStorage.queryUsageAndQuota) {
+          navigator.webkitTemporaryStorage.queryUsageAndQuota(function (_, quota) { judge(quota); }, function () { finish(null); });
+        } else if (navigator.storage && typeof navigator.storage.estimate === "function") {
+          navigator.storage.estimate().then(function (e) { judge(e && e.quota); }, function () { finish(null); });
+        } else finish(null);
+      } catch (e) { finish(null); }
+    });
+  }
+
+  function opfsTimingSignal() {
+    return opfsRun().then(function (first) {
+      sig.opfsFirst = first;
+      if (first !== true) return first === false ? false : null;
+      return opfsRun().then(function (second) { sig.opfsSecond = second; return second === true; });
+    });
+  }
+
+  function chromiumPrivate() {
+    return anyTrue([quotaSignal(), opfsTimingSignal()]);
   }
 
   function firefoxPrivate() {
+    sig.serviceWorker = navigator.serviceWorker !== undefined;
     return Promise.resolve(navigator.serviceWorker === undefined);
   }
 
-  function safariPrivate() {
-    if (!navigator.storage || typeof navigator.storage.getDirectory !== "function") return Promise.resolve(null);
-    return navigator.storage.getDirectory().then(function () { return false; }, function (e) {
-      return /transient|security|not allowed/i.test(String((e && (e.message || e.name)) || ""));
+  function idbBlobSignal() {
+    return new Promise(function (resolve) {
+      var done = false, name = "ig_" + Math.random().toString(36).slice(2), db = null;
+      var timer = timeout(3000, function () { finish(null); });
+      function finish(v) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try { db && db.close(); indexedDB.deleteDatabase(name); } catch (e) {}
+        resolve(v);
+      }
+      try {
+        if (!window.indexedDB || typeof Blob === "undefined") return finish(null);
+        var req = indexedDB.open(name, 1);
+        req.onerror = function () { sig.idbError = String((req.error && (req.error.message || req.error.name)) || "error"); finish(null); };
+        req.onupgradeneeded = function (ev) {
+          db = ev.target.result;
+          try {
+            db.createObjectStore("t", { autoIncrement: true }).put(new Blob());
+            sig.idbBlob = "ok";
+            finish(false);
+          } catch (e) {
+            var msg = String((e && (e.message || e.name)) || e);
+            sig.idbBlob = msg;
+            finish(/BlobURLs are not yet supported|not yet supported/i.test(msg) ? true : null);
+          }
+        };
+      } catch (e) { finish(null); }
     });
+  }
+
+  function opfsDirSignal() {
+    if (!navigator.storage || typeof navigator.storage.getDirectory !== "function") return Promise.resolve(null);
+    return navigator.storage.getDirectory().then(function () { sig.opfsDir = "ok"; return false; }, function (e) {
+      var msg = String((e && (e.message || e.name)) || "");
+      sig.opfsDir = msg;
+      return /transient|security|not allowed|insecure/i.test(msg);
+    });
+  }
+
+  function safariPrivate() {
+    return anyTrue([idbBlobSignal(), opfsDirSignal()]);
   }
 
   function detect() {
     var ua = navigator.userAgent || "";
     if (/bot|crawl|spider|slurp|headless|lighthouse|facebookexternalhit|bingpreview|pingdom|uptime/i.test(ua)) return Promise.resolve(null);
     try {
+      var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (isIOS) return safariPrivate();
       if (/Firefox\//.test(ua) && !/Seamonkey/.test(ua)) return firefoxPrivate();
-      if (/Chrome|Chromium|Edg\/|OPR\//.test(ua) && !/CriOS|FxiOS/.test(ua)) return chromiumPrivate();
-      if (/Safari/.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|Edg|OPR|Android/.test(ua)) return safariPrivate();
+      if (/Chrome|Chromium|Edg\/|OPR\/|SamsungBrowser/.test(ua)) return chromiumPrivate();
+      if (/Safari/.test(ua)) return safariPrivate();
     } catch (e) {}
     return Promise.resolve(null);
   }
@@ -140,6 +225,18 @@
     });
   }
 
+  function showDiag(result) {
+    try {
+      var box = document.createElement("pre");
+      box.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;overflow:auto;margin:0;padding:10px;border-radius:10px;font:11px/1.45 monospace;color:#d8f7ff;background:rgba(0,0,0,.92);border:1px solid rgba(255,255,255,.2);z-index:2147483647;white-space:pre-wrap;word-break:break-all";
+      sig.result = result === true ? "PRIVATE" : (result === false ? "normal" : "unknown");
+      sig.ua = navigator.userAgent;
+      try { sig.jsHeapLimitMiB = Math.round(performance.memory.jsHeapSizeLimit / 1048576); } catch (e) {}
+      box.textContent = "Private-mode check\n" + JSON.stringify(sig, null, 1);
+      document.documentElement.appendChild(box);
+    } catch (e) {}
+  }
+
   window.EsPrivate = { detect: detect, gate: gate };
-  gate();
+  gate().then(function (r) { if (/[?&]pvdiag=1/.test(location.search)) showDiag(r); });
 })();

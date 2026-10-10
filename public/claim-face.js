@@ -306,12 +306,24 @@ export function captureClaimFace() {
         }, CF_CAPTURE_TIMEOUT_MS + CF_WATCHDOG_GRACE_MS);
 
         const finish = () => {
+          let snapshot = null;
+          try {
+            const sw = video.videoWidth || 0, sh = video.videoHeight || 0;
+            if (sw && sh) {
+              const k = Math.min(1, 320 / Math.max(sw, sh));
+              const snap = document.createElement('canvas');
+              snap.width = Math.round(sw * k);
+              snap.height = Math.round(sh * k);
+              snap.getContext('2d').drawImage(video, 0, 0, snap.width, snap.height);
+              snapshot = snap.toDataURL('image/jpeg', 0.72);
+            }
+          } catch (e) { snapshot = null; }
           console.log('[claim-face] captured: ' + report());
           overlay.classList.add('cf-done');
           setStatus('Face captured');
           setTimeout(() => {
             cleanup();
-            resolve({ descriptor: cfAverage(collected), samples: collected });
+            resolve({ descriptor: cfAverage(collected), samples: collected, snapshot });
           }, CF_RESULT_HOLD_MS);
         };
 
