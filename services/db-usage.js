@@ -49,8 +49,13 @@ async function sumMetric(token, project, metric, win) {
   });
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
-    const err = new Error(body?.error?.message || `Monitoring API ${r.status}`);
+    const e = body?.error || {};
+    const info = (e.details || []).find((d) => d && d.reason) || {};
+    const err = new Error(e.message || `Monitoring API ${r.status}`);
     err.status = r.status;
+    err.googleStatus = e.status || "";
+    err.reason = info.reason || "";
+    err.consumer = info.metadata?.consumer || "";
     throw err;
   }
   const data = await r.json();
@@ -97,4 +102,79 @@ export async function getDbUsage() {
       inflight = null;
     });
   return inflight;
+}
+
+async function googleError(r) {
+  const body = await r.json().catch(() => ({}));
+  const e = body?.error || {};
+  const info = (e.details || []).find((d) => d && d.reason) || {};
+  return { httpStatus: r.status, status: e.status || "", reason: info.reason || "", consumer: info.metadata?.consumer || "", message: e.message || "" };
+}
+
+export async function diagnoseDbUsage() {
+  const out = {
+    authMethod: "Service account JSON key from FIREBASE_SERVICE_ACCOUNT_KEY (not Application Default Credentials)",
+    monitoringTargetProject: projectId() || null,
+  };
+  let key;
+  try {
+    key = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "");
+  } catch {
+    out.error = "FIREBASE_SERVICE_ACCOUNT_KEY is missing or not valid JSON.";
+    return out;
+  }
+  out.keyType = key.type || null;
+  out.keyServiceAccountEmail = key.client_email || null;
+  out.keyProjectId = key.project_id || null;
+
+  let token;
+  try {
+    token = (await admin.credential.cert(key).getAccessToken()).access_token;
+  } catch (e) {
+    out.token = { ok: false, error: String(e.message || e).slice(0, 300) };
+    return out;
+  }
+
+  try {
+    const r = await fetch("https://oauth2.googleapis.com/tokeninfo", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ access_token: token }),
+    });
+    const t = await r.json().catch(() => ({}));
+    const scopes = String(t.scope || "").split(" ").filter(Boolean);
+    out.token = {
+      ok: r.ok,
+      authenticatedEmail: t.email || null,
+      scopes,
+      hasMonitoringScope: scopes.some((x) => /auth\/(cloud-platform|monitoring(\.read)?)$/.test(x)),
+    };
+  } catch (e) {
+    out.token = { ok: true, note: "Token issued, tokeninfo check failed: " + String(e.message || e).slice(0, 120) };
+  }
+
+  const project = projectId();
+  try {
+    const r = await fetch(`https://cloudresourcemanager.googleapis.com/v1/projects/${encodeURIComponent(project)}:testIamPermissions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ permissions: ["monitoring.timeSeries.list"] }),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      out.permissionCheck = { permission: "monitoring.timeSeries.list", granted: (d.permissions || []).includes("monitoring.timeSeries.list") };
+    } else {
+      out.permissionCheck = { error: await googleError(r) };
+    }
+  } catch (e) {
+    out.permissionCheck = { error: String(e.message || e).slice(0, 200) };
+  }
+
+  try {
+    const win = pacificDayWindow();
+    out.monitoringRequest = { ok: true, reads: await sumMetric(token, project, METRICS.reads, win) };
+  } catch (e) {
+    out.monitoringRequest = { ok: false, httpStatus: e.status || null, status: e.googleStatus || "", reason: e.reason || "", consumer: e.consumer || "", message: e.message };
+  }
+  return out;
 }

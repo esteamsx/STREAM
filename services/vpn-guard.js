@@ -6,9 +6,19 @@ const API_KEY = DISABLED ? "" : (process.env.PROXYCHECK_API_KEY || "");
 const ALLOWED_IPS = new Set(String(process.env.VPN_ALLOWED_IPS || "").split(",").map((s) => s.trim()).filter(Boolean));
 
 const TTL_RESULT_MS = 12 * 60 * 60 * 1000;
+const TTL_FLAGGED_MS = 60 * 60 * 1000;
 const TTL_FAILED_MS = 5 * 60 * 1000;
 const LOOKUP_TIMEOUT_MS = 1500;
 const MAX_CACHE = 20000;
+
+const BLOCK_TYPES = new Set(
+  String(process.env.VPN_BLOCK_TYPES || "vpn,tor").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+);
+const CARRIER_RE = new RegExp(
+  process.env.VPN_CARRIER_ALLOW_REGEX ||
+    "\\b(mtn|airtel|glo|globacom|9mobile|etisalat|vodafone|t-mobile|verizon|safaricom|orange|telkom|ntel)\\b",
+  "i"
+);
 
 const EXEMPT_PREFIXES = [
   "/api/v1/",
@@ -19,8 +29,9 @@ const EXEMPT_PREFIXES = [
   "/s/",
   "/api/paystack/webhook",
   "/.well-known/",
+  "/api/visitor-support/",
 ];
-const EXEMPT_PATHS = new Set(["/health", "/robots.txt", "/favicon.svg", "/favicon.ico", "/outbound-ip", "/api/security/my-ip"]);
+const EXEMPT_PATHS = new Set(["/health", "/robots.txt", "/favicon.svg", "/favicon.ico", "/outbound-ip", "/api/security/my-ip", "/visitor-support.js"]);
 
 const cache = new Map();
 const inflight = new Map();
@@ -41,7 +52,9 @@ async function lookup(ip) {
     const entry = data[ip];
     if (!entry) return { ok: false };
     const type = String(entry.type || "");
-    const vpn = entry.proxy === "yes" && /^(vpn|tor|socks|socks4|socks5|http|https|compromised server)$/i.test(type);
+    const owner = `${entry.provider || ""} ${entry.organisation || ""}`;
+    const onCarrier = CARRIER_RE.test(owner);
+    const vpn = entry.proxy === "yes" && BLOCK_TYPES.has(type.toLowerCase()) && !onCarrier;
     return { ok: true, vpn, type };
   } catch {
     return { ok: false };
@@ -52,7 +65,7 @@ async function lookup(ip) {
 
 function remember(ip, result) {
   if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value);
-  cache.set(ip, { vpn: !!result.vpn, until: Date.now() + (result.ok ? TTL_RESULT_MS : TTL_FAILED_MS) });
+  cache.set(ip, { vpn: !!result.vpn, until: Date.now() + (result.ok ? (result.vpn ? TTL_FLAGGED_MS : TTL_RESULT_MS) : TTL_FAILED_MS) });
 }
 
 const recent = [];
@@ -134,6 +147,13 @@ function blockedHtml() {
     margin-top:24px;display:inline-block;padding:11px 26px;border-radius:12px;font-weight:700;font-size:.85rem;
     color:#04141a;text-decoration:none;background:linear-gradient(135deg,#00E0FF,#7c5cff);
   }
+  .steps{margin:22px 0 0;padding:0;list-style:none;text-align:left;width:100%;counter-reset:st}
+  .steps li{counter-increment:st;position:relative;padding:0 0 0 30px;margin:0 0 10px;color:rgba(255,255,255,.55);font-size:.82rem;line-height:1.5}
+  .steps li::before{content:counter(st);position:absolute;left:0;top:1px;width:20px;height:20px;border-radius:50%;background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.35);color:#FFB020;font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .contact{
+    margin-top:6px;display:inline-block;padding:10px 24px;border-radius:12px;font-weight:700;font-size:.82rem;font-family:inherit;cursor:pointer;
+    color:#F3F3FA;background:transparent;border:1px solid rgba(255,255,255,.22);
+  }
   .brand{
     margin-top:30px;font-family:'Space Grotesk',system-ui,sans-serif;font-weight:700;font-size:.85rem;
     background:linear-gradient(90deg,#00E0FF,#7c5cff);-webkit-background-clip:text;background-clip:text;color:transparent;
@@ -148,8 +168,20 @@ function blockedHtml() {
     <h1>VPN Detected</h1>
     <p>To use this site turn off your VPN</p>
     <a class="retry" href="">Try again</a>
+    <ol class="steps">
+      <li>Turn off any VPN, proxy or private DNS, then tap <b>Try again</b>.</li>
+      <li>Clear your browser cache and cookies, close the tab and open the site again.</li>
+      <li>Still seeing this? We may have flagged your network by mistake, so contact support and we will sort it out.</li>
+    </ol>
+    <button type="button" class="contact" id="vpnContactBtn">Contact Support</button>
     <div class="brand">ES TEAMS TV</div>
   </div>
+<script nonce="__CSP_NONCE__" src="/visitor-support.js"></script>
+<script nonce="__CSP_NONCE__">
+document.getElementById("vpnContactBtn").addEventListener("click",function(){
+  if(window.EsVisitorSupport)window.EsVisitorSupport.open("vpn");
+});
+</script>
 </body>
 </html>`;
 }
@@ -178,6 +210,7 @@ export async function vpnGuard(req, res, next) {
   }
   if (!blocked) return next();
 
+  res.locals.noRefusalCount = true;
   const wantsHtml = !req.path.startsWith("/api/") && String(req.headers.accept || "").includes("text/html");
   if (wantsHtml) {
     res.status(403).set("Cache-Control", "no-store").type("html").send(blockedHtml());

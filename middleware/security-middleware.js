@@ -345,6 +345,7 @@ export class RepeatedRefusalGuard {
 
       res.on("finish", () => {
         if (res.statusCode !== 403) return;
+        if (res.locals && res.locals.noRefusalCount) return;
         if (req.path.startsWith("/api/v1/") || req.path.startsWith("/embed/")) return;
 
         if (uid) {

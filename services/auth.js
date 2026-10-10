@@ -4897,8 +4897,23 @@ async function getSupportUnreadCountForAdmin() {
 async function getSupportThreadsForAdmin() {
   const snap = await db.collection("supportThreads").orderBy("updatedAt", "desc").limit(200).get();
   const threads = snap.docs.map((d) => d.data());
-  const profiles = await Promise.all(threads.map((t) => getUserProfile(t.uid)));
+  const profiles = await Promise.all(threads.map((t) => (t.isVisitor ? null : getUserProfile(t.uid))));
   return threads.map((t, i) => {
+    if (t.isVisitor) {
+      return {
+        uid: t.uid,
+        username: null,
+        firstName: "Visitor",
+        lastName: t.visitorNumber ? `#${t.visitorNumber}` : "",
+        photoURL: null,
+        verified: false,
+        lastActiveAt: t.lastMessageAt || null,
+        lastMessageText: t.lastMessageText || "",
+        lastMessageType: t.lastMessageType || "",
+        lastMessageAt: t.lastMessageAt || null,
+        unread: t.unreadForAdmin || 0,
+      };
+    }
     const p = profiles[i] || {};
     return {
       uid: t.uid,

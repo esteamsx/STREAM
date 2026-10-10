@@ -85,9 +85,21 @@
       "@keyframes esPvBlink{0%,88%,100%{transform:scaleY(1)}92%{transform:scaleY(.15)}}",
       ".es-pv-title{font-family:var(--font-display,'Space Grotesk',Inter,sans-serif);font-size:1.25rem;font-weight:700;margin-bottom:10px}",
       ".es-pv-text{font-size:.88rem;line-height:1.6;color:rgba(255,255,255,.58)}",
+      ".es-pv-steps{margin:20px 0 0;padding:0;list-style:none;text-align:left;width:100%;counter-reset:pv}",
+      ".es-pv-steps li{counter-increment:pv;position:relative;padding:0 0 0 30px;margin:0 0 10px;font-size:.82rem;line-height:1.5;color:rgba(255,255,255,.58)}",
+      ".es-pv-steps li::before{content:counter(pv);position:absolute;left:0;top:1px;width:20px;height:20px;border-radius:50%;background:rgba(124,92,255,.14);border:1px solid rgba(124,92,255,.4);color:#7c5cff;font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center}",
+      ".es-pv-btn.es-pv-contact{margin-top:6px;color:#F3F3FA;background:transparent;border:1px solid rgba(255,255,255,.22)}",
       ".es-pv-btn{margin-top:24px;padding:11px 26px;border:0;border-radius:12px;font-weight:700;font-size:.85rem;font-family:inherit;cursor:pointer;color:#04141a;background:linear-gradient(135deg,#00E0FF,#7c5cff)}"
     ].join("\n");
     document.head.appendChild(st);
+  }
+
+  function openSupport() {
+    if (window.EsVisitorSupport) return window.EsVisitorSupport.open("private");
+    var sc = document.createElement("script");
+    sc.src = "/visitor-support.js";
+    sc.onload = function () { if (window.EsVisitorSupport) window.EsVisitorSupport.open("private"); };
+    document.head.appendChild(sc);
   }
 
   function show() {
@@ -106,9 +118,17 @@
         '</div>' +
         '<div class="es-pv-title">Private browsing detected</div>' +
         '<div class="es-pv-text">To use this site, leave incognito or private mode and open it in a normal browser window.</div>' +
-        '<button type="button" class="es-pv-btn">Try again</button>' +
+        '<button type="button" class="es-pv-btn es-pv-retry">Try again</button>' +
+        '<ol class="es-pv-steps">' +
+          '<li>Close this private or incognito tab.</li>' +
+          '<li>Open the site in a normal browser window, then tap <b>Try again</b>.</li>' +
+          '<li>Still seeing this in a normal window? Clear your browser cache and cookies, then open the site again.</li>' +
+          '<li>Need a hand? Contact support and we will sort it out.</li>' +
+        '</ol>' +
+        '<button type="button" class="es-pv-btn es-pv-contact">Contact Support</button>' +
       '</div>';
-    overlay.querySelector(".es-pv-btn").addEventListener("click", function () { location.reload(); });
+    overlay.querySelector(".es-pv-retry").addEventListener("click", function () { location.reload(); });
+    overlay.querySelector(".es-pv-contact").addEventListener("click", openSupport);
     document.documentElement.appendChild(overlay);
   }
 

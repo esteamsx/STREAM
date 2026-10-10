@@ -24,7 +24,7 @@ import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
 import { quotaMaintenanceGate, checkQuotaError } from "./middleware/quota-guard.js";
-import { getDbUsage } from "./services/db-usage.js";
+import { getDbUsage, diagnoseDbUsage } from "./services/db-usage.js";
 import { trackPageView, getAnalytics, flushCompletedDays } from "./middleware/analytics-tracker.js";
 import { verifyCoinLedgerChain } from "./services/coin-ledger.js";
 import { pageLockGate } from "./middleware/page-lock.js";
@@ -321,6 +321,7 @@ import { flushAdStats } from "./services/ads.js";
 import { rewardsRouter } from "./routes/rewards.js";
 import { payLinkRouter } from "./routes/pay-link.js";
 import { statusRouter } from "./routes/status.js";
+import { visitorSupportRouter } from "./routes/visitor-support.js";
 import { devicesRouter } from "./routes/devices.js";
 import { deviceBansRouter, enforceLoginDevice } from "./routes/device-bans.js";
 import { adminFacesRouter } from "./routes/admin-faces.js";
@@ -424,7 +425,7 @@ app.get("/outbound-ip", async (req, res) => {
   }
 });
 
-const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js", "incognito-guard.js"]);
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js", "incognito-guard.js", "visitor-support.js"]);
 
 app.use(
   express.static(path.join(__dirname, "public"), {
@@ -631,6 +632,7 @@ app.use(crossOriginWriteGuard);
 
 app.use(express.json({ limit: "25mb", verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(cookieParser());
+app.use(visitorSupportRouter);
 app.use(blacklistMiddleware);
 app.use(trackPageView);
 
@@ -1489,11 +1491,21 @@ app.get("/api/admin/system/db-usage", requireAuth, requireAdmin, async (req, res
     res.json(await getDbUsage());
   } catch (err) {
     const denied = err.status === 403 || err.status === 401;
+    if (denied) console.warn(`[db-usage] Google ${err.status} ${err.googleStatus || ""} ${err.reason || ""}: ${err.message}`);
     res.status(denied ? 403 : 500).json({
       error: denied
-        ? "Google denied access to usage data. In Google Cloud Console, enable the Cloud Monitoring API and give your Firebase service account the Monitoring Viewer role."
+        ? `Google denied access to usage data (HTTP ${err.status}${err.googleStatus ? " " + err.googleStatus : ""}${err.reason ? " / " + err.reason : ""}): ${err.message}`
         : (err.message || "Could not load database usage."),
     });
+  }
+});
+
+app.get("/api/admin/system/db-usage/diagnose", requireAuth, requireAdmin, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    res.json(await diagnoseDbUsage());
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Diagnosis failed." });
   }
 });
 
