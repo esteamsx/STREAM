@@ -1620,11 +1620,41 @@ function gvRenderControls(){
   });
 }
 
+const GV_FONT = 'Space Grotesk,Inter,Arial,sans-serif';
+const GV_BADGES = {
+  mtn: '<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="22" rx="48" ry="20" fill="#FFCC00" stroke="#1b1b1b" stroke-width="1.6"/><text x="50" y="30.5" text-anchor="middle" font-family="' + GV_FONT + '" font-weight="800" font-size="25" letter-spacing="-.5" fill="#111">MTN</text></svg>',
+  airtel: '<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="3" width="98" height="38" rx="19" fill="#fff"/><circle cx="22" cy="22" r="13" fill="#E4002B"/><text x="22" y="28.6" text-anchor="middle" font-family="' + GV_FONT + '" font-weight="800" font-size="20" fill="#fff">a</text><text x="64" y="29" text-anchor="middle" font-family="' + GV_FONT + '" font-weight="800" font-size="19" fill="#E4002B">airtel</text></svg>',
+  glo: '<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="3" width="98" height="38" rx="19" fill="#4CB848" stroke="#fff" stroke-width="1.5"/><text x="50" y="30.5" text-anchor="middle" font-family="' + GV_FONT + '" font-weight="800" font-size="26" fill="#fff">glo</text></svg>',
+  '9mobile': '<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="3" width="98" height="38" rx="19" fill="#fff"/><circle cx="22" cy="22" r="13" fill="#8DC63F"/><text x="22" y="29.4" text-anchor="middle" font-family="' + GV_FONT + '" font-weight="800" font-size="20" fill="#fff">9</text><text x="64" y="28.4" text-anchor="middle" font-family="' + GV_FONT + '" font-weight="700" font-size="15.5" fill="#0B5D3B">mobile</text></svg>'
+};
+const GV_MEDAL = '<svg viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg"><path d="M8 0h9l5 19h-9z" fill="#E4405F"/><path d="M32 0h-9l-5 19h9z" fill="#3B6EF5"/><circle cx="20" cy="33" r="15.5" fill="#F4C430" stroke="#8a6200" stroke-width="1.6"/><circle cx="20" cy="33" r="10.8" fill="none" stroke="#FFF3B0" stroke-width="1.5"/><path d="M20 25.4l2.2 4.7 5.1.6-3.8 3.5 1 5.1-4.5-2.6-4.5 2.6 1-5.1-3.8-3.5 5.1-.6z" fill="#8a6200"/></svg>';
+
+function gvNetwork(h){
+  const t = ' ' + String((h.title || '') + ' ' + (h.prize || '')).toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+  if (t.indexOf(' mtn ') >= 0) return 'mtn';
+  if (t.indexOf(' airtel ') >= 0) return 'airtel';
+  if (t.indexOf(' glo ') >= 0 || t.indexOf(' globacom ') >= 0) return 'glo';
+  if (t.indexOf(' 9mobile ') >= 0 || t.indexOf(' 9 mobile ') >= 0 || t.indexOf(' etisalat ') >= 0) return '9mobile';
+  return '';
+}
+
+function gvPhotoHtml(h, big){
+  const src = '/api/admin/giveaway/history/' + encodeURIComponent(h.id) + '/photo';
+  const net = gvNetwork(h);
+  const frame = 'position:relative;overflow:hidden;line-height:0;border:' + (big ? '3px' : '2px') + ' solid #E8B923;border-radius:' + (big ? '16px' : '12px') +
+    ';box-shadow:0 0 0 1px rgba(0,0,0,.45),0 8px 26px rgba(232,185,35,.28);' + (big ? 'width:100%;max-width:280px' : 'width:56px;height:56px;flex-shrink:0');
+  const img = '<img src="' + src + '" alt="" loading="lazy" style="display:block;width:100%;' + (big ? 'height:auto' : 'height:100%;object-fit:cover') + '">';
+  const sash = big ? '<div style="position:absolute;top:20px;left:-42px;width:164px;padding:5px 0;transform:rotate(-45deg);text-align:center;line-height:1.2;background:linear-gradient(90deg,#B8860B,#FFD54A 50%,#B8860B);color:#4a3200;font-weight:800;letter-spacing:.22em;font-size:10px;box-shadow:0 2px 6px rgba(0,0,0,.45)">WINNER</div>' : '';
+  const medal = '<div style="position:absolute;top:' + (big ? '8px' : '2px') + ';right:' + (big ? '8px' : '2px') + ';width:' + (big ? '34px' : '15px') + ';filter:drop-shadow(0 2px 4px rgba(0,0,0,.55))">' + GV_MEDAL + '</div>';
+  const badge = net ? '<div style="position:absolute;right:' + (big ? '8px' : '2px') + ';bottom:' + (big ? '8px' : '2px') + ';width:' + (big ? '38%' : '30px') + ';line-height:0;filter:drop-shadow(0 2px 5px rgba(0,0,0,.6))">' + GV_BADGES[net] + '</div>' : '';
+  return '<div style="' + frame + '">' + img + sash + medal + badge + '</div>';
+}
+
 function gvHistoryItemHtml(h){
   const isWin = h.type === 'winner';
   const pill = isWin ? 'Winner' : (h.type === 'cancelled' ? 'Cancelled' : 'No entries');
   const photo = isWin && h.hasPhoto
-    ? '<img src="/api/admin/giveaway/history/' + encodeURIComponent(h.id) + '/photo" alt="" loading="lazy" style="width:56px;height:56px;border-radius:12px;object-fit:cover;flex-shrink:0;border:1px solid var(--border-strong)">'
+    ? gvPhotoHtml(h, false)
     : '<div style="width:56px;height:56px;border-radius:12px;flex-shrink:0;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--muted)">No photo</div>';
   const who = isWin ? esc(h.winnerName) : esc(h.title);
   const line2 = isWin ? '@' + esc(h.winnerUsername) + ' &middot; ' + esc(h.winnerPhone) : esc(h.prize);
@@ -1656,11 +1686,11 @@ function gvShowWinner(h){
   const body = document.getElementById('faceModalBody');
   body.textContent = '';
   if (h.hasPhoto) {
-    const img = document.createElement('img');
-    img.src = '/api/admin/giveaway/history/' + encodeURIComponent(h.id) + '/photo';
-    img.alt = 'Face scan of ' + h.winnerName;
-    img.style.cssText = 'width:100%;max-width:280px;border-radius:16px;border:1px solid var(--border-strong);box-shadow:0 8px 28px rgba(0,0,0,.45)';
-    body.appendChild(img);
+    const holder = document.createElement('div');
+    holder.style.cssText = 'display:flex;justify-content:center';
+    holder.innerHTML = gvPhotoHtml(h, true);
+    holder.firstChild.querySelector('img').alt = 'Face scan of ' + h.winnerName;
+    body.appendChild(holder);
   }
   const lines = [h.winnerName, '@' + h.winnerUsername, h.winnerPhone, 'PIN: ' + h.pin, h.prize];
   lines.forEach((text, i) => {

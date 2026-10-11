@@ -109,6 +109,13 @@
     ".st-cap{position:absolute;left:0;right:0;bottom:70px;text-align:center;padding:26px 18px 12px;background:linear-gradient(transparent,rgba(0,0,0,.65));font-size:.95rem;white-space:pre-wrap;word-break:break-word;z-index:2}",
     ".st-tap{position:absolute;top:84px;bottom:84px;z-index:1}",
     ".st-tap.l{left:0;width:35%}.st-tap.r{right:0;width:65%}",
+    ".st-lnk{pointer-events:auto;-webkit-tap-highlight-color:transparent}",
+    ".st-lnk-plain{color:#7fe9ff;text-decoration:underline;text-underline-offset:3px;word-break:break-all}",
+    ".st-lnk-btn{display:inline-flex;align-items:center;gap:6px;margin:6px 4px;padding:9px 18px;border-radius:999px;background:linear-gradient(90deg,var(--accent,#00E0FF),var(--accent2,#7c5cff));color:#04141a;font-weight:700;font-size:.9rem;line-height:1.2;text-decoration:none;word-break:normal;box-shadow:0 8px 22px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.28)}",
+    ".st-lnk-btn:active{transform:scale(.96)}",
+    ".st-linkbtn{display:none;align-items:center;gap:6px;flex-shrink:0;height:44px;padding:0 14px;border-radius:22px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.4);color:#fff;font-size:.78rem;font-weight:600;cursor:pointer}",
+    ".st-linkbtn.show{display:inline-flex}",
+    ".st-linkbtn svg{width:16px;height:16px}",
     ".st-vfoot{position:absolute;left:0;right:0;bottom:0;z-index:3;background:linear-gradient(transparent,rgba(0,0,0,.5))}",
     ".st-send-bar{display:flex;align-items:center;gap:10px;padding:10px 14px 14px}",
     ".st-send-bar .st-in{background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.22);color:#fff}",
@@ -132,6 +139,7 @@
   ].join("\n");
 
   var ICONS = {
+    link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07l-1.41 1.41"/><path d="M14 11a5 5 0 00-7.07 0L4.1 13.83a5 5 0 007.07 7.07l1.41-1.41"/></svg>',
     chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>',
@@ -196,6 +204,111 @@
 
   function bgCss(c) {
     return "linear-gradient(155deg,rgba(255,255,255,.2),rgba(0,0,0,.3)),#" + String(c).replace("#", "");
+  }
+
+  var LINK_RE = /\[([^\[\]]{1,80})\]\((https?:\/\/[^\s()]{1,500})\)|(https?:\/\/[^\s<>()]{1,500})/gi;
+
+  function safeHref(u) {
+    try {
+      var x = new URL(u);
+      return x.protocol === "http:" || x.protocol === "https:" ? x.href : null;
+    } catch (e) { return null; }
+  }
+
+  function richText(el, text) {
+    el.textContent = "";
+    text = String(text || "");
+    var re = new RegExp(LINK_RE.source, "gi"), last = 0, m;
+    while ((m = re.exec(text))) {
+      var label = m[1], url = m[2] || m[3], consumed = m[0].length;
+      if (!label) {
+        var trail = /[.,;:!?'"]+$/.exec(url);
+        if (trail) { url = url.slice(0, -trail[0].length); consumed -= trail[0].length; re.lastIndex = m.index + consumed; }
+      }
+      if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+      var href = safeHref(url);
+      if (!href) {
+        el.appendChild(document.createTextNode(text.substr(m.index, consumed)));
+      } else {
+        var shown = label || url.replace(/^https?:\/\//i, "");
+        if (!label && shown.length > 42) shown = shown.slice(0, 39) + "...";
+        var a = h("a", { class: "st-lnk " + (label ? "st-lnk-btn" : "st-lnk-plain"), href: href, target: "_blank", rel: "noopener noreferrer" });
+        a.appendChild(document.createTextNode(shown));
+        if (label) a.appendChild(h("span", { text: "\u2197" }));
+        el.appendChild(a);
+      }
+      last = m.index + consumed;
+    }
+    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+  }
+
+  function openLinkDialog(selected, onSave) {
+    var ov = overlay("st-top");
+    var urlIn = h("input", { class: "st-in", type: "url", placeholder: "https://example.com", autocapitalize: "off", autocomplete: "off", spellcheck: "false" });
+    var save = h("button", { class: "st-btn", type: "button", text: "Add link" });
+    var cancel = h("button", { class: "st-btn ghost", type: "button", text: "Cancel" });
+    function close() { ov.remove(); }
+    function go() {
+      var u = urlIn.value.trim();
+      if (!u) { toast("Enter a link first."); return; }
+      if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+      if (/\s/.test(u) || !safeHref(u)) { toast("That link does not look right."); return; }
+      close();
+      onSave(u.replace(/\(/g, "%28").replace(/\)/g, "%29"));
+    }
+    cancel.addEventListener("click", close);
+    save.addEventListener("click", go);
+    urlIn.addEventListener("keydown", function (e) { if (e.key === "Enter") go(); });
+    ov.addEventListener("click", function (e) { if (e.target === ov) close(); });
+    ov.appendChild(h("div", { class: "st-glass", style: "max-width:340px" }, [
+      h("div", { class: "st-confirm" }, [
+        h("p", { text: "Linking: \u201C" + selected + "\u201D" }),
+        urlIn,
+        h("div", { style: "display:flex;gap:10px;margin-top:12px" }, [cancel, save])
+      ])
+    ]));
+    document.body.appendChild(ov);
+    setTimeout(function () { urlIn.focus(); }, 60);
+  }
+
+  function attachLinkTool(input, bar, beforeEl) {
+    var btn = h("button", { class: "st-linkbtn", type: "button", "aria-label": "Add link", html: ICONS.link + "<span>Add link</span>" });
+    bar.insertBefore(btn, beforeEl || null);
+    var last = null, dialogOpen = false;
+    function check() {
+      var st = input.selectionStart, en = input.selectionEnd;
+      var has = st != null && st !== en;
+      if (has) last = { start: st, end: en, text: input.value.slice(st, en) };
+      btn.classList.toggle("show", has || (dialogOpen && !!last));
+    }
+    ["select", "mouseup", "keyup"].forEach(function (ev) { input.addEventListener(ev, check); });
+    input.addEventListener("touchend", function () { check(); setTimeout(check, 60); setTimeout(check, 300); });
+    input.addEventListener("blur", function () {
+      setTimeout(function () { if (document.activeElement !== btn && !dialogOpen) btn.classList.remove("show"); }, 150);
+    });
+    input.addEventListener("input", function () { last = null; });
+    btn.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    btn.addEventListener("click", function () {
+      var range = input.selectionStart !== input.selectionEnd
+        ? { start: input.selectionStart, end: input.selectionEnd, text: input.value.slice(input.selectionStart, input.selectionEnd) }
+        : last;
+      if (!range) return;
+      var label = range.text.replace(/[\[\]\r\n]+/g, " ").trim();
+      if (!label) return;
+      dialogOpen = true;
+      openLinkDialog(label, function (url) {
+        var before = input.value.slice(0, range.start), after = input.value.slice(range.end);
+        var inserted = "[" + label + "](" + url + ")";
+        input.value = before + inserted + after;
+        var pos = before.length + inserted.length;
+        input.focus();
+        try { input.setSelectionRange(pos, pos); } catch (e) {}
+        input.dispatchEvent(new Event("input"));
+      });
+      var watch = setInterval(function () {
+        if (!document.querySelector(".st-ov.st-top .st-in[type=url]")) { clearInterval(watch); dialogOpen = false; btn.classList.remove("show"); }
+      }, 300);
+    });
   }
 
   function overlay(extraCls) {
@@ -437,7 +550,9 @@
     });
     wrap.appendChild(h("div", { class: "st-top" }, [close, h("div", { class: "sp" }), pal]));
     wrap.appendChild(h("div", { class: "st-text-area" }, [ta]));
-    wrap.appendChild(h("div", { class: "st-bottom" }, [h("div", { style: "flex:1" }), send]));
+    var textBar = h("div", { class: "st-bottom" }, [h("div", { style: "flex:1" }), send]);
+    wrap.appendChild(textBar);
+    attachLinkTool(ta, textBar, send);
     document.body.appendChild(wrap);
     setTimeout(function () { ta.focus(); }, 80);
   }
@@ -500,7 +615,9 @@
     img.src = dataUrl;
     wrap.appendChild(h("div", { class: "st-top" }, [close]));
     wrap.appendChild(h("div", { class: "st-pv" }, [img]));
-    wrap.appendChild(h("div", { class: "st-bottom" }, [cap, send]));
+    var capBar = h("div", { class: "st-bottom" }, [cap, send]);
+    wrap.appendChild(capBar);
+    attachLinkTool(cap, capBar, send);
     document.body.appendChild(wrap);
   }
 
@@ -588,11 +705,17 @@
         var im = h("img", { alt: "" });
         im.src = s.imageDataUrl;
         stage.appendChild(im);
-        if (s.caption) story.appendChild(h("div", { class: "st-cap", "data-cap": "1", text: s.caption }));
+        if (s.caption) {
+          var capEl = h("div", { class: "st-cap", "data-cap": "1" });
+          richText(capEl, s.caption);
+          story.appendChild(capEl);
+        }
         duration = SLIDE_MS;
       } else {
         stage.style.background = bgCss(s.bg);
-        stage.appendChild(h("div", { class: "txt", text: s.text }));
+        var txtEl = h("div", { class: "txt" });
+        richText(txtEl, s.text);
+        stage.appendChild(txtEl);
         duration = Math.min(12000, SLIDE_MS + Math.max(0, s.text.length - 60) * 40);
       }
       var oldCap = story.querySelectorAll("[data-cap]");
@@ -697,8 +820,19 @@
       });
     }
 
-    right.addEventListener("click", next);
-    left.addEventListener("click", prev);
+    function linkAt(e) {
+      if (!document.elementsFromPoint) return null;
+      var els = document.elementsFromPoint(e.clientX, e.clientY);
+      for (var i = 0; i < els.length; i++) if (els[i].classList && els[i].classList.contains("st-lnk")) return els[i];
+      return null;
+    }
+    function linkOrGo(e, go) {
+      var a = linkAt(e);
+      if (a) { window.open(a.href, "_blank", "noopener,noreferrer"); return; }
+      go();
+    }
+    right.addEventListener("click", function (e) { linkOrGo(e, next); });
+    left.addEventListener("click", function (e) { linkOrGo(e, prev); });
     closeBtn.addEventListener("click", finish);
     [left, right].forEach(function (z) {
       z.addEventListener("pointerdown", function () { paused = true; });

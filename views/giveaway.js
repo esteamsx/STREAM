@@ -94,6 +94,20 @@ button{cursor:pointer}
 .gv-ico.off{background:rgba(255,255,255,.07);color:var(--muted)}
 .gv-wrap.gv-center{min-height:calc(100vh - 58px);min-height:calc(100dvh - 58px);display:flex;align-items:center;justify-content:center;padding-top:0;padding-bottom:58px}
 .gv-wrap.gv-center .gv-card{width:100%}
+.gv-share{margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}
+.gv-share h3{font-family:var(--font-display);font-size:1.02rem;font-weight:700;text-align:center;letter-spacing:-.01em}
+.gv-share p{text-align:center;color:var(--muted);font-size:.78rem;line-height:1.5;margin:6px 0 14px}
+.gv-share-row{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.gv-sbtn{display:flex;flex-direction:column;align-items:center;gap:6px;width:58px;background:none;border:none;color:var(--text);font-size:.64rem;font-weight:600}
+.gv-sbtn i{display:flex;align-items:center;justify-content:center;width:50px;height:50px;border-radius:50%;color:#fff;box-shadow:0 6px 16px rgba(0,0,0,.3);transition:transform .15s}
+.gv-sbtn:active i{transform:scale(.9)}
+.gv-sbtn svg{width:25px;height:25px}
+.gv-sbtn.s-link i{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a}
+.gv-sbtn.s-wa i{background:#25D366}
+.gv-sbtn.s-fb i{background:#1877F2}
+.gv-sbtn.s-ig i{background:linear-gradient(45deg,#F9A825,#E1306C 55%,#833AB4)}
+.gv-sbtn.s-tg i{background:#229ED9}
+.gv-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:50;background:rgba(20,20,30,.95);color:#fff;border:1px solid var(--border-strong);padding:10px 18px;border-radius:999px;font-size:.8rem;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .gv-skel{height:260px;border-radius:14px;background:linear-gradient(90deg,var(--card),var(--card2),var(--card));background-size:200% 100%;animation:gvsk 1.4s linear infinite}
 @keyframes gvsk{to{background-position:-200% 0}}
 .gv-steps{margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;font-size:.74rem;color:var(--muted)}
@@ -139,6 +153,87 @@ async function api(path, body){
   return data;
 }
 
+function displayTitle(raw){
+  const t = String(raw || '').replace(/\\s+/g, ' ').trim();
+  if (!t) return 'ES TEAMS TV GIVEAWAY';
+  const hasWord = /\\bgiveaway\\b/i.test(t);
+  const rest = t.replace(/\\bgiveaway\\b/ig, '').replace(/\\s+/g, ' ').trim();
+  const caps = /[A-Za-z]/.test(rest) && rest === rest.toUpperCase();
+  if (caps) return (hasWord ? t : t + ' giveaway').toUpperCase();
+  return hasWord ? t : t + ' Giveaway';
+}
+
+const SHARE_ICONS = {
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07l-1.41 1.41"/><path d="M14 11a5 5 0 00-7.07 0L4.1 13.83a5 5 0 007.07 7.07l1.41-1.41"/></svg>',
+  wa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3a9 9 0 00-7.8 13.5L3 21l4.6-1.2A9 9 0 1012 3z"/><path fill="currentColor" stroke="none" d="M8.7 8.3c.3 2.9 3.1 5.7 6 6l1.3-1.4-2-1-1 .8c-1-.4-1.9-1.4-2.3-2.3l.8-1-1-2z"/></svg>',
+  fb: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 21v-7h2.4l.4-2.8h-2.8V9.5c0-.8.3-1.4 1.5-1.4h1.4V5.6c-.3 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.6v2.1H8.4V14h2.4v7z"/></svg>',
+  ig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="4.5"/><circle cx="12" cy="12" r="3.6"/><circle cx="16.7" cy="7.3" r="1" fill="currentColor" stroke="none"/></svg>',
+  tg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.7 4.3L3.2 11c-.8.3-.8 1.3 0 1.6l4.4 1.4 1.7 5.2c.2.6 1 .8 1.4.3l2.4-2.5 4.4 3.2c.6.4 1.4.1 1.5-.6L22 5.4c.1-.8-.6-1.4-1.3-1.1zM9 13.5l8.4-5.2-6.6 6.3-.3 3.1z"/></svg>'
+};
+
+let toastTimer = null;
+function gvToast(msg){
+  let t = document.getElementById('gvToast');
+  if (!t) { t = document.createElement('div'); t.id = 'gvToast'; t.className = 'gv-toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; }, 2200);
+}
+
+function copyText(text){
+  const legacy = () => new Promise((resolve, reject) => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+      const done = document.execCommand('copy'); ta.remove();
+      done ? resolve() : reject(new Error('copy failed'));
+    } catch (e) { reject(e); }
+  });
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).catch(legacy);
+  return legacy();
+}
+
+function shareLink(){ return status.shareUrl || (location.origin + '/giveaway'); }
+function shareText(){ return 'Join the ' + displayTitle(status.title) + ' and win ' + status.prize + '!'; }
+
+function openOut(url){
+  const w = window.open(url, '_blank', 'noopener');
+  if (!w) location.href = url;
+}
+
+function onShare(kind){
+  const url = shareLink(), text = shareText();
+  if (kind === 'link') {
+    copyText(url).then(() => gvToast('Link copied'), () => gvToast('Could not copy. Hold the address to copy it.'));
+    return;
+  }
+  copyText(url).catch(() => {});
+  if (kind === 'wa') {
+    gvToast('Link copied. Opening WhatsApp...');
+    openOut('https://wa.me/?text=' + encodeURIComponent(text + ' ' + url));
+  } else if (kind === 'fb') {
+    gvToast('Link copied. Opening Facebook...');
+    openOut('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url));
+  } else if (kind === 'tg') {
+    gvToast('Link copied. Opening Telegram...');
+    openOut('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text));
+  } else if (kind === 'ig') {
+    gvToast('Link copied. Opening Instagram...');
+    location.href = 'instagram://app';
+    setTimeout(() => { if (!document.hidden) openOut('https://www.instagram.com/'); }, 1300);
+  }
+}
+
+function shareHtml(){
+  const b = (k, cls, label) => '<button type="button" class="gv-sbtn ' + cls + '" data-share="' + k + '" aria-label="' + label + '"><i>' + SHARE_ICONS[k] + '</i>' + label + '</button>';
+  return '<div class="gv-share"><h3>Share to Friends</h3>' +
+    '<p>Invite friends with your personal link. When someone joins with it, you earn coins too.</p>' +
+    '<div class="gv-share-row">' + b('link', 's-link', 'Copy link') + b('wa', 's-wa', 'WhatsApp') + b('fb', 's-fb', 'Facebook') + b('ig', 's-ig', 'Instagram') + b('tg', 's-tg', 'Telegram') + '</div></div>';
+}
+
 function showEnded(){
   clearInterval(tick);
   setCenter(true);
@@ -150,7 +245,9 @@ function showEntered(){
   card.innerHTML =
     '<div class="gv-state"><div class="gv-ico ok">' + CHECK + '</div><h2>You are in!</h2>' +
     '<p>Your entry for <b>' + esc(status.prize) + '</b> is saved. If you win, you will get a notification in the app with your recharge card PIN.</p></div>' +
-    '<div class="gv-timer" id="gvTimer"></div><div class="gv-label-timer">Entries close in</div>';
+    '<div class="gv-timer" id="gvTimer"></div><div class="gv-label-timer">Entries close in</div>' +
+    shareHtml();
+  card.querySelectorAll('[data-share]').forEach((btn) => btn.addEventListener('click', () => onShare(btn.getAttribute('data-share'))));
   startTick();
 }
 
@@ -178,7 +275,7 @@ function showForm(){
   card.innerHTML =
     '<div class="gv-eyebrow">Live giveaway</div>' +
     '<div class="gv-gift">' + GIFT + '</div>' +
-    '<div class="gv-title">' + esc(status.title) + '</div>' +
+    '<div class="gv-title">' + esc(displayTitle(status.title)) + '</div>' +
     '<div class="gv-prize">' + esc(status.prize) + '</div>' +
     '<div class="gv-sub">One entry per person. A winner is picked at random and gets the recharge card PIN in the app.</div>' +
     '<div class="gv-timer" id="gvTimer"></div><div class="gv-label-timer">Entries close in</div>' +

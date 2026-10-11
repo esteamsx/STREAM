@@ -5,6 +5,7 @@ import {
   addNotification,
   getUserProfile,
   getFaceScanForUser,
+  ensureReferralCode,
   validateImageDataUrl,
   normalizeFaceSamples,
   storedFaceSamples,
@@ -13,6 +14,7 @@ import {
   CLAIM_FACE_THRESHOLD,
 } from "./auth.js";
 import { sendPushToUid } from "../config/push.js";
+import { siteOrigin } from "../config/site.js";
 
 const CONFIG_REF = db.collection("giveaway_config").doc("current");
 const ENTRIES = db.collection("giveaway_entries");
@@ -95,6 +97,18 @@ function phaseOf(cfg, now = Date.now()) {
   return "ended";
 }
 
+const faceKnown = new Map();
+async function hasFaceIdCached(uid) {
+  const until = faceKnown.get(uid);
+  if (until && until > Date.now()) return true;
+  const scan = await getFaceScanForUser(uid).catch(() => null);
+  if (scan) {
+    if (faceKnown.size >= 5000) faceKnown.clear();
+    faceKnown.set(uid, Date.now() + 10 * 60 * 1000);
+  }
+  return !!scan;
+}
+
 export async function getPublicStatus(uid) {
   const cfg = await getConfig();
   const now = Date.now();
@@ -102,19 +116,20 @@ export async function getPublicStatus(uid) {
   const out = { open: phase === "open", serverNow: now };
   if (phase !== "open") return out;
 
-  const indexed = roundIndex && roundIndex.roundId === cfg.roundId;
-  const [entered, profile, faceScan] = await Promise.all([
-    indexed ? Promise.resolve(roundIndex.uids.has(uid)) : ENTRIES.doc(`${cfg.roundId}_${uid}`).get().then((s) => s.exists),
-    getUserProfile(uid).catch(() => null),
-    getFaceScanForUser(uid).catch(() => null),
-  ]);
+  const idx = await loadRoundIndex(cfg.roundId);
+  const [profile, faceKnown] = await Promise.all([getUserProfile(uid).catch(() => null), hasFaceIdCached(uid)]);
+  const entered = idx.uids.has(uid);
+  let referralCode = profile?.referralCode || null;
+  if (!referralCode && profile) referralCode = await ensureReferralCode(uid, profile).catch(() => null);
+  const shareUrl = `${siteOrigin()}/giveaway${referralCode ? `?ref=${encodeURIComponent(referralCode)}` : ""}`;
   return {
     ...out,
+    shareUrl,
     title: cfg.title,
     prize: cfg.prize,
     endsAt: cfg.endsAt,
     entered,
-    hasFaceId: !!faceScan,
+    hasFaceId: faceKnown,
     username: profile?.username || "",
     name: [profile?.firstName, profile?.lastName].filter(Boolean).join(" "),
   };

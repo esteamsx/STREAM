@@ -15,8 +15,8 @@ export const statusRouter = express.Router();
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_ACTIVE_PER_USER = 15;
-const MAX_TEXT = 700;
-const MAX_CAPTION = 300;
+const MAX_TEXT = 1000;
+const MAX_CAPTION = 600;
 const MAX_COMMENT = 300;
 const MAX_COMMENTS_PER_USER_PER_STATUS = 30;
 const MAX_IMAGE_CHARS = 900 * 1024;
