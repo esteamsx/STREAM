@@ -38,9 +38,54 @@ export function normalizePhone(raw) {
   return digits;
 }
 
-async function getConfig() {
+const CFG_TTL_IDLE_MS = 10 * 60 * 1000;
+const CFG_TTL_ACTIVE_MS = 2 * 60 * 1000;
+let cfgCache = { value: undefined, at: 0 };
+
+function invalidateConfig() {
+  cfgCache = { value: undefined, at: 0 };
+}
+
+async function getConfig({ fresh = false } = {}) {
+  const now = Date.now();
+  if (!fresh && cfgCache.value !== undefined) {
+    const active = cfgCache.value && (cfgCache.value.status === "open" || cfgCache.value.status === "drawing");
+    if (now - cfgCache.at < (active ? CFG_TTL_ACTIVE_MS : CFG_TTL_IDLE_MS)) return cfgCache.value;
+  }
   const snap = await CONFIG_REF.get();
-  return snap.exists ? snap.data() : null;
+  cfgCache = { value: snap.exists ? snap.data() : null, at: now };
+  return cfgCache.value;
+}
+
+let roundIndex = null;
+let roundIndexLoading = null;
+
+function dropRoundIndex() {
+  roundIndex = null;
+  roundIndexLoading = null;
+}
+
+async function loadRoundIndex(roundId) {
+  if (roundIndex && roundIndex.roundId === roundId) return roundIndex;
+  if (roundIndexLoading && roundIndexLoading.roundId === roundId) return roundIndexLoading.promise;
+  const promise = (async () => {
+    const snap = await ENTRIES.where("roundId", "==", roundId).select("uid", "phoneNorm", "samples", "descriptor").get();
+    const idx = { roundId, uids: new Set(), phones: new Set(), faces: [] };
+    for (const d of snap.docs) {
+      const e = d.data();
+      idx.uids.add(e.uid);
+      idx.phones.add(e.phoneNorm);
+      idx.faces.push({ uid: e.uid, samples: storedFaceSamples(e) });
+    }
+    roundIndex = idx;
+    return idx;
+  })();
+  roundIndexLoading = { roundId, promise };
+  try {
+    return await promise;
+  } finally {
+    if (roundIndexLoading && roundIndexLoading.promise === promise) roundIndexLoading = null;
+  }
 }
 
 function phaseOf(cfg, now = Date.now()) {
@@ -57,8 +102,9 @@ export async function getPublicStatus(uid) {
   const out = { open: phase === "open", serverNow: now };
   if (phase !== "open") return out;
 
-  const [entrySnap, profile, faceScan] = await Promise.all([
-    ENTRIES.doc(`${cfg.roundId}_${uid}`).get(),
+  const indexed = roundIndex && roundIndex.roundId === cfg.roundId;
+  const [entered, profile, faceScan] = await Promise.all([
+    indexed ? Promise.resolve(roundIndex.uids.has(uid)) : ENTRIES.doc(`${cfg.roundId}_${uid}`).get().then((s) => s.exists),
     getUserProfile(uid).catch(() => null),
     getFaceScanForUser(uid).catch(() => null),
   ]);
@@ -67,7 +113,7 @@ export async function getPublicStatus(uid) {
     title: cfg.title,
     prize: cfg.prize,
     endsAt: cfg.endsAt,
-    entered: entrySnap.exists,
+    entered,
     hasFaceId: !!faceScan,
     username: profile?.username || "",
     name: [profile?.firstName, profile?.lastName].filter(Boolean).join(" "),
@@ -96,30 +142,39 @@ export async function enterGiveaway(uid, body = {}) {
   await verifyOwnFaceId(uid, probes);
 
   const entryId = `${cfg.roundId}_${uid}`;
-  if ((await ENTRIES.doc(entryId).get()).exists) throw fail("You have already entered this giveaway.", 409, "giveaway/duplicate");
-
-  const roundEntries = await ENTRIES.where("roundId", "==", cfg.roundId).select("phoneNorm", "samples", "descriptor").get();
-  for (const doc of roundEntries.docs) {
-    const d = doc.data();
-    if (d.phoneNorm === phone) throw fail("This phone number has already been entered.", 409, "giveaway/duplicate");
-    const stored = storedFaceSamples(d);
-    if (stored.length && bestDistanceBetween(probes, stored) <= CLAIM_FACE_THRESHOLD) {
+  const idx = await loadRoundIndex(cfg.roundId);
+  if (idx.uids.has(uid)) throw fail("You have already entered this giveaway.", 409, "giveaway/duplicate");
+  if (idx.phones.has(phone)) throw fail("This phone number has already been entered.", 409, "giveaway/duplicate");
+  for (const f of idx.faces) {
+    if (f.samples.length && bestDistanceBetween(probes, f.samples) <= CLAIM_FACE_THRESHOLD) {
       throw fail("This face has already been entered. One entry per person.", 409, "giveaway/duplicate");
     }
   }
 
-  await ENTRIES.doc(entryId).create({
-    roundId: cfg.roundId,
-    uid,
-    name,
-    username,
-    phone,
-    phoneNorm: phone,
-    descriptor: probes[0],
-    samples: probes.slice(0, 8).map((v) => ({ v })),
-    snapshot,
-    createdAt: Date.now(),
-  });
+  const face = { uid, samples: probes.slice(0, 8) };
+  idx.uids.add(uid);
+  idx.phones.add(phone);
+  idx.faces.push(face);
+  try {
+    await ENTRIES.doc(entryId).create({
+      roundId: cfg.roundId,
+      uid,
+      name,
+      username,
+      phone,
+      phoneNorm: phone,
+      descriptor: probes[0],
+      samples: probes.slice(0, 8).map((v) => ({ v })),
+      snapshot,
+      createdAt: Date.now(),
+    });
+  } catch (err) {
+    idx.uids.delete(uid);
+    idx.phones.delete(phone);
+    const at = idx.faces.indexOf(face);
+    if (at >= 0) idx.faces.splice(at, 1);
+    throw err;
+  }
   return { ok: true };
 }
 
@@ -157,6 +212,8 @@ export async function startGiveaway({ title, prize, pin, openMinutes, drawDelayM
       drawAt: endsAt + delay * 60000,
     });
   });
+  invalidateConfig();
+  dropRoundIndex();
   purgeEntriesExcept(roundId).catch(() => {});
   return getAdminState();
 }
@@ -169,6 +226,7 @@ export async function closeEntriesNow() {
     const now = Date.now();
     tx.update(CONFIG_REF, { endsAt: now, drawAt: now + (c.drawDelayMinutes || 0) * 60000 });
   });
+  invalidateConfig();
   return getAdminState();
 }
 
@@ -180,14 +238,16 @@ export async function pickWinnerNow() {
     const now = Date.now();
     tx.update(CONFIG_REF, { endsAt: Math.min(c.endsAt, now), drawAt: now });
   });
+  invalidateConfig();
   await runDueDraw();
   return getAdminState();
 }
 
 export async function cancelGiveaway() {
-  const cfg = await getConfig();
+  const cfg = await getConfig({ fresh: true });
   if (!cfg || (cfg.status !== "open" && cfg.status !== "drawing")) throw fail("No giveaway is running.", 409);
   const now = Date.now();
+  invalidateHistory();
   await HISTORY.add({
     type: "cancelled",
     roundId: cfg.roundId,
@@ -200,18 +260,47 @@ export async function cancelGiveaway() {
     hasPhoto: false,
   });
   await CONFIG_REF.update({ status: "ended", endedAt: now, pin: admin.firestore.FieldValue.delete() });
-  await purgeEntriesExcept(null);
+  invalidateConfig();
+  invalidateHistory();
+  await purgeRound(cfg.roundId);
+  dropRoundIndex();
   return getAdminState();
 }
 
-async function countEntries(roundId) {
+async function countEntriesFromDb(roundId) {
   try {
     const agg = await ENTRIES.where("roundId", "==", roundId).count().get();
     return agg.data().count || 0;
   } catch {
-    const snap = await ENTRIES.where("roundId", "==", roundId).select().get();
-    return snap.size;
+    return (await ENTRIES.where("roundId", "==", roundId).select().get()).size;
   }
+}
+
+const countCache = new Map();
+async function countEntries(roundId) {
+  if (roundIndex && roundIndex.roundId === roundId) return roundIndex.uids.size;
+  const hit = countCache.get(roundId);
+  if (hit && Date.now() - hit.at < 15 * 1000) return hit.n;
+  const n = await countEntriesFromDb(roundId);
+  countCache.clear();
+  countCache.set(roundId, { n, at: Date.now() });
+  return n;
+}
+
+const HISTORY_TTL_MS = 5 * 60 * 1000;
+let historyCache = { at: 0, list: null };
+function invalidateHistory() {
+  historyCache = { at: 0, list: null };
+}
+
+async function loadHistory() {
+  if (historyCache.list && Date.now() - historyCache.at < HISTORY_TTL_MS) return historyCache.list;
+  const histSnap = await HISTORY.orderBy("drawnAt", "desc").limit(30).select(
+    "type", "title", "prize", "pin", "entriesCount", "drawnAt", "startedAt",
+    "winnerName", "winnerUsername", "winnerPhone", "winnerUid", "hasPhoto"
+  ).get();
+  historyCache = { at: Date.now(), list: histSnap.docs.map((d) => ({ id: d.id, ...d.data() })) };
+  return historyCache.list;
 }
 
 export async function getAdminState() {
@@ -232,12 +321,7 @@ export async function getAdminState() {
       entriesCount: cfg.status === "ended" ? 0 : await countEntries(cfg.roundId),
     };
   }
-  const histSnap = await HISTORY.orderBy("drawnAt", "desc").limit(50).select(
-    "type", "title", "prize", "pin", "entriesCount", "drawnAt", "startedAt",
-    "winnerName", "winnerUsername", "winnerPhone", "winnerUid", "hasPhoto"
-  ).get();
-  const history = histSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  return { serverNow: now, current, history };
+  return { serverNow: now, current, history: await loadHistory() };
 }
 
 export async function getHistoryPhoto(id) {
@@ -262,7 +346,7 @@ async function purgeEntriesExcept(keepRoundId) {
 }
 
 async function claimDueDraw() {
-  return db.runTransaction(async (tx) => {
+  const claimed = await db.runTransaction(async (tx) => {
     const snap = await tx.get(CONFIG_REF);
     if (!snap.exists) return null;
     const c = snap.data();
@@ -273,6 +357,8 @@ async function claimDueDraw() {
     tx.update(CONFIG_REF, { status: "drawing", drawStartedAt: now });
     return c;
   });
+  if (claimed) invalidateConfig();
+  return claimed;
 }
 
 async function notifyWinner(historyId, h) {
@@ -282,8 +368,16 @@ async function notifyWinner(historyId, h) {
 }
 
 async function pickEligibleWinner(roundId) {
-  const snap = await ENTRIES.where("roundId", "==", roundId).select("uid").get();
-  const pool = snap.docs.map((d) => d.id);
+  let pool;
+  let total;
+  if (roundIndex && roundIndex.roundId === roundId) {
+    pool = [...roundIndex.uids].map((u) => `${roundId}_${u}`);
+    total = pool.length;
+  } else {
+    const snap = await ENTRIES.where("roundId", "==", roundId).select("uid").get();
+    pool = snap.docs.map((d) => d.id);
+    total = snap.size;
+  }
   while (pool.length) {
     const i = crypto.randomInt(pool.length);
     const [entryId] = pool.splice(i, 1);
@@ -292,12 +386,29 @@ async function pickEligibleWinner(roundId) {
     const entry = full.data();
     const profile = await getUserProfile(entry.uid).catch(() => null);
     if (!profile || profile.banned) continue;
-    return { entry, total: snap.size };
+    return { entry, total };
   }
-  return { entry: null, total: snap.size };
+  return { entry: null, total };
+}
+
+async function purgeRound(roundId) {
+  if (roundIndex && roundIndex.roundId === roundId) {
+    const ids = [...roundIndex.uids].map((u) => `${roundId}_${u}`);
+    for (let i = 0; i < ids.length; i += 400) {
+      const batch = db.batch();
+      ids.slice(i, i + 400).forEach((id) => batch.delete(ENTRIES.doc(id)));
+      await batch.commit();
+    }
+    if ((await countEntriesFromDb(roundId)) === 0) return;
+  }
+  await purgeEntriesExcept(null);
 }
 
 export async function runDueDraw() {
+  const known = await getConfig();
+  const now = Date.now();
+  const due = known && ((known.status === "open" && now >= known.drawAt) || (known.status === "drawing" && now - (known.drawStartedAt || 0) > STUCK_DRAW_MS));
+  if (!due) return false;
   const cfg = await claimDueDraw();
   if (!cfg) return false;
   try {
@@ -333,12 +444,16 @@ export async function runDueDraw() {
           }
         : { ...base, type: "no-entries", hasPhoto: false };
       const ref = await HISTORY.add(history);
+      invalidateHistory();
       historyId = ref.id;
       await CONFIG_REF.update({ historyId });
     }
     if (history.type === "winner" && !history.notified) await notifyWinner(historyId, history);
     await CONFIG_REF.update({ status: "ended", endedAt: Date.now(), pin: admin.firestore.FieldValue.delete() });
-    await purgeEntriesExcept(null);
+    invalidateConfig();
+    invalidateHistory();
+    await purgeRound(cfg.roundId);
+    dropRoundIndex();
     return true;
   } catch (err) {
     console.error("[giveaway] draw failed, will retry:", err.message);

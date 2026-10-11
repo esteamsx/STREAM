@@ -1480,7 +1480,11 @@ let gvFirstLoad = true;
 let gvDrawPokedFor = '';
 const GV_INPUT = 'width:100%;margin-bottom:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit';
 
-document.getElementById('giveawayHeader').addEventListener('click', () => gvCardEl.classList.toggle('open'));
+let gvLastLoad = 0;
+document.getElementById('giveawayHeader').addEventListener('click', () => {
+  gvCardEl.classList.toggle('open');
+  if (gvCardEl.classList.contains('open')) gvLoad();
+});
 
 function gvUnitMs(unit){ return unit === 'days' ? 86400000 : (unit === 'hours' ? 3600000 : 60000); }
 
@@ -1705,6 +1709,7 @@ function gvApply(state){
 }
 
 function gvLoad(){
+  gvLastLoad = Date.now();
   return getJSON('/api/admin/giveaway').then(gvApply).catch(() => {
     if (!gvState) {
       gvBodyEl.innerHTML = '<div class="ad-empty">Could not load the giveaway.</div>';
@@ -1714,7 +1719,12 @@ function gvLoad(){
 }
 
 setInterval(gvUpdateTimers, 1000);
-setInterval(() => { if (!document.hidden) gvLoad(); }, 10000);
+setInterval(() => {
+  if (document.hidden) return;
+  const c = gvState && gvState.current;
+  const running = !!(c && (c.status === 'open' || c.status === 'drawing'));
+  if (Date.now() - gvLastLoad >= (running ? 10000 : 120000)) gvLoad();
+}, 5000);
 
 document.getElementById('deviceBansHeader').addEventListener('click', () => {
   document.getElementById('deviceBansCard').classList.toggle('open');

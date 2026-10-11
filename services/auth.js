@@ -221,13 +221,44 @@ function invalidateUserProfileCache(uid) {
   userProfileCache.delete(uid);
 }
 
-async function getUserProfile(uid) {
+const USER_PROFILE_CACHE_MAX = 3000;
+
+function rememberUserProfile(uid, data) {
+  if (userProfileCache.size >= USER_PROFILE_CACHE_MAX) {
+    const cutoff = Date.now() - 60 * 1000;
+    for (const [k, v] of userProfileCache) if (v.at < cutoff) userProfileCache.delete(k);
+    if (userProfileCache.size >= USER_PROFILE_CACHE_MAX) userProfileCache.clear();
+  }
+  userProfileCache.set(uid, { data, at: Date.now() });
+}
+
+async function getUserProfile(uid, maxAgeMs = USER_PROFILE_CACHE_TTL_MS) {
   const cached = userProfileCache.get(uid);
-  if (cached && Date.now() - cached.at < USER_PROFILE_CACHE_TTL_MS) return cached.data;
+  if (cached && Date.now() - cached.at < maxAgeMs) return cached.data;
   const snap = await db.collection("users").doc(uid).get();
   const data = snap.exists ? snap.data() : null;
-  userProfileCache.set(uid, { data, at: Date.now() });
+  rememberUserProfile(uid, data);
   return data;
+}
+
+async function loadUserDocsCached(uids, maxAgeMs = 60 * 1000) {
+  const out = new Map();
+  const missing = [];
+  for (const uid of uids) {
+    const c = userProfileCache.get(uid);
+    if (c && c.data && Date.now() - c.at < maxAgeMs) out.set(uid, c.data);
+    else missing.push(uid);
+  }
+  for (let i = 0; i < missing.length; i += 30) {
+    const chunk = missing.slice(i, i + 30);
+    const usnap = await db.collection("users").where(admin.firestore.FieldPath.documentId(), "in", chunk).get();
+    usnap.forEach((d) => {
+      const data = d.data();
+      out.set(d.id, data);
+      rememberUserProfile(d.id, data);
+    });
+  }
+  return out;
 }
 
 async function updateUserProfile(uid, data) {
@@ -1681,6 +1712,7 @@ function followDocId(followerUid, targetUid) {
 async function addNotification(uid, type, message, meta = null) {
   try {
     await db.collection("notifications").add({ uid, type, message, meta, createdAt: Date.now(), read: false });
+    invalidateNotifState(uid);
   } catch {
   }
 }
@@ -1701,32 +1733,55 @@ async function broadcastNotification(message, meta = null) {
     await batch.commit();
     sent += chunk.length;
   }
+  invalidateNotifState();
   return { sent, total: uids.length };
 }
 
+let notifIndexRetryAt = 0;
 async function getNotifications(uid, limit = 50) {
+  if (Date.now() >= notifIndexRetryAt) {
+    try {
+      const fast = await db.collection("notifications").where("uid", "==", uid).orderBy("createdAt", "desc").limit(limit).get();
+      return fast.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+      notifIndexRetryAt = Date.now() + 10 * 60 * 1000;
+      console.warn("[quota] notifications are read the slow way until this index exists (open the link in the error): " + String(err.message || err).slice(0, 400));
+    }
+  }
   const snap = await db.collection("notifications").where("uid", "==", uid).limit(500).get();
   const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   docs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   return docs.slice(0, limit);
 }
 
-async function hasUnreadNotifications(uid) {
-  const snap = await db.collection("notifications")
-    .where("uid", "==", uid)
-    .where("read", "==", false)
-    .limit(20)
-    .get();
-  return snap.docs.some((d) => d.data().type !== "comment");
+const NOTIF_STATE_TTL_MS = 30 * 1000;
+const notifStateCache = new Map();
+
+function invalidateNotifState(uid) {
+  if (uid) notifStateCache.delete(uid);
+  else notifStateCache.clear();
 }
 
-async function countUnreadNotifications(uid) {
+async function unreadNotifState(uid) {
+  const hit = notifStateCache.get(uid);
+  if (hit && Date.now() - hit.at < NOTIF_STATE_TTL_MS) return hit;
   const snap = await db.collection("notifications")
     .where("uid", "==", uid)
     .where("read", "==", false)
     .limit(100)
     .get();
-  return snap.docs.filter((d) => d.data().type !== "comment").length;
+  const state = { count: snap.docs.filter((d) => d.data().type !== "comment").length, at: Date.now() };
+  if (notifStateCache.size >= 5000) notifStateCache.clear();
+  notifStateCache.set(uid, state);
+  return state;
+}
+
+async function hasUnreadNotifications(uid) {
+  return (await unreadNotifState(uid)).count > 0;
+}
+
+async function countUnreadNotifications(uid) {
+  return (await unreadNotifState(uid)).count;
 }
 
 async function markAllNotificationsRead(uid) {
@@ -1744,6 +1799,7 @@ async function markAllNotificationsRead(uid) {
     }
   });
   if (any) await batch.commit().catch(() => {});
+  invalidateNotifState(uid);
 }
 
 async function toggleNotificationRead(uid, notifId) {
@@ -1752,6 +1808,7 @@ async function toggleNotificationRead(uid, notifId) {
   if (!snap.exists || snap.data().uid !== uid) throw new Error("Notification not found.");
   const next = !snap.data().read;
   await ref.update({ read: next });
+  invalidateNotifState(uid);
   return { ok: true, read: next };
 }
 
@@ -1760,6 +1817,7 @@ async function deleteNotification(uid, notifId) {
   const snap = await ref.get();
   if (!snap.exists || snap.data().uid !== uid) throw new Error("Notification not found.");
   await ref.delete();
+  invalidateNotifState(uid);
   return { ok: true };
 }
 
@@ -1784,10 +1842,12 @@ async function notifyProfileViewed(viewerUid, viewerProfile, targetUid) {
   }
 }
 
-const FOLLOW_CACHE_TTL_MS = 2 * 60 * 1000;
+const FOLLOW_CACHE_TTL_MS = 15 * 60 * 1000;
 const FOLLOW_CACHE_MAX = 5000;
 const followCache = new Map();
 const followInflight = new Map();
+const FOLLOW_LIST_TTL_MS = 2 * 60 * 1000;
+const followListCache = new Map();
 
 function followCached(key, loader) {
   const hit = followCache.get(key);
@@ -1812,11 +1872,23 @@ function followCached(key, loader) {
 }
 
 function invalidateFollowCache(...uids) {
-  for (const uid of uids) {
-    if (!uid) continue;
+  const list = uids.filter(Boolean);
+  for (const uid of list) {
+    followListCache.delete(`followers:${uid}`);
+    followListCache.delete(`following:${uid}`);
     for (const k of [`following:${uid}`, `mutual:${uid}`]) {
       followCache.delete(k);
       followInflight.delete(k);
+    }
+  }
+  if (list.length <= 20) {
+    for (const a of list) {
+      for (const b of list) {
+        if (a === b) continue;
+        const k = `isf:${a}>${b}`;
+        followCache.delete(k);
+        followInflight.delete(k);
+      }
     }
   }
 }
@@ -1891,8 +1963,10 @@ async function unfollowUser(followerUid, targetUid) {
 
 async function isFollowing(followerUid, targetUid) {
   if (!followerUid || !targetUid || followerUid === targetUid) return false;
-  const snap = await db.collection("follows").doc(followDocId(followerUid, targetUid)).get();
-  return snap.exists;
+  return followCached(`isf:${followerUid}>${targetUid}`, async () => {
+    const snap = await db.collection("follows").doc(followDocId(followerUid, targetUid)).get();
+    return snap.exists;
+  });
 }
 
 async function getFollowStats(uid) {
@@ -2490,6 +2564,16 @@ async function togglePostLike(uid, postId) {
 }
 
 async function getFollowList(uid, type) {
+  const key = `${type}:${uid}`;
+  const hit = followListCache.get(key);
+  if (hit && Date.now() - hit.at < FOLLOW_LIST_TTL_MS) return hit.users;
+  const users = await loadFollowList(uid, type);
+  if (followListCache.size >= 1000) followListCache.clear();
+  followListCache.set(key, { users, at: Date.now() });
+  return users;
+}
+
+async function loadFollowList(uid, type) {
   const field = type === "followers" ? "targetUid" : "followerUid";
   const otherField = type === "followers" ? "followerUid" : "targetUid";
   const snap = await db.collection("follows").where(field, "==", uid).limit(500).get();
@@ -2497,22 +2581,17 @@ async function getFollowList(uid, type) {
   if (!otherUids.length) return [];
 
   const users = [];
-  for (let i = 0; i < otherUids.length; i += 30) {
-    const chunk = otherUids.slice(i, i + 30);
-    const usnap = await db.collection("users")
-      .where(admin.firestore.FieldPath.documentId(), "in", chunk)
-      .get();
-    usnap.forEach((d) => {
-      const data = d.data();
-      if (data.pendingDeletion) return;
-      users.push({
-        uid: d.id,
-        username: data.username || "",
-        firstName: data.firstName || "",
-        lastName: data.lastName || "",
-        photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
-        isAdmin: isAdminEmail(data.email), verified: isVerificationActive(data),
-      });
+  const docs = await loadUserDocsCached(otherUids);
+  for (const id of otherUids) {
+    const data = docs.get(id);
+    if (!data || data.pendingDeletion) continue;
+    users.push({
+      uid: id,
+      username: data.username || "",
+      firstName: data.firstName || "",
+      lastName: data.lastName || "",
+      photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
+      isAdmin: isAdminEmail(data.email), verified: isVerificationActive(data),
     });
   }
   return users;
@@ -2528,7 +2607,10 @@ async function getFollowingUids(uid) {
 async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
   const followingUids = await getFollowingUids(uid);
   if (!followingUids.length) {
-    if (markSeen) await updateUserProfile(uid, { lastSeenFeedAt: Date.now() }).catch(() => {});
+    if (markSeen) {
+      await updateUserProfile(uid, { lastSeenFeedAt: Date.now() }).catch(() => {});
+      unseenFeedCache.delete(uid);
+    }
     return [];
   }
 
@@ -2555,23 +2637,16 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
 
   const authorUids = [...new Set(visible.map((p) => p.uid))];
   const authorsByUid = new Map();
-  for (let i = 0; i < authorUids.length; i += 30) {
-    const chunk = authorUids.slice(i, i + 30);
-    const usnap = await db.collection("users")
-      .where(admin.firestore.FieldPath.documentId(), "in", chunk)
-      .get();
-    usnap.forEach((d) => {
-      const data = d.data();
-      authorsByUid.set(d.id, {
-        uid: d.id,
-        username: data.username || "",
-        firstName: data.firstName || "",
-        lastName: data.lastName || "",
-        photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
-        isAdmin: isAdminEmail(data.email), verified: isVerificationActive(data),
-      });
+  (await loadUserDocsCached(authorUids)).forEach((data, id) => {
+    authorsByUid.set(id, {
+      uid: id,
+      username: data.username || "",
+      firstName: data.firstName || "",
+      lastName: data.lastName || "",
+      photoURL: data.showProfilePhoto === false ? null : (data.photoURL || null),
+      isAdmin: isAdminEmail(data.email), verified: isVerificationActive(data),
     });
-  }
+  });
 
   const statsMap = await resolveEffectivePostStats(visible);
 
@@ -2590,7 +2665,10 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
     };
   });
 
-  if (markSeen) await updateUserProfile(uid, { lastSeenFeedAt: Date.now() }).catch(() => {});
+  if (markSeen) {
+    await updateUserProfile(uid, { lastSeenFeedAt: Date.now() }).catch(() => {});
+    unseenFeedCache.delete(uid);
+  }
   return posts;
 }
 
@@ -2617,12 +2695,7 @@ async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
   if (!scanned.length) return { posts: [], nextBefore: null };
 
   const authorUids = [...new Set(scanned.map((p) => p.uid))];
-  const authorDocs = new Map();
-  for (let i = 0; i < authorUids.length; i += 30) {
-    const chunk = authorUids.slice(i, i + 30);
-    const usnap = await db.collection("users").where(admin.firestore.FieldPath.documentId(), "in", chunk).get();
-    usnap.forEach((d) => authorDocs.set(d.id, d.data()));
-  }
+  const authorDocs = await loadUserDocsCached(authorUids);
 
   const needsFollowCheck = [...new Set(
     scanned
@@ -2729,7 +2802,19 @@ async function getSuggestedUsers(uid, limit = 6) {
   return top.slice(0, limit);
 }
 
+const UNSEEN_FEED_TTL_MS = 90 * 1000;
+const unseenFeedCache = new Map();
+
 async function getFollowingFeedUnseenCount(uid, cachedProfile) {
+  const hit = unseenFeedCache.get(uid);
+  if (hit && Date.now() - hit.at < UNSEEN_FEED_TTL_MS) return hit.count;
+  const count = await computeFollowingFeedUnseenCount(uid, cachedProfile);
+  if (unseenFeedCache.size >= 5000) unseenFeedCache.clear();
+  unseenFeedCache.set(uid, { count, at: Date.now() });
+  return count;
+}
+
+async function computeFollowingFeedUnseenCount(uid, cachedProfile) {
   const followingUids = await getFollowingUids(uid);
   if (!followingUids.length) return 0;
   const profile = cachedProfile || (await getUserProfile(uid));
@@ -2750,20 +2835,33 @@ async function getFollowingFeedUnseenCount(uid, cachedProfile) {
   return Math.min(count, 99);
 }
 
+const SEARCH_CACHE_TTL_MS = 60 * 1000;
+const searchCache = new Map();
+
 async function searchUsersByUsername(query, excludeUid, limit = 15) {
   const q = String(query || "").trim().toLowerCase();
   if (!q) return [];
-  const [usernameSnap, altSnap] = await Promise.all([
-    db.collection("users")
-      .where("username", ">=", q)
-      .where("username", "<=", q + "\uf8ff")
-      .limit(limit)
-      .get(),
-    db.collection("users")
-      .where("altUsernames", "array-contains", q)
-      .limit(limit)
-      .get(),
-  ]);
+  const cacheKey = q + "|" + limit;
+  let found = searchCache.get(cacheKey);
+  if (!found || Date.now() - found.at > SEARCH_CACHE_TTL_MS) {
+    const [usernameSnap, altSnap] = await Promise.all([
+      db.collection("users")
+        .where("username", ">=", q)
+        .where("username", "<=", q + "\uf8ff")
+        .limit(limit)
+        .get(),
+      db.collection("users")
+        .where("altUsernames", "array-contains", q)
+        .limit(limit)
+        .get(),
+    ]);
+    const plain = (snap) => snap.docs.map((d) => { const data = d.data(); return { id: d.id, data: () => data }; });
+    found = { at: Date.now(), username: plain(usernameSnap), alt: plain(altSnap) };
+    if (searchCache.size >= 500) searchCache.clear();
+    searchCache.set(cacheKey, found);
+  }
+  const usernameSnap = { docs: found.username };
+  const altSnap = { docs: found.alt };
 
   const byUid = new Map();
   for (const d of usernameSnap.docs) {
@@ -2800,7 +2898,8 @@ function requireAuth(req, res, next) {
   verifySession(sessionId)
     .then(async (uid) => {
       if (!uid) return res.status(401).json({ error: "not_authenticated" });
-      const profile = await getUserProfile(uid);
+      const isBackgroundPoll = BACKGROUND_POLL_PATHS.some((p) => req.path.startsWith(p));
+      const profile = await getUserProfile(uid, isBackgroundPoll ? 60 * 1000 : undefined);
       if (!profile || profile.pendingDeletion || profile.banned || isSessionRevoked(sessionId, profile)) {
         await deleteSession(sessionId);
         return res.status(401).json({ error: "not_authenticated" });
@@ -4322,6 +4421,15 @@ async function adminListWithdrawalRequests() {
 }
 
 const CHANNEL_REACT_EXPIRY_MS = 6 * 60 * 60 * 1000;
+const CHANNEL_REACT_USER_CACHE_MS = 60 * 1000;
+const CHANNEL_REACT_ADMIN_CACHE_MS = 20 * 1000;
+const channelReactHistoryCache = new Map();
+let channelReactAdminCache = { at: 0, rows: null };
+
+function invalidateChannelReactCaches() {
+  channelReactHistoryCache.clear();
+  channelReactAdminCache = { at: 0, rows: null };
+}
 
 async function logChannelReactUse(uid, username, link, charged) {
   try {
@@ -4336,6 +4444,7 @@ async function logChannelReactUse(uid, username, link, charged) {
       lastResendAt: null,
       decidedAt: null,
     });
+    invalidateChannelReactCaches();
     return ref.id;
   } catch {
     return null;
@@ -4360,6 +4469,8 @@ async function expireStalePendingRows(rows) {
 let channelReactIndexWarned = false;
 
 async function getChannelReactHistory(uid) {
+  const hit = channelReactHistoryCache.get(uid);
+  if (hit && Date.now() - hit.at < CHANNEL_REACT_USER_CACHE_MS) return hit.rows.map(withComputedStatus);
   let docs;
   try {
     const snap = await db.collection("channelReactLog").where("uid", "==", uid).orderBy("createdAt", "desc").limit(5).get();
@@ -4374,18 +4485,25 @@ async function getChannelReactHistory(uid) {
   }
   const rows = docs.map((d) => ({ id: d.id, ...d.data() }));
   await expireStalePendingRows(rows);
+  if (channelReactHistoryCache.size >= 2000) channelReactHistoryCache.clear();
+  channelReactHistoryCache.set(uid, { rows, at: Date.now() });
   return rows.map(withComputedStatus);
 }
 
 async function adminListChannelReactLog() {
+  if (channelReactAdminCache.rows && Date.now() - channelReactAdminCache.at < CHANNEL_REACT_ADMIN_CACHE_MS) {
+    return channelReactAdminCache.rows.map(withComputedStatus);
+  }
   const snap = await db.collection("channelReactLog").orderBy("createdAt", "desc").limit(300).get();
   const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   await expireStalePendingRows(rows);
+  channelReactAdminCache = { at: Date.now(), rows };
   return rows.map(withComputedStatus);
 }
 
 async function adminMarkChannelReactResent(logId) {
   await db.collection("channelReactLog").doc(logId).update({ lastResendAt: Date.now() }).catch(() => {});
+  invalidateChannelReactCaches();
 }
 
 async function adminDecideChannelReact(logId, approved) {
@@ -4395,6 +4513,7 @@ async function adminDecideChannelReact(logId, approved) {
   const data = snap.data();
   const status = approved ? "confirmed" : "declined";
   await ref.update({ status, decidedAt: Date.now() });
+  invalidateChannelReactCaches();
   return { uid: data.uid, link: data.link, status };
 }
 

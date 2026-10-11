@@ -8,6 +8,7 @@ import {
   isVerificationActive,
   isAdminEmail,
   getMutualUids,
+  isFollowing,
 } from "../services/auth.js";
 
 export const statusRouter = express.Router();
@@ -86,6 +87,28 @@ async function deleteStatusCascade(statusId) {
   }
 }
 
+let activeIndex = { at: 0, list: null };
+const unseenCountCache = new Map();
+
+async function getActiveStatusIndex() {
+  const now = Date.now();
+  if (activeIndex.list && now - activeIndex.at < 30 * 1000) {
+    return activeIndex.list.filter((s) => s.expiresAt > now);
+  }
+  const snap = await db.collection("statuses").where("expiresAt", ">", now).select("uid", "createdAt", "expiresAt").limit(3000).get();
+  const list = snap.docs.map((d) => {
+    const s = d.data();
+    return { id: d.id, uid: s.uid, createdAt: s.createdAt || 0, expiresAt: s.expiresAt || 0 };
+  });
+  activeIndex = { at: now, list };
+  return list;
+}
+
+function invalidateStatusCaches() {
+  activeIndex = { at: 0, list: null };
+  unseenCountCache.clear();
+}
+
 function mutualSet(uid) {
   return getMutualUids(uid);
 }
@@ -93,22 +116,17 @@ function mutualSet(uid) {
 async function canSeeStatus(viewerUid, ownerUid) {
   if (!viewerUid || !ownerUid) return false;
   if (viewerUid === ownerUid) return true;
-  const [a, b] = await Promise.all([
-    db.collection("follows").doc(viewerUid + "_" + ownerUid).get(),
-    db.collection("follows").doc(ownerUid + "_" + viewerUid).get(),
-  ]);
-  return a.exists && b.exists;
+  const [a, b] = await Promise.all([isFollowing(viewerUid, ownerUid), isFollowing(ownerUid, viewerUid)]);
+  return a && b;
 }
 
 statusRouter.get("/api/status/feed", requireAuth, async (req, res) => {
   try {
-    const now = Date.now();
-    const snap = await db.collection("statuses").where("expiresAt", ">", now).select("uid", "createdAt").limit(3000).get();
+    const index = await getActiveStatusIndex();
     const byUid = new Map();
-    snap.docs.forEach((d) => {
-      const s = d.data();
+    index.forEach((s) => {
       const entry = byUid.get(s.uid) || { uid: s.uid, ids: [], latestAt: 0 };
-      entry.ids.push(d.id);
+      entry.ids.push(s.id);
       entry.latestAt = Math.max(entry.latestAt, s.createdAt || 0);
       byUid.set(s.uid, entry);
     });
@@ -138,13 +156,14 @@ statusRouter.get("/api/status/feed", requireAuth, async (req, res) => {
 
 statusRouter.get("/api/status/unseen-count", requireAuth, async (req, res) => {
   try {
-    const snap = await db.collection("statuses").where("expiresAt", ">", Date.now()).select("uid").limit(3000).get();
+    const hit = unseenCountCache.get(req.uid);
+    if (hit && Date.now() - hit.at < 60 * 1000) return res.json({ count: hit.count });
+    const index = await getActiveStatusIndex();
     const byUid = new Map();
-    snap.docs.forEach((d) => {
-      const u = d.data().uid;
-      if (u === req.uid) return;
-      if (!byUid.has(u)) byUid.set(u, []);
-      byUid.get(u).push(d.id);
+    index.forEach((s) => {
+      if (s.uid === req.uid) return;
+      if (!byUid.has(s.uid)) byUid.set(s.uid, []);
+      byUid.get(s.uid).push(s.id);
     });
     const mutual = await mutualSet(req.uid);
     Array.from(byUid.keys()).forEach((u) => { if (!mutual.has(u)) byUid.delete(u); });
@@ -153,7 +172,10 @@ statusRouter.get("/api/status/unseen-count", requireAuth, async (req, res) => {
     const seen = await seenIdSet(req.uid, all);
     let count = 0;
     byUid.forEach((ids) => { if (!ids.every((id) => seen.has(id))) count++; });
-    res.json({ count: Math.min(count, 99) });
+    const result = Math.min(count, 99);
+    if (unseenCountCache.size >= 5000) unseenCountCache.clear();
+    unseenCountCache.set(req.uid, { count: result, at: Date.now() });
+    res.json({ count: result });
   } catch (err) {
     res.json({ count: 0 });
   }
@@ -234,6 +256,7 @@ statusRouter.post("/api/status", requireAuth, async (req, res) => {
       doc.caption = cleanText(req.body?.caption, MAX_CAPTION);
     }
     const ref = await db.collection("statuses").add(doc);
+    invalidateStatusCaches();
     res.json({ ok: true, id: ref.id });
   } catch (err) {
     console.error(err);
@@ -247,6 +270,7 @@ statusRouter.delete("/api/status/:id", requireAuth, async (req, res) => {
     const snap = await ref.get();
     if (!snap.exists || snap.data().uid !== req.uid) return res.status(404).json({ error: "Status not found." });
     await deleteStatusCascade(ref.id);
+    invalidateStatusCaches();
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -281,6 +305,7 @@ statusRouter.post("/api/status/:id/view", requireAuth, async (req, res) => {
         link: "/profile?status=mine",
       });
     }
+    unseenCountCache.delete(req.uid);
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: "Could not record view." });
