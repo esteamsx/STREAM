@@ -83,6 +83,12 @@ export const PAGES = {
     description: "Create an ad, pay securely and track its views and clicks.",
     auth: "required",
   },
+  chess: {
+    path: "/chess",
+    title: `Chess | ${SITE.name}`,
+    description: "Play chess against the computer or challenge someone who is online.",
+    auth: "required",
+  },
   giveaway: {
     path: "/giveaway",
     title: `Giveaway | ${SITE.name}`,

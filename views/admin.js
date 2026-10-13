@@ -1681,6 +1681,67 @@ function gvRenderHistory(){
   });
 }
 
+function gvNest(svg, x, y, w){
+  const m = svg.match(/viewBox="0 0 ([0-9.]+) ([0-9.]+)"/);
+  const hgt = w * (Number(m[2]) / Number(m[1]));
+  return svg.replace('<svg ', '<svg x="' + x + '" y="' + y + '" width="' + w + '" height="' + hgt + '" ');
+}
+
+function gvSaveBlob(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+async function gvDownloadWinner(h, btn){
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Preparing...';
+  const photoUrl = '/api/admin/giveaway/history/' + encodeURIComponent(h.id) + '/photo';
+  const fileName = 'winner-' + String(h.winnerUsername || 'giveaway').replace(/[^a-zA-Z0-9_-]/g, '') + '-' + new Date(h.drawnAt || Date.now()).toISOString().slice(0, 10) + '.png';
+  try {
+    const res = await fetch(photoUrl, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error('photo');
+    const photoBlob = await res.blob();
+    const dataUrl = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(photoBlob); });
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = dataUrl; });
+    const W = img.naturalWidth, H = img.naturalHeight, k = W / 280, b = Math.max(2, Math.round(3 * k)), r = 16 * k;
+    const net = gvNetwork(h);
+    const sash = '<g transform="translate(' + (40 * k) + ',' + (31 * k) + ') rotate(-45) scale(' + k + ')"><rect x="-82" y="-11" width="164" height="22" fill="url(#gs)"/><text x="0" y="3.6" text-anchor="middle" font-family="' + GV_FONT + '" font-weight="800" font-size="10" letter-spacing="2.2" fill="#4a3200">WINNER</text></g>';
+    const medal = gvNest(GV_MEDAL, W - 42 * k, 8 * k, 34 * k);
+    const badge = net ? gvNest(GV_BADGES[net], W - 8 * k - 0.38 * W, H - 8 * k - 0.38 * W * 0.44, 0.38 * W) : '';
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + (W * 2) + '" height="' + (H * 2) + '" viewBox="0 0 ' + W + ' ' + H + '">' +
+      '<defs><clipPath id="c"><rect width="' + W + '" height="' + H + '" rx="' + r + '"/></clipPath><linearGradient id="gs" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#B8860B"/><stop offset="0.5" stop-color="#FFD54A"/><stop offset="1" stop-color="#B8860B"/></linearGradient></defs>' +
+      '<g clip-path="url(#c)"><image href="' + dataUrl + '" width="' + W + '" height="' + H + '"/>' + sash + medal + badge + '</g>' +
+      '<rect x="' + (b / 2) + '" y="' + (b / 2) + '" width="' + (W - b) + '" height="' + (H - b) + '" rx="' + r + '" fill="none" stroke="#E8B923" stroke-width="' + b + '"/></svg>';
+    const svgImg = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+    const canvas = document.createElement('canvas');
+    canvas.width = W * 2;
+    canvas.height = H * 2;
+    canvas.getContext('2d').drawImage(svgImg, 0, 0, W * 2, H * 2);
+    const out = await new Promise((ok) => canvas.toBlob(ok, 'image/png'));
+    if (!out) throw new Error('png');
+    gvSaveBlob(out, fileName);
+    showToast('Image saved.');
+  } catch (err) {
+    try {
+      const res = await fetch(photoUrl, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('photo');
+      gvSaveBlob(await res.blob(), fileName.replace('.png', '.jpg'));
+      showToast('Photo saved.');
+    } catch (e2) {
+      showToast('Could not save the image.');
+    }
+  }
+  btn.disabled = false;
+  btn.textContent = label;
+}
+
 function gvShowWinner(h){
   document.getElementById('faceModalName').textContent = 'Giveaway winner';
   const body = document.getElementById('faceModalBody');
@@ -1699,6 +1760,15 @@ function gvShowWinner(h){
     d.textContent = text;
     body.appendChild(d);
   });
+  if (h.hasPhoto) {
+    const dl = document.createElement('button');
+    dl.type = 'button';
+    dl.className = 'ad-modal-btn ghost';
+    dl.style.cssText = 'margin-top:14px;padding:8px 16px;font-size:.78rem;display:inline-flex;align-items:center;gap:6px';
+    dl.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"/></svg>Download image';
+    dl.addEventListener('click', () => gvDownloadWinner(h, dl));
+    body.appendChild(dl);
+  }
   document.getElementById('faceOverlay').classList.add('show');
 }
 

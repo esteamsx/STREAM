@@ -12,6 +12,7 @@ import { renderVerify } from "./views/verify.js";
 import { renderAccount } from "./views/account.js";
 import { renderPromote } from "./views/promote.js";
 import { renderGiveaway } from "./views/giveaway.js";
+import { renderChess } from "./views/chess.js";
 import { renderHome } from "./views/home.js";
 import { renderLiveTv } from "./views/live-tv.js";
 import { renderProfile } from "./views/profile.js";
@@ -29,6 +30,7 @@ import { getDbUsage, diagnoseDbUsage } from "./services/db-usage.js";
 import { trackPageView, getAnalytics, flushCompletedDays } from "./middleware/analytics-tracker.js";
 import { verifyCoinLedgerChain } from "./services/coin-ledger.js";
 import { pageLockGate } from "./middleware/page-lock.js";
+import { discoverLockablePages } from "./services/page-discovery.js";
 import { scrapeGate } from "./middleware/scrape-gate.js";
 import { apiRouter } from "./routes/api.js";
 import { devApiRouter } from "./routes/dev-api.js";
@@ -324,6 +326,7 @@ import { payLinkRouter } from "./routes/pay-link.js";
 import { statusRouter } from "./routes/status.js";
 import { visitorSupportRouter } from "./routes/visitor-support.js";
 import { createGiveawayRouter } from "./routes/giveaway.js";
+import { registerChessRoutes } from "./routes/chess.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
 import { deviceBansRouter, enforceLoginDevice } from "./routes/device-bans.js";
@@ -428,7 +431,7 @@ app.get("/outbound-ip", async (req, res) => {
   }
 });
 
-const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js", "incognito-guard.js", "visitor-support.js"]);
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js", "incognito-guard.js", "visitor-support.js", "chess-page.js", "chess-engine.js", "chess-bot.js", "chess-worker.js", "chess-pieces.js", "chess.css"]);
 
 app.use(
   express.static(path.join(__dirname, "public"), {
@@ -670,6 +673,9 @@ app.use(paymentsRouter);
 app.use(promoteRouter);
 app.use(rewardsRouter);
 app.use(createGiveawayRouter({ verifyCaptcha }));
+const chessRouter = express.Router();
+registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive });
+app.use(chessRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
 app.use(devicesRouter);
@@ -779,6 +785,7 @@ const cachedVerifyHtml = renderVerify(authPageConfig);
 const cachedAccountHtml = renderAccount(authPageConfig);
 const cachedPromoHtml = renderPromote(authPageConfig);
 const cachedGiveawayHtml = renderGiveaway(authPageConfig);
+const cachedChessHtml = renderChess(authPageConfig);
 const cachedAccountGuestHtml = wrapWithGuestBlur(cachedAccountHtml, "/account");
 const cachedProfileHtml = renderProfile(authPageConfig);
 const cachedAdminHtml = renderAdmin(authPageConfig);
@@ -982,6 +989,10 @@ app.get("/account", scrapeGate, async (req, res) => {
 
 app.get("/promote", scrapeGate, requireUser, (req, res) => {
   res.send(cachedPromoHtml);
+});
+
+app.get("/chess", scrapeGate, requireUser, (req, res) => {
+  res.send(cachedChessHtml);
 });
 
 app.get("/giveaway", scrapeGate, requireUser, (req, res) => {
@@ -4448,6 +4459,8 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
+discoverLockablePages(app, LOCKABLE_PAGES);
+
 const server = app.listen(PORT, function () {
   console.log("ES TEAMS TV running on port " + PORT);
 });

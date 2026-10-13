@@ -873,7 +873,7 @@ function esBuildMenu() {
   list.appendChild(link("/channel-react"));
 
   section("Games");
-  list.appendChild(action("Chess", ES_ICON_CHESS, function () { showToast("Chess is coming soon"); }));
+  list.appendChild(item({ href: "/chess", label: "Chess", icon: ES_ICON_CHESS }));
 
   section("Build");
   list.appendChild(link("/deploy-bot"));
