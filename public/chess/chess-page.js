@@ -1,5 +1,5 @@
-import { Chess } from "/chess-engine.js";
-import { pieceSymbols } from "/chess-pieces.js";
+import { Chess } from "/chess/chess-engine.js";
+import { pieceSymbols } from "/chess/chess-pieces.js";
 
 const FILES = "abcdefgh";
 const LEVELS = [
@@ -369,7 +369,7 @@ function getWorker() {
   if (workerBroken) return null;
   if (worker) return worker;
   try {
-    worker = new Worker("/chess-worker.js", { type: "module" });
+    worker = new Worker("/chess/chess-worker.js", { type: "module" });
     worker.onmessage = (e) => { const cb = botWaiting.get(e.data.id); if (cb) { botWaiting.delete(e.data.id); cb(e.data); } };
     worker.onerror = () => { workerBroken = true; worker = null; for (const [id, cb] of botWaiting) { botWaiting.delete(id); cb({ id, error: "worker" }); } };
   } catch { workerBroken = true; worker = null; }
@@ -383,7 +383,7 @@ function askBot(payload) {
     const finish = (data) => { if (done) return; done = true; botWaiting.delete(id); resolve(data); };
     const fallback = async () => {
       try {
-        const { chooseFromMoves } = await import("/chess-bot.js");
+        const { chooseFromMoves } = await import("/chess/chess-bot.js");
         await new Promise((r) => setTimeout(r, 30));
         const r = chooseFromMoves(payload.startFen, payload.moves, payload.level);
         finish({ id, uci: r ? r.uci : null });

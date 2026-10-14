@@ -52,7 +52,7 @@ button{cursor:pointer}
 
 
 </style>
-<link rel="stylesheet" href="/chess.css">
+<link rel="stylesheet" href="/chess/chess.css">
 </head>
 <body>
 <div class="aurora"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="blob blob-3"></div></div>
@@ -91,7 +91,7 @@ button{cursor:pointer}
   </section>
 </main>
 
-<script nonce="__CSP_NONCE__" type="module" src="/chess-page.js"></script>
+<script nonce="__CSP_NONCE__" type="module" src="/chess/chess-page.js"></script>
 </body>
 </html>`;
 }

@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { Chess } from "../public/chess-engine.js";
+import { Chess } from "../public/chess/chess-engine.js";
 
 
 export const TIME_OPTIONS = [3, 5, 10, 15, 30];     // minutes per side
