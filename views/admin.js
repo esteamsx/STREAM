@@ -1190,7 +1190,8 @@ document.querySelectorAll('.custom-select').forEach((wrap) => {
 document.addEventListener('click', () => {
   document.querySelectorAll('.custom-select.open').forEach((w) => w.classList.remove('open'));
 });
-window.addEventListener('scroll', () => {
+window.addEventListener('scroll', (e) => {
+  if (e.target && e.target.nodeType === 1 && e.target.closest && e.target.closest('.custom-select-list')) return;
   document.querySelectorAll('.custom-select.open').forEach((w) => w.classList.remove('open'));
 }, true);
 

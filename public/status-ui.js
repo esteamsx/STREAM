@@ -116,6 +116,26 @@
     ".st-linkbtn{display:none;align-items:center;gap:6px;flex-shrink:0;height:44px;padding:0 14px;border-radius:22px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.4);color:#fff;font-size:.78rem;font-weight:600;cursor:pointer}",
     ".st-linkbtn.show{display:inline-flex}",
     ".st-linkbtn svg{width:16px;height:16px}",
+    ".st-vf{width:15px;height:15px;flex-shrink:0;margin-left:4px;vertical-align:-2px}",
+    ".st-cr{display:flex;flex-direction:column}",
+    ".st-cr-stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:8px 12px;touch-action:none;user-select:none;-webkit-user-select:none}",
+    ".st-cr-wrap{position:relative;overflow:hidden;line-height:0}",
+    ".st-cr-wrap canvas{display:block}",
+    ".st-cr-box{position:absolute;border:2px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.58);cursor:move;touch-action:none}",
+    ".st-cr-box::before,.st-cr-box::after{content:\"\";position:absolute;inset:0;pointer-events:none;background:linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 33.33% 0/1px 100% no-repeat,linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 66.66% 0/1px 100% no-repeat}",
+    ".st-cr-box::after{background:linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 0 33.33%/100% 1px no-repeat,linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 0 66.66%/100% 1px no-repeat}",
+    ".st-cr-h{position:absolute;width:30px;height:30px;touch-action:none}",
+    ".st-cr-h::after{content:\"\";position:absolute;width:18px;height:18px;border:4px solid #fff}",
+    ".st-cr-h.tl{left:-6px;top:-6px}.st-cr-h.tl::after{left:0;top:0;border-right:0;border-bottom:0}",
+    ".st-cr-h.tr{right:-6px;top:-6px}.st-cr-h.tr::after{right:0;top:0;border-left:0;border-bottom:0}",
+    ".st-cr-h.bl{left:-6px;bottom:-6px}.st-cr-h.bl::after{left:0;bottom:0;border-right:0;border-top:0}",
+    ".st-cr-h.br{right:-6px;bottom:-6px}.st-cr-h.br::after{right:0;bottom:0;border-left:0;border-top:0}",
+    ".st-cr-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px calc(14px + env(safe-area-inset-bottom))}",
+    ".st-cr-chips{display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0}",
+    ".st-cr-chip{flex-shrink:0;height:34px;padding:0 12px;border-radius:17px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.4);color:#fff;font-size:.74rem;font-weight:600;cursor:pointer}",
+    ".st-cr-chip.on{background:#25D366;border-color:#25D366;color:#04141a}",
+    ".st-cr-rot{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.4);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}",
+    ".st-cr-rot svg{width:19px;height:19px}",
     ".st-vfoot{position:absolute;left:0;right:0;bottom:0;z-index:3;background:linear-gradient(transparent,rgba(0,0,0,.5))}",
     ".st-send-bar{display:flex;align-items:center;gap:10px;padding:10px 14px 14px}",
     ".st-send-bar .st-in{background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.22);color:#fff}",
@@ -140,7 +160,9 @@
 
   var ICONS = {
     link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07l-1.41 1.41"/><path d="M14 11a5 5 0 00-7.07 0L4.1 13.83a5 5 0 007.07 7.07l1.41-1.41"/></svg>',
-    chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>',
+    chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>',
+    verified: '<svg class="st-vf" viewBox="0 0 24 24" aria-label="Verified"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>',
+    rotate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 3v6h-6"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>',
@@ -418,8 +440,14 @@
     });
   }
 
-  function infoBlock(name, sub) {
-    return h("div", { class: "st-info" }, [h("div", { class: "st-name", text: name }), h("div", { class: "st-sub", text: sub })]);
+  function nameEl(name, verified) {
+    var el = h("div", { class: "st-name" }, [h("span", { text: name, style: "overflow:hidden;text-overflow:ellipsis" })]);
+    if (verified) el.insertAdjacentHTML("beforeend", ICONS.verified);
+    return el;
+  }
+
+  function infoBlock(name, sub, verified) {
+    return h("div", { class: "st-info" }, [nameEl(name, verified), h("div", { class: "st-sub", text: sub })]);
   }
 
   function renderList() {
@@ -448,7 +476,7 @@
         var av = avatar(e.user);
         av.classList.add("st-ring");
         if (isSeen) av.classList.add("seen");
-        var row = h("button", { class: "st-row", type: "button" }, [av, infoBlock(nameOf(e.user), e.count + (e.count === 1 ? " update" : " updates") + " \u00b7 " + ago(e.latestAt))]);
+        var row = h("button", { class: "st-row", type: "button" }, [av, infoBlock(nameOf(e.user), e.count + (e.count === 1 ? " update" : " updates") + " \u00b7 " + ago(e.latestAt), e.user && e.user.verified)]);
         row.addEventListener("click", function () { openUser(e.uid); });
         body.appendChild(row);
       });
@@ -557,7 +585,7 @@
     setTimeout(function () { ta.focus(); }, 80);
   }
 
-  function fileToDataUrl(file) {
+  function loadImage(file) {
     return new Promise(function (resolve, reject) {
       if (!/^image\/(jpeg|png|webp)$/i.test(file.type || "")) {
         reject(new Error("Only photos (JPG, PNG, WebP) are allowed. Videos are not supported yet."));
@@ -565,25 +593,145 @@
       }
       var url = URL.createObjectURL(file);
       var img = new Image();
-      img.onload = function () {
-        var max = 1280, q = 0.85, out = "";
-        var scale = Math.min(1, max / Math.max(img.width, img.height));
-        for (var i = 0; i < 6; i++) {
-          var c = document.createElement("canvas");
-          c.width = Math.max(1, Math.round(img.width * scale));
-          c.height = Math.max(1, Math.round(img.height * scale));
-          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-          out = c.toDataURL("image/jpeg", q);
-          if (out.length <= IMG_LIMIT_CHARS) break;
-          q = Math.max(0.5, q - 0.1);
-          scale *= 0.85;
-        }
-        URL.revokeObjectURL(url);
-        if (out.length > IMG_LIMIT_CHARS) reject(new Error("That photo is too large. Try a smaller one."));
-        else resolve(out);
-      };
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
       img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("Could not read that photo.")); };
       img.src = url;
+    });
+  }
+
+  function compressCanvas(src) {
+    var max = 1280, q = 0.85, out = "";
+    var scale = Math.min(1, max / Math.max(src.width, src.height));
+    for (var i = 0; i < 6; i++) {
+      var c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(src.width * scale));
+      c.height = Math.max(1, Math.round(src.height * scale));
+      c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+      out = c.toDataURL("image/jpeg", q);
+      if (out.length <= IMG_LIMIT_CHARS) break;
+      q = Math.max(0.5, q - 0.1);
+      scale *= 0.85;
+    }
+    if (out.length > IMG_LIMIT_CHARS) throw new Error("That photo is too large. Try a smaller one.");
+    return out;
+  }
+
+  function openCropper(img) {
+    return new Promise(function (resolve) {
+      var base = document.createElement("canvas");
+      var k = Math.min(1, 2400 / Math.max(img.naturalWidth, img.naturalHeight));
+      base.width = Math.round(img.naturalWidth * k); base.height = Math.round(img.naturalHeight * k);
+      base.getContext("2d").drawImage(img, 0, 0, base.width, base.height);
+      var src = base, aspect = null, rect = { x: 0, y: 0, w: 0, h: 0 }, dw = 0, dh = 0;
+
+      var wrap = h("div", { class: "st-full glassbg st-cr" });
+      var close = h("button", { class: "st-x", type: "button", "aria-label": "Cancel", html: ICONS.close });
+      var stage = h("div", { class: "st-cr-stage" });
+      var holder = h("div", { class: "st-cr-wrap" });
+      var canvas = h("canvas");
+      var box = h("div", { class: "st-cr-box" });
+      ["tl", "tr", "bl", "br"].forEach(function (n) { box.appendChild(h("div", { class: "st-cr-h " + n, "data-h": n })); });
+      holder.appendChild(canvas); holder.appendChild(box); stage.appendChild(holder);
+      var chips = h("div", { class: "st-cr-chips" });
+      var shapes = [["Free", null], ["1:1", 1], ["4:5", 4 / 5], ["9:16", 9 / 16], ["16:9", 16 / 9]];
+      shapes.forEach(function (sh) {
+        var c = h("button", { class: "st-cr-chip" + (sh[1] === aspect ? " on" : ""), type: "button", text: sh[0] });
+        c.addEventListener("click", function () {
+          aspect = sh[1];
+          Array.prototype.forEach.call(chips.children, function (x) { x.classList.remove("on"); });
+          c.classList.add("on");
+          if (aspect) fitAspect();
+          paintBox();
+        });
+        chips.appendChild(c);
+      });
+      var rot = h("button", { class: "st-cr-rot", type: "button", "aria-label": "Rotate", html: ICONS.rotate });
+      var done = h("button", { class: "st-send", type: "button", "aria-label": "Use photo", html: ICONS.send });
+      wrap.appendChild(h("div", { class: "st-top" }, [close]));
+      wrap.appendChild(stage);
+      wrap.appendChild(h("div", { class: "st-cr-bar" }, [chips, rot, done]));
+      document.body.appendChild(wrap);
+
+      function layout() {
+        var r = stage.getBoundingClientRect();
+        var maxW = Math.max(80, r.width - 24), maxH = Math.max(80, r.height - 16);
+        var sc = Math.min(maxW / src.width, maxH / src.height);
+        dw = Math.round(src.width * sc); dh = Math.round(src.height * sc);
+        canvas.width = dw; canvas.height = dh;
+        canvas.getContext("2d").drawImage(src, 0, 0, dw, dh);
+        holder.style.width = dw + "px"; holder.style.height = dh + "px";
+        rect = { x: dw * 0.06, y: dh * 0.06, w: dw * 0.88, h: dh * 0.88 };
+        if (aspect) fitAspect();
+        paintBox();
+      }
+      function fitAspect() {
+        var cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+        var w = rect.w, hh = w / aspect;
+        if (hh > dh) { hh = dh; w = hh * aspect; }
+        if (w > dw) { w = dw; hh = w / aspect; }
+        rect.w = w; rect.h = hh;
+        rect.x = Math.min(Math.max(0, cx - w / 2), dw - w);
+        rect.y = Math.min(Math.max(0, cy - hh / 2), dh - hh);
+      }
+      function paintBox() {
+        box.style.left = rect.x + "px"; box.style.top = rect.y + "px";
+        box.style.width = rect.w + "px"; box.style.height = rect.h + "px";
+      }
+
+      var drag = null;
+      box.addEventListener("pointerdown", function (e) {
+        e.preventDefault();
+        var hd = e.target.getAttribute && e.target.getAttribute("data-h");
+        drag = { mode: hd || "move", sx: e.clientX, sy: e.clientY, r: { x: rect.x, y: rect.y, w: rect.w, h: rect.h } };
+        try { box.setPointerCapture(e.pointerId); } catch (err) {}
+      });
+      box.addEventListener("pointermove", function (e) {
+        if (!drag) return;
+        var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy, r = drag.r, MIN = 48;
+        if (drag.mode === "move") {
+          rect.x = Math.min(Math.max(0, r.x + dx), dw - r.w);
+          rect.y = Math.min(Math.max(0, r.y + dy), dh - r.h);
+        } else {
+          var left = drag.mode.charAt(1) === "l", top = drag.mode.charAt(0) === "t";
+          var ax = left ? r.x + r.w : r.x, ay = top ? r.y + r.h : r.y;   // the corner that stays put
+          var px = Math.min(Math.max(0, (left ? r.x : r.x + r.w) + dx), dw);
+          var py = Math.min(Math.max(0, (top ? r.y : r.y + r.h) + dy), dh);
+          var w = Math.max(MIN, Math.abs(px - ax)), hh = Math.max(MIN, Math.abs(py - ay));
+          if (aspect) {
+            hh = w / aspect;
+            var roomW = left ? ax : dw - ax, roomH = top ? ay : dh - ay;
+            if (hh > roomH) { hh = roomH; w = hh * aspect; }
+            if (w > roomW) { w = roomW; hh = w / aspect; }
+          }
+          rect.w = w; rect.h = hh;
+          rect.x = left ? ax - w : ax;
+          rect.y = top ? ay - hh : ay;
+        }
+        paintBox();
+      });
+      function endDrag() { drag = null; }
+      box.addEventListener("pointerup", endDrag);
+      box.addEventListener("pointercancel", endDrag);
+
+      rot.addEventListener("click", function () {
+        var c = document.createElement("canvas");
+        c.width = src.height; c.height = src.width;
+        var cx = c.getContext("2d");
+        cx.translate(c.width, 0); cx.rotate(Math.PI / 2); cx.drawImage(src, 0, 0);
+        src = c;
+        layout();
+      });
+      function finish(result) { window.removeEventListener("resize", layout); wrap.remove(); resolve(result); }
+      close.addEventListener("click", function () { finish(null); });
+      done.addEventListener("click", function () {
+        var f = src.width / dw;
+        var out = document.createElement("canvas");
+        out.width = Math.max(1, Math.round(rect.w * f)); out.height = Math.max(1, Math.round(rect.h * f));
+        out.getContext("2d").drawImage(src, rect.x * f, rect.y * f, rect.w * f, rect.h * f, 0, 0, out.width, out.height);
+        finish(out);
+      });
+      window.addEventListener("resize", layout);
+      requestAnimationFrame(layout);
     });
   }
 
@@ -593,7 +741,10 @@
       var f = input.files && input.files[0];
       input.remove();
       if (!f) return;
-      fileToDataUrl(f).then(openPhotoComposer).catch(function (err) { toast(err.message); });
+      loadImage(f).then(openCropper).then(function (canvas) {
+        if (!canvas) return;
+        openPhotoComposer(compressCanvas(canvas));
+      }).catch(function (err) { toast(err.message); });
     });
     document.body.appendChild(input);
     input.click();
@@ -722,6 +873,7 @@
       Array.prototype.forEach.call(oldCap, function (c, n) { if (n < oldCap.length - (s.type === "image" && s.caption ? 1 : 0)) c.remove(); });
       bars.forEach(function (b, n) { b.style.width = n < i ? "100%" : "0"; });
       nm.textContent = d.isOwner ? "My status" : nameOf(d.user);
+      if (!d.isOwner && d.user && d.user.verified) nm.insertAdjacentHTML("beforeend", ICONS.verified);
       tm.textContent = ago(s.createdAt);
       if (d.isOwner) buildOwnerFoot(s); else buildViewerFoot(s);
       if (!s.seen) {
@@ -779,7 +931,7 @@
           return;
         }
         rows.forEach(function (r) {
-          var info = h("div", { class: "st-info" }, [h("div", { class: "st-name", text: nameOf(r.user) })]);
+          var info = h("div", { class: "st-info" }, [nameEl(nameOf(r.user), r.user && r.user.verified)]);
           if (tab === "views") info.appendChild(h("div", { class: "st-sub", text: ago(r.viewedAt) }));
           else {
             info.appendChild(h("div", { class: "st-cmt", text: r.text }));
