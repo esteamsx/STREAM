@@ -6,7 +6,7 @@ export const TIME_OPTIONS = [3, 5, 10, 15, 30];     // minutes per side
 const CHALLENGE_TTL_MS = 60 * 1000;
 const DECLINE_COOLDOWN_MS = 15 * 1000;
 const CHALLENGE_GAP_MS = 2000;
-const DISCONNECT_FORFEIT_MS = 45 * 1000;
+const DISCONNECT_FORFEIT_MS = 3 * 60 * 1000;   // long enough to switch apps and come back
 const GAME_KEEP_MS = 15 * 60 * 1000;
 const OFFLINE_FORGET_MS = 60 * 1000;
 const MAX_OUTGOING = 3;
@@ -47,6 +47,8 @@ const MESSAGES = {
   too_many_offers: "You have offered too many draws.",
   no_offer: "There is no draw offer to answer.",
   server_full: "The game server is full. Try again in a few minutes.",
+  host_offline: "The host is not online right now. Try again in a moment.",
+  host_busy: "The host is in another game right now. Try again in a moment.",
 };
 
 const err = (code) => new HubError(code, MESSAGES[code]);
@@ -63,7 +65,10 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     name: String(p.name || "").slice(0, 80),
     photo: p.photo ? String(p.photo) : null,
     verified: !!p.verified,
+    guest: !!p.guest,
   });
+  const isGuestUid = (uid) => String(uid || "").startsWith("guest_");
+  let onGameOver = null;
 
   function emit(uid, event, data) {
     const u = users.get(uid);
@@ -189,7 +194,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     const q = String(query || "").trim().toLowerCase();
     const out = [];
     for (const [uid, u] of users) {
-      if (uid === viewerUid || !u.conns.size) continue;
+      if (uid === viewerUid || !u.conns.size || isGuestUid(uid)) continue;
       const p = u.profile;
       if (q && !p.username.toLowerCase().includes(q) && !p.name.toLowerCase().includes(q)) continue;
       out.push({ ...p, status: isBusy(uid) ? "playing" : "available" });
@@ -206,6 +211,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     if (!isOnline(fromUid)) throw err("not_connected");
     toUid = String(toUid || "");
     if (!toUid || toUid === fromUid) throw err("self");
+    if (isGuestUid(toUid) || isGuestUid(fromUid)) throw err("offline");
     if (!TIME_OPTIONS.includes(Number(minutes))) throw err("bad_time");
     if (!["white", "black", "random"].includes(color)) color = "random";
     if (!isOnline(toUid)) throw err("offline");
@@ -253,17 +259,28 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       endChallenge(ch, "cancelled");
       throw err("unavailable");
     }
-    if (games.size >= MAX_GAMES) throw err("server_full");
     const fromIsWhite = ch.color === "white" ? true : ch.color === "black" ? false : randomBit() === 0;
-    const players = fromIsWhite ? { w: ch.from, b: ch.to } : { w: ch.to, b: ch.from };
-    const ms = ch.minutes * 60 * 1000;
+    const game = createGame(ch.from, ch.to, fromIsWhite, ch.minutes);
+    challenges.delete(ch.id);
+    emit(ch.from, "challenge_update", { id: ch.id, status: "accepted" });
+    emit(ch.to, "challenge_update", { id: ch.id, status: "accepted" });
+    cancelAllChallengesOf(ch.from, "cancelled");
+    cancelAllChallengesOf(ch.to, "cancelled");
+    startGameFor(game);
+    return { gameId: game.id };
+  }
+
+  function createGame(fromUid, toUid, fromIsWhite, minutes) {
+    if (games.size >= MAX_GAMES) throw err("server_full");
+    const players = fromIsWhite ? { w: fromUid, b: toUid } : { w: toUid, b: fromUid };
+    const ms = minutes * 60 * 1000;
     const game = {
       id: randomHex(16),
       players,
       keys: { w: randomHex(16), b: randomHex(16) },
-      profiles: { [ch.from]: users.get(ch.from).profile, [ch.to]: users.get(ch.to).profile },
+      profiles: { [fromUid]: users.get(fromUid).profile, [toUid]: users.get(toUid).profile },
       chess: new Chess(),
-      minutes: ch.minutes,
+      minutes,
       clocks: { w: ms, b: ms },
       turnStartedAt: now(),
       moves: [],
@@ -275,16 +292,27 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       endedAt: null,
     };
     games.set(game.id, game);
-    users.get(ch.from).gameId = game.id;
-    users.get(ch.to).gameId = game.id;
-    challenges.delete(ch.id);
-    emit(ch.from, "challenge_update", { id: ch.id, status: "accepted" });
-    emit(ch.to, "challenge_update", { id: ch.id, status: "accepted" });
-    cancelAllChallengesOf(ch.from, "cancelled");
-    cancelAllChallengesOf(ch.to, "cancelled");
-    emit(players.w, "game_start", gameView(game, players.w, true));
-    emit(players.b, "game_start", gameView(game, players.b, true));
-    return { gameId: game.id };
+    users.get(fromUid).gameId = game.id;
+    users.get(toUid).gameId = game.id;
+    return game;
+  }
+
+  function startGameFor(game) {
+    emit(game.players.w, "game_start", gameView(game, game.players.w, true));
+    emit(game.players.b, "game_start", gameView(game, game.players.b, true));
+  }
+
+  function startDirect(hostUid, guestUid, { color = "random", minutes = 10 } = {}) {
+    if (!isOnline(hostUid)) throw err("host_offline");
+    if (!isOnline(guestUid)) throw err("not_connected");
+    if (isBusy(hostUid)) throw err("host_busy");
+    if (isBusy(guestUid)) throw err("busy");
+    if (!TIME_OPTIONS.includes(Number(minutes))) throw err("bad_time");
+    const hostIsWhite = color === "white" ? true : color === "black" ? false : randomBit() === 0;
+    const game = createGame(hostUid, guestUid, hostIsWhite, Number(minutes));
+    cancelAllChallengesOf(hostUid, "cancelled");
+    startGameFor(game);
+    return game.id;
   }
 
   function finish(game, winner, reason) {
@@ -301,6 +329,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     const payload = { gameId: game.id, winner, reason, fen: game.chess.fen(), clocks: game.clocks, moveCount: game.moves.length };
     emit(game.players.w, "game_over", payload);
     emit(game.players.b, "game_over", payload);
+    if (onGameOver) { try { onGameOver(game); } catch { /* never block the game */ } }
   }
 
   function move(uid, gameId, key, mv) {
@@ -415,7 +444,9 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
 
   return {
     connect, disconnect, online, annotate, presenceOf, challenge, cancelChallenge, respond,
-    move, resign, offerDraw, respondDraw, myGame, sweep,
+    move, resign, offerDraw, respondDraw, myGame, sweep, startDirect, isOnline, isBusy,
+    setOnGameOver: (fn) => { onGameOver = typeof fn === "function" ? fn : null; },
+    gameIdOf: (uid) => { const u = users.get(uid); return u && u.gameId ? u.gameId : null; },
     connectionCount: (uid) => (users.get(uid) ? users.get(uid).conns.size : 0),
     stats: () => ({ users: users.size, games: games.size, challenges: challenges.size }),
     HubError,

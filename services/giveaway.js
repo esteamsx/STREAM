@@ -9,7 +9,7 @@ import {
   validateImageDataUrl,
   normalizeFaceSamples,
   storedFaceSamples,
-  bestDistanceBetween,
+  faceConsensusDistance,
   verifyOwnFaceId,
   CLAIM_FACE_THRESHOLD,
 } from "./auth.js";
@@ -161,7 +161,7 @@ export async function enterGiveaway(uid, body = {}) {
   if (idx.uids.has(uid)) throw fail("You have already entered this giveaway.", 409, "giveaway/duplicate");
   if (idx.phones.has(phone)) throw fail("This phone number has already been entered.", 409, "giveaway/duplicate");
   for (const f of idx.faces) {
-    if (f.samples.length && bestDistanceBetween(probes, f.samples) <= CLAIM_FACE_THRESHOLD) {
+    if (f.samples.length && faceConsensusDistance(probes, f.samples) <= CLAIM_FACE_THRESHOLD) {
       throw fail("This face has already been entered. One entry per person.", 409, "giveaway/duplicate");
     }
   }

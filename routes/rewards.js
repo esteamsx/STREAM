@@ -97,6 +97,7 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
       coinRequestTtlMs: COIN_REQUEST_LINK_TTL_MS,
       referrals: referrals.map((r) => ({
         referredUsername: r.referredUsername,
+        referredName: r.referredName || "",
         referredAt: r.referredAt,
         totalCommissionNgn: r.totalCommissionNgn || 0,
       })),

@@ -53,41 +53,41 @@ button{cursor:pointer}
 
 </style>
 <link rel="stylesheet" href="/chess/chess.css">
+<script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 </head>
 <body>
 <div class="aurora"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="blob blob-3"></div></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="cxSymbols"></defs></svg>
 
 <nav class="cx-nav">
-  <a class="cx-back" href="/">
+  <a class="cx-back" href="/" id="cxBack">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
     Back
   </a>
   <div class="cx-nav-title">Chess</div>
+  <div class="cx-sound" id="cxSound" tabindex="0" aria-label="Sound on or off" aria-pressed="true"></div>
   <div class="cx-conn" id="cxConn"><i></i><span id="cxConnText">Connecting</span></div>
 </nav>
 
 <main class="cx-wrap">
   <section id="cxMenu" class="cx-menu"></section>
+  <section id="cxGuest" class="cx-menu" hidden></section>
 
   <section id="cxGame" class="cx-game" hidden>
     <div class="cx-boardcol">
       <div id="cxTop"></div>
-      <div style="position:relative">
+      <div class="cx-boardwrap">
         <div class="cx-board" id="cxBoard"></div>
-        <div class="cx-think" id="cxThink" hidden>Computer is thinking...</div>
+        <div class="cx-think" id="cxThink" hidden><span class="cx-dots"><span></span><span></span><span></span></span>Computer is thinking</div>
       </div>
       <div id="cxBottom"></div>
-      <div class="cx-controls" id="cxControls"></div>
-    </div>
-    <aside class="cx-side">
-      <div class="cx-card">
+      <div class="cx-card cx-info">
         <div class="cx-status" id="cxStatus"></div>
         <div class="cx-note" id="cxNote" hidden></div>
-        <div class="cx-h">Moves</div>
         <div class="cx-moves" id="cxMoves"></div>
       </div>
-    </aside>
+      <div class="cx-controls" id="cxControls"></div>
+    </div>
   </section>
 </main>
 

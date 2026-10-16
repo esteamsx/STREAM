@@ -5118,7 +5118,7 @@ async function loadRewardsSummary(){
     refList.innerHTML = '<div class="rw-empty">No referrals yet.</div>';
   } else {
     refList.innerHTML = rewardsSummary.referrals.map((r) =>
-      '<div class="rw-ref-row"><div><div class="rw-ref-row-name">@' + esc(r.referredUsername || 'user') + '</div>' +
+      '<div class="rw-ref-row"><div><div class="rw-ref-row-name">' + (r.referredUsername ? '@' + esc(r.referredUsername) : esc(r.referredName || 'New user')) + '</div>' +
       '<div class="rw-ref-row-meta">Joined ' + fmtDateShort(r.referredAt) + '</div></div>' +
       '<div class="rw-ref-row-commission">' + (r.totalCommissionNgn ? fmtNgn(r.totalCommissionNgn) + ' earned' : '') + '</div></div>'
     ).join('');

@@ -1,5 +1,13 @@
 import { Chess } from "/chess/chess-engine.js";
 import { pieceSymbols } from "/chess/chess-pieces.js";
+import { sound } from "/chess/chess-sound.js";
+
+const GUEST_MATCH = /^\/chess\/guest\/([A-Za-z0-9_-]{6,40})\/?$/.exec(location.pathname);
+const GUEST_TOKEN = GUEST_MATCH ? GUEST_MATCH[1] : null;
+const BASE = GUEST_TOKEN ? "/api/chess/guest" : "/api/chess";
+const SAVE_KEY = "cx_savedgame";
+const BOT_IMG = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#04141a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M32 10v7"/><circle cx="32" cy="8" r="2.4" fill="#04141a"/><rect x="12" y="17" width="40" height="30" rx="10"/><circle cx="24" cy="31" r="4.2" fill="#04141a"/><circle cx="40" cy="31" r="4.2" fill="#04141a"/><path d="M25 40h14"/><path d="M12 29H7M57 29h-5M24 47v6M40 47v6"/></svg>');
+const TIME_LABELS = { 10: "10 minutes", 30: "30 minutes", 60: "1 hour", 180: "3 hours", 1440: "24 hours" };
 
 const FILES = "abcdefgh";
 const LEVELS = [
@@ -57,6 +65,7 @@ const state = {
   minutes: TIMES.includes(Number(store("minutes"))) ? Number(store("minutes")) : 10,
   challengeColor: ["white", "black", "random"].includes(store("ccolor")) ? store("ccolor") : "random",
   me: null,
+  resuming: false,
   conn: "connecting",
   players: [],
   incoming: [],
@@ -64,6 +73,9 @@ const state = {
   search: "",
   offset: 0,
   game: null,
+  links: null,
+  guest: GUEST_TOKEN ? { token: GUEST_TOKEN, info: null, name: store("guestname", "") } : null,
+  loadingPlayers: false,
 };
 
 let toastTimer = null;
@@ -71,18 +83,28 @@ function toast(msg) {
   let t = $("cxToast");
   if (!t) { t = h("div", { id: "cxToast", class: "cx-toast" }); document.body.appendChild(t); }
   t.textContent = msg;
+  t.style.display = "none";
+  void t.offsetWidth;
   t.style.display = "block";
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.style.display = "none"; }, 2800);
 }
 
+function photoSrc(url) {
+  if (!url) return null;
+  if (GUEST_TOKEN && url.startsWith("/api/chess/avatar/")) return "/api/chess/guest/avatar/" + encodeURIComponent(GUEST_TOKEN);
+  return url;
+}
+
 function avatar(p, status) {
   const letter = (p && (p.name || p.username) || "?").trim().charAt(0).toUpperCase() || "?";
   const box = h("div", { class: "cx-av" });
-  if (p && p.photo) {
+  if (p && p.bot) {
+    box.appendChild(h("img", { alt: "Computer", class: "bot", src: BOT_IMG }));
+  } else if (p && p.photo) {
     const img = h("img", { alt: "", referrerpolicy: "no-referrer" });
     img.addEventListener("error", () => { img.remove(); box.insertBefore(document.createTextNode(letter), box.firstChild); });
-    img.src = p.photo;
+    img.src = photoSrc(p.photo);
     box.appendChild(img);
   } else box.appendChild(document.createTextNode(letter));
   if (status) box.appendChild(h("i", { class: "st " + status }));
@@ -93,6 +115,12 @@ function modal(content) {
   const ov = h("div", { class: "cx-ov" }, [h("div", { class: "cx-modal", role: "dialog" }, content)]);
   document.body.appendChild(ov);
   return { el: ov, close: () => ov.remove() };
+}
+
+function busy(btn, on) {
+  if (!btn) return;
+  btn.classList.toggle("cx-busy", !!on);
+  btn.disabled = !!on;
 }
 
 async function api(path, body) {
@@ -115,25 +143,32 @@ function connect() {
   clearTimeout(retryTimer);
   if (es) { es.close(); es = null; }
   setConn("connecting");
-  es = new EventSource("/api/chess/stream");
+  es = new EventSource(BASE + "/stream");
   const on = (name, fn) => es.addEventListener(name, (e) => { let d = null; try { d = JSON.parse(e.data); } catch { return; } fn(d); });
 
   on("hello", (d) => {
     retries = 0;
     state.me = d.me;
+    state.resuming = false;
+    state.guestWait = null;
     state.offset = (d.serverTime || Date.now()) - Date.now();
     state.incoming = d.incoming || [];
     state.outgoing = d.outgoing || [];
     setConn("online");
+    if (state.game && state.game.mode === "bot") renderGameInfo();   // paint your picture on the bar
     if (d.game) {
       if (d.game.status === "active") startOnlineGame(d.game, { resume: true });
     } else if (state.game && state.game.mode === "online" && !state.game.over) {
       finishOnline(null, "abandoned_both", true);
     }
+    if (GUEST_TOKEN) { if (!state.game) refreshGuestInfo(); return; }
     renderLobby();
     loadPlayers();
+    loadLinks();
   });
+  on("guest_wait", (d) => { state.guestWait = (d && d.message) || "Waiting for the host."; renderGuest(); });
   on("challenge", (c) => {
+    sound.ping();
     state.incoming = state.incoming.filter((x) => x.id !== c.id).concat([c]);
     renderLobby();
     renderBanner();
@@ -151,7 +186,7 @@ function connect() {
     renderLobby();
     renderBanner();
   });
-  on("game_start", (v) => { startOnlineGame(v, {}); });
+  on("game_start", (v) => { sound.ping(); startOnlineGame(v, {}); });
   on("move", onServerMove);
   on("game_over", (d) => onServerGameOver(d));
   on("draw_offer", (d) => {
@@ -181,7 +216,7 @@ function connect() {
       es.close();
       es = null;
       retries++;
-      if (retries > 6) { setConn("unavailable"); return; }
+      if (retries > 6) { state.resuming = false; setConn("unavailable"); if (GUEST_TOKEN) refreshGuestInfo(); return; }
       retryTimer = setTimeout(connect, Math.min(15000, 1500 * retries));
     }
   };
@@ -192,6 +227,7 @@ function setConn(c) {
   const el = $("cxConn");
   if (!el) return;
   el.className = "cx-conn " + (c === "online" ? "on" : c === "connecting" ? "" : "off");
+  if (GUEST_TOKEN) renderGuest();
   $("cxConnText").textContent = c === "online" ? "Online" : c === "connecting" ? "Connecting" : c === "unavailable" ? "Unavailable" : "Reconnecting";
   renderLobby();
 }
@@ -199,11 +235,15 @@ function setConn(c) {
 function renderMenu() {
   const root = $("cxMenu");
   root.textContent = "";
+  if (state.resuming) {
+    root.appendChild(h("div", { class: "cx-card" }, [h("div", { class: "cx-loading", id: "cxResuming" }, [h("span", { class: "cx-roll" }), "Getting your game back"])]));
+    return;
+  }
   const pending = state.incoming.length;
   root.appendChild(h("div", { class: "cx-hero" }, [h("h1", { text: "Chess" }), h("p", { text: "Play the computer, or challenge someone who is online." })]));
   root.appendChild(h("div", { class: "cx-tabs" }, [
     h("button", { class: "cx-tab" + (state.tab === "computer" ? " on" : ""), id: "tabComputer", type: "button", onclick: () => { state.tab = "computer"; renderMenu(); } }, ["Computer"]),
-    h("button", { class: "cx-tab" + (state.tab === "online" ? " on" : ""), id: "tabOnline", type: "button", onclick: () => { state.tab = "online"; renderMenu(); loadPlayers(); } }, ["Online", pending ? h("span", { class: "badge", text: String(pending) }) : null]),
+    h("button", { class: "cx-tab" + (state.tab === "online" ? " on" : ""), id: "tabOnline", type: "button", onclick: () => { state.tab = "online"; renderMenu(); loadPlayers(); loadLinks(); } }, ["Online", pending ? h("span", { class: "badge", text: String(pending) }) : null]),
   ]));
   const card = h("div", { class: "cx-card", id: "cxPanel" });
   root.appendChild(card);
@@ -222,13 +262,13 @@ function renderComputerPanel(card) {
     type: "button", class: "cx-chip" + (state.color === id ? " on" : ""), "data-color": id,
     onclick: () => { state.color = id; save("color", id); renderMenu(); },
   }, [label]))));
-  card.appendChild(h("button", { type: "button", class: "cx-btn", id: "cxStartBot", onclick: startBotGame }, ["Start game"]));
+  card.appendChild(h("button", { type: "button", class: "cx-btn", id: "cxStartBot", onclick: (e) => { busy(e.currentTarget, true); setTimeout(startBotGame, 180); } }, ["Start game"]));
 }
 
 function renderOnlinePanel(card) {
   card.id = "cxPanel";
   if (state.conn !== "online") {
-    card.appendChild(h("div", { class: "cx-empty", id: "cxOffline", text: state.conn === "unavailable" ? "Online play is not available right now. You can still play the computer." : "Connecting to online play..." }));
+    card.appendChild(h("div", { class: "cx-empty", id: "cxOffline", text: state.conn === "unavailable" ? "Online play is not available right now. You can still play the computer." : "" }, state.conn === "unavailable" ? [] : [h("span", { class: "cx-roll" }), " Connecting to online play"]));
     return;
   }
   if (state.incoming.length) {
@@ -245,10 +285,94 @@ function renderOnlinePanel(card) {
   card.appendChild(h("div", { class: "cx-h", text: "Find a player" }));
   const input = h("input", { class: "cx-search", id: "cxSearch", type: "search", placeholder: "Search by name or username", autocomplete: "off", value: state.search });
   let t = null;
-  input.addEventListener("input", () => { state.search = input.value; clearTimeout(t); t = setTimeout(loadPlayers, 280); });
+  input.addEventListener("input", () => { state.search = input.value; state.players = []; state.loadingPlayers = true; paintPlayers(); clearTimeout(t); t = setTimeout(loadPlayers, 280); });
   card.appendChild(input);
   card.appendChild(h("div", { class: "cx-players", id: "cxPlayers" }));
   paintPlayers();
+  card.appendChild(guestBox());
+}
+
+const GUEST_VALID = [10, 30, 60, 180, 1440];
+const gopt = {
+  minutes: TIMES.includes(Number(store("gminutes"))) ? Number(store("gminutes")) : 10,
+  valid: GUEST_VALID.includes(Number(store("gvalid"))) ? Number(store("gvalid")) : 60,
+  color: ["white", "black", "random"].includes(store("gcolor")) ? store("gcolor") : "random",
+};
+
+function guestLinkUrl(token) { return location.origin + "/chess/guest/" + token; }
+
+function leftText(ms) {
+  const m = Math.max(0, Math.ceil(ms / 60000));
+  if (m >= 120) return Math.round(m / 60) + " hours left";
+  if (m >= 60) return "1 hour left";
+  return m + " min left";
+}
+
+function guestBox() {
+  const box = h("div", { class: "cx-guestbox", id: "cxGuestBox" });
+  box.appendChild(h("div", { class: "cx-h", text: "Play with a guest" }));
+  box.appendChild(h("div", { class: "cx-hint", text: "Make a link for someone who does not have an account. They can play you straight away. The link stops working when the game ends." }));
+  const chips = (label, items, current, set) => {
+    box.appendChild(h("div", { class: "cx-sub", style: "margin:10px 0 6px", text: label }));
+    box.appendChild(h("div", { class: "cx-chips" }, items.map(([val, text]) => h("button", {
+      type: "button", class: "cx-chip" + (current() === val ? " on" : ""), onclick: () => { set(val); renderMenu(); },
+    }, [text]))));
+  };
+  chips("Game time", TIMES.map((m) => [m, m + " min"]), () => gopt.minutes, (v) => { gopt.minutes = v; save("gminutes", v); });
+  chips("Link stays active for", GUEST_VALID.map((m) => [m, TIME_LABELS[m]]), () => gopt.valid, (v) => { gopt.valid = v; save("gvalid", v); });
+  chips("You play as", [["random", "Random"], ["white", "White"], ["black", "Black"]], () => gopt.color, (v) => { gopt.color = v; save("gcolor", v); });
+  box.appendChild(h("button", { type: "button", class: "cx-btn", id: "cxMakeLink", onclick: (e) => createLink(e.currentTarget) }, ["Create game link"]));
+  if (state.links && state.links.length) {
+    box.appendChild(h("div", { class: "cx-h", text: "Your active links" }));
+    for (const l of state.links) {
+      const url = guestLinkUrl(l.token);
+      const playing = l.status === "playing";
+      box.appendChild(h("div", { class: "cx-linkrow", "data-link": l.token }, [
+        h("div", { class: "grow" }, [h("b", { text: l.minutes + " min game" }), h("span", { class: "cx-sub", text: playing ? "A guest is playing" : "Waiting for a guest | " + leftText(l.expiresAt - serverNow()) })]),
+        h("div", { class: "acts" }, playing ? [] : [
+          h("button", { type: "button", class: "cx-btn sm", "data-copy": l.token, onclick: () => shareLink(url) }, [navigator.share ? "Share" : "Copy"]),
+          h("button", { type: "button", class: "cx-btn ghost sm", "data-cancel": l.token, onclick: (e) => cancelLink(l, e.currentTarget) }, ["End"]),
+        ]),
+      ]));
+    }
+  }
+  return box;
+}
+
+async function loadLinks() {
+  if (state.conn !== "online") return;
+  try {
+    const d = await api("/api/chess/guest/links");
+    state.links = d.links || [];
+    if (state.tab === "online" && !$("cxMenu").hidden && !document.activeElement.matches("input")) renderMenu();
+  } catch { /* the list just stays as it was */ }
+}
+
+async function createLink(btn) {
+  busy(btn, true);
+  try {
+    const d = await api("/api/chess/guest/links", { minutes: gopt.minutes, validMinutes: gopt.valid, color: gopt.color });
+    state.links = [d.link].concat(state.links || []);
+    renderMenu();
+    shareLink(guestLinkUrl(d.link.token), true);
+  } catch (e) { busy(btn, false); toast(e.message); }
+}
+
+async function shareLink(url, fresh) {
+  if (navigator.share && !fresh) {
+    try { await navigator.share({ title: "Play chess with me", text: "Play chess with me on ES TEAMS TV", url }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  try { await navigator.clipboard.writeText(url); toast(fresh ? "Link created and copied. Send it to your guest." : "Link copied."); }
+  catch { window.prompt("Copy this link", url); }
+}
+
+async function cancelLink(l, btn) {
+  busy(btn, true);
+  try {
+    await api("/api/chess/guest/links/" + encodeURIComponent(l.token) + "/cancel", {});
+    state.links = (state.links || []).filter((x) => x.token !== l.token);
+    renderMenu();
+  } catch (e) { busy(btn, false); toast(e.message); }
 }
 
 function requestRow(r) {
@@ -274,17 +398,28 @@ async function respondChallenge(r, accept) {
 
 async function loadPlayers() {
   if (state.conn !== "online") return;
+  state.loadingPlayers = true;
+  paintPlayers();
   try {
     const d = await api("/api/chess/online?q=" + encodeURIComponent(state.search.trim()));
     state.players = d.players || [];
-    paintPlayers();
   } catch { /* the list just stays as it was */ }
+  state.loadingPlayers = false;
+  paintPlayers();
 }
 
 function paintPlayers() {
   const box = $("cxPlayers");
   if (!box) return;
   box.textContent = "";
+  if (state.loadingPlayers && !state.players.length) {
+    if (state.search.trim()) {
+      box.appendChild(h("div", { class: "cx-loading" }, [h("span", { class: "cx-dots" }, [h("span"), h("span"), h("span")]), "Searching"]));
+    } else {
+      for (let i = 0; i < 3; i++) box.appendChild(h("div", { class: "cx-sk" }, [h("i"), h("div", { class: "l" }, [h("b"), h("b")])]));
+    }
+    return;
+  }
   if (!state.players.length) {
     box.appendChild(h("div", { class: "cx-empty", text: state.search.trim() ? "No players found." : "Nobody else is online right now. Share the page with a friend, or play the computer." }));
     return;
@@ -316,19 +451,21 @@ function openChallengeSheet(p) {
     h("div", { class: "row" }, [
       h("button", { type: "button", class: "cx-btn ghost", onclick: () => m.close() }, ["Cancel"]),
       h("button", { type: "button", class: "cx-btn", id: "cxSend", onclick: async (e) => {
-        e.target.disabled = true;
+        const btn = e.currentTarget;
+        busy(btn, true);
         try {
           await api("/api/chess/challenge", { toUid: p.uid, minutes, color });
           state.minutes = minutes; state.challengeColor = color; save("minutes", minutes); save("ccolor", color);
           m.close();
           toast("Request sent to " + (p.name || p.username) + ".");
-        } catch (err) { e.target.disabled = false; toast(err.message); }
+        } catch (err) { busy(btn, false); toast(err.message); }
       } }, ["Send request"]),
     ]),
   ]);
 }
 
 function renderLobby() {
+  if (GUEST_TOKEN) return;
   if ($("cxMenu") && !$("cxMenu").hidden) {
     const focused = document.activeElement && document.activeElement.id === "cxSearch";
     const pos = focused ? document.activeElement.selectionStart : 0;
@@ -338,6 +475,7 @@ function renderLobby() {
 }
 
 function renderBanner() {
+  if (GUEST_TOKEN) return;
   let b = $("cxBanner");
   if (!b) { b = h("div", { id: "cxBanner", class: "cx-banner" }); document.body.appendChild(b); }
   b.textContent = "";
@@ -403,7 +541,7 @@ function startBotGame() {
   enterGame({
     mode: "bot", chess: new Chess(), myColor: color, flipped: color === "b", level,
     selected: null, targets: new Map(), legal: [], last: null, over: false, result: null, thinking: false, botToken: 0,
-    opponent: { name: "Computer", username: level, photo: null, bot: true },
+    opponent: botOpponent(level),
   });
   const g = state.game;
   if (g.chess.turnColor() !== g.myColor) botTurn();
@@ -443,10 +581,51 @@ function checkBotEnd() {
   showResult();
 }
 
+function saveGame() {
+  const g = state.game;
+  try {
+    if (GUEST_TOKEN || !g || g.mode !== "bot" || g.over) { localStorage.removeItem(SAVE_KEY); return; }
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, mode: "bot", fen: g.chess.startFen, moves: g.chess.uciHistory(), color: g.myColor, level: g.level, flipped: !!g.flipped, at: Date.now() }));
+  } catch { /* storage full or private mode: the game just will not survive a reload */ }
+}
+
+function markOnline(id) {
+  try { if (id) localStorage.setItem("cx_online", JSON.stringify({ id, at: Date.now() })); else localStorage.removeItem("cx_online"); } catch { /* ignore */ }
+}
+
+function hadOnlineGame() {
+  try { const d = JSON.parse(localStorage.getItem("cx_online") || "null"); return !!(d && Date.now() - d.at < 20 * 60 * 1000); } catch { return false; }
+}
+
+function botOpponent(level) { return { name: "Computer", username: level, photo: null, bot: true }; }
+
+function restoreBotGame() {
+  if (GUEST_TOKEN) return false;
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(SAVE_KEY) || "null"); } catch { d = null; }
+  if (!d || d.mode !== "bot" || !Array.isArray(d.moves) || !LEVELS.some((l) => l.id === d.level) || Date.now() - (d.at || 0) > 7 * 24 * 3600 * 1000) { try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ } return false; }
+  try {
+    const chess = new Chess(d.fen);
+    for (const u of d.moves) if (!chess.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] })) throw new Error("bad move");
+    if (chess.result().over) { localStorage.removeItem(SAVE_KEY); return false; }
+    const last = d.moves[d.moves.length - 1];
+    enterGame({
+      mode: "bot", chess, myColor: d.color === "b" ? "b" : "w", flipped: !!d.flipped, level: d.level,
+      selected: null, targets: new Map(), legal: [], last: last ? { from: last.slice(0, 2), to: last.slice(2, 4) } : null, over: false, result: null, thinking: false, botToken: 0,
+      opponent: botOpponent(d.level),
+    });
+    toast("Welcome back to your game.");
+    const g = state.game;
+    if (g.chess.turnColor() !== g.myColor) botTurn();
+    return true;
+  } catch { try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ } return false; }
+}
+
 function enterGame(g) {
   state.game = g;
   g.legal = g.chess.moves();
   $("cxMenu").hidden = true;
+  $("cxGuest").hidden = true;
   $("cxGame").hidden = false;
   renderBanner();
   buildBoard();
@@ -459,6 +638,8 @@ function leaveGame() {
   const g = state.game;
   if (g) g.botToken++;
   state.game = null;
+  saveGame();
+  markOnline(null);
   $("cxGame").hidden = true;
   $("cxMenu").hidden = false;
   renderMenu();
@@ -613,8 +794,18 @@ function attemptMove(from, to) {
   submitMove(from, to, undefined);
 }
 
+function playMoveSound(info) {
+  const g = state.game;
+  if (!g || !info) return;
+  if (String(info.san || "").endsWith("#")) return;       // checkmate has its own tune
+  if (g.chess.isCheck()) sound.check();                    // double click: the king is under attack
+  else if (info.capture) sound.capture();
+  else sound.move();
+}
+
 function afterMove(info) {
   const g = state.game;
+  playMoveSound(info);
   g.last = { from: info.from, to: info.to };
   g.selected = null;
   g.targets = new Map();
@@ -636,7 +827,7 @@ function submitMove(from, to, promotion) {
     return;
   }
   g.pending = info.uci;
-  api("/api/chess/game/" + encodeURIComponent(g.id) + "/move", { key: g.key, from, to, promotion }).catch((e) => {
+  api(BASE + "/game/" + encodeURIComponent(g.id) + "/move", { key: g.key, from, to, promotion }).catch((e) => {
     if (state.game !== g || g.over) return;
     g.chess.undo();
     g.pending = null;
@@ -683,6 +874,7 @@ function renderGameInfo() {
   top.textContent = ""; bottom.textContent = "";
   const oppName = g.mode === "bot" ? "Computer (" + LEVELS.find((l) => l.id === g.level).name + ")" : (g.opponent.name || g.opponent.username);
   const meName = state.me ? (state.me.name || state.me.username) + " (you)" : "You";
+  saveGame();
   top.appendChild(playerBar("opp", oppColor, oppName, g.opponent, "cxOpp"));
   bottom.appendChild(playerBar("me", g.myColor, meName, state.me || { name: "You" }, "cxMe"));
   const cap = capturedOf(g);
@@ -727,10 +919,13 @@ function renderGameInfo() {
   }
   if (!g.over) ctl.appendChild(h("button", { type: "button", class: "cx-btn danger sm", id: "cxResign", onclick: resign }, ["Resign"]));
   else {
-    if (g.mode === "online") ctl.appendChild(h("button", { type: "button", class: "cx-btn sm", id: "cxRematch", onclick: rematch }, ["Rematch"]));
-    ctl.appendChild(h("button", { type: "button", class: "cx-btn sm", id: "cxNew", onclick: leaveGame }, ["New game"]));
+    if (GUEST_TOKEN) ctl.appendChild(h("button", { type: "button", class: "cx-btn sm", id: "cxNew", onclick: showGuestEnded }, ["Finish"]));
+    else {
+      if (g.mode === "online" && !(g.opponent && g.opponent.guest)) ctl.appendChild(h("button", { type: "button", class: "cx-btn sm", id: "cxRematch", onclick: rematch }, ["Rematch"]));
+      ctl.appendChild(h("button", { type: "button", class: "cx-btn sm", id: "cxNew", onclick: leaveGame }, ["New game"]));
+    }
   }
-  if (!g.over) ctl.appendChild(h("button", { type: "button", class: "cx-btn ghost sm", id: "cxMenuBtn", onclick: leaveAsk }, ["Menu"]));
+  if (!g.over && !GUEST_TOKEN) ctl.appendChild(h("button", { type: "button", class: "cx-btn ghost sm", id: "cxMenuBtn", onclick: leaveAsk }, ["Menu"]));
   tickClocks();
 }
 
@@ -750,13 +945,17 @@ function showResult() {
   const g = state.game;
   if (!g) return;
   const r = g.result || {};
+  if (r.winner == null) sound.draw(); else sound.win();     // whoever wins, the winner tune plays
   const title = r.winner == null ? "Draw" : r.winner === g.myColor ? "You won!" : "You lost";
+  const canRematch = g.mode === "online" && !GUEST_TOKEN && !(g.opponent && g.opponent.guest);
   const m = modal([
     h("h2", { id: "cxResultTitle", text: title }),
     h("p", { id: "cxResultText", text: resultText(g) }),
     h("div", { class: "row" }, [
       h("button", { type: "button", class: "cx-btn ghost", id: "cxResultClose", onclick: () => m.close() }, ["View board"]),
-      h("button", { type: "button", class: "cx-btn", id: "cxResultNew", onclick: () => { m.close(); if (g.mode === "online") rematch(); else leaveGame(); } }, [g.mode === "online" ? "Rematch" : "New game"]),
+      GUEST_TOKEN
+        ? h("button", { type: "button", class: "cx-btn", id: "cxResultNew", onclick: () => { m.close(); showGuestEnded(); } }, ["Continue"])
+        : h("button", { type: "button", class: "cx-btn", id: "cxResultNew", onclick: () => { m.close(); if (canRematch) rematch(); else leaveGame(); } }, [canRematch ? "Rematch" : "New game"]),
     ]),
   ]);
 }
@@ -827,7 +1026,7 @@ function resign() {
     h("button", { type: "button", class: "cx-btn danger", id: "cxResignYes", onclick: async () => {
       m.close();
       if (g.mode === "bot") { g.botToken++; g.thinking = false; g.over = true; g.result = { winner: g.myColor === "w" ? "b" : "w", reason: "resign" }; renderGameInfo(); paintBoard(); showResult(); return; }
-      try { await api("/api/chess/game/" + encodeURIComponent(g.id) + "/resign", { key: g.key }); } catch (e) { toast(e.message); }
+      try { await api(BASE + "/game/" + encodeURIComponent(g.id) + "/resign", { key: g.key }); } catch (e) { toast(e.message); }
     } }, ["Resign"]),
   ])]);
 }
@@ -835,14 +1034,14 @@ function resign() {
 function offerDraw() {
   const g = state.game;
   if (!g || g.mode !== "online" || g.over) return;
-  api("/api/chess/game/" + encodeURIComponent(g.id) + "/draw", { key: g.key }).then(() => toast("Draw offered.")).catch((e) => toast(e.message));
+  api(BASE + "/game/" + encodeURIComponent(g.id) + "/draw", { key: g.key }).then(() => toast("Draw offered.")).catch((e) => toast(e.message));
 }
 
 function askDraw() {
   const g = state.game;
   const m = modal([h("h2", { text: "Draw offer" }), h("p", { text: (g.opponent.name || g.opponent.username) + " offers a draw." }), h("div", { class: "row" }, [
-    h("button", { type: "button", class: "cx-btn ghost", id: "cxDrawNo", onclick: () => { m.close(); api("/api/chess/game/" + encodeURIComponent(g.id) + "/draw/respond", { key: g.key, accept: false }).catch(() => {}); } }, ["Decline"]),
-    h("button", { type: "button", class: "cx-btn", id: "cxDrawYes", onclick: () => { m.close(); api("/api/chess/game/" + encodeURIComponent(g.id) + "/draw/respond", { key: g.key, accept: true }).catch((e) => toast(e.message)); } }, ["Accept"]),
+    h("button", { type: "button", class: "cx-btn ghost", id: "cxDrawNo", onclick: () => { m.close(); api(BASE + "/game/" + encodeURIComponent(g.id) + "/draw/respond", { key: g.key, accept: false }).catch(() => {}); } }, ["Decline"]),
+    h("button", { type: "button", class: "cx-btn", id: "cxDrawYes", onclick: () => { m.close(); api(BASE + "/game/" + encodeURIComponent(g.id) + "/draw/respond", { key: g.key, accept: true }).catch((e) => toast(e.message)); } }, ["Accept"]),
   ])]);
   g.drawModal = m;
 }
@@ -877,6 +1076,7 @@ function startOnlineGame(v, { resume }) {
   g.clockAt = v.serverTime || serverNow();
   if (v.serverTime) state.offset = v.serverTime - Date.now();
   const same = state.game && state.game.mode === "online" && state.game.id === v.id;
+  markOnline(v.status === "over" ? null : v.id);
   enterGame(g);
   if (!resume || !same) toast(resume ? "Welcome back to your game." : "Game started. You are " + (v.color === "w" ? "White." : "Black."));
   const m = document.querySelectorAll(".cx-ov");
@@ -894,6 +1094,7 @@ function onServerMove(ev) {
   } else if (!mine) {
     const info = g.chess.move({ from: ev.move.from, to: ev.move.to, promotion: ev.move.promotion || undefined });
     if (!info) { connect(); return; }
+    playMoveSound(info);
     g.last = { from: ev.move.from, to: ev.move.to };
     g.selected = null; g.targets = new Map();
     g.legal = g.chess.moves();
@@ -916,6 +1117,7 @@ function finishOnline(winner, reason, silent, clocks) {
   const g = state.game;
   if (!g) return;
   g.over = true;
+  markOnline(null);
   g.result = { winner, reason };
   if (clocks) g.clocks = clocks;
   g.pending = null;
@@ -925,18 +1127,148 @@ function finishOnline(winner, reason, silent, clocks) {
   if (!silent) showResult();
 }
 
+const SPEAKER_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+const SPEAKER_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>';
+
+function wireSound() {
+  const b = $("cxSound");
+  const paint = () => { b.classList.toggle("on", sound.isOn()); b.setAttribute("aria-pressed", String(sound.isOn())); b.innerHTML = sound.isOn() ? SPEAKER_ON : SPEAKER_OFF; };
+  const flip = () => { sound.setOn(!sound.isOn()); paint(); };
+  b.addEventListener("click", flip);
+  b.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } });
+  paint();
+  document.addEventListener("pointerdown", () => sound.unlock(), { once: true, capture: true });
+}
+
+async function loadMe() {
+  if (GUEST_TOKEN) return;
+  try {
+    const d = await api("/api/chess/me");
+    if (!state.me) { state.me = d.me; if (state.game) renderGameInfo(); }
+  } catch { /* the live connection sends the same details */ }
+}
+
+function endedCard(title, text) {
+  return h("div", { class: "cx-card cx-ended", id: "cxEnded" }, [
+    h("div", { class: "ic" }, []),
+    h("h1", { text: title }),
+    h("p", { text }),
+    h("button", { type: "button", class: "cx-btn", id: "cxCreateGame", onclick: () => { location.href = "/chess"; } }, ["CREATE GAME"]),
+  ]);
+}
+
+const ENDED_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+
+function showGuestEnded() {
+  if (!GUEST_TOKEN) return;
+  if (state.game) { state.game.botToken = (state.game.botToken || 0) + 1; state.game = null; }
+  state.guest.info = { status: "ended" };
+  $("cxGame").hidden = true;
+  renderGuest();
+}
+
+async function refreshGuestInfo() {
+  try { state.guest.info = await api("/api/chess/guest/info/" + encodeURIComponent(GUEST_TOKEN)); }
+  catch (e) { state.guest.info = { status: "error", error: e.message }; }
+  renderGuest();
+}
+
+function renderGuest() {
+  if (!GUEST_TOKEN) return;
+  const root = $("cxGuest");
+  if (state.game) { root.hidden = true; return; }
+  const keepName = $("cxGuestName") ? $("cxGuestName").value : state.guest.name;
+  root.hidden = false;
+  root.textContent = "";
+  const info = state.guest.info;
+  const card = (kids) => root.appendChild(h("div", { class: "cx-card", style: "text-align:center" }, kids));
+  if (!info) { card([h("div", { class: "cx-loading", id: "cxGuestLoading" }, [h("span", { class: "cx-roll" }), "Opening game link"])]); return; }
+  const ended = (title, text) => {
+    const c = endedCard(title, text);
+    c.querySelector(".ic").innerHTML = ENDED_ICON;
+    root.appendChild(c);
+  };
+  if (info.status === "ended" || info.status === "expired") { ended("This Game Session has Ended", info.status === "expired" ? "This link ran out of time. Create your own game to play again." : "Thanks for playing. Create your own game to play again."); return; }
+  if (info.status === "error") {
+    card([h("h2", { text: "Could not open the game" }), h("p", { class: "cx-hint", style: "margin-top:8px", text: info.error || "Check your connection and try again." }), h("button", { type: "button", class: "cx-btn", id: "cxGuestRetry", onclick: (e) => { busy(e.currentTarget, true); initGuest(); } }, ["Try again"])]);
+    return;
+  }
+  if (info.status === "playing" && !info.you) { ended("This link is already in use", "Someone is already playing on this link. Create your own game to play."); return; }
+  const host = info.host || {};
+  const hostLine = h("div", { class: "cx-hostline" }, [avatar({ name: host.name || host.username, photo: host.photo })]);
+  if (state.guest.joined) {
+    const waiting = state.conn === "unavailable"
+      ? [h("p", { class: "cx-hint", text: "Could not connect. Check your internet and try again." }), h("button", { type: "button", class: "cx-btn", id: "cxGuestReconnect", onclick: () => { retries = 0; connect(); } }, ["Reconnect"])]
+      : state.guestWait
+        ? [h("p", { class: "cx-hint", id: "cxGuestWait", text: state.guestWait }), h("button", { type: "button", class: "cx-btn", id: "cxGuestStart", onclick: async (e) => { const btn = e.currentTarget; busy(btn, true); try { await api("/api/chess/guest/start", {}); state.guestWait = null; renderGuest(); } catch (err) { busy(btn, false); state.guestWait = err.message; toast(err.message); } } }, ["Try again"])]
+        : [h("div", { class: "cx-loading" }, [h("span", { class: "cx-roll" }), "Starting your game"])];
+    card([hostLine, h("h2", { text: "Playing " + (host.name || host.username || "the host") }), ...waiting]);
+    return;
+  }
+  const input = h("input", { class: "cx-field", id: "cxGuestName", type: "text", maxlength: "20", placeholder: "Your name", autocomplete: "off", value: keepName || "" });
+  card([
+    hostLine,
+    h("h2", { text: (host.name || host.username || "Someone") + " invited you to play chess" }),
+    h("p", { class: "cx-hint", style: "margin-top:8px", text: (info.minutes || 10) + " minutes each. No account needed. Pick a name and join." }),
+    input,
+    h("button", { type: "button", class: "cx-btn", id: "cxGuestJoin", onclick: (e) => joinGuest(e.currentTarget, input) }, ["Join game"]),
+  ]);
+}
+
+async function joinGuest(btn, input) {
+  const name = input.value.trim();
+  if (name.length < 2) { toast("Enter a name (at least 2 letters)."); return; }
+  busy(btn, true);
+  try {
+    await api("/api/chess/guest/join/" + encodeURIComponent(GUEST_TOKEN), { name });
+    save("guestname", name);
+    state.guest.name = name;
+    state.guest.joined = true;
+    state.guest.info.you = true;
+    state.guest.info.status = "playing";
+    renderGuest();
+    retries = 0;
+    connect();
+  } catch (e) {
+    busy(btn, false);
+    toast(e.message);
+    if (e.code === "ended" || e.code === "playing" || e.code === "expired") refreshGuestInfo();
+  }
+}
+
+async function initGuest() {
+  $("cxMenu").hidden = true;
+  const back = $("cxBack");
+  if (back) back.setAttribute("href", "/chess");
+  renderGuest();
+  try { state.guest.info = await api("/api/chess/guest/info/" + encodeURIComponent(GUEST_TOKEN)); }
+  catch (e) { state.guest.info = { status: "error", error: e.message }; }
+  if (state.guest.info.you && state.guest.info.status === "playing") { state.guest.joined = true; retries = 0; connect(); }
+  renderGuest();
+}
+
 function init() {
   $("cxSymbols").innerHTML = pieceSymbols();
   wireBoard();
-  renderMenu();
-  connect();
+  wireSound();
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && !es && state.conn !== "unavailable") { retries = 0; connect(); }
+    if (document.hidden) { saveGame(); return; }
+    if (GUEST_TOKEN && !state.guest.joined) return;
+    if (!es || es.readyState === EventSource.CLOSED) { retries = 0; connect(); }
+    const g = state.game;
+    if (g && g.mode === "bot" && !g.over && g.chess.turnColor() !== g.myColor && !g.thinking) botTurn();
   });
+  window.addEventListener("pagehide", saveGame);
   window.addEventListener("beforeunload", (e) => {
     const g = state.game;
     if (g && g.mode === "online" && !g.over) { e.preventDefault(); e.returnValue = ""; }
   });
+  if (GUEST_TOKEN) { initGuest(); return; }
+  state.resuming = hadOnlineGame();
+  if (state.resuming) setTimeout(() => { if (state.resuming) { state.resuming = false; renderLobby(); } }, 12000);
+  if (!restoreBotGame()) renderMenu();
+  loadMe();
+  connect();
 }
 init();
 window.__chess = { state, refresh: () => { const g = state.game; if (!g) return; g.selected = null; g.targets = new Map(); g.legal = g.chess.moves(); paintBoard(); renderGameInfo(); } };

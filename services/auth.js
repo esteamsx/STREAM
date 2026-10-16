@@ -1472,7 +1472,23 @@ async function getFaceScanForUser(uid) {
   return snap.exists ? { id: snap.id, ...snap.data() } : null;
 }
 
-const FACE_ENROLL_DUPLICATE_THRESHOLD = 0.55;
+const FACE_ENROLL_DUPLICATE_THRESHOLD = 0.42;
+const FACE_ENROLL_MIN_AGREEING = 2;
+
+function faceConsensusDistance(probes, stored) {
+  const perProbe = [];
+  for (const probe of probes) {
+    let best = Infinity;
+    for (const one of stored) {
+      const d = faceEuclideanDistance(probe, one);
+      if (d < best) best = d;
+    }
+    perProbe.push(best);
+  }
+  perProbe.sort((a, b) => a - b);
+  const need = Math.min(FACE_ENROLL_MIN_AGREEING, perProbe.length);
+  return perProbe[need - 1];
+}
 
 async function findAccountAlreadyUsingFace(uid, probes) {
   const snap = await db.collection("face_recognition_credentials").get();
@@ -1484,13 +1500,7 @@ async function findAccountAlreadyUsingFace(uid, probes) {
     const stored = storedFaceSamples(doc.data());
     if (!stored.length) return;
     scanned++;
-    let distance = Infinity;
-    for (const one of stored) {
-      for (const probe of probes) {
-        const d = faceEuclideanDistance(probe, one);
-        if (d < distance) distance = d;
-      }
-    }
+    const distance = faceConsensusDistance(probes, stored);
     if (distance < bestDistance) bestDistance = distance;
     if (!matchedUid && distance <= FACE_ENROLL_DUPLICATE_THRESHOLD) matchedUid = doc.id;
   });
@@ -3858,7 +3868,18 @@ async function applyReferral(newUid, rawReferredByCode) {
 
 async function getReferralsForUser(uid) {
   const snap = await db.collection("referrals").where("referrerUid", "==", uid).get();
-  return snap.docs.map((d) => d.data()).sort((a, b) => b.referredAt - a.referredAt);
+  const rows = snap.docs.map((d) => d.data()).sort((a, b) => b.referredAt - a.referredAt);
+  const live = new Map();
+  for (let i = 0; i < rows.length; i += 300) {
+    const refs = rows.slice(i, i + 300).filter((r) => r.referredUid).map((r) => db.collection("users").doc(r.referredUid));
+    if (!refs.length) continue;
+    (await db.getAll(...refs)).forEach((u) => { if (u.exists) live.set(u.id, u.data()); });
+  }
+  return rows.map((r) => {
+    const u = live.get(r.referredUid) || {};
+    const name = [u.firstName, u.lastName].filter(Boolean).join(" ");
+    return { ...r, referredUsername: u.username || r.referredUsername || "", referredName: name };
+  });
 }
 
 const DAILY_CLAIM_FEE_NGN = 0;
@@ -5310,6 +5331,7 @@ export {
   normalizeFaceSamples,
   storedFaceSamples,
   bestDistanceBetween,
+  faceConsensusDistance,
   verifyOwnFaceId,
   CLAIM_FACE_THRESHOLD,
 };
