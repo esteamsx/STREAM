@@ -4060,6 +4060,130 @@ async function redeemCoinsForLimit(uid, itemKey, product) {
   return { amount: item.bonusAmount, coinCost: item.coinCost };
 }
 
+
+const GIFT_AMOUNTS = [10, 50, 100, 200];
+
+function usageMonthOf(ts) {
+  const d = new Date(ts);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+async function adminGiftCoins(adminUid, targetUid, rawAmount) {
+  const amount = Number(rawAmount);
+  if (!GIFT_AMOUNTS.includes(amount)) throw Object.assign(new Error("Pick 10, 50, 100 or 200 coins."), { status: 400 });
+  const targetRef = db.collection("users").doc(String(targetUid || ""));
+  let target = null;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(targetRef);
+    if (!snap.exists) throw Object.assign(new Error("That account was not found."), { status: 404 });
+    const data = snap.data();
+    if (coinLedgerMismatch(data)) throw Object.assign(new Error("That account's coin balance failed a security check."), { status: 409 });
+    target = data;
+    const ledger = appendCoinLedger(tx, targetRef, data, amount, "admin_gift", { byUid: adminUid });
+    tx.update(targetRef, { coinBalance: admin.firestore.FieldValue.increment(amount), ...ledger });
+  });
+  invalidateUserProfileCache(targetRef.id);
+  const adminSnap = await db.collection("users").doc(adminUid).get();
+  const handle = adminSnap.exists && adminSnap.data().username ? `@${adminSnap.data().username}` : "The admin";
+  await addNotification(targetRef.id, "coin_gift", `${handle} gifted you ${amount} coins`, { amount, from: handle, popupShown: false });
+  return { amount, username: target.username || "", newBalance: (target.coinBalance || 0) + amount };
+}
+
+async function getPendingCoinGift(uid) {
+  const snap = await db.collection("notifications").where("uid", "==", uid).where("type", "==", "coin_gift").limit(30).get();
+  const pending = snap.docs.filter((d) => d.data().meta && d.data().meta.popupShown === false).sort((a, b) => a.data().createdAt - b.data().createdAt);
+  if (!pending.length) return null;
+  const d = pending[0];
+  return { id: d.id, amount: d.data().meta.amount, from: d.data().meta.from || "The admin", message: d.data().message, more: pending.length - 1 };
+}
+
+async function markCoinGiftSeen(uid, id) {
+  const ref = db.collection("notifications").doc(String(id));
+  const snap = await ref.get();
+  if (!snap.exists || snap.data().uid !== uid || snap.data().type !== "coin_gift") return;
+  await ref.update({ "meta.popupShown": true });
+  invalidateNotifState(uid);
+}
+
+async function adminListStorePurchases(uid) {
+  const ref = db.collection("users").doc(String(uid || ""));
+  const [userSnap, ledgerSnap, refundSnap] = await Promise.all([
+    ref.get(),
+    ref.collection("coinLedger").orderBy("seq", "desc").limit(200).get(),
+    ref.collection("coinRefunds").get(),
+  ]);
+  if (!userSnap.exists) throw Object.assign(new Error("That account was not found."), { status: 404 });
+  const data = userSnap.data();
+  const refunded = new Set(refundSnap.docs.map((d) => d.id));
+  const month = currentUsageMonth();
+  const purchases = [];
+  for (const d of ledgerSnap.docs) {
+    const e = d.data();
+    const meta = e.meta || {};
+    const item = COIN_STORE_ITEMS[meta.itemKey];
+    if (e.type !== "store_redeem" || !item || !item.bonusAmount) continue;
+    const product = meta.product === "devapi" ? "devapi" : "livetv";
+    let reason = null;
+    if (refunded.has(String(e.seq))) reason = "Already refunded";
+    else if (usageMonthOf(e.timestamp) !== month) reason = "Those requests already reset at the end of that month";
+    else if (getEffectiveBonusRequests(data, product === "devapi" ? "devapi" : "livetv") < item.bonusAmount) reason = "Some of those requests were already used";
+    purchases.push({ seq: e.seq, label: item.label, product, coins: -e.delta, bonusAmount: item.bonusAmount, timestamp: e.timestamp, refundable: !reason, reason });
+    if (purchases.length >= 20) break;
+  }
+  return { user: { uid: ref.id, username: data.username || "", coinBalance: data.coinBalance || 0 }, purchases };
+}
+
+async function adminRefundStorePurchase(adminUid, uid, rawSeq) {
+  const seq = Number(rawSeq);
+  if (!Number.isInteger(seq) || seq < 1) throw Object.assign(new Error("Pick a purchase to refund."), { status: 400 });
+  const ref = db.collection("users").doc(String(uid || ""));
+  const entryRef = ref.collection("coinLedger").doc(String(seq));
+  const refundRef = ref.collection("coinRefunds").doc(String(seq));
+  let result = null;
+  let spenderEmail = "";
+  await db.runTransaction(async (tx) => {
+    const [snap, entrySnap, refundSnap] = await Promise.all([tx.get(ref), tx.get(entryRef), tx.get(refundRef)]);
+    if (!snap.exists) throw Object.assign(new Error("That account was not found."), { status: 404 });
+    const data = snap.data();
+    const e = entrySnap.exists ? entrySnap.data() : null;
+    const item = e && e.type === "store_redeem" ? COIN_STORE_ITEMS[(e.meta || {}).itemKey] : null;
+    if (!item || !item.bonusAmount) throw Object.assign(new Error("That purchase cannot be refunded."), { status: 400 });
+    if (refundSnap.exists) throw Object.assign(new Error("That purchase was already refunded."), { status: 400 });
+    if (coinLedgerMismatch(data)) throw Object.assign(new Error("That account's coin balance failed a security check."), { status: 409 });
+    if (usageMonthOf(e.timestamp) !== currentUsageMonth()) throw Object.assign(new Error("Those requests already reset at the end of that month, so they cannot be taken back."), { status: 400 });
+    const product = e.meta.product === "devapi" ? "devapi" : "livetv";
+    const { field } = bonusRequestFields(product);
+    const available = getEffectiveBonusRequests(data, product);
+    if (available < item.bonusAmount) throw Object.assign(new Error("Some of those requests were already used, so this cannot be refunded."), { status: 400 });
+    const coins = -e.delta;
+    const ledger = appendCoinLedger(tx, ref, data, coins, "store_refund", { itemKey: e.meta.itemKey, product, refundOfSeq: seq, byUid: adminUid });
+    tx.update(ref, { coinBalance: admin.firestore.FieldValue.increment(coins), [field]: available - item.bonusAmount, ...ledger });
+    tx.set(refundRef, { seq, coins, at: Date.now(), byUid: adminUid });
+    spenderEmail = data.email || "";
+    result = { coins, label: item.label, bonusAmount: item.bonusAmount, product };
+  });
+  invalidateUserProfileCache(ref.id);
+  if (!isAdminEmail(spenderEmail)) {
+    try {
+      const aSnap = await db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get();
+      if (!aSnap.empty && aSnap.docs[0].id !== ref.id) {
+        const aRef = aSnap.docs[0].ref;
+        await db.runTransaction(async (tx) => {
+          const a = await tx.get(aRef);
+          const ad = a.data() || {};
+          const take = Math.min(result.coins, ad.coinBalance || 0);
+          if (take <= 0) return;
+          const ledger = appendCoinLedger(tx, aRef, ad, -take, "store_refund_reversal", { fromUid: ref.id, refundOfSeq: seq });
+          tx.update(aRef, { coinBalance: admin.firestore.FieldValue.increment(-take), ...ledger });
+        });
+        invalidateUserProfileCache(aRef.id);
+      }
+    } catch { /* the refund itself already went through */ }
+  }
+  await addNotification(ref.id, "coin_refund", `Refunded ${result.coins} coins for ${result.label}`, { coins: result.coins });
+  return result;
+}
+
 async function redeemCoinsForVerification(uid) {
   const item = COIN_STORE_ITEMS.verify3d;
   const userRef = db.collection("users").doc(uid);
@@ -5187,6 +5311,12 @@ export {
   finalizeClaimPayment,
   redeemCoinsForLimit,
   redeemCoinsForVerification,
+  adminGiftCoins,
+  getPendingCoinGift,
+  markCoinGiftSeen,
+  adminListStorePurchases,
+  adminRefundStorePurchase,
+  GIFT_AMOUNTS,
   createCoinPurchasePayment,
   getCoinPurchasePayment,
   finalizeCoinPurchasePayment,

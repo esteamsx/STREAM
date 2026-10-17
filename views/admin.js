@@ -221,6 +221,26 @@ body:has(.ad-overlay.show){overflow:hidden}
 @keyframes dbuSpin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dbu-spin,.dbu-orbit{animation:none}}
 .mt-row{display:flex;align-items:center;gap:14px}
+
+.cn-input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit;font-family:inherit;font-size:.85rem}
+.cn-results{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:220px;overflow-y:auto}
+.cn-user{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-family:inherit;font-size:.82rem;cursor:pointer}
+.cn-user small{color:var(--muted)}
+.cn-link{margin-top:10px;background:none;border:none;color:var(--accent);font-family:inherit;font-size:.78rem;font-weight:600;cursor:pointer;padding:0}
+.cn-ov{position:fixed;inset:0;z-index:600;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:24px}
+.cn-ov.show{display:flex}
+.cn-card{width:100%;max-width:380px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:22px 20px;background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(18,18,28,.72);border:1px solid rgba(255,255,255,.22);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3)}
+:root[data-theme="light"] .cn-card{background:linear-gradient(155deg,rgba(255,255,255,.7),rgba(255,255,255,.3)),rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.65)}
+.cn-title{font-family:var(--font-display);font-size:1.05rem;font-weight:700;text-align:center}
+.cn-sub{font-size:.76rem;color:var(--muted);text-align:center;margin:4px 0 14px;line-height:1.5}
+.cn-h{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px}
+.cn-amts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cn-amt{padding:12px 0;border-radius:12px;border:1px solid var(--border-strong);background:var(--card2);color:var(--text);font-family:inherit;font-weight:700;font-size:.95rem;cursor:pointer}
+.cn-amt:disabled,.cn-refund:disabled{opacity:.5;cursor:default}
+.cn-p{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--card2);margin-bottom:6px;font-size:.78rem}
+.cn-p small{display:block;color:var(--muted);margin-top:2px;font-size:.68rem;line-height:1.4}
+.cn-refund{flex-shrink:0;padding:8px 12px;border-radius:10px;border:none;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;font-family:inherit;font-weight:700;font-size:.74rem;cursor:pointer}
+.cn-close{display:block;margin:16px auto 0;background:none;border:none;color:var(--muted);text-decoration:underline;font-family:inherit;font-size:.78rem;cursor:pointer}
 .mt-icon-btn{
   width:46px;height:46px;flex-shrink:0;border-radius:14px;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
@@ -635,6 +655,23 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
       </div>
     </div>
   </div>
+
+  <div class="ad-card open accent-blue" id="coinsCard">
+    <div class="ad-card-header" style="cursor:default">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5a2 2 0 013-1.7M15.5 14.5a2 2 0 01-3 1.7"/></svg>
+      <div class="ad-card-header-title">Coins</div>
+    </div>
+    <div class="ad-card-body" style="max-height:none">
+      <div class="ad-card-body-inner">
+        <div style="font-size:.76rem;color:var(--muted);line-height:1.5;margin-bottom:10px">Search a username to give free coins or refund a store purchase.</div>
+        <input type="text" class="cn-input" id="cnSearch" placeholder="Search a username" autocomplete="off">
+        <div class="cn-results" id="cnResults"></div>
+        <button type="button" class="cn-link" id="cnMine">Refund a purchase on my own account</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cn-ov" id="cnOverlay"><div class="cn-card" id="cnCard"></div></div>
 
   <div class="ad-card open accent-blue" id="pageLocksCard">
     <div class="ad-card-header" style="cursor:default">
@@ -3130,6 +3167,73 @@ document.getElementById('maintenanceOpenBtn').addEventListener('click', () => {
   mtRenderHands();
   maintenanceOverlay.classList.add('show');
 });
+
+
+(function(){
+  var overlay = document.getElementById('cnOverlay');
+  var card = document.getElementById('cnCard');
+  var results = document.getElementById('cnResults');
+  var cur = null, timer = null;
+  function openFor(uid, label){
+    cur = { uid: uid, label: label };
+    card.innerHTML =
+      '<div class="cn-title">' + esc(label) + '</div>' +
+      '<div class="cn-sub">Give free coins. They get a popup saying you gifted them.</div>' +
+      '<div class="cn-amts">' + [10,50,100,200].map(function(n){ return '<button type="button" class="cn-amt" data-amt="' + n + '">' + n + '</button>'; }).join('') + '</div>' +
+      '<div class="cn-h">Store purchases</div><div id="cnPurchases"><div class="ad-hint">Loading…</div></div>' +
+      '<button type="button" class="cn-close" id="cnClose">Close</button>';
+    overlay.classList.add('show');
+    loadPurchases();
+  }
+  function loadPurchases(){
+    var box = document.getElementById('cnPurchases');
+    getJSON('/api/admin/coins/purchases?uid=' + encodeURIComponent(cur.uid)).then(function(d){
+      if (!d.purchases.length) { box.innerHTML = '<div class="ad-hint">No request-boost purchases found.</div>'; return; }
+      box.innerHTML = d.purchases.map(function(p){
+        var when = new Date(p.timestamp).toLocaleDateString();
+        var right = p.refundable ? '<button type="button" class="cn-refund" data-seq="' + p.seq + '">Refund ' + p.coins + '</button>' : '';
+        return '<div class="cn-p"><div>' + esc(p.label) + ' · ' + (p.product === 'devapi' ? 'Developer API' : 'Live TV API') + '<small>' + p.coins + ' coins · ' + when + (p.refundable ? '' : ' · ' + esc(p.reason)) + '</small></div>' + right + '</div>';
+      }).join('');
+    }).catch(function(err){ box.innerHTML = '<div class="ad-hint">' + esc(err.message) + '</div>'; });
+  }
+  card.addEventListener('click', function(e){
+    var t = e.target;
+    if (t.id === 'cnClose') { overlay.classList.remove('show'); return; }
+    if (t.classList.contains('cn-amt')) {
+      t.disabled = true;
+      postJSON('/api/admin/coins/gift', { uid: cur.uid, amount: Number(t.getAttribute('data-amt')) })
+        .then(function(d){ showToast('Sent ' + d.amount + ' coins.'); t.disabled = false; })
+        .catch(function(err){ showToast(err.message); t.disabled = false; });
+    } else if (t.classList.contains('cn-refund')) {
+      if (!window.confirm('Refund this purchase? The coins go back and the extra requests are removed.')) return;
+      t.disabled = true;
+      postJSON('/api/admin/coins/refund', { uid: cur.uid, seq: Number(t.getAttribute('data-seq')) })
+        .then(function(d){ showToast('Refunded ' + d.coins + ' coins.'); loadPurchases(); })
+        .catch(function(err){ showToast(err.message); t.disabled = false; });
+    }
+  });
+  overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.classList.remove('show'); });
+  document.getElementById('cnMine').addEventListener('click', function(){ openFor('me', 'My account'); });
+  results.addEventListener('click', function(e){
+    var b = e.target.closest('.cn-user');
+    if (b) openFor(b.getAttribute('data-uid'), '@' + b.getAttribute('data-name'));
+  });
+  document.getElementById('cnSearch').addEventListener('input', function(){
+    clearTimeout(timer);
+    var q = this.value.trim();
+    if (!q) { results.innerHTML = ''; return; }
+    results.innerHTML = '<div class="ad-hint">Searching…</div>';
+    timer = setTimeout(function(){
+      getJSON('/api/admin/users/search?q=' + encodeURIComponent(q)).then(function(d){
+        var rows = d.results || [];
+        results.innerHTML = rows.length ? rows.map(function(u){
+          var full = ((u.firstName || '') + ' ' + (u.lastName || '')).trim();
+          return '<button type="button" class="cn-user" data-uid="' + esc(u.uid) + '" data-name="' + esc(u.username) + '"><span>@' + esc(u.username) + (full ? ' <small>' + esc(full) + '</small>' : '') + '</span><small>Choose</small></button>';
+        }).join('') : '<div class="ad-hint">No matching accounts.</div>';
+      }).catch(function(){ results.innerHTML = '<div class="ad-hint">Search failed.</div>'; });
+    }, 300);
+  });
+})();
 
 document.getElementById('pageLockOpenBtn').addEventListener('click', () => {
   mtMode = 'pageLock';

@@ -1250,6 +1250,7 @@ window.EsPosts = {
   esc: esc,
   setViewer: function(p){ ownProfile = p; },
   extractTags: extractTags,
+  wireTagTrigger: wireTagTrigger,
   formatCount: formatCount,
   verifiedBadge: VERIFIED_BADGE
 };

@@ -1,5 +1,5 @@
 import { siteHeadFor } from "../config/site.js";
-import { VERIFICATION_PRICE_NGN } from "../services/paystack.js";
+import { VERIFICATION_PRICE_NGN, NGN_PER_USD } from "../services/paystack.js";
 
 export function renderAccount(cfg) {
   return `<!DOCTYPE html>
@@ -96,6 +96,8 @@ input{font-family:inherit}
 
 .sc-thread-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;transition:background .15s var(--ease)}
 .sc-thread-row:hover{background:var(--card2)}
+#supportThreadList{flex:none;max-height:334px;overscroll-behavior:contain}
+.sc-thread-row{min-height:64px;box-sizing:border-box}
 .sc-thread-avatar{
   width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));
   display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;
@@ -1589,6 +1591,16 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 </div>
 
+<div class="page-overlay" id="rwBuyConfirmOverlay">
+  <div class="overlay-card" style="max-width:360px">
+    <div class="overlay-title">Confirm purchase</div>
+    <div class="overlay-sub" id="rwBuyConfirmSub"></div>
+    <div class="rw-hint" id="rwBuyConfirmHint"></div>
+    <button class="acc-btn" id="rwBuyConfirmYes" type="button" style="width:100%">Confirm</button>
+    <button class="overlay-cancel" id="rwBuyConfirmNo" type="button">Cancel</button>
+  </div>
+</div>
+
 <div class="page-overlay" id="rwSendConfirmOverlay">
   <div class="overlay-card" style="max-width:360px">
     <div class="overlay-title">Are you sure?</div>
@@ -2050,7 +2062,7 @@ body:has(.page-overlay.show){overflow:hidden}
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Free bot deployment</div>
       </div>
       <div class="verify-price-row">
-        <span class="verify-price" id="verifyPriceLabel">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span> <span class="verify-price-usd" style="font-size:.72rem;color:var(--muted)">≈ $${(VERIFICATION_PRICE_NGN / 1500).toFixed(2)}</span>
+        <span class="verify-price" id="verifyPriceLabel">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span> <span class="verify-price-usd" style="font-size:.72rem;color:var(--muted)">≈ $${(VERIFICATION_PRICE_NGN / NGN_PER_USD).toFixed(2)}</span>
         <span class="verify-price-period">/ 30 days</span>
       </div>
       <div class="rw-hint" style="font-size:.72rem;line-height:1.55;margin-bottom:10px">Your card is saved securely for renewals. Auto-renew stays off until you switch it on in Account settings, and you can remove the card there any time.</div>
@@ -5468,8 +5480,29 @@ claimContinueBtn.addEventListener('click', async () => {
   }
 });
 
+function confirmStorePurchase(itemKey){
+  return new Promise((resolve) => {
+    const item = (rewardsSummary && rewardsSummary.coinStoreItems && rewardsSummary.coinStoreItems[itemKey]) || {};
+    const productEl = document.getElementById('rwRedeemProduct');
+    const productName = itemKey === 'verify3d' ? '' : (productEl && productEl.value === 'devapi' ? 'Developer API' : 'Live TV API');
+    const ov = document.getElementById('rwBuyConfirmOverlay');
+    document.getElementById('rwBuyConfirmSub').textContent = 'Spend ' + (item.coinCost || '') + ' coins on ' + (item.label || 'this item') + (productName ? ' for the ' + productName + '?' : '?');
+    document.getElementById('rwBuyConfirmHint').textContent = productName
+      ? 'Check that ' + productName + ' is the one you want. Coins spent in the store are not returned automatically.'
+      : 'Coins spent in the store are not returned automatically.';
+    const yes = document.getElementById('rwBuyConfirmYes');
+    const no = document.getElementById('rwBuyConfirmNo');
+    const done = (val) => { ov.classList.remove('show'); yes.onclick = null; no.onclick = null; ov.onclick = null; resolve(val); };
+    yes.onclick = () => done(true);
+    no.onclick = () => done(false);
+    ov.onclick = (e) => { if (e.target === ov) done(false); };
+    ov.classList.add('show');
+  });
+}
+
 async function redeemCoinItem(itemKey, btn){
   const msg = document.getElementById('rwRedeemMsg');
+  if (!(await confirmStorePurchase(itemKey))) return;
   const product = document.getElementById('rwRedeemProduct').value;
   btn.disabled = true;
   try {

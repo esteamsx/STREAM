@@ -260,6 +260,11 @@ import {
   searchUsersByUsername,
   adminListUsers,
   adminSearchUsers,
+  adminGiftCoins,
+  getPendingCoinGift,
+  markCoinGiftSeen,
+  adminListStorePurchases,
+  adminRefundStorePurchase,
   adminListBannedUsers,
   adminBanUser,
   adminUnbanUser,
@@ -1156,6 +1161,51 @@ app.post("/api/admin/users/:uid/reset-password", requireAuth, requireAdmin, asyn
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: err.message || "Could not reset that password." });
+  }
+});
+
+app.get("/api/admin/coins/purchases", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const uid = req.query.uid === "me" || !req.query.uid ? req.uid : String(req.query.uid);
+    res.json(await adminListStorePurchases(uid));
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not load purchases." });
+  }
+});
+
+app.post("/api/admin/coins/refund", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const uid = req.body?.uid === "me" || !req.body?.uid ? req.uid : String(req.body.uid);
+    const result = await adminRefundStorePurchase(req.uid, uid, req.body?.seq);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not refund that purchase." });
+  }
+});
+
+app.post("/api/admin/coins/gift", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await adminGiftCoins(req.uid, String(req.body?.uid || ""), req.body?.amount);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not send coins." });
+  }
+});
+
+app.get("/api/coin-gifts/pending", requireAuth, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store").json({ gift: await getPendingCoinGift(req.uid) });
+  } catch {
+    res.json({ gift: null });
+  }
+});
+
+app.post("/api/coin-gifts/:id/seen", requireAuth, async (req, res) => {
+  try {
+    await markCoinGiftSeen(req.uid, req.params.id);
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: false });
   }
 });
 

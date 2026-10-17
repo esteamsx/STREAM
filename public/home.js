@@ -465,6 +465,7 @@
   }
 
   textEl.addEventListener("input", syncComposer);
+  if (window.EsPosts && typeof window.EsPosts.wireTagTrigger === "function") window.EsPosts.wireTagTrigger(textEl);
   fileEl.addEventListener("change", function () {
     var file = fileEl.files && fileEl.files[0];
     if (!file) return;
@@ -496,6 +497,7 @@
         if (feedEl.querySelector(".feed-empty")) feedEl.textContent = "";
         feedEl.insertBefore(window.EsPosts.createCard(post), feedEl.firstChild);
         textEl.value = "";
+        textEl.dispatchEvent(new Event("input"));
         clearImage();
         toast("Posted");
       })

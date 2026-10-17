@@ -793,6 +793,44 @@ function esRefreshDots() {
 }
 window.addEventListener("es-status-changed", () => esRefreshDots());
 
+let esGiftOpen = false;
+function esCheckCoinGift() {
+  if (esGiftOpen || document.visibilityState !== "visible") return;
+  fetch("/api/coin-gifts/pending", { credentials: "same-origin" })
+    .then((r) => (r.ok ? r.json() : { gift: null }))
+    .then((d) => {
+      const g = d && d.gift;
+      if (!g || esGiftOpen) return;
+      esGiftOpen = true;
+      const ov = document.createElement("div");
+      ov.className = "page-overlay show";
+      ov.style.zIndex = "9600";
+      const card = document.createElement("div");
+      card.className = "overlay-card";
+      card.style.textAlign = "center";
+      const title = document.createElement("div");
+      title.className = "overlay-title";
+      title.textContent = "You received a gift";
+      const sub = document.createElement("div");
+      sub.className = "overlay-sub";
+      sub.textContent = g.from + " gifted you " + g.amount + " coins";
+      const ok = document.createElement("button");
+      ok.type = "button";
+      ok.textContent = "Awesome";
+      ok.style.cssText = "width:100%;padding:13px;border:none;border-radius:12px;font-weight:700;font-size:.9rem;cursor:pointer;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;font-family:inherit";
+      ok.addEventListener("click", () => {
+        fetch("/api/coin-gifts/" + encodeURIComponent(g.id) + "/seen", { method: "POST", credentials: "same-origin" }).catch(() => {});
+        ov.remove();
+        esGiftOpen = false;
+        setTimeout(esCheckCoinGift, 400);
+      });
+      card.append(title, sub, ok);
+      ov.appendChild(card);
+      document.body.appendChild(ov);
+    })
+    .catch(() => {});
+}
+
 function esThemeToggle() {
   const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
   try { localStorage.setItem("theme", next); } catch (e) {}
@@ -1053,9 +1091,11 @@ window.EsUI = {
     esState.ready = true;
     (esState.waiters || []).forEach((fn) => fn(esState.me));
     esRefreshDots();
+    esCheckCoinGift();
     esMaybeTrustPrompt();
     setInterval(esRefreshDots, 60000);
     document.addEventListener("visibilitychange", esRefreshDots);
+    document.addEventListener("visibilitychange", esCheckCoinGift);
   }
   let cached = null;
   try { cached = JSON.parse(sessionStorage.getItem("es_me") || "null"); } catch (e) {}
