@@ -22,9 +22,12 @@ const ADMIN_EMAIL = "etimpaschal95@gmail.com";
 function isAdminEmail(email) {
   return String(email || "").trim().toLowerCase() === ADMIN_EMAIL;
 }
+let adminUidCache = null;
 async function getAdminUid() {
+  if (adminUidCache) return adminUidCache;
   const snap = await db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get();
-  return snap.empty ? null : snap.docs[0].id;
+  if (!snap.empty) adminUidCache = snap.docs[0].id;
+  return adminUidCache;
 }
 
 function isVerificationActive(data) {
@@ -36,9 +39,8 @@ function isVerificationActive(data) {
 async function autoFollowAdmin(newUid, newUserEmail) {
   try {
     if (isAdminEmail(newUserEmail)) return;
-    const snap = await db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get();
-    if (snap.empty) return;
-    const adminUid = snap.docs[0].id;
+    const adminUid = await getAdminUid();
+    if (!adminUid) return;
     await followUser(newUid, adminUid);
   } catch {
   }
@@ -1764,7 +1766,7 @@ async function getNotifications(uid, limit = 50) {
   return docs.slice(0, limit);
 }
 
-const NOTIF_STATE_TTL_MS = 30 * 1000;
+const NOTIF_STATE_TTL_MS = 3 * 60 * 1000;
 const notifStateCache = new Map();
 
 function invalidateNotifState(uid) {
@@ -1775,12 +1777,19 @@ function invalidateNotifState(uid) {
 async function unreadNotifState(uid) {
   const hit = notifStateCache.get(uid);
   if (hit && Date.now() - hit.at < NOTIF_STATE_TTL_MS) return hit;
-  const snap = await db.collection("notifications")
-    .where("uid", "==", uid)
-    .where("read", "==", false)
-    .limit(100)
-    .get();
-  const state = { count: snap.docs.filter((d) => d.data().type !== "comment").length, at: Date.now() };
+  let count;
+  try {
+    const base = db.collection("notifications").where("uid", "==", uid).where("read", "==", false);
+    const [all, comments] = await Promise.all([
+      base.limit(100).count().get(),
+      base.where("type", "==", "comment").limit(100).count().get(),
+    ]);
+    count = Math.max(0, all.data().count - comments.data().count);
+  } catch {
+    const snap = await db.collection("notifications").where("uid", "==", uid).where("read", "==", false).limit(100).get();
+    count = snap.docs.filter((d) => d.data().type !== "comment").length;
+  }
+  const state = { count, at: Date.now() };
   if (notifStateCache.size >= 5000) notifStateCache.clear();
   notifStateCache.set(uid, state);
   return state;
@@ -1990,9 +1999,9 @@ async function getFollowStats(uid) {
 
 async function growAdminFollowerCount() {
   try {
-    const snap = await db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get();
-    if (snap.empty) return;
-    await snap.docs[0].ref.update({ followersCount: admin.firestore.FieldValue.increment(7) });
+    const adminUid = await getAdminUid();
+    if (!adminUid) return;
+    await db.collection("users").doc(adminUid).update({ followersCount: admin.firestore.FieldValue.increment(7) });
   } catch {
   }
 }
@@ -2698,44 +2707,59 @@ function feedAuthor(id, data) {
 }
 
 async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
-  let query = db.collection("posts").orderBy("createdAt", "desc");
-  if (before) query = query.where("createdAt", "<", Number(before));
-  const snap = await query.limit(DISCOVER_SCAN_LIMIT).get();
-  const scanned = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  if (!scanned.length) return { posts: [], nextBefore: null };
-
-  const authorUids = [...new Set(scanned.map((p) => p.uid))];
-  const authorDocs = await loadUserDocsCached(authorUids);
-
-  const needsFollowCheck = [...new Set(
-    scanned
-      .filter((p) => p.uid !== uid)
-      .filter((p) => (p.visibility || "everyone") === "friends" || (authorDocs.get(p.uid) || {}).lockProfile)
-      .map((p) => p.uid)
-  )];
-  const followChecks = await Promise.all(needsFollowCheck.map(async (a) => ({
-    a,
-    viewerFollows: await isFollowing(uid, a),
-    authorFollows: await isFollowing(a, uid),
-  })));
-  const follow = new Map(followChecks.map((c) => [c.a, c]));
-
+  const BATCH = Math.min(DISCOVER_SCAN_LIMIT, limit + 8);
+  const MAX_ROUNDS = Math.ceil(DISCOVER_SCAN_LIMIT / BATCH);
   const visible = [];
+  const authorDocs = new Map();
+  let cursor = before ? Number(before) : null;
   let lastConsidered = null;
-  for (const p of scanned) {
-    lastConsidered = p;
-    const author = authorDocs.get(p.uid);
-    if (!author || !author.username || author.banned || author.pendingDeletion) continue;
-    if (p.uid !== uid) {
-      const vis = p.visibility || "everyone";
-      const rel = follow.get(p.uid) || { viewerFollows: false, authorFollows: false };
-      if (vis === "only_me") continue;
-      if (vis === "friends" && !(rel.viewerFollows && rel.authorFollows)) continue;
-      if (author.lockProfile && !rel.viewerFollows) continue;
+  let more = false;
+  let sawAny = false;
+
+  for (let round = 0; round < MAX_ROUNDS && visible.length < limit; round++) {
+    let query = db.collection("posts").orderBy("createdAt", "desc");
+    if (cursor != null) query = query.where("createdAt", "<", cursor);
+    const snap = await query.limit(BATCH).get();
+    const scanned = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (!scanned.length) break;
+    sawAny = true;
+
+    const newAuthors = [...new Set(scanned.map((p) => p.uid))].filter((a) => !authorDocs.has(a));
+    (await loadUserDocsCached(newAuthors)).forEach((data, id) => authorDocs.set(id, data));
+
+    const needsFollowCheck = [...new Set(
+      scanned
+        .filter((p) => p.uid !== uid)
+        .filter((p) => (p.visibility || "everyone") === "friends" || (authorDocs.get(p.uid) || {}).lockProfile)
+        .map((p) => p.uid)
+    )];
+    const followChecks = await Promise.all(needsFollowCheck.map(async (a) => ({
+      a,
+      viewerFollows: await isFollowing(uid, a),
+      authorFollows: await isFollowing(a, uid),
+    })));
+    const follow = new Map(followChecks.map((c) => [c.a, c]));
+
+    let stoppedEarly = false;
+    for (const p of scanned) {
+      lastConsidered = p;
+      const author = authorDocs.get(p.uid);
+      if (!author || !author.username || author.banned || author.pendingDeletion) continue;
+      if (p.uid !== uid) {
+        const vis = p.visibility || "everyone";
+        const rel = follow.get(p.uid) || { viewerFollows: false, authorFollows: false };
+        if (vis === "only_me") continue;
+        if (vis === "friends" && !(rel.viewerFollows && rel.authorFollows)) continue;
+        if (author.lockProfile && !rel.viewerFollows) continue;
+      }
+      visible.push(p);
+      if (visible.length >= limit) { stoppedEarly = lastConsidered.id !== scanned[scanned.length - 1].id; break; }
     }
-    visible.push(p);
-    if (visible.length >= limit) break;
+    more = stoppedEarly || scanned.length === BATCH;
+    cursor = scanned[scanned.length - 1].createdAt;
+    if (scanned.length < BATCH) break;
   }
+  if (!sawAny) return { posts: [], nextBefore: null };
 
   const statsMap = await resolveEffectivePostStats(visible);
   const posts = visible.map((p) => {
@@ -2762,7 +2786,6 @@ async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
     };
   });
 
-  const more = scanned.length === DISCOVER_SCAN_LIMIT || (lastConsidered && lastConsidered.id !== scanned[scanned.length - 1].id);
   return { posts, nextBefore: more && lastConsidered ? lastConsidered.createdAt : null };
 }
 
@@ -2780,26 +2803,47 @@ async function getPostImage(viewerUid, postId) {
   return { mime: match[1], buffer: Buffer.from(match[2], "base64") };
 }
 
-async function getSuggestedUsers(uid, limit = 6) {
-  const [popular, recent, plain, followingUids] = await Promise.all([
+const SUGGEST_POOL_TTL_MS = 10 * 60 * 1000;
+let suggestPool = { at: 0, docs: null };
+
+async function loadSuggestPool() {
+  if (suggestPool.docs && Date.now() - suggestPool.at < SUGGEST_POOL_TTL_MS) return suggestPool.docs;
+  const [popular, recent, plain] = await Promise.all([
     db.collection("users").orderBy("followersCount", "desc").limit(40).get().catch(() => null),
     db.collection("users").orderBy("createdAt", "desc").limit(40).get().catch(() => null),
     db.collection("users").limit(80).get().catch(() => null),
+  ]);
+  if (!popular && !recent && !plain) {
+    if (suggestPool.docs) return suggestPool.docs;
+    throw new Error("users query failed");
+  }
+  const seen = new Set();
+  const docs = [];
+  for (const snap of [popular, recent, plain]) {
+    if (!snap) continue;
+    for (const d of snap.docs) {
+      if (seen.has(d.id)) continue;
+      seen.add(d.id);
+      docs.push({ id: d.id, data: d.data() });
+    }
+  }
+  suggestPool = { at: Date.now(), docs };
+  return docs;
+}
+
+async function getSuggestedUsers(uid, limit = 6) {
+  const [poolDocs, followingUids] = await Promise.all([
+    loadSuggestPool(),
     getFollowingUids(uid).catch(() => []),
   ]);
-  if (!popular && !recent && !plain) throw new Error("users query failed");
   const following = new Set(followingUids);
   const seen = new Set();
   const pool = [];
-  const docs = [
-    ...(popular ? popular.docs : []),
-    ...(recent ? recent.docs : []),
-    ...(plain ? plain.docs : []),
-  ];
+  const docs = poolDocs;
   for (const doc of docs) {
     if (seen.has(doc.id)) continue;
     seen.add(doc.id);
-    const u = doc.data();
+    const u = doc.data;
     if (doc.id === uid || following.has(doc.id)) continue;
     if (!u.username || u.banned || u.pendingDeletion) continue;
     pool.push({ ...feedAuthor(doc.id, u), followersCount: u.followersCount || 0 });
@@ -2812,7 +2856,8 @@ async function getSuggestedUsers(uid, limit = 6) {
   return top.slice(0, limit);
 }
 
-const UNSEEN_FEED_TTL_MS = 90 * 1000;
+const UNSEEN_FEED_TTL_MS = 120 * 1000;
+let feedCountIndexRetryAt = 0;
 const unseenFeedCache = new Map();
 
 async function getFollowingFeedUnseenCount(uid, cachedProfile) {
@@ -2833,8 +2878,20 @@ async function computeFollowingFeedUnseenCount(uid, cachedProfile) {
   let count = 0;
   for (let i = 0; i < followingUids.length; i += 30) {
     const chunk = followingUids.slice(i, i + 30);
-    const snap = await db.collection("posts").where("uid", "in", chunk).limit(50)
-      .select("createdAt", "visibility").get();
+    let snap = null;
+    if (Date.now() >= feedCountIndexRetryAt) {
+      try {
+        snap = await db.collection("posts").where("uid", "in", chunk).where("createdAt", ">", lastSeenFeedAt).limit(50)
+          .select("createdAt", "visibility").get();
+      } catch (err) {
+        feedCountIndexRetryAt = Date.now() + 10 * 60 * 1000;
+        console.warn("[quota] the new-posts badge reads the slow way until this index exists (open the link in the error): " + String(err.message || err).slice(0, 400));
+      }
+    }
+    if (!snap) {
+      snap = await db.collection("posts").where("uid", "in", chunk).limit(50)
+        .select("createdAt", "visibility").get();
+    }
     snap.docs.forEach((d) => {
       const data = d.data();
       if (data.createdAt <= lastSeenFeedAt) return;
@@ -4014,9 +4071,9 @@ async function refundCoins(uid, amount) {
 async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, amount) {
   if (!amount || isAdminEmail(spenderEmail)) return;
   try {
-    const snap = await db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get();
-    if (snap.empty) return;
-    const adminDoc = snap.docs[0];
+    const adminUid = await getAdminUid();
+    if (!adminUid) return;
+    const adminDoc = { id: adminUid, ref: db.collection("users").doc(adminUid) };
     if (adminDoc.id === spenderUid) return;
     await db.runTransaction(async (tx) => {
       const adminSnap = await tx.get(adminDoc.ref);
@@ -4086,15 +4143,25 @@ async function adminGiftCoins(adminUid, targetUid, rawAmount) {
   const adminSnap = await db.collection("users").doc(adminUid).get();
   const handle = adminSnap.exists && adminSnap.data().username ? `@${adminSnap.data().username}` : "The admin";
   await addNotification(targetRef.id, "coin_gift", `${handle} gifted you ${amount} coins`, { amount, from: handle, popupShown: false });
+  giftPendingCache.delete(targetRef.id);
   return { amount, username: target.username || "", newBalance: (target.coinBalance || 0) + amount };
 }
 
+const giftPendingCache = new Map();
+const GIFT_CACHE_TTL_MS = 5 * 60 * 1000;
+
 async function getPendingCoinGift(uid) {
-  const snap = await db.collection("notifications").where("uid", "==", uid).where("type", "==", "coin_gift").limit(30).get();
-  const pending = snap.docs.filter((d) => d.data().meta && d.data().meta.popupShown === false).sort((a, b) => a.data().createdAt - b.data().createdAt);
-  if (!pending.length) return null;
-  const d = pending[0];
-  return { id: d.id, amount: d.data().meta.amount, from: d.data().meta.from || "The admin", message: d.data().message, more: pending.length - 1 };
+  const hit = giftPendingCache.get(uid);
+  if (hit && Date.now() - hit.at < GIFT_CACHE_TTL_MS) return hit.gift;
+  const snap = await db.collection("notifications").where("uid", "==", uid).where("type", "==", "coin_gift").where("meta.popupShown", "==", false).limit(1).get();
+  let gift = null;
+  if (!snap.empty) {
+    const d = snap.docs[0];
+    gift = { id: d.id, amount: d.data().meta.amount, from: d.data().meta.from || "The admin", message: d.data().message };
+  }
+  if (giftPendingCache.size >= 5000) giftPendingCache.clear();
+  giftPendingCache.set(uid, { gift, at: Date.now() });
+  return gift;
 }
 
 async function markCoinGiftSeen(uid, id) {
@@ -4102,6 +4169,7 @@ async function markCoinGiftSeen(uid, id) {
   const snap = await ref.get();
   if (!snap.exists || snap.data().uid !== uid || snap.data().type !== "coin_gift") return;
   await ref.update({ "meta.popupShown": true });
+  giftPendingCache.delete(uid);
   invalidateNotifState(uid);
 }
 
@@ -4165,9 +4233,9 @@ async function adminRefundStorePurchase(adminUid, uid, rawSeq) {
   invalidateUserProfileCache(ref.id);
   if (!isAdminEmail(spenderEmail)) {
     try {
-      const aSnap = await db.collection("users").where("email", "==", ADMIN_EMAIL).limit(1).get();
-      if (!aSnap.empty && aSnap.docs[0].id !== ref.id) {
-        const aRef = aSnap.docs[0].ref;
+      const adminUid = await getAdminUid();
+      if (adminUid && adminUid !== ref.id) {
+        const aRef = db.collection("users").doc(adminUid);
         await db.runTransaction(async (tx) => {
           const a = await tx.get(aRef);
           const ad = a.data() || {};
@@ -4754,7 +4822,7 @@ async function adminResetPassword(uid, newPassword) {
   return { ok: true };
 }
 
-const MAINTENANCE_CACHE_TTL_MS = 10 * 1000;
+const MAINTENANCE_CACHE_TTL_MS = 60 * 1000;
 let maintenanceCache = null;
 let maintenanceCacheExpiry = 0;
 let maintenanceInflight = null;
@@ -4789,6 +4857,7 @@ async function clearExpiredMaintenance() {
 function primeMaintenanceCache(status) {
   maintenanceCache = status;
   maintenanceCacheExpiry = Date.now() + MAINTENANCE_CACHE_TTL_MS;
+  if (status && status.until) maintenanceCacheExpiry = Math.min(maintenanceCacheExpiry, Math.max(Date.now() + 500, status.until + 250));
   return status;
 }
 
@@ -4802,7 +4871,7 @@ const LOCKABLE_PAGES = {
   "/chreact": { label: "/chreact", pagePaths: ["/channel-react"], apiPrefixes: ["/api/channel-react"] },
 };
 
-const PAGE_LOCK_CACHE_TTL_MS = 10 * 1000;
+const PAGE_LOCK_CACHE_TTL_MS = 60 * 1000;
 let pageLockCache = null;
 let pageLockCacheExpiry = 0;
 let pageLockInflight = null;
@@ -4840,6 +4909,10 @@ async function clearExpiredPageLocks(keys) {
 function primePageLockCache(status) {
   pageLockCache = status;
   pageLockCacheExpiry = Date.now() + PAGE_LOCK_CACHE_TTL_MS;
+  for (const k of Object.keys(status || {})) {
+    const until = status[k] && status[k].until;
+    if (until) pageLockCacheExpiry = Math.min(pageLockCacheExpiry, Math.max(Date.now() + 500, until + 250));
+  }
   return status;
 }
 
@@ -4998,6 +5071,7 @@ async function purgeExpiredSupportMessages(uid) {
   const batch = db.batch();
   oldSnap.docs.forEach((d) => batch.delete(d.ref));
   await batch.commit();
+  invalidateSupportThread(uid);
   const remainingSnap = await threadRef.collection("messages").orderBy("createdAt", "desc").limit(1).get();
   if (remainingSnap.empty) {
     await threadRef.update({ lastMessageText: "", lastMessageAt: null }).catch(() => {});
@@ -5065,6 +5139,7 @@ async function sendSupportMessage(uid, text, fromAdmin, attachment, replyTo) {
     },
     { merge: true }
   );
+  invalidateSupportThread(uid);
   return { id: msgRef.id, ...messageDoc };
 }
 
@@ -5088,6 +5163,7 @@ async function editSupportMessage(threadUid, messageId, actorIsAdmin, newText) {
 
   const editedAt = Date.now();
   await msgRef.update({ text: trimmed, editedAt });
+  invalidateSupportThread(threadUid);
 
   const threadSnap = await threadRef.get();
   if (threadSnap.exists && threadSnap.data().lastMessageAt === msg.createdAt) {
@@ -5112,6 +5188,7 @@ async function deleteSupportMessage(threadUid, messageId, actorIsAdmin) {
   }
 
   await msgRef.delete();
+  invalidateSupportThread(threadUid);
 
   const remainingSnap = await threadRef.collection("messages").orderBy("createdAt", "desc").limit(1).get();
   if (remainingSnap.empty) {
@@ -5125,25 +5202,54 @@ async function deleteSupportMessage(threadUid, messageId, actorIsAdmin) {
   return { ok: true };
 }
 
+const supportMsgCache = new Map();
+const SUPPORT_MSG_CACHE_TTL_MS = 10 * 60 * 1000;
+
+function invalidateSupportThread(uid) {
+  supportMsgCache.delete(uid);
+}
+
 async function getSupportMessages(uid, asAdmin) {
-  await purgeExpiredSupportMessages(uid).catch(() => {});
-  const threadRef = db.collection("supportThreads").doc(uid);
-  const [msgSnap, threadSnap] = await Promise.all([
-    threadRef.collection("messages").orderBy("createdAt", "asc").limit(500).get(),
-    threadRef.get(),
-  ]);
-  const messages = msgSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
   const now = Date.now();
-  if (threadSnap.exists) {
-    const update = { [asAdmin ? "unreadForAdmin" : "unreadForUser"]: 0 };
-    if (asAdmin) update.adminSeenAt = now;
-    await threadRef.update(update).catch(() => {});
+  const threadRef = db.collection("supportThreads").doc(uid);
+  let entry = supportMsgCache.get(uid);
+  if (!entry || now - entry.at > SUPPORT_MSG_CACHE_TTL_MS) {
+    await purgeExpiredSupportMessages(uid).catch(() => {});
+    const [msgSnap, threadSnap] = await Promise.all([
+      threadRef.collection("messages").orderBy("createdAt", "asc").limit(500).get(),
+      threadRef.get(),
+    ]);
+    entry = {
+      at: now,
+      messages: msgSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      threadExists: threadSnap.exists,
+      adminSeenAt: threadSnap.exists ? threadSnap.data().adminSeenAt || 0 : 0,
+      cleared: { admin: false, user: false },
+      lastAdminWrite: 0,
+    };
+    if (supportMsgCache.size >= 300) supportMsgCache.clear();
+    supportMsgCache.set(uid, entry);
   }
-  const adminSeenAt = threadSnap.exists ? threadSnap.data().adminSeenAt || 0 : 0;
-  return messages.map((m) => ({
-    ...m,
-    seenByAdmin: !m.fromAdmin && !!m.createdAt && m.createdAt <= (asAdmin ? now : adminSeenAt),
-  }));
+  if (entry.threadExists) {
+    if (asAdmin) {
+      entry.adminSeenAt = now;
+      if (!entry.cleared.admin || now - entry.lastAdminWrite > 15000) {
+        await threadRef.update({ unreadForAdmin: 0, adminSeenAt: now }).catch(() => {});
+        entry.cleared.admin = true;
+        entry.lastAdminWrite = now;
+      }
+    } else if (!entry.cleared.user) {
+      await threadRef.update({ unreadForUser: 0 }).catch(() => {});
+      entry.cleared.user = true;
+    }
+  }
+  const cutoff = now - SUPPORT_MESSAGE_TTL_MS;
+  return entry.messages
+    .filter((m) => !m.createdAt || m.createdAt >= cutoff)
+    .map((m) => ({
+      ...m,
+      seenByAdmin: !m.fromAdmin && !!m.createdAt && m.createdAt <= (asAdmin ? now : entry.adminSeenAt),
+    }));
 }
 
 async function getSupportUnreadCountForUser(uid) {

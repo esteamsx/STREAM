@@ -54,22 +54,61 @@ async function loadUsers(uids) {
   return map;
 }
 
+const ownStatusCache = new Map();
+const OWN_STATUS_TTL_MS = 2 * 60 * 1000;
+
 async function activeStatusesOf(uid) {
   const now = Date.now();
+  const hit = ownStatusCache.get(uid);
+  if (hit && now - hit.at < OWN_STATUS_TTL_MS) return hit.list.filter((s) => (s.expiresAt || 0) > now);
   const snap = await db.collection("statuses").where("uid", "==", uid).get();
-  return snap.docs
+  const list = snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((s) => (s.expiresAt || 0) > now)
     .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  if (ownStatusCache.size >= 2000) ownStatusCache.clear();
+  ownStatusCache.set(uid, { at: now, list });
+  return list;
+}
+
+const seenCache = new Map();   // viewerUid -> { seen: Map(statusId -> hidden), unseenAt: Map(statusId -> checkedAt) }
+const UNSEEN_RECHECK_MS = 5 * 60 * 1000;
+
+function seenEntry(viewerUid) {
+  let e = seenCache.get(viewerUid);
+  if (!e) {
+    if (seenCache.size >= 3000) seenCache.clear();
+    e = { seen: new Map(), unseenAt: new Map() };
+    seenCache.set(viewerUid, e);
+  }
+  if (e.seen.size > 3000) e.seen.clear();
+  if (e.unseenAt.size > 3000) e.unseenAt.clear();
+  return e;
+}
+
+function rememberSeen(viewerUid, statusId, hidden) {
+  const e = seenEntry(viewerUid);
+  e.seen.set(statusId, !!hidden);
+  e.unseenAt.delete(statusId);
 }
 
 async function seenIdSet(viewerUid, statusIds) {
+  const e = seenEntry(viewerUid);
+  const now = Date.now();
   const seen = new Set();
-  for (let i = 0; i < statusIds.length; i += 300) {
-    const refs = statusIds.slice(i, i + 300).map((id) => db.collection("statusViews").doc(id + "_" + viewerUid));
-    if (!refs.length) continue;
+  const toCheck = [];
+  for (const id of statusIds) {
+    if (e.seen.has(id)) seen.add(id);
+    else if (now - (e.unseenAt.get(id) || 0) >= UNSEEN_RECHECK_MS) toCheck.push(id);
+  }
+  for (let i = 0; i < toCheck.length; i += 300) {
+    const chunk = toCheck.slice(i, i + 300);
+    const refs = chunk.map((id) => db.collection("statusViews").doc(id + "_" + viewerUid));
     const snaps = await db.getAll(...refs);
-    snaps.forEach((s, idx) => { if (s.exists) seen.add(statusIds[i + idx]); });
+    snaps.forEach((s, idx) => {
+      if (s.exists) { seen.add(chunk[idx]); e.seen.set(chunk[idx], !!(s.data() || {}).hidden); e.unseenAt.delete(chunk[idx]); }
+      else e.unseenAt.set(chunk[idx], now);
+    });
   }
   return seen;
 }
@@ -87,12 +126,13 @@ async function deleteStatusCascade(statusId) {
   }
 }
 
+const ACTIVE_INDEX_TTL_MS = 30 * 60 * 1000;
 let activeIndex = { at: 0, list: null };
 const unseenCountCache = new Map();
 
 async function getActiveStatusIndex() {
   const now = Date.now();
-  if (activeIndex.list && now - activeIndex.at < 30 * 1000) {
+  if (activeIndex.list && now - activeIndex.at < ACTIVE_INDEX_TTL_MS) {
     return activeIndex.list.filter((s) => s.expiresAt > now);
   }
   const snap = await db.collection("statuses").where("expiresAt", ">", now).select("uid", "createdAt", "expiresAt").limit(3000).get();
@@ -104,8 +144,15 @@ async function getActiveStatusIndex() {
   return list;
 }
 
-function invalidateStatusCaches() {
-  activeIndex = { at: 0, list: null };
+function indexAdd(entry) {
+  if (activeIndex.list) activeIndex.list.push(entry);
+  ownStatusCache.delete(entry.uid);
+  unseenCountCache.clear();
+}
+
+function indexRemove(statusId, ownerUid) {
+  if (activeIndex.list) activeIndex.list = activeIndex.list.filter((s) => s.id !== statusId);
+  ownStatusCache.delete(ownerUid);
   unseenCountCache.clear();
 }
 
@@ -157,7 +204,7 @@ statusRouter.get("/api/status/feed", requireAuth, async (req, res) => {
 statusRouter.get("/api/status/unseen-count", requireAuth, async (req, res) => {
   try {
     const hit = unseenCountCache.get(req.uid);
-    if (hit && Date.now() - hit.at < 60 * 1000) return res.json({ count: hit.count });
+    if (hit && Date.now() - hit.at < 3 * 60 * 1000) return res.json({ count: hit.count });
     const index = await getActiveStatusIndex();
     const byUid = new Map();
     index.forEach((s) => {
@@ -256,7 +303,7 @@ statusRouter.post("/api/status", requireAuth, async (req, res) => {
       doc.caption = cleanText(req.body?.caption, MAX_CAPTION);
     }
     const ref = await db.collection("statuses").add(doc);
-    invalidateStatusCaches();
+    indexAdd({ id: ref.id, uid: req.uid, createdAt: doc.createdAt, expiresAt: doc.expiresAt });
     res.json({ ok: true, id: ref.id });
   } catch (err) {
     console.error(err);
@@ -270,7 +317,7 @@ statusRouter.delete("/api/status/:id", requireAuth, async (req, res) => {
     const snap = await ref.get();
     if (!snap.exists || snap.data().uid !== req.uid) return res.status(404).json({ error: "Status not found." });
     await deleteStatusCascade(ref.id);
-    invalidateStatusCaches();
+    indexRemove(ref.id, req.uid);
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -281,6 +328,12 @@ statusRouter.delete("/api/status/:id", requireAuth, async (req, res) => {
 statusRouter.post("/api/status/:id/view", requireAuth, async (req, res) => {
   try {
     const statusId = String(req.params.id || "");
+    const known = seenEntry(req.uid).seen.get(statusId);
+    if (known !== undefined) {
+      const viewerNow = await getUserProfile(req.uid);
+      const receiptsNow = viewerNow ? viewerNow.readReceipts !== false : true;
+      if (!(known === true && receiptsNow)) return res.json({ ok: true });
+    }
     const snap = await db.collection("statuses").doc(statusId).get();
     if (!snap.exists) return res.status(404).json({ error: "Status not found." });
     const s = snap.data();
@@ -305,6 +358,7 @@ statusRouter.post("/api/status/:id/view", requireAuth, async (req, res) => {
         link: "/profile?status=mine",
       });
     }
+    rememberSeen(req.uid, statusId, !receipts && !(existing.exists && !existing.data().hidden));
     unseenCountCache.delete(req.uid);
     res.json({ ok: true });
   } catch (err) {

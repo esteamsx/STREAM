@@ -4567,6 +4567,7 @@ function wireMessageRowGestures(container){
   });
 }
 
+let supportChatLastSig = '';
 async function loadSupportChatMessages(isInitial){
   const body = document.getElementById('supportChatBody');
   const wasAtBottom = isInitial || (body.scrollHeight - body.scrollTop - body.clientHeight) < 40;
@@ -4575,6 +4576,9 @@ async function loadSupportChatMessages(isInitial){
       ? '/api/admin/support/threads/' + encodeURIComponent(supportChatTargetUid) + '/messages'
       : '/api/support/messages';
     const { messages } = await getJSON(url);
+    const sig = messages.map((m) => m.id + ':' + (m.editedAt || 0) + ':' + (m.seenByAdmin ? 1 : 0)).join('|');
+    if (!isInitial && sig === supportChatLastSig) { refreshSupportUnread(); return; }
+    supportChatLastSig = sig;
     currentChatMessagesById = {};
     messages.forEach((m) => { currentChatMessagesById[m.id] = m; });
     body.innerHTML = messages.length
