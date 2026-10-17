@@ -511,6 +511,8 @@ body:has(.page-overlay.show){overflow:hidden}
 .comment-pin-badge{display:inline-flex;align-items:center;gap:3px;font-size:.66rem;color:var(--accent);font-weight:700}
 .comment-pin-badge svg{width:11px;height:11px}
 .comment-text{font-size:.85rem;color:var(--text);line-height:1.45;margin-top:2px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word }
+.comment-text a{color:var(--accent);font-weight:600;text-decoration:none}
+.comment-text a:hover{text-decoration:underline}
 .comment-meta{display:flex;align-items:center;gap:14px;margin-top:6px}
 .comment-time{font-size:.68rem;color:var(--muted)}
 .comment-like-btn{background:transparent;border:none;color:var(--muted);display:flex;align-items:center;gap:5px;font-size:.7rem;font-weight:600}
@@ -1080,6 +1082,9 @@ function renderPostText(text){
   html = html.replace(/_([^\\s_][^_]*?)_/g, '<i>$1</i>');
   html = html.replace(/@(\\w+)/g, '<a href="/u/$1">@$1</a>');
   return html;
+}
+function renderCommentText(text){
+  return escapeHtml(text).replace(/@(\\w+)/g, '<a href="/u/$1">@$1</a>');
 }
 function extractTags(text){
   const matches = (text || '').match(/@(\\w+)/g) || [];
@@ -1914,6 +1919,7 @@ function enterEditMode(post, cardEl){
 let activeCommentsPostId = null;
 let activeCommentsPost = null;
 let longPressTimer = null;
+let lastLongPressAt = 0;
 let replyContext = null;
 let loadedCommentsById = {};
 
@@ -1941,14 +1947,36 @@ function renderCommentRow(c, postId){
     avatar.textContent = ((c.author && c.author.firstName && c.author.firstName[0]) || (c.author && c.author.username && c.author.username[0]) || '?').toUpperCase();
   }
 
+  const hasProfile = !!(c.author && c.author.username);
+  if (hasProfile) {
+    avatar.style.cursor = 'pointer';
+    avatar.setAttribute('role', 'link');
+    avatar.setAttribute('aria-label', 'Open ' + c.author.username + ' profile');
+    avatar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (Date.now() - lastLongPressAt < 800) return;
+      goToProfile(c.author.username);
+    });
+  }
+
   const body = document.createElement('div');
   body.className = 'comment-body';
 
   const nameRow = document.createElement('div');
   nameRow.className = 'comment-name-row';
-  const nameEl = document.createElement('div');
+  const nameEl = document.createElement(hasProfile ? 'a' : 'div');
   nameEl.className = 'comment-name';
   nameEl.innerHTML = commentAuthorLabel(c.author);
+  if (hasProfile) {
+    nameEl.href = '/u/' + encodeURIComponent(c.author.username);
+    nameEl.style.cssText = 'cursor:pointer;color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent';
+    nameEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (Date.now() - lastLongPressAt < 800) return;
+      goToProfile(c.author.username);
+    });
+  }
   nameRow.appendChild(nameEl);
   if (c.pinned) {
     const pinBadge = document.createElement('span');
@@ -1980,7 +2008,7 @@ function renderCommentRow(c, postId){
   } else {
     const textEl = document.createElement('div');
     textEl.className = 'comment-text';
-    textEl.textContent = displayText;
+    textEl.innerHTML = renderCommentText(displayText);
     body.appendChild(textEl);
   }
 
@@ -2024,7 +2052,7 @@ function renderCommentRow(c, postId){
   if (c.canModerate) {
     row.style.cursor = 'pointer';
     const startPress = () => {
-      longPressTimer = setTimeout(() => openCommentOptions(c, postId, row), 500);
+      longPressTimer = setTimeout(() => { lastLongPressAt = Date.now(); openCommentOptions(c, postId, row); }, 500);
     };
     const cancelPress = () => { clearTimeout(longPressTimer); };
     row.addEventListener('touchstart', startPress, { passive: true });

@@ -4567,6 +4567,10 @@ function wireMessageRowGestures(container){
   });
 }
 
+async function loadClaimFaceModule(){
+  try { return await import('/claim-face.js'); }
+  catch (e) { return await import('/claim-face.js?r=' + Date.now()); }
+}
 let supportChatLastSig = '';
 async function loadSupportChatMessages(isInitial){
   const body = document.getElementById('supportChatBody');
@@ -5450,7 +5454,7 @@ claimContinueBtn.addEventListener('click', async () => {
   let claimModule = null;
   let capture = null;
   try {
-    claimModule = await import('/claim-face.js');
+    claimModule = await loadClaimFaceModule();
     capture = await claimModule.captureClaimFace();
   } catch (err) {
     claimContinueBtn.innerHTML = original;

@@ -240,6 +240,13 @@ body:has(.ad-overlay.show){overflow:hidden}
 .cn-p{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--card2);margin-bottom:6px;font-size:.78rem}
 .cn-p small{display:block;color:var(--muted);margin-top:2px;font-size:.68rem;line-height:1.4}
 .cn-refund{flex-shrink:0;padding:8px 12px;border-radius:10px;border:none;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;font-family:inherit;font-weight:700;font-size:.74rem;cursor:pointer}
+.cn-busy{position:relative!important;pointer-events:none!important;color:transparent!important}
+.cn-busy::after{content:"";position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:adSpin .6s linear infinite;box-sizing:border-box}
+.cn-refund.cn-busy::after{border-color:rgba(4,20,26,.3);border-top-color:#04141a}
+:root[data-theme="light"] .cn-amt.cn-busy::after{border-color:rgba(20,20,28,.25);border-top-color:#111}
+.cn-load{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;font-size:.78rem;color:var(--muted)}
+.cn-confirm-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.cn-confirm-actions .cn-refund{padding:13px;font-size:.88rem;border-radius:12px}
 .cn-close{display:block;margin:16px auto 0;background:none;border:none;color:var(--muted);text-decoration:underline;font-family:inherit;font-size:.78rem;cursor:pointer}
 .mt-icon-btn{
   width:46px;height:46px;flex-shrink:0;border-radius:14px;display:flex;align-items:center;justify-content:center;
@@ -672,6 +679,14 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
   </div>
 
   <div class="cn-ov" id="cnOverlay"><div class="cn-card" id="cnCard"></div></div>
+  <div class="cn-ov" id="cnConfirm" style="z-index:650"><div class="cn-card" style="text-align:center">
+    <div class="cn-title" id="cnConfirmTitle"></div>
+    <div class="cn-sub" id="cnConfirmText" style="margin-bottom:0"></div>
+    <div class="cn-confirm-actions">
+      <button type="button" class="cn-refund" id="cnConfirmYes">Confirm</button>
+      <button type="button" class="cn-close" id="cnConfirmNo" style="margin:0">Cancel</button>
+    </div>
+  </div></div>
 
   <div class="ad-card open accent-blue" id="pageLocksCard">
     <div class="ad-card-header" style="cursor:default">
@@ -3174,13 +3189,29 @@ document.getElementById('maintenanceOpenBtn').addEventListener('click', () => {
   var card = document.getElementById('cnCard');
   var results = document.getElementById('cnResults');
   var cur = null, timer = null;
+  var SPIN = '<span class="ad-spinner"></span>';
+  function askConfirm(title, text, yesLabel){
+    return new Promise(function(resolve){
+      var ov = document.getElementById('cnConfirm');
+      var yes = document.getElementById('cnConfirmYes');
+      var no = document.getElementById('cnConfirmNo');
+      document.getElementById('cnConfirmTitle').textContent = title;
+      document.getElementById('cnConfirmText').textContent = text;
+      yes.textContent = yesLabel || 'Confirm';
+      function done(v){ ov.classList.remove('show'); yes.onclick = null; no.onclick = null; ov.onclick = null; resolve(v); }
+      yes.onclick = function(){ done(true); };
+      no.onclick = function(){ done(false); };
+      ov.onclick = function(e){ if (e.target === ov) done(false); };
+      ov.classList.add('show');
+    });
+  }
   function openFor(uid, label){
     cur = { uid: uid, label: label };
     card.innerHTML =
       '<div class="cn-title">' + esc(label) + '</div>' +
       '<div class="cn-sub">Give free coins. They get a popup saying you gifted them.</div>' +
       '<div class="cn-amts">' + [10,50,100,200].map(function(n){ return '<button type="button" class="cn-amt" data-amt="' + n + '">' + n + '</button>'; }).join('') + '</div>' +
-      '<div class="cn-h">Store purchases</div><div id="cnPurchases"><div class="ad-hint">Loading…</div></div>' +
+      '<div class="cn-h">Store purchases</div><div id="cnPurchases"><div class="cn-load">' + SPIN + ' Loading purchases</div></div>' +
       '<button type="button" class="cn-close" id="cnClose">Close</button>';
     overlay.classList.add('show');
     loadPurchases();
@@ -3200,16 +3231,18 @@ document.getElementById('maintenanceOpenBtn').addEventListener('click', () => {
     var t = e.target;
     if (t.id === 'cnClose') { overlay.classList.remove('show'); return; }
     if (t.classList.contains('cn-amt')) {
-      t.disabled = true;
+      t.classList.add('cn-busy');
       postJSON('/api/admin/coins/gift', { uid: cur.uid, amount: Number(t.getAttribute('data-amt')) })
-        .then(function(d){ showToast('Sent ' + d.amount + ' coins.'); t.disabled = false; })
-        .catch(function(err){ showToast(err.message); t.disabled = false; });
+        .then(function(d){ showToast('Sent ' + d.amount + ' coins.'); t.classList.remove('cn-busy'); })
+        .catch(function(err){ showToast(err.message); t.classList.remove('cn-busy'); });
     } else if (t.classList.contains('cn-refund')) {
-      if (!window.confirm('Refund this purchase? The coins go back and the extra requests are removed.')) return;
-      t.disabled = true;
-      postJSON('/api/admin/coins/refund', { uid: cur.uid, seq: Number(t.getAttribute('data-seq')) })
-        .then(function(d){ showToast('Refunded ' + d.coins + ' coins.'); loadPurchases(); })
-        .catch(function(err){ showToast(err.message); t.disabled = false; });
+      askConfirm('Refund this purchase?', 'The coins go back to the account and the extra requests are removed.', 'Refund').then(function(ok){
+        if (!ok) return;
+        t.classList.add('cn-busy');
+        postJSON('/api/admin/coins/refund', { uid: cur.uid, seq: Number(t.getAttribute('data-seq')) })
+          .then(function(d){ showToast('Refunded ' + d.coins + ' coins.'); loadPurchases(); })
+          .catch(function(err){ showToast(err.message); t.classList.remove('cn-busy'); });
+      });
     }
   });
   overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.classList.remove('show'); });
@@ -3222,7 +3255,7 @@ document.getElementById('maintenanceOpenBtn').addEventListener('click', () => {
     clearTimeout(timer);
     var q = this.value.trim();
     if (!q) { results.innerHTML = ''; return; }
-    results.innerHTML = '<div class="ad-hint">Searching…</div>';
+    results.innerHTML = '<div class="cn-load">' + SPIN + ' Searching</div>';
     timer = setTimeout(function(){
       getJSON('/api/admin/users/search?q=' + encodeURIComponent(q)).then(function(d){
         var rows = d.results || [];

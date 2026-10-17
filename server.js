@@ -354,6 +354,7 @@ import { createChallenge, verifySolution } from "altcha-lib";
 import {
   securityHeaders,
   helmetMiddleware,
+  isStaticAssetPath,
   cspNonce,
   SimpleRateLimiter,
   DurableRateLimiter,
@@ -369,7 +370,7 @@ import {
 } from "./middleware/security-middleware.js";
 import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
 import { canonicalPath, pageGuards } from "./middleware/navigation.js";
-import { WEB_MANIFEST, siteHeadFor, siteOrigin } from "./config/site.js";
+import { WEB_MANIFEST, siteHead, siteHeadFor, siteOrigin } from "./config/site.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -404,6 +405,7 @@ app.use(suspiciousRequestDetector);
 const globalLimiter = new SimpleRateLimiter(400, 60000).middleware();
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/v1/hls/")) return next();
+  if (req.method === "GET" && isStaticAssetPath(req.path)) return next();
   return globalLimiter(req, res, next);
 });
 app.get("/robots.txt", (req, res) => res.type("text/plain").send(ROBOTS_TXT));
@@ -1000,9 +1002,37 @@ app.get("/chess", scrapeGate, requireUser, (req, res) => {
   res.send(cachedChessHtml);
 });
 
-app.get("/chess/guest/:token", scrapeGate, (req, res) => {
-  res.send(cachedChessHtml);
-});
+const GUEST_PREVIEW = {
+  title: "Join my chess game | ES TEAMS TV",
+  description: "You have been invited to play chess. No account needed, just pick a name and play.",
+};
+function guestPreviewPath(req) {
+  return "/chess/guest/" + String(req.params.token || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+}
+function retargetGuestHead(html, req) {
+  const url = siteOrigin() + guestPreviewPath(req);
+  const esc = (v) => String(v).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  return html
+    .replace(/<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${esc(url)}">`)
+    .replace(/<meta property="og:url" content="[^"]*">/, `<meta property="og:url" content="${esc(url)}">`)
+    .replace(/<meta property="og:title" content="[^"]*">/, `<meta property="og:title" content="${esc(GUEST_PREVIEW.title)}">`)
+    .replace(/<meta name="twitter:title" content="[^"]*">/, `<meta name="twitter:title" content="${esc(GUEST_PREVIEW.title)}">`)
+    .replace(/<meta property="og:description" content="[^"]*">/, `<meta property="og:description" content="${esc(GUEST_PREVIEW.description)}">`)
+    .replace(/<meta name="twitter:description" content="[^"]*">/, `<meta name="twitter:description" content="${esc(GUEST_PREVIEW.description)}">`)
+    .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${esc(GUEST_PREVIEW.description)}">`);
+}
+
+app.get(
+  "/chess/guest/:token",
+  (req, res, next) => {
+    res.locals.previewTags = siteHead({ ...GUEST_PREVIEW, path: guestPreviewPath(req) });
+    next();
+  },
+  scrapeGate,
+  (req, res) => {
+    res.send(retargetGuestHead(cachedChessHtml, req));
+  }
+);
 
 app.get("/giveaway", scrapeGate, requireUser, (req, res) => {
   res.send(cachedGiveawayHtml);

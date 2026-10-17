@@ -290,6 +290,12 @@ export const probePathTrap = (req, res, next) => {
   next();
 };
 
+const STATIC_ASSET_EXT = /\.(?:js|mjs|css|map|png|jpe?g|gif|webp|svg|ico|woff2?|ttf|json|wasm|bin|mp3|mp4|webm|txt|webmanifest)$/i;
+export function isStaticAssetPath(pathname) {
+  const p = String(pathname || "");
+  return STATIC_ASSET_EXT.test(p) || p.startsWith("/vendor/");
+}
+
 export class RepeatedRefusalGuard {
   constructor(maxRefusals = 15, windowMs = 5 * 60 * 1000, banMs = 30 * 60 * 1000) {
     this.maxRefusals = maxRefusals;
@@ -322,6 +328,7 @@ export class RepeatedRefusalGuard {
 
   middleware() {
     return (req, res, next) => {
+      if (req.method === "GET" && isStaticAssetPath(req.path)) return next();
       const ip = req.ip;
       const now = Date.now();
       const uid = sessionUid(req);

@@ -306,6 +306,11 @@ function setMsg(text){
   if (text) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
+async function loadClaimFaceModule() {
+  try { return await import('/claim-face.js'); }
+  catch (e) { return await import('/claim-face.js?r=' + Date.now()); }
+}
+
 async function onEnter(){
   const btn = document.getElementById('gvEnter');
   const name = document.getElementById('gvName').value.trim();
@@ -322,7 +327,7 @@ async function onEnter(){
   try {
     let cap;
     if (status.hasFaceId) {
-      const claim = await import('/claim-face.js');
+      const claim = await loadClaimFaceModule();
       cap = await claim.captureClaimFace();
       btn.innerHTML = '<span class="gv-spin"></span>Submitting...';
     } else {

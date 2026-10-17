@@ -78,7 +78,7 @@ function scramble(value) {
   return codes.join(",");
 }
 
-function interstitialHtml(ticket, secureCookie) {
+function interstitialHtml(ticket, secureCookie, previewTags = PREVIEW_TAGS) {
   const attrs = `; max-age=${Math.floor(TICKET_TTL_MS / 1000)}; path=/; samesite=lax${secureCookie ? "; secure" : ""}`;
   return `<!DOCTYPE html>
 <html lang="en">
@@ -87,7 +87,7 @@ function interstitialHtml(ticket, secureCookie) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>ES TEAMS TV</title>
-${PREVIEW_TAGS}
+${previewTags}
 <style>
   body{background:#0A0A0F;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
        font-family:system-ui,-apple-system,sans-serif;color:#8a8a9a}
@@ -152,5 +152,5 @@ export function scrapeGate(req, res, next) {
 
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.set("Vary", "Cookie, User-Agent");
-  res.status(200).type("html").send(interstitialHtml(issueTicket(req), secureCookie));
+  res.status(200).type("html").send(interstitialHtml(issueTicket(req), secureCookie, (res.locals && res.locals.previewTags) || PREVIEW_TAGS));
 }

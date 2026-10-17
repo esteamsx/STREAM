@@ -4864,7 +4864,8 @@ function primeMaintenanceCache(status) {
 const LOCKABLE_PAGES = {
   "/login": { label: "/login", apiPrefixes: ["/api/session", "/api/2fa", "/api/resolve-login-identifier", "/api/passkey", "/api/telegram-auth", "/api/github-auth"] },
   "/main": { label: "/main", pagePaths: ["/", "/live"], apiPrefixes: ["/api/channels", "/api/notifications"] },
-  "/account": { label: "/account", pagePaths: ["/account", "/profile", "/u/"], apiPrefixes: ["/api/account", "/api/support", "/api/users", "/api/plan", "/api/coins", "/api/withdraw", "/api/referral"] },
+  "/account": { label: "/account", pagePaths: ["/account"], apiPrefixes: ["/api/account", "/api/support", "/api/plan", "/api/coins", "/api/withdraw", "/api/referral"] },
+  "/profile": { label: "/profile", pagePaths: ["/profile", "/u"], apiPrefixes: [] },
   "/api": { label: "/api", pagePaths: ["/developers/api"], apiPrefixes: ["/api/dev"] },
   "/tools": { label: "/tools", pagePaths: ["/tools"], apiPrefixes: ["/api/tools"] },
   "/bots": { label: "/bots", pagePaths: ["/deploy-bot"], apiPrefixes: ["/api/bots", "/api/deploy-bot"] },

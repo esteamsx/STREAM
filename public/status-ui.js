@@ -112,6 +112,7 @@
     ".st-lnk{pointer-events:auto;-webkit-tap-highlight-color:transparent}",
     ".st-lnk-plain{color:#7fe9ff;text-decoration:underline;text-underline-offset:3px;word-break:break-all}",
     ".st-lnk-btn{display:inline-flex;align-items:center;gap:6px;margin:6px 4px;padding:9px 18px;border-radius:999px;background:linear-gradient(90deg,var(--accent,#00E0FF),var(--accent2,#7c5cff));color:#04141a;font-weight:700;font-size:.9rem;line-height:1.2;text-decoration:none;word-break:normal;box-shadow:0 8px 22px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.28)}",
+    ".st-lnk-btn svg{width:16px;height:16px;flex-shrink:0}",
     ".st-lnk-btn:active{transform:scale(.96)}",
     ".st-linkbtn{display:none;align-items:center;gap:6px;flex-shrink:0;height:44px;padding:0 14px;border-radius:22px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.4);color:#fff;font-size:.78rem;font-weight:600;cursor:pointer}",
     ".st-linkbtn.show{display:inline-flex}",
@@ -256,7 +257,7 @@
         if (!label && shown.length > 42) shown = shown.slice(0, 39) + "...";
         var a = h("a", { class: "st-lnk " + (label ? "st-lnk-btn" : "st-lnk-plain"), href: href, target: "_blank", rel: "noopener noreferrer" });
         a.appendChild(document.createTextNode(shown));
-        if (label) a.appendChild(h("span", { text: "\u2197" }));
+        if (label) a.insertAdjacentHTML("beforeend", ICONS.chev);   // the same redirect icon the site uses on its Visit Page button
         el.appendChild(a);
       }
       last = m.index + consumed;
