@@ -1,5 +1,11 @@
-const WHITE = { fill: "#f6f3ea", stroke: "#2b2b30", detail: "#2b2b30" };
-const BLACK = { fill: "#34343b", stroke: "#0f0f12", detail: "#e9e6dc" };
+export const PIECE_SETS = {
+  glass:   { name: "Glass",   W: { fill: "#f2f6ff", stroke: "#5b6f96", detail: "#5b6f96" }, B: { fill: "#161e33", stroke: "#7fb6ff", detail: "#9fc7ff" } },
+  classic: { name: "Classic", W: { fill: "#f6f3ea", stroke: "#2b2b30", detail: "#2b2b30" }, B: { fill: "#34343b", stroke: "#0f0f12", detail: "#e9e6dc" } },
+  neon:    { name: "Neon",    W: { fill: "#e9fdff", stroke: "#00b8d9", detail: "#00b8d9" }, B: { fill: "#1b1033", stroke: "#b388ff", detail: "#d1b8ff" } },
+  gold:    { name: "Gold",    W: { fill: "#fff4cf", stroke: "#a9781b", detail: "#a9781b" }, B: { fill: "#2a2116", stroke: "#e9b64a", detail: "#f3cf7a" } },
+};
+let WHITE = PIECE_SETS.glass.W;
+let BLACK = PIECE_SETS.glass.B;
 
 function shapes(type, c) {
   const s = `fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"`;
@@ -42,7 +48,10 @@ function shapes(type, c) {
   }
 }
 
-export function pieceSymbols() {
+export function pieceSymbols(set) {
+  const chosen = PIECE_SETS[set] || PIECE_SETS.glass;
+  WHITE = chosen.W;
+  BLACK = chosen.B;
   let out = "";
   for (const [color, c] of [["w", WHITE], ["b", BLACK]]) {
     for (const t of ["p", "r", "n", "b", "q", "k"]) {
@@ -50,4 +59,8 @@ export function pieceSymbols() {
     }
   }
   return out;
+}
+
+export function pieceInner(type, palette) {
+  return shapes(type, palette);
 }

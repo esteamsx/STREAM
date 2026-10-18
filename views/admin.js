@@ -247,6 +247,22 @@ body:has(.ad-overlay.show){overflow:hidden}
 .cn-load{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;font-size:.78rem;color:var(--muted)}
 .cn-confirm-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
 .cn-confirm-actions .cn-refund{padding:13px;font-size:.88rem;border-radius:12px}
+.fc-row{padding:12px 14px;border-radius:14px;border:1px solid var(--border);background:var(--card2);margin-top:8px}
+.fc-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.fc-name{font-weight:700;font-size:.88rem}
+.fc-badge{font-size:.64rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:rgba(255,107,107,.15);color:#ff6b6b}
+.fc-badge.ok{background:rgba(0,224,255,.12);color:var(--accent)}
+.fc-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.fc-stat{padding:8px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--border);text-align:center}
+.fc-stat b{display:block;font-family:var(--font-mono);font-size:1rem}
+.fc-stat span{font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.fc-acts{display:flex;gap:8px;flex-wrap:wrap}
+.fc-acts button{flex:1;min-width:110px;padding:10px;border-radius:10px;border:1px solid var(--border-strong);background:transparent;color:var(--text);font-family:inherit;font-weight:700;font-size:.76rem;cursor:pointer;position:relative}
+.fc-acts button.danger{border:none;background:linear-gradient(90deg,#ff6b6b,#ff4d8d);color:#fff}
+.fc-time{font-size:.68rem;color:var(--muted);margin-top:2px}
+.fc-hours{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+#fakeCoinsCard.flash{animation:fcFlash 1.6s ease}
+@keyframes fcFlash{0%,100%{box-shadow:none}30%{box-shadow:0 0 0 3px var(--accent)}}
 .cn-close{display:block;margin:16px auto 0;background:none;border:none;color:var(--muted);text-decoration:underline;font-family:inherit;font-size:.78rem;cursor:pointer}
 .mt-icon-btn{
   width:46px;height:46px;flex-shrink:0;border-radius:14px;display:flex;align-items:center;justify-content:center;
@@ -678,7 +694,32 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div>
   </div>
 
+  <div class="ad-card open accent-blue" id="fakeCoinsCard">
+    <div class="ad-card-header" style="cursor:default">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>
+      <div class="ad-card-header-title">Fake Coins</div>
+    </div>
+    <div class="ad-card-body" style="max-height:none">
+      <div class="ad-card-body-inner">
+        <div style="font-size:.76rem;color:var(--muted);line-height:1.5;margin-bottom:10px">Once a day the site checks every account against its signed coin record. Coins that did not come from the site are removed and listed here. An account caught twice is restricted automatically.</div>
+        <button type="button" class="cn-refund" id="fcScan" style="width:100%;padding:12px;border-radius:12px">Run the check now</button>
+        <div id="fcList" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="cn-ov" id="cnOverlay"><div class="cn-card" id="cnCard"></div></div>
+  <div class="cn-ov" id="fcBanOverlay" style="z-index:640"><div class="cn-card" style="text-align:center">
+    <div class="cn-title" id="fcBanTitle">Ban from coins</div>
+    <div class="cn-sub" id="fcBanSub" style="margin-bottom:0">This account and its devices cannot earn, spend or send coins for the time you pick.</div>
+    <div class="fc-hours">
+      <button type="button" class="cn-amt" data-h="1">1 hour</button>
+      <button type="button" class="cn-amt" data-h="24">24 hours</button>
+      <button type="button" class="cn-amt" data-h="168">7 days</button>
+      <button type="button" class="cn-amt" data-h="720">30 days</button>
+    </div>
+    <button type="button" class="cn-close" id="fcBanCancel">Cancel</button>
+  </div></div>
   <div class="cn-ov" id="cnConfirm" style="z-index:650"><div class="cn-card" style="text-align:center">
     <div class="cn-title" id="cnConfirmTitle"></div>
     <div class="cn-sub" id="cnConfirmText" style="margin-bottom:0"></div>
@@ -3209,8 +3250,8 @@ document.getElementById('maintenanceOpenBtn').addEventListener('click', () => {
     cur = { uid: uid, label: label };
     card.innerHTML =
       '<div class="cn-title">' + esc(label) + '</div>' +
-      '<div class="cn-sub">Give free coins. They get a popup saying you gifted them.</div>' +
-      '<div class="cn-amts">' + [10,50,100,200].map(function(n){ return '<button type="button" class="cn-amt" data-amt="' + n + '">' + n + '</button>'; }).join('') + '</div>' +
+      '<div class="cn-sub">Give free coins (up to 10 per person in 24 hours). They get a popup saying you gifted them.</div>' +
+      '<div class="cn-amts">' + [1,2,5,10].map(function(n){ return '<button type="button" class="cn-amt" data-amt="' + n + '">' + n + '</button>'; }).join('') + '</div>' +
       '<div class="cn-h">Store purchases</div><div id="cnPurchases"><div class="cn-load">' + SPIN + ' Loading purchases</div></div>' +
       '<button type="button" class="cn-close" id="cnClose">Close</button>';
     overlay.classList.add('show');
@@ -3266,6 +3307,81 @@ document.getElementById('maintenanceOpenBtn').addEventListener('click', () => {
       }).catch(function(){ results.innerHTML = '<div class="ad-hint">Search failed.</div>'; });
     }, 300);
   });
+})();
+
+
+(function(){
+  var list = document.getElementById('fcList');
+  var scanBtn = document.getElementById('fcScan');
+  var banOv = document.getElementById('fcBanOverlay');
+  var banFor = null;
+  var SPIN = '<span class="ad-spinner"></span>';
+  function ago(ts){ var m = Math.floor((Date.now() - ts) / 60000); if (m < 1) return 'just now'; if (m < 60) return m + ' min ago'; var h = Math.floor(m / 60); if (h < 48) return h + ' h ago'; return Math.floor(h / 24) + ' days ago'; }
+  function row(a){
+    var banned = a.banActive;
+    var badge = banned ? '<span class="fc-badge">Banned</span>' : (a.restricted ? '<span class="fc-badge">Restricted</span>' : (a.reviewed ? '<span class="fc-badge ok">Reviewed</span>' : '<span class="fc-badge">Removed</span>'));
+    return '<div class="fc-row" data-id="' + esc(a.id) + '">' +
+      '<div class="fc-top"><div><div class="fc-name">@' + esc(a.username || 'unknown') + '</div><div class="fc-time">' + ago(a.detectedAt) + ' · strike ' + (a.strikes || 1) + '</div></div>' + badge + '</div>' +
+      '<div class="fc-stats"><div class="fc-stat"><b>' + a.balanceBefore + '</b><span>Had</span></div><div class="fc-stat"><b>' + a.removed + '</b><span>Removed</span></div><div class="fc-stat"><b>' + a.balanceAfter + '</b><span>Balance now</span></div></div>' +
+      '<div class="fc-acts"><button type="button" class="danger" data-act="ban">Ban device and account</button>' +
+      (a.reviewed ? '' : '<button type="button" data-act="dismiss">Mark reviewed</button>') + '</div></div>';
+  }
+  function load(){
+    list.innerHTML = '<div class="cn-load">' + SPIN + ' Loading</div>';
+    Promise.all([getJSON('/api/admin/fake-coins'), getJSON('/api/admin/chess-reviews').catch(function(){ return { reviews: [] }; })]).then(function(res){
+      var d = res[0], chess = res[1].reviews || [];
+      var html = d.alerts.map(row).join('');
+      if (chess.length) {
+        html += '<div class="cn-h">Chess game checks (Hard wins)</div>' + chess.map(function(r){
+          var label = r.verdict === 'human' ? 'Human moves' : (r.verdict === 'ai' ? 'AI moves' : 'Suspicious');
+          var cls = r.verdict === 'human' ? 'fc-badge ok' : 'fc-badge';
+          return '<div class="cn-p"><div>@' + esc(r.username || 'unknown') + ' <span class="' + cls + '">' + label + '</span>' +
+            '<small>' + (r.agreement == null ? 'no engine check' : r.agreement + '% engine match') + ' · avg ' + Math.round((r.avgMs || 0) / 1000) + 's per move · ' + (r.rewarded ? '+1 coin given' : 'no coin') + ' · ' + ago(r.at) +
+            (r.reasons && r.reasons.length ? '<br>' + esc(r.reasons.join('; ')) : '') + '</small></div></div>';
+        }).join('');
+      }
+      if (d.restricted.length) {
+        html += '<div class="cn-h">Restricted accounts</div>' + d.restricted.map(function(u){
+          return '<div class="cn-p"><div>@' + esc(u.username) + '<small>' + u.coinBalance + ' coins · ' + u.strikes + ' strikes</small></div><button type="button" class="cn-refund" data-lift="' + esc(u.uid) + '">Lift</button></div>';
+        }).join('');
+      }
+      list.innerHTML = html || '<div class="ad-hint" style="padding:12px 0">No fake coins found.</div>';
+    }).catch(function(err){ list.innerHTML = '<div class="ad-hint">' + esc(err.message) + '</div>'; });
+  }
+  list.addEventListener('click', function(e){
+    var b = e.target.closest('button');
+    if (!b) return;
+    var rowEl = b.closest('.fc-row');
+    if (b.getAttribute('data-act') === 'ban') { banFor = rowEl.getAttribute('data-id'); banOv.classList.add('show'); }
+    else if (b.getAttribute('data-act') === 'dismiss') {
+      b.classList.add('cn-busy');
+      postJSON('/api/admin/fake-coins/' + encodeURIComponent(rowEl.getAttribute('data-id')) + '/dismiss', {}).then(load).catch(function(err){ showToast(err.message); b.classList.remove('cn-busy'); });
+    } else if (b.getAttribute('data-lift')) {
+      b.classList.add('cn-busy');
+      postJSON('/api/admin/fake-coins/unrestrict/' + encodeURIComponent(b.getAttribute('data-lift')), {}).then(function(){ showToast('Restriction lifted.'); load(); }).catch(function(err){ showToast(err.message); b.classList.remove('cn-busy'); });
+    }
+  });
+  banOv.addEventListener('click', function(e){
+    if (e.target === banOv || e.target.id === 'fcBanCancel') { banOv.classList.remove('show'); return; }
+    var b = e.target.closest('.cn-amt');
+    if (!b || !banFor) return;
+    b.classList.add('cn-busy');
+    postJSON('/api/admin/fake-coins/' + encodeURIComponent(banFor) + '/ban', { hours: Number(b.getAttribute('data-h')) })
+      .then(function(d){ b.classList.remove('cn-busy'); banOv.classList.remove('show'); showToast('Banned. ' + d.devicesBlocked + ' device' + (d.devicesBlocked === 1 ? '' : 's') + ' blocked.'); load(); })
+      .catch(function(err){ b.classList.remove('cn-busy'); showToast(err.message); });
+  });
+  scanBtn.addEventListener('click', function(){
+    scanBtn.classList.add('cn-busy');
+    postJSON('/api/admin/fake-coins/scan', {}).then(function(d){
+      scanBtn.classList.remove('cn-busy');
+      showToast(d.skipped ? 'A check is already running.' : 'Checked ' + d.scanned + ' accounts, found ' + d.found + '.');
+      load();
+    }).catch(function(err){ scanBtn.classList.remove('cn-busy'); showToast(err.message); });
+  });
+  load();
+  if (location.hash === '#fake-coins') {
+    setTimeout(function(){ var c = document.getElementById('fakeCoinsCard'); c.scrollIntoView({ behavior: 'smooth', block: 'start' }); c.classList.add('flash'); }, 500);
+  }
 })();
 
 document.getElementById('pageLockOpenBtn').addEventListener('click', () => {

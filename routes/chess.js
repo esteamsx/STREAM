@@ -1,9 +1,10 @@
 import crypto from "crypto";
 import { createChessHub, TIME_OPTIONS } from "../services/chess-mp.js";
+import { replayBotGame, analyzeBotGame } from "../services/chess-anticheat.js";
 
 const MAX_TABS = 4;
 
-export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, hub = createChessHub() }) {
+export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, creditChessBotWin, recordChessReview, hub = createChessHub() }) {
   const readLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware();
   const challengeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
   const moveLimiter = new SimpleRateLimiter(40, 10 * 1000, (req) => req.uid).middleware();
@@ -175,6 +176,53 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
   router.post("/api/chess/game/:id/draw/respond", requireAuth, requireSiteOrigin, moveLimiter, (req, res) => {
     const b = req.body || {};
     act(res, () => hub.respondDraw(req.uid, req.params.id, b.key, !!b.accept));
+  });
+
+  const botSessions = new Map();   // token -> { uid, startedAt, used }
+  const rewardLimiter = new SimpleRateLimiter(12, 10 * 60 * 1000, (req) => req.uid, "Slow down a little.").middleware();
+
+  router.post("/api/chess/bot/start", requireAuth, requireSiteOrigin, rewardLimiter, (req, res) => {
+    const level = String((req.body || {}).level || "");
+    if (level !== "hard") return res.json({ token: null });
+    if (botSessions.size > 5000) for (const [k, v] of botSessions) if (Date.now() - v.startedAt > 3 * 3600 * 1000) botSessions.delete(k);
+    const token = crypto.randomBytes(12).toString("hex");
+    botSessions.set(token, { uid: req.uid, startedAt: Date.now(), used: false });
+    res.set("Cache-Control", "no-store").json({ token });
+  });
+
+  router.post("/api/chess/bot/finish", requireAuth, requireSiteOrigin, rewardLimiter, async (req, res) => {
+    const b = req.body || {};
+    const token = String(b.token || "");
+    const sess = botSessions.get(token);
+    if (!sess || sess.uid !== req.uid || sess.used) return res.status(400).json({ error: "This game can no longer be rewarded." });
+    sess.used = true;
+    const humanColor = b.humanColor === "b" ? "b" : "w";
+    try {
+      if (b.undone) return res.json({ rewarded: false, message: "No coin this time because Undo was used." });
+      const replay = replayBotGame(b.moves, humanColor);
+      if (!replay.ok) return res.json({ rewarded: false, message: "This game could not be verified." });
+      if (!replay.humanWon) return res.json({ rewarded: false, message: "Win by checkmate on Hard to earn a coin." });
+      const verdict = await analyzeBotGame({
+        moves: b.moves, humanColor,
+        timings: Array.isArray(b.timings) ? b.timings.slice(0, 400) : [],
+        serverDurationMs: Date.now() - sess.startedAt,
+        blurCount: b.blurCount, blurMs: b.blurMs,
+      });
+      const review = { verdict: verdict.verdict, score: verdict.score, reasons: verdict.reasons, humanMoves: verdict.humanMoves, agreement: verdict.agreement == null ? null : Math.round(verdict.agreement * 100), avgMs: verdict.avgMs || 0, rewarded: false };
+      if (verdict.verdict === "too_short") {
+        return res.json({ rewarded: false, message: "That game was too short to earn a coin." });
+      }
+      if (verdict.verdict !== "human") {
+        await recordChessReview(req.uid, review).catch(() => {});
+        return res.json({ rewarded: false, message: "We could not confirm this win was played by you, so no coin was given." });
+      }
+      const paid = await creditChessBotWin(req.uid, token);
+      review.rewarded = true;
+      await recordChessReview(req.uid, review).catch(() => {});
+      res.json({ rewarded: true, coins: paid.coins, balance: paid.balance, message: "+1 coin for beating the computer on Hard!" });
+    } catch (e) {
+      res.status(e.status || 400).json({ error: e.message || "Could not check this game." });
+    }
   });
 
   router.post("/api/chess/guest/links", requireAuth, requireSiteOrigin, challengeLimiter, (req, res) => {

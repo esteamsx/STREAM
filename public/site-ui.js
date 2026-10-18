@@ -794,6 +794,41 @@ function esRefreshDots() {
 window.addEventListener("es-status-changed", () => esRefreshDots());
 
 let esGiftOpen = false;
+const ES_GIFT_ICON = '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="24" width="48" height="14" rx="3"/><path d="M12 38v18a3 3 0 003 3h34a3 3 0 003-3V38"/><path d="M32 24v35"/><path d="M32 24c-4-12-18-12-18-4 0 5 9 4 18 4zM32 24c4-12 18-12 18-4 0 5-9 4-18 4z"/></svg>';
+const ES_COIN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 9.5c0-1.2 1.3-2 3-2s3 .8 3 2-1.3 1.8-3 2-3 .8-3 2 1.3 2 3 2 3-.8 3-2"/></svg>';
+
+function esGiftStyles() {
+  if (document.getElementById("esGiftCss")) return;
+  const st = document.createElement("style");
+  st.id = "esGiftCss";
+  st.textContent =
+    "@keyframes gfIn{from{opacity:0;transform:translateY(18px) scale(.94)}to{opacity:1;transform:none}}" +
+    "@keyframes gfShake{0%,100%{transform:rotate(0)}10%{transform:rotate(-12deg) scale(1.04)}20%{transform:rotate(11deg) scale(1.04)}30%{transform:rotate(-9deg)}40%{transform:rotate(8deg)}50%{transform:rotate(-5deg)}60%{transform:rotate(3deg)}70%,90%{transform:rotate(0)}}" +
+    "@keyframes gfGlow{0%,100%{box-shadow:0 0 0 0 rgba(0,224,255,.35),0 12px 30px rgba(0,0,0,.35)}50%{box-shadow:0 0 0 14px rgba(0,224,255,0),0 12px 30px rgba(0,0,0,.35)}}" +
+    "@keyframes gfSpark{0%{opacity:0;transform:translate(0,0) scale(.3)}25%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1)}}" +
+    "@keyframes gfPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}" +
+    ".gf-card{position:relative;width:100%;max-width:340px;padding:30px 22px 22px;border-radius:20px;text-align:center;overflow:hidden;" +
+    "background:linear-gradient(155deg,rgba(255,255,255,.16),rgba(255,255,255,.03) 40%,rgba(255,255,255,.06) 100%),rgba(18,18,28,.62);" +
+    "backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.24);" +
+    "box-shadow:0 24px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.32);animation:gfIn .45s cubic-bezier(.2,.9,.3,1.2) both}" +
+    ":root[data-theme=light] .gf-card{background:linear-gradient(155deg,rgba(255,255,255,.75),rgba(255,255,255,.35)),rgba(255,255,255,.7);border-color:rgba(255,255,255,.7);box-shadow:0 24px 70px rgba(20,20,28,.2),inset 0 1px 0 rgba(255,255,255,.8)}" +
+    ".gf-glow{position:absolute;left:50%;top:-60px;width:260px;height:260px;margin-left:-130px;border-radius:50%;background:radial-gradient(circle,rgba(0,224,255,.28),rgba(124,92,255,.14) 45%,transparent 70%);pointer-events:none}" +
+    ".gf-box{position:relative;width:84px;height:84px;margin:0 auto 14px;border-radius:24px;display:flex;align-items:center;justify-content:center;color:#04141a;" +
+    "background:linear-gradient(135deg,var(--accent,#00E0FF),var(--accent2,#7c5cff));animation:gfShake 1.5s .5s ease-in-out 2,gfGlow 2s 1.9s ease-out infinite}" +
+    ".gf-box svg{width:48px;height:48px}" +
+    ".gf-spark{position:absolute;left:50%;top:42px;width:7px;height:7px;margin-left:-3px;border-radius:50%;background:var(--accent,#00E0FF);opacity:0;animation:gfSpark 1.6s ease-out infinite}" +
+    ".gf-title{position:relative;font-family:var(--font-display,inherit);font-size:1.15rem;font-weight:700;letter-spacing:-.01em;color:var(--text,#fff)}" +
+    ".gf-from{position:relative;margin-top:6px;font-size:.85rem;color:var(--muted,rgba(255,255,255,.6))}" +
+    ".gf-from b{color:var(--accent,#00E0FF)}" +
+    ".gf-amt{position:relative;display:inline-flex;align-items:center;gap:8px;margin:16px 0 20px;padding:10px 20px;border-radius:999px;font-family:var(--font-mono,ui-monospace,monospace);font-size:1.6rem;font-weight:800;color:var(--text,#fff);" +
+    "background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.2);animation:gfPop .6s .35s both}" +
+    ".gf-amt svg{width:26px;height:26px;color:#FFC93C}" +
+    ".gf-amt small{font-size:.8rem;font-weight:700;color:var(--muted,rgba(255,255,255,.6));letter-spacing:.04em}" +
+    ".gf-btn{position:relative;width:100%;padding:14px;border:none;border-radius:13px;font-weight:700;font-size:.92rem;cursor:pointer;font-family:inherit;color:#04141a;background:linear-gradient(90deg,var(--accent,#00E0FF),var(--accent2,#7c5cff));box-shadow:0 8px 22px rgba(0,224,255,.25)}" +
+    "@media (prefers-reduced-motion:reduce){.gf-card,.gf-box,.gf-spark,.gf-amt{animation:none!important}.gf-spark{display:none}}";
+  document.head.appendChild(st);
+}
+
 function esCheckCoinGift() {
   if (esGiftOpen || document.visibilityState !== "visible") return;
   fetch("/api/coin-gifts/pending", { credentials: "same-origin" })
@@ -802,31 +837,64 @@ function esCheckCoinGift() {
       const g = d && d.gift;
       if (!g || esGiftOpen) return;
       esGiftOpen = true;
+      esGiftStyles();
       const ov = document.createElement("div");
       ov.className = "page-overlay show";
       ov.style.zIndex = "9600";
       const card = document.createElement("div");
-      card.className = "overlay-card";
-      card.style.textAlign = "center";
-      const title = document.createElement("div");
-      title.className = "overlay-title";
-      title.textContent = "You received a gift";
-      const sub = document.createElement("div");
-      sub.className = "overlay-sub";
-      sub.textContent = g.from + " gifted you " + g.amount + " coins";
+      card.className = "gf-card";
+      const from = document.createElement("div");
+      from.className = "gf-from";
+      const fromName = document.createElement("b");
+      fromName.textContent = g.from;
+      from.append(fromName, " sent you a surprise");
+      const amt = document.createElement("div");
+      amt.className = "gf-amt";
+      amt.innerHTML = ES_COIN_ICON;
+      const num = document.createElement("span");
+      num.textContent = "0";
+      const unit = document.createElement("small");
+      unit.textContent = "COINS";
+      amt.append(num, unit);
       const ok = document.createElement("button");
       ok.type = "button";
+      ok.className = "gf-btn";
       ok.textContent = "Awesome";
-      ok.style.cssText = "width:100%;padding:13px;border:none;border-radius:12px;font-weight:700;font-size:.9rem;cursor:pointer;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;font-family:inherit";
+      const box = document.createElement("div");
+      box.className = "gf-box";
+      box.innerHTML = ES_GIFT_ICON;
+      const title = document.createElement("div");
+      title.className = "gf-title";
+      title.textContent = "You received a gift!";
+      const glow = document.createElement("div");
+      glow.className = "gf-glow";
+      card.appendChild(glow);
+      for (let i = 0; i < 10; i++) {
+        const sp = document.createElement("i");
+        sp.className = "gf-spark";
+        const ang = (Math.PI * 2 * i) / 10;
+        sp.style.setProperty("--dx", Math.round(Math.cos(ang) * (70 + (i % 3) * 14)) + "px");
+        sp.style.setProperty("--dy", Math.round(Math.sin(ang) * (60 + (i % 3) * 12)) + "px");
+        sp.style.animationDelay = (0.5 + (i % 5) * 0.12) + "s";
+        card.appendChild(sp);
+      }
+      card.append(box, title, from, amt, ok);
+      ov.appendChild(card);
+      document.body.appendChild(ov);
+      const target = Number(g.amount) || 0;
+      const t0 = performance.now() + 350;
+      (function tick(now) {
+        const k = Math.min(1, Math.max(0, (now - t0) / 900));
+        num.textContent = String(Math.round(target * (1 - Math.pow(1 - k, 3))));
+        if (k < 1 && ov.isConnected) requestAnimationFrame(tick);
+        else num.textContent = String(target);
+      })(performance.now());
       ok.addEventListener("click", () => {
         fetch("/api/coin-gifts/" + encodeURIComponent(g.id) + "/seen", { method: "POST", credentials: "same-origin" }).catch(() => {});
         ov.remove();
         esGiftOpen = false;
         setTimeout(esCheckCoinGift, 400);
       });
-      card.append(title, sub, ok);
-      ov.appendChild(card);
-      document.body.appendChild(ov);
     })
     .catch(() => {});
 }

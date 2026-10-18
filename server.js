@@ -261,6 +261,10 @@ import {
   adminListUsers,
   adminSearchUsers,
   adminGiftCoins,
+  creditChessBotWin,
+  recordChessReview,
+  listChessReviews,
+  invalidateUserProfileCache,
   getPendingCoinGift,
   markCoinGiftSeen,
   adminListStorePurchases,
@@ -327,6 +331,7 @@ import { promoteRouter } from "./routes/promote.js";
 import { injectPromoSlot } from "./middleware/promo-slot.js";
 import { flushAdStats } from "./services/ads.js";
 import { rewardsRouter } from "./routes/rewards.js";
+import { initFakeCoins, startFakeCoinSchedule, runFakeCoinScan, listFakeCoinAlerts, banFakeCoinUser, dismissFakeCoinAlert, liftCoinRestriction, coinDeviceGuard } from "./services/fake-coins.js";
 import { payLinkRouter } from "./routes/pay-link.js";
 import { statusRouter } from "./routes/status.js";
 import { visitorSupportRouter } from "./routes/visitor-support.js";
@@ -678,10 +683,11 @@ app.use(freeApiRouter);
 app.get("/s/:code", handleShortlinkRedirect);
 app.use(paymentsRouter);
 app.use(promoteRouter);
+app.use("/api/rewards", coinDeviceGuard);
 app.use(rewardsRouter);
 app.use(createGiveawayRouter({ verifyCaptcha }));
 const chessRouter = express.Router();
-registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive });
+registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, creditChessBotWin, recordChessReview });
 app.use(chessRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
@@ -1236,6 +1242,56 @@ app.post("/api/coin-gifts/:id/seen", requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch {
     res.json({ ok: false });
+  }
+});
+
+app.get("/api/admin/chess-reviews", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store").json({ reviews: await listChessReviews() });
+  } catch (err) {
+    res.status(400).json({ error: "Could not load chess checks." });
+  }
+});
+
+app.get("/api/admin/fake-coins", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store").json(await listFakeCoinAlerts());
+  } catch (err) {
+    res.status(400).json({ error: "Could not load fake coin alerts." });
+  }
+});
+
+app.post("/api/admin/fake-coins/scan", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ ok: true, ...(await runFakeCoinScan()) });
+  } catch (err) {
+    res.status(400).json({ error: "The check could not finish. Try again." });
+  }
+});
+
+app.post("/api/admin/fake-coins/:id/ban", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ ok: true, ...(await banFakeCoinUser(req.params.id, req.body?.hours)) });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not apply the ban." });
+  }
+});
+
+app.post("/api/admin/fake-coins/:id/dismiss", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await dismissFakeCoinAlert(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: "Could not update that alert." });
+  }
+});
+
+app.post("/api/admin/fake-coins/unrestrict/:uid", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await liftCoinRestriction(req.params.uid);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: "Could not lift that restriction." });
   }
 });
 
@@ -4547,6 +4603,8 @@ discoverLockablePages(app, LOCKABLE_PAGES);
 
 const server = app.listen(PORT, function () {
   console.log("ES TEAMS TV running on port " + PORT);
+  initFakeCoins({ addNotification, getAdminUid, invalidateUserProfileCache, isAdminEmail });
+  startFakeCoinSchedule();
 });
 
 server.keepAliveTimeout = 65000;
@@ -4564,8 +4622,10 @@ function shutdown(signal, code = 0) {
   }, 15000);
   force.unref();
   server.closeIdleConnections?.();
+  const analyticsSaved = flushCompletedDays(true).catch(() => {});
+  setTimeout(() => { try { server.closeAllConnections?.(); } catch { /* ignore */ } }, 6000).unref();
   server.close(async () => {
-    await flushCompletedDays(true).catch(() => {});
+    await analyticsSaved;
     await flushAdStats().catch(() => {});
     clearTimeout(force);
     console.log("ES TEAMS TV stopped cleanly.");

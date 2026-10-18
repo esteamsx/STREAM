@@ -2765,6 +2765,14 @@ function notifRender(list){
       viewBtn.addEventListener('click', () => { window.location.href = n.meta.postUrl; });
       top.appendChild(viewBtn);
     }
+    if (n.type === 'fake_coins') {
+      const viewBtn = document.createElement('button');
+      viewBtn.type = 'button';
+      viewBtn.className = 'notif-view-post-btn';
+      viewBtn.textContent = 'View';
+      viewBtn.addEventListener('click', () => { window.location.href = '/admin#fake-coins'; });
+      top.appendChild(viewBtn);
+    }
     if (n.type === 'verified') {
       const viewBtn = document.createElement('button');
       viewBtn.type = 'button';

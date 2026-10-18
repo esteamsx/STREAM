@@ -113,6 +113,8 @@
     ".st-lnk-plain{color:#7fe9ff;text-decoration:underline;text-underline-offset:3px;word-break:break-all}",
     ".st-lnk-btn{display:inline-flex;align-items:center;gap:6px;margin:6px 4px;padding:9px 18px;border-radius:999px;background:linear-gradient(90deg,var(--accent,#00E0FF),var(--accent2,#7c5cff));color:#04141a;font-weight:700;font-size:.9rem;line-height:1.2;text-decoration:none;word-break:normal;box-shadow:0 8px 22px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.28)}",
     ".st-lnk-btn svg{width:16px;height:16px;flex-shrink:0}",
+    ".es-emoji{display:inline-block;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;font-size:1.18em;line-height:1;vertical-align:-.14em;font-style:normal;font-weight:400;margin:0 .04em;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3))}",
+    ".es-emoji-xl{font-size:2.4em}",
     ".st-lnk-btn:active{transform:scale(.96)}",
     ".st-linkbtn{display:none;align-items:center;gap:6px;flex-shrink:0;height:44px;padding:0 14px;border-radius:22px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.4);color:#fff;font-size:.78rem;font-weight:600;cursor:pointer}",
     ".st-linkbtn.show{display:inline-flex}",
@@ -238,9 +240,26 @@
     } catch (e) { return null; }
   }
 
+  var EMOJI_RE = /(?![\u00A9\u00AE\u2122])(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}[\uFE0F\uFE0E]?\p{Emoji_Modifier}?(?:\u200D\p{Extended_Pictographic}\uFE0F?\p{Emoji_Modifier}?)*)/gu;
+  function emojiFrag(text, big) {
+    var frag = document.createDocumentFragment(), last = 0, m;
+    var re = new RegExp(EMOJI_RE.source, "gu");
+    while ((m = re.exec(text))) {
+      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      var sp = document.createElement("span");
+      sp.className = "es-emoji" + (big ? " es-emoji-xl" : "");
+      sp.textContent = m[0];
+      frag.appendChild(sp);
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    return frag;
+  }
+
   function richText(el, text) {
     el.textContent = "";
     text = String(text || "");
+    var onlyEmoji = text.replace(new RegExp(EMOJI_RE.source, "gu"), "").trim() === "" && (text.match(new RegExp(EMOJI_RE.source, "gu")) || []).length <= 3 && text.trim() !== "";
     var re = new RegExp(LINK_RE.source, "gi"), last = 0, m;
     while ((m = re.exec(text))) {
       var label = m[1], url = m[2] || m[3], consumed = m[0].length;
@@ -248,7 +267,7 @@
         var trail = /[.,;:!?'"]+$/.exec(url);
         if (trail) { url = url.slice(0, -trail[0].length); consumed -= trail[0].length; re.lastIndex = m.index + consumed; }
       }
-      if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+      if (m.index > last) el.appendChild(emojiFrag(text.slice(last, m.index), onlyEmoji));
       var href = safeHref(url);
       if (!href) {
         el.appendChild(document.createTextNode(text.substr(m.index, consumed)));
@@ -262,7 +281,7 @@
       }
       last = m.index + consumed;
     }
-    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+    if (last < text.length) el.appendChild(emojiFrag(text.slice(last), onlyEmoji));
   }
 
   function openLinkDialog(selected, onSave) {

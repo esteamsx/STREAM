@@ -63,8 +63,9 @@ async function ensureStoreLoaded() {
       const snap = await FIRESTORE_DOC.get();
       dailyStore = snap.exists ? (snap.data().days || {}) : {};
     } catch (err) {
-      console.error("[analytics] could not load daily store from Firestore:", err.message);
-      dailyStore = {};
+      console.error("[analytics] could not load daily store from Firestore, will retry:", err.message);
+      storeLoadPromise = null;
+      throw err;
     }
     writeLocalFile(dailyStore);
     return dailyStore;
@@ -72,10 +73,12 @@ async function ensureStoreLoaded() {
   return storeLoadPromise;
 }
 
-async function persistStore(store) {
+async function persistStore(store, changedDays) {
   writeLocalFile(store);
   try {
-    await FIRESTORE_DOC.set({ days: store, updatedAt: Date.now() });
+    const days = {};
+    for (const k of changedDays || Object.keys(store)) if (store[k]) days[k] = store[k];
+    await FIRESTORE_DOC.set({ days, updatedAt: Date.now() }, { merge: true });
   } catch (err) {
     console.error("[analytics] could not persist daily store to Firestore:", err.message);
   }
@@ -119,6 +122,7 @@ async function flushCompletedDays(force = false) {
     const currentDayKey = dayKeyFor(now);
     const currentHourKey = hourKeyFor(now);
     let changed = false;
+    const changedDays = [];
 
     const byDay = new Map();
     for (const [hourKey, bucket] of hourly) {
@@ -147,6 +151,7 @@ async function flushCompletedDays(force = false) {
         store[dayKey] = { views, uniqueVisitors: visitorIds.size, topPaths };
       }
       changed = true;
+      changedDays.push(dayKey);
       for (const [hourKey] of entries) hourly.delete(hourKey);
     }
 
@@ -162,7 +167,7 @@ async function flushCompletedDays(force = false) {
       if (keys.length > MAX_DAYS_STORED) {
         for (const k of keys.slice(0, keys.length - MAX_DAYS_STORED)) delete store[k];
       }
-      await persistStore(store);
+      await persistStore(store, changedDays);
     }
   } catch (err) {
     console.error("[analytics] flush failed:", err.message);

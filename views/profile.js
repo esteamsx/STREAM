@@ -513,6 +513,9 @@ body:has(.page-overlay.show){overflow:hidden}
 .comment-text{font-size:.85rem;color:var(--text);line-height:1.45;margin-top:2px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word }
 .comment-text a{color:var(--accent);font-weight:600;text-decoration:none}
 .comment-text a:hover{text-decoration:underline}
+.es-emoji{display:inline-block;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;font-size:1.18em;line-height:1;vertical-align:-.14em;font-style:normal;font-weight:400;letter-spacing:0;margin:0 .04em;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3));transition:transform .15s}
+.es-emoji:hover{transform:scale(1.25)}
+.es-emoji-xl{font-size:2.6em;margin:.05em .08em}
 .comment-meta{display:flex;align-items:center;gap:14px;margin-top:6px}
 .comment-time{font-size:.68rem;color:var(--muted)}
 .comment-like-btn{background:transparent;border:none;color:var(--muted);display:flex;align-items:center;gap:5px;font-size:.7rem;font-weight:600}
@@ -1073,6 +1076,16 @@ const TRASH_ICON_SMALL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentCo
 function escapeHtml(s){
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+const EMOJI_RE = /(?![\\u00A9\\u00AE\\u2122])(?:\\p{Regional_Indicator}{2}|[#*0-9]\\uFE0F?\\u20E3|\\p{Extended_Pictographic}[\\uFE0F\\uFE0E]?\\p{Emoji_Modifier}?(?:\\u200D\\p{Extended_Pictographic}\\uFE0F?\\p{Emoji_Modifier}?)*)/gu;
+function styleEmoji(html){
+  const count = (html.replace(/<[^>]*>/g, '').match(EMOJI_RE) || []).length;
+  const bare = html.replace(/<[^>]*>/g, '').replace(EMOJI_RE, '').replace(/&[a-z#0-9]+;|\\s/gi, '');
+  const big = count > 0 && count <= 3 && bare === '';
+  return html.replace(/(<[^>]*>)|([^<]+)/g, function(m, tag, text){
+    if (tag) return tag;
+    return text.replace(EMOJI_RE, function(e){ return '<span class="es-emoji' + (big ? ' es-emoji-xl' : '') + '">' + e + '</span>'; });
+  });
+}
 function renderPostText(text){
   let html = escapeHtml(text);
   html = html.replace(/\\[([^\\[\\]]+)\\]\\((https?:\\/\\/[^\\s()]+)\\)/g, function(m, label, url){
@@ -1081,10 +1094,10 @@ function renderPostText(text){
   html = html.replace(/\\*([^\\s*][^*]*?)\\*/g, '<b>$1</b>');
   html = html.replace(/_([^\\s_][^_]*?)_/g, '<i>$1</i>');
   html = html.replace(/@(\\w+)/g, '<a href="/u/$1">@$1</a>');
-  return html;
+  return styleEmoji(html);
 }
 function renderCommentText(text){
-  return escapeHtml(text).replace(/@(\\w+)/g, '<a href="/u/$1">@$1</a>');
+  return styleEmoji(escapeHtml(text).replace(/@(\\w+)/g, '<a href="/u/$1">@$1</a>'));
 }
 function extractTags(text){
   const matches = (text || '').match(/@(\\w+)/g) || [];

@@ -4011,6 +4011,7 @@ async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
       }
     }
     if (isAdmin) amount = ADMIN_DAILY_COIN_CLAIM_AMOUNT;
+    assertCoinsAllowed(data);
     const ledger = appendCoinLedger(tx, ref, data, amount, "daily_claim", { day: today, ...(free ? {} : { reference }) });
     tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(amount), lastDailyCoinClaimDay: today, ...ledger }, { merge: true });
     if (payRef) tx.update(payRef, { used: true, usedAt: Date.now() });
@@ -4039,6 +4040,7 @@ async function spendCoins(uid, amount, reason) {
     if (coinLedgerMismatch(data)) {
       throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
     }
+    assertCoinsAllowed(data);
     const balance = data.coinBalance || 0;
     if (balance < cost) {
       throw Object.assign(
@@ -4101,6 +4103,7 @@ async function redeemCoinsForLimit(uid, itemKey, product) {
     if (coinLedgerMismatch(data)) {
       throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
     }
+    assertCoinsAllowed(data);
     const balance = data.coinBalance || 0;
     if (balance < item.coinCost) throw Object.assign(new Error("Not enough coins for that reward."), { status: 400 });
     const ledger = appendCoinLedger(tx, userRef, data, -item.coinCost, "store_redeem", { itemKey, product });
@@ -4118,7 +4121,19 @@ async function redeemCoinsForLimit(uid, itemKey, product) {
 }
 
 
-const GIFT_AMOUNTS = [10, 50, 100, 200];
+function isCoinRestricted(data) {
+  if (!data) return false;
+  if (data.coinRestricted === true) return true;
+  return (data.coinRestrictedUntil || 0) > Date.now();
+}
+function assertCoinsAllowed(data) {
+  if (isCoinRestricted(data)) {
+    throw Object.assign(new Error("Coins are restricted on this account while it is being reviewed. Contact support."), { status: 400, code: "coins/restricted" });
+  }
+}
+const GIFT_AMOUNTS = [1, 2, 5, 10];
+const GIFT_DAILY_CAP = 10;
+const GIFT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function usageMonthOf(ts) {
   const d = new Date(ts);
@@ -4127,7 +4142,7 @@ function usageMonthOf(ts) {
 
 async function adminGiftCoins(adminUid, targetUid, rawAmount) {
   const amount = Number(rawAmount);
-  if (!GIFT_AMOUNTS.includes(amount)) throw Object.assign(new Error("Pick 10, 50, 100 or 200 coins."), { status: 400 });
+  if (!GIFT_AMOUNTS.includes(amount)) throw Object.assign(new Error("Pick 1, 2, 5 or 10 coins."), { status: 400 });
   const targetRef = db.collection("users").doc(String(targetUid || ""));
   let target = null;
   await db.runTransaction(async (tx) => {
@@ -4136,8 +4151,17 @@ async function adminGiftCoins(adminUid, targetUid, rawAmount) {
     const data = snap.data();
     if (coinLedgerMismatch(data)) throw Object.assign(new Error("That account's coin balance failed a security check."), { status: 409 });
     target = data;
+    const now = Date.now();
+    const win = data.adminGiftWindow && now - (data.adminGiftWindow.since || 0) < GIFT_WINDOW_MS ? data.adminGiftWindow : { since: now, total: 0 };
+    if (win.total + amount > GIFT_DAILY_CAP) {
+      const left = Math.max(0, GIFT_DAILY_CAP - win.total);
+      const hrs = Math.max(1, Math.ceil((win.since + GIFT_WINDOW_MS - now) / 3600000));
+      throw Object.assign(new Error(left > 0
+        ? `You can send this person ${left} more coin${left === 1 ? "" : "s"} in the next 24 hours.`
+        : `This person already got ${GIFT_DAILY_CAP} coins from you. You can send more in about ${hrs} hour${hrs === 1 ? "" : "s"}.`), { status: 400 });
+    }
     const ledger = appendCoinLedger(tx, targetRef, data, amount, "admin_gift", { byUid: adminUid });
-    tx.update(targetRef, { coinBalance: admin.firestore.FieldValue.increment(amount), ...ledger });
+    tx.update(targetRef, { coinBalance: admin.firestore.FieldValue.increment(amount), adminGiftWindow: { since: win.since, total: win.total + amount }, ...ledger });
   });
   invalidateUserProfileCache(targetRef.id);
   const adminSnap = await db.collection("users").doc(adminUid).get();
@@ -4252,6 +4276,60 @@ async function adminRefundStorePurchase(adminUid, uid, rawSeq) {
   return result;
 }
 
+
+const CHESS_REWARD_DAILY_MAX = 3;
+const CHESS_REWARD_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+async function creditChessBotWin(uid, token) {
+  const userRef = db.collection("users").doc(uid);
+  const rewardRef = db.collection("chessBotRewards").doc(String(token));
+  let balance = 0;
+  await db.runTransaction(async (tx) => {
+    const [snap, rewardSnap] = await Promise.all([tx.get(userRef), tx.get(rewardRef)]);
+    if (!snap.exists) throw Object.assign(new Error("Account not found."), { status: 404 });
+    const data = snap.data();
+    if (rewardSnap.exists) throw Object.assign(new Error("That game was already rewarded."), { status: 400 });
+    if (coinLedgerMismatch(data)) throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409 });
+    assertCoinsAllowed(data);
+    const now = Date.now();
+    if ((data.chessRewardBlockedUntil || 0) > now) throw Object.assign(new Error("Coins for beating the computer are paused on your account for now."), { status: 400, code: "chess/paused" });
+    const win = data.chessRewardWindow && now - (data.chessRewardWindow.since || 0) < CHESS_REWARD_WINDOW_MS ? data.chessRewardWindow : { since: now, count: 0 };
+    if (win.count >= CHESS_REWARD_DAILY_MAX) throw Object.assign(new Error(`You can earn up to ${CHESS_REWARD_DAILY_MAX} coins a day from the computer. Come back later.`), { status: 400, code: "chess/daily-limit" });
+    const ledger = appendCoinLedger(tx, userRef, data, 1, "chess_bot_win", { token: String(token) });
+    tx.update(userRef, { coinBalance: admin.firestore.FieldValue.increment(1), chessRewardWindow: { since: win.since, count: win.count + 1 }, ...ledger });
+    tx.set(rewardRef, { uid, at: now });
+    balance = (data.coinBalance || 0) + 1;
+  });
+  invalidateUserProfileCache(uid);
+  return { coins: 1, balance };
+}
+
+async function recordChessReview(uid, review) {
+  const profile = await getUserProfile(uid).catch(() => null);
+  const username = (profile && profile.username) || "";
+  await db.collection("chessBotReviews").add({ uid, username, ...review, at: Date.now() });
+  if (review.verdict !== "ai" && review.verdict !== "suspicious") return;
+  const ref = db.collection("users").doc(uid);
+  let strikes = 0;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    strikes = (snap.data().chessCheatStrikes || 0) + 1;
+    const patch = { chessCheatStrikes: strikes };
+    if (strikes >= 3) { patch.chessRewardBlockedUntil = Date.now() + 7 * 24 * 60 * 60 * 1000; patch.chessCheatStrikes = 0; }
+    tx.update(ref, patch);
+  });
+  if (strikes >= 3) {
+    const adminUid = await getAdminUid();
+    if (adminUid) await addNotification(adminUid, "fake_coins", `@${username || "A user"} looks like they are using an AI to win chess games. Computer-win coins are paused for 7 days.`, { accounts: 1, coins: 0, chess: true });
+  }
+}
+
+async function listChessReviews() {
+  const snap = await db.collection("chessBotReviews").orderBy("at", "desc").limit(30).get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
 async function redeemCoinsForVerification(uid) {
   const item = COIN_STORE_ITEMS.verify3d;
   const userRef = db.collection("users").doc(uid);
@@ -4264,6 +4342,7 @@ async function redeemCoinsForVerification(uid) {
     if (coinLedgerMismatch(data)) {
       throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
     }
+    assertCoinsAllowed(data);
     const balance = data.coinBalance || 0;
     if (balance < item.coinCost) throw Object.assign(new Error("Not enough coins for that reward."), { status: 400 });
     const base = Math.max(Date.now(), data.verifiedExpiresAt || 0);
@@ -4330,6 +4409,7 @@ async function transferCoins(uid, targetUsername, rawAmount) {
     if (coinLedgerMismatch(senderData)) {
       throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
     }
+    assertCoinsAllowed(senderData);
     const balance = senderData.coinBalance || 0;
     if (balance < amount) {
       throw Object.assign(new Error("You do not have enough coins for that transfer."), { status: 400 });
@@ -5419,6 +5499,10 @@ export {
   redeemCoinsForLimit,
   redeemCoinsForVerification,
   adminGiftCoins,
+  creditChessBotWin,
+  recordChessReview,
+  listChessReviews,
+  isCoinRestricted,
   getPendingCoinGift,
   markCoinGiftSeen,
   adminListStorePurchases,
@@ -5520,6 +5604,7 @@ export {
   getPostImage,
   getSuggestedUsers,
   addNotification,
+  invalidateUserProfileCache,
   claimPendingPayment,
   broadcastNotification,
   getNotifications,
