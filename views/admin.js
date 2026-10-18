@@ -263,6 +263,12 @@ body:has(.ad-overlay.show){overflow:hidden}
 .fc-hours{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
 #fakeCoinsCard.flash{animation:fcFlash 1.6s ease}
 @keyframes fcFlash{0%,100%{box-shadow:none}30%{box-shadow:0 0 0 3px var(--accent)}}
+.db-check{width:32px;height:32px;border-radius:50%;border:1px solid var(--accent);background:rgba(0,224,255,.1);color:var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;position:relative;flex-shrink:0}
+.db-check svg{width:16px;height:16px}
+.db-check.cn-busy::after{border-color:rgba(0,224,255,.3);border-top-color:var(--accent)}
+.db-found{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--card2);margin-top:8px;text-align:left}
+.db-found b{display:block;font-size:.86rem}
+.db-found small{color:var(--muted);font-size:.72rem}
 .cn-close{display:block;margin:16px auto 0;background:none;border:none;color:var(--muted);text-decoration:underline;font-family:inherit;font-size:.78rem;cursor:pointer}
 .mt-icon-btn{
   width:46px;height:46px;flex-shrink:0;border-radius:14px;display:flex;align-items:center;justify-content:center;
@@ -720,6 +726,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div>
     <button type="button" class="cn-close" id="fcBanCancel">Cancel</button>
   </div></div>
+  <div class="cn-ov" id="dbMatchOverlay" style="z-index:660"><div class="cn-card" style="text-align:center" id="dbMatchCard"></div></div>
   <div class="cn-ov" id="cnConfirm" style="z-index:650"><div class="cn-card" style="text-align:center">
     <div class="cn-title" id="cnConfirmTitle"></div>
     <div class="cn-sub" id="cnConfirmText" style="margin-bottom:0"></div>
@@ -1934,7 +1941,9 @@ function deviceBanItemHtml(b){
   const when = b.state === 'banned' ? 'blocked until ' + new Date(b.expiresAt).toLocaleString() : 'block expired, Face ID required to sign in';
   return '<div class="withdrawal-item">' +
     '<div class="withdrawal-item-head">' +
-      '<div class="withdrawal-item-amount" style="font-size:.95rem">' + esc(b.name || 'Device') + '</div>' + pill +
+      '<div class="withdrawal-item-amount" style="font-size:.95rem">' + esc(b.name || 'Device') + '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px">' + pill +
+      '<button type="button" class="db-check" data-match="' + esc(b.id) + '" aria-label="Find and ban matching accounts" title="Find and ban other accounts on this device"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button></div>' +
     '</div>' +
     '<div class="withdrawal-item-meta">' +
       '@' + esc(b.username || 'user') + (b.email ? ' &middot; ' + esc(b.email) : '') + '<br>' +
@@ -1945,6 +1954,36 @@ function deviceBanItemHtml(b){
       ? '<button type="button" class="withdrawal-confirm-btn" data-unbl="' + esc(b.blacklistId) + '">Unban device</button>'
       : '<button type="button" class="withdrawal-confirm-btn" data-bl="' + esc(b.id) + '" style="background:var(--red);color:#fff">Blacklist device</button>') +
   '</div>';
+}
+
+function askMatchBan(btn){
+  const ov = document.getElementById('dbMatchOverlay');
+  const card = document.getElementById('dbMatchCard');
+  const close = () => ov.classList.remove('show');
+  card.innerHTML = '<div class="cn-title">Check this device?</div>' +
+    '<div class="cn-sub" style="margin-bottom:0">Any other account that used this same device and IP will be banned. You will see who they are.</div>' +
+    '<div class="cn-confirm-actions"><button type="button" class="cn-refund" id="dbMatchYes">Check and ban</button><button type="button" class="cn-close" id="dbMatchNo" style="margin:0">Cancel</button></div>';
+  ov.classList.add('show');
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  document.getElementById('dbMatchNo').onclick = close;
+  document.getElementById('dbMatchYes').onclick = async () => {
+    close();
+    btn.classList.add('cn-busy');
+    try {
+      const d = await postJSON('/api/admin/device-bans/' + encodeURIComponent(btn.getAttribute('data-match')) + '/ban-matches', {});
+      btn.classList.remove('cn-busy');
+      if (!d.banned.length) { showToast('No other accounts matched this device.'); return; }
+      card.innerHTML = '<div class="cn-title">' + d.banned.length + ' account' + (d.banned.length === 1 ? '' : 's') + ' banned</div>' +
+        '<div class="cn-sub">These accounts used the same device and IP.</div>' +
+        d.banned.map((u) => '<div class="db-found"><div><b>' + esc(u.name || u.username || 'Account') + '</b><small>@' + esc(u.username || 'unknown') + '</small></div></div>').join('') +
+        '<button type="button" class="cn-close" id="dbMatchDone">Done</button>';
+      ov.classList.add('show');
+      document.getElementById('dbMatchDone').onclick = close;
+    } catch (err) {
+      btn.classList.remove('cn-busy');
+      showToast(err.message || 'Could not check this device.');
+    }
+  };
 }
 
 function renderDeviceBans(list){
@@ -1963,6 +2002,9 @@ function renderDeviceBans(list){
         btn.disabled = false;
       }
     });
+  });
+  deviceBansList.querySelectorAll('[data-match]').forEach((btn) => {
+    btn.addEventListener('click', () => askMatchBan(btn));
   });
   deviceBansList.querySelectorAll('[data-unbl]').forEach((btn) => {
     btn.addEventListener('click', async () => {

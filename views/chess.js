@@ -88,6 +88,7 @@ button{cursor:pointer}
         <div class="cx-moves" id="cxMoves"></div>
       </div>
       <div class="cx-controls" id="cxControls"></div>
+      <div class="cx-vdock" id="cxVoiceDock" hidden></div>
     </div>
   </section>
 </main>

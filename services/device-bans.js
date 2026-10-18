@@ -216,3 +216,24 @@ export function blacklistMiddleware(req, res, next) {
   }
   res.status(403).json({ error: "Device has been blacklisted. If you think it's an error, contact support.", code: "device/blacklisted" });
 }
+
+export async function findAccountsMatchingBan(banId) {
+  const snap = await db.collection(BANS).doc(banId).get();
+  if (!snap.exists) return null;
+  const b = snap.data();
+  const queries = [];
+  if (b.deviceId) queries.push(db.collection("deviceSessions").where("deviceId", "==", b.deviceId).limit(100).get());
+  if (b.ip) queries.push(db.collection("deviceSessions").where("ip", "==", b.ip).limit(200).get());
+  if (b.fp) queries.push(db.collection(BANS).where("fp", "==", b.fp).limit(100).get());
+  if (b.deviceId) queries.push(db.collection(BANS).where("deviceId", "==", b.deviceId).limit(100).get());
+  const uids = new Set();
+  for (const q of await Promise.all(queries)) {
+    q.docs.forEach((d) => {
+      const r = d.data();
+      if (!r.uid || r.uid === b.uid) return;
+      const sameDevice = (b.deviceId && r.deviceId === b.deviceId) || (b.fp && (r.fp === b.fp || fingerprintOf(r) === b.fp));
+      if (sameDevice) uids.add(r.uid);
+    });
+  }
+  return { flagged: b, uids: [...uids] };
+}

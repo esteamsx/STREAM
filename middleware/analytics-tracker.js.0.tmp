@@ -1,0 +1,330 @@
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { db } from "../config/firebase.js";
+
+const STORE_FILE = path.join(process.cwd(), ".analytics-daily.json");
+const MAX_DAYS_STORED = 400;
+const FIRESTORE_DOC = db.collection("analyticsStore").doc("daily");
+const HOURLY_DOC = db.collection("analyticsStore").doc("hourly");
+
+const VISITOR_COOKIE = "esv";
+const VISITOR_COOKIE_MAX_AGE = 2 * 365 * 24 * 60 * 60 * 1000;
+
+const SKIP_PREFIXES = ["/api/", "/public/", "/uploads/", "/embed/", "/favicon", "/sw.js", "/robots.txt", "/sitemap", "/health"];
+const ASSET_EXT = /\.(js|css|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|map|json|xml|txt)$/i;
+
+const hourly = new Map();
+let dailyStore = null;
+let storeLoadPromise = null;
+
+function hourKeyFor(ts) {
+  const d = new Date(ts);
+  return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getUTCDate()).padStart(2, "0") + "T" + String(d.getUTCHours()).padStart(2, "0");
+}
+function dayKeyFor(ts) {
+  return hourKeyFor(ts).slice(0, 10);
+}
+
+function getOrCreateHourBucket(hourKey) {
+  let bucket = hourly.get(hourKey);
+  if (!bucket) {
+    bucket = { views: 0, visitorIds: new Set(), paths: new Map() };
+    hourly.set(hourKey, bucket);
+  }
+  return bucket;
+}
+
+function readLocalFile() {
+  try {
+    if (!fs.existsSync(STORE_FILE)) return null;
+    return JSON.parse(fs.readFileSync(STORE_FILE, "utf8"));
+  } catch (err) {
+    return null;
+  }
+}
+function writeLocalFile(store) {
+  try {
+    fs.writeFileSync(STORE_FILE, JSON.stringify(store));
+  } catch (err) {
+  }
+}
+
+async function ensureStoreLoaded() {
+  if (dailyStore) return dailyStore;
+  if (storeLoadPromise) return storeLoadPromise;
+  storeLoadPromise = (async () => {
+    const local = readLocalFile();
+    if (local) {
+      dailyStore = local;
+      return dailyStore;
+    }
+    try {
+      const snap = await FIRESTORE_DOC.get();
+      dailyStore = snap.exists ? (snap.data().days || {}) : {};
+    } catch (err) {
+      // Never carry on with an empty history: saving it would overwrite the real saved numbers. Try again on the next flush.
+      console.error("[analytics] could not load daily store from Firestore, will retry:", err.message);
+      storeLoadPromise = null;
+      throw err;
+    }
+    writeLocalFile(dailyStore);
+    return dailyStore;
+  })();
+  return storeLoadPromise;
+}
+
+async function persistStore(store, changedDays) {
+  writeLocalFile(store);
+  try {
+    // Only the days that changed are written, merged into the saved document, so older days can never be wiped by a save.
+    const days = {};
+    for (const k of changedDays || Object.keys(store)) if (store[k]) days[k] = store[k];
+    await FIRESTORE_DOC.set({ days, updatedAt: Date.now() }, { merge: true });
+  } catch (err) {
+    console.error("[analytics] could not persist daily store to Firestore:", err.message);
+  }
+}
+
+// ---- the hourly numbers (today and the last 24 hours) survive restarts and deployments ----
+let hourlyDirty = false;
+let hourlyLoaded = null;
+const MAX_HOURLY_JSON = 900 * 1000;
+
+function loadHourly() {
+  if (hourlyLoaded) return hourlyLoaded;
+  hourlyLoaded = (async () => {
+    try {
+      const snap = await HOURLY_DOC.get();
+      const saved = snap.exists ? (snap.data().buckets || {}) : {};
+      for (const [hourKey, b] of Object.entries(saved)) {
+        const bucket = getOrCreateHourBucket(hourKey);
+        bucket.views += Number(b.views) || 0;
+        for (const id of b.v || []) bucket.visitorIds.add(id);
+        for (const [path, c] of b.p || []) bucket.paths.set(path, (bucket.paths.get(path) || 0) + (Number(c) || 0));
+      }
+      return true;
+    } catch (err) {
+      console.error("[analytics] could not load the hourly numbers, will retry:", err.message);
+      hourlyLoaded = null;
+      return false;
+    }
+  })();
+  return hourlyLoaded;
+}
+
+async function persistHourly() {
+  if (!hourlyDirty) return;
+  if (!(await loadHourly())) return;          // never save before the saved numbers were merged in
+  hourlyDirty = false;
+  try {
+    const keys = [...hourly.keys()].sort();
+    let buckets = {};
+    const build = (list) => {
+      const out = {};
+      for (const k of list) {
+        const b = hourly.get(k);
+        out[k] = { views: b.views, v: [...b.visitorIds].map((id) => String(id).slice(0, 12)), p: [...b.paths.entries()] };
+      }
+      return out;
+    };
+    buckets = build(keys);
+    // a document can only hold about 1 MB, so on a very busy day the oldest hours are dropped from the saved copy
+    while (JSON.stringify(buckets).length > MAX_HOURLY_JSON && keys.length > 1) { keys.shift(); buckets = build(keys); }
+    await HOURLY_DOC.set({ buckets, updatedAt: Date.now() });
+  } catch (err) {
+    hourlyDirty = true;
+    console.error("[analytics] could not save the hourly numbers:", err.message);
+  }
+}
+
+setInterval(() => { persistHourly().catch(() => {}); }, 60 * 1000).unref();
+loadHourly();
+
+function normalizePath(p) {
+  return p.replace(/\/[0-9a-fA-F]{16,}/g, "/:id").replace(/\/\d{4,}/g, "/:id");
+}
+
+function trackPageView(req, res, next) {
+  try {
+    if (req.method === "GET") {
+      const p = req.path || "/";
+      if (!SKIP_PREFIXES.some((pre) => p.startsWith(pre)) && !ASSET_EXT.test(p)) {
+        let visitorId = req.cookies && req.cookies[VISITOR_COOKIE];
+        if (!visitorId) {
+          visitorId = crypto.randomBytes(16).toString("hex");
+          res.cookie(VISITOR_COOKIE, visitorId, {
+            maxAge: VISITOR_COOKIE_MAX_AGE,
+            httpOnly: true,
+            sameSite: "lax",
+          });
+        }
+        const now = Date.now();
+        const bucket = getOrCreateHourBucket(hourKeyFor(now));
+        bucket.views++;
+        bucket.visitorIds.add(String(visitorId).slice(0, 12));   // 12 characters are plenty to tell visitors apart and keep the saved copy small
+        hourlyDirty = true;
+        const key = normalizePath(p);
+        bucket.paths.set(key, (bucket.paths.get(key) || 0) + 1);
+      }
+    }
+  } catch (err) {
+  }
+  next();
+}
+
+async function flushCompletedDays(force = false) {
+  try {
+    if (!(await loadHourly())) return;
+    const store = await ensureStoreLoaded();
+    const now = Date.now();
+    const currentDayKey = dayKeyFor(now);
+    const currentHourKey = hourKeyFor(now);
+    let changed = false;
+    const changedDays = [];
+
+    const byDay = new Map();
+    for (const [hourKey, bucket] of hourly) {
+      const dayKey = hourKey.slice(0, 10);
+      if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+      byDay.get(dayKey).push([hourKey, bucket]);
+    }
+
+    for (const [dayKey, entries] of byDay) {
+      if (!force && dayKey === currentDayKey) continue;
+      let views = 0;
+      const visitorIds = new Set();
+      const pathTotals = new Map();
+      for (const [, bucket] of entries) {
+        views += bucket.views;
+        for (const id of bucket.visitorIds) visitorIds.add(id);
+        for (const [p, c] of bucket.paths) pathTotals.set(p, (pathTotals.get(p) || 0) + c);
+      }
+      const topPaths = [...pathTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+        .map(([p, count]) => ({ path: p, count }));
+      const existing = store[dayKey];
+      if (existing) {
+        existing.views += views;
+        existing.uniqueVisitors += visitorIds.size;
+      } else {
+        store[dayKey] = { views, uniqueVisitors: visitorIds.size, topPaths };
+      }
+      changed = true;
+      changedDays.push(dayKey);
+      for (const [hourKey] of entries) hourly.delete(hourKey);
+      hourlyDirty = true;
+    }
+
+    const cutoff = now - 48 * 60 * 60 * 1000;
+    for (const [hourKey] of hourly) {
+      if (hourKey === currentHourKey) continue;
+      const bucketTime = Date.parse(hourKey + ":00:00Z");
+      if (bucketTime < cutoff) hourly.delete(hourKey);
+    }
+
+    if (changed) {
+      const keys = Object.keys(store).sort();
+      if (keys.length > MAX_DAYS_STORED) {
+        for (const k of keys.slice(0, keys.length - MAX_DAYS_STORED)) delete store[k];
+      }
+      await persistStore(store, changedDays);
+    }
+  } catch (err) {
+    console.error("[analytics] flush failed:", err.message);
+  }
+}
+
+setInterval(() => {
+  flushCompletedDays().catch(() => {});
+}, 5 * 60 * 1000).unref();
+
+async function getAnalytics(range) {
+  await loadHourly();
+  await flushCompletedDays();
+  const store = dailyStore || {};
+  const now = Date.now();
+
+  if (range === "24h") {
+    const points = [];
+    let totalViews = 0;
+    const unionVisitors = new Set();
+    for (let i = 23; i >= 0; i--) {
+      const t = now - i * 60 * 60 * 1000;
+      const hourKey = hourKeyFor(t);
+      const bucket = hourly.get(hourKey);
+      const views = bucket ? bucket.views : 0;
+      totalViews += views;
+      if (bucket) for (const id of bucket.visitorIds) unionVisitors.add(id);
+      points.push({ label: new Date(t).toISOString(), views, visitors: bucket ? bucket.visitorIds.size : 0 });
+    }
+    const pathTotals = new Map();
+    for (const [, bucket] of hourly) {
+      for (const [p, c] of bucket.paths) pathTotals.set(p, (pathTotals.get(p) || 0) + c);
+    }
+    const topPaths = [...pathTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+      .map(([p, count]) => ({ path: p, count }));
+    return { points, totals: { views: totalViews, visitors: unionVisitors.size }, topPaths };
+  }
+
+  const daysMap = { "7d": 7, "30d": 30, "60d": 60, "180d": 180 };
+  const todayKey = dayKeyFor(now);
+  let todayViews = 0;
+  const todayVisitors = new Set();
+  const todayPaths = new Map();
+  for (const [hourKey, bucket] of hourly) {
+    if (hourKey.slice(0, 10) !== todayKey) continue;
+    todayViews += bucket.views;
+    for (const id of bucket.visitorIds) todayVisitors.add(id);
+    for (const [p, c] of bucket.paths) todayPaths.set(p, (todayPaths.get(p) || 0) + c);
+  }
+
+  let dayKeys;
+  if (range === "lifetime") {
+    dayKeys = Object.keys(store).sort();
+    if (!dayKeys.includes(todayKey)) dayKeys.push(todayKey);
+  } else {
+    const n = daysMap[range] || 30;
+    dayKeys = [];
+    for (let i = n - 1; i >= 0; i--) {
+      dayKeys.push(dayKeyFor(now - i * 24 * 60 * 60 * 1000));
+    }
+  }
+
+  const points = [];
+  let totalViews = 0;
+  let totalVisitors = 0;
+  const pathTotals = new Map();
+  for (const dayKey of dayKeys) {
+    let views = 0;
+    let visitors = 0;
+    let dayPaths = null;
+    if (dayKey === todayKey) {
+      views = todayViews;
+      visitors = todayVisitors.size;
+      dayPaths = todayPaths;
+      if (store[dayKey]) {
+        // numbers saved by an earlier shutdown of today
+        views += store[dayKey].views || 0;
+        visitors += store[dayKey].uniqueVisitors || 0;
+        dayPaths = new Map(todayPaths);
+        for (const p of store[dayKey].topPaths || []) dayPaths.set(p.path, (dayPaths.get(p.path) || 0) + p.count);
+      }
+    } else if (store[dayKey]) {
+      views = store[dayKey].views;
+      visitors = store[dayKey].uniqueVisitors;
+      dayPaths = new Map((store[dayKey].topPaths || []).map((p) => [p.path, p.count]));
+    }
+    totalViews += views;
+    totalVisitors += visitors;
+    if (dayPaths) for (const [p, c] of dayPaths) pathTotals.set(p, (pathTotals.get(p) || 0) + c);
+    points.push({ label: dayKey, views, visitors });
+  }
+
+  const topPaths = [...pathTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+    .map(([p, count]) => ({ path: p, count }));
+
+  return { points, totals: { views: totalViews, visitors: totalVisitors }, topPaths };
+}
+
+export { trackPageView, getAnalytics, flushCompletedDays, persistHourly };

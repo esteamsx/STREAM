@@ -225,6 +225,46 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
     }
   });
 
+  const voiceLimiter = new SimpleRateLimiter(900, 60 * 1000, (req) => req.uid || (req.guest && req.guest.uid) || req.ip).middleware();
+  const specLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid || req.ip, "Slow down a little.").middleware();
+
+  function iceServers() {
+    const list = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
+    if (process.env.CHESS_TURN_URL) list.push({ urls: process.env.CHESS_TURN_URL.split(",").map((x) => x.trim()), username: process.env.CHESS_TURN_USER || "", credential: process.env.CHESS_TURN_PASS || "" });
+    return list;
+  }
+  router.get("/api/chess/ice", requireAuth, voiceLimiter, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: iceServers() }));
+
+  const roomRoutes = (prefix, uidOf, guard) => {
+    router.post(prefix + "/room", ...guard, (req, res) => {
+      const b = req.body || {};
+      act(res, () => hub.getRoom(uidOf(req), b.gameId, b.key));
+    });
+    router.post(prefix + "/room/settings", ...guard, (req, res) => {
+      const b = req.body || {};
+      act(res, () => hub.setRoom(uidOf(req), b.gameId, b.key, { open: b.open, pin: b.pin, max: b.max }));
+    });
+    router.post(prefix + "/voice/join", ...guard, (req, res) => {
+      const b = req.body || {};
+      act(res, () => hub.voiceJoin(uidOf(req), b.gameId, b.key));
+    });
+    router.post(prefix + "/voice/signal", ...guard, (req, res) => {
+      const b = req.body || {};
+      act(res, () => hub.voiceSignal(uidOf(req), b.gameId, b.key, b.to, b.data));
+    });
+  };
+  roomRoutes("/api/chess", (req) => req.uid, [requireAuth, requireSiteOrigin, voiceLimiter]);
+  roomRoutes("/api/chess/guest", (req) => req.guest.uid, [requireSiteOrigin, voiceLimiter, requireGuest]);
+  router.get("/api/chess/guest/ice", voiceLimiter, requireGuest, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: iceServers() }));
+
+  router.post("/api/chess/spectate", requireAuth, requireSiteOrigin, specLimiter, (req, res) => {
+    const b = req.body || {};
+    act(res, () => hub.spectate(req.uid, b.code, b.pin));
+  });
+  router.post("/api/chess/spectate/leave", requireAuth, requireSiteOrigin, specLimiter, (req, res) => {
+    act(res, () => { hub.leaveSpectate(req.uid); return { ok: true }; });
+  });
+
   router.post("/api/chess/guest/links", requireAuth, requireSiteOrigin, challengeLimiter, (req, res) => {
     const b = req.body || {};
     const minutes = Number(b.minutes);

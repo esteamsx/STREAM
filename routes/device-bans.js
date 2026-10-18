@@ -9,12 +9,14 @@ import {
   userHasFaceId,
   verifyLoginFace,
   sessionSid,
+  adminBanUser,
 } from "../services/auth.js";
 import { getDeviceSession, revokeSessionsForDevice } from "../services/device-sessions.js";
 import {
   BAN_MS,
   banState,
   findBansForLogin,
+  findAccountsMatchingBan,
   createUserBan,
   markFaceMismatch,
   removeUserBan,
@@ -150,6 +152,31 @@ deviceBansRouter.get("/api/admin/device-bans", requireAuth, requireAdmin, async 
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not load flagged devices." });
+  }
+});
+
+deviceBansRouter.post("/api/admin/device-bans/:id/ban-matches", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const found = await findAccountsMatchingBan(String(req.params.id || ""));
+    if (!found) return res.status(404).json({ error: "Flagged device not found." });
+    const banned = [];
+    for (let i = 0; i < found.uids.length; i += 300) {
+      const refs = found.uids.slice(i, i + 300).map((u) => db.collection("users").doc(u));
+      const snaps = refs.length ? await db.getAll(...refs) : [];
+      for (const s of snaps) {
+        if (!s.exists) continue;
+        const u = s.data();
+        if (isAdminEmail(u.email) || u.banned) continue;
+        try {
+          await adminBanUser(s.id);
+          banned.push({ uid: s.id, username: u.username || "", name: [u.firstName, u.lastName].filter(Boolean).join(" ") });
+        } catch (e) { console.error("[device-bans] could not ban", s.id, e && e.message); }
+      }
+    }
+    res.json({ ok: true, banned });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not check for matching accounts." });
   }
 });
 

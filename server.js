@@ -27,7 +27,7 @@ import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
 import { quotaMaintenanceGate, checkQuotaError } from "./middleware/quota-guard.js";
 import { getDbUsage, diagnoseDbUsage } from "./services/db-usage.js";
-import { trackPageView, getAnalytics, flushCompletedDays } from "./middleware/analytics-tracker.js";
+import { trackPageView, getAnalytics, flushCompletedDays, persistHourly } from "./middleware/analytics-tracker.js";
 import { verifyCoinLedgerChain } from "./services/coin-ledger.js";
 import { pageLockGate } from "./middleware/page-lock.js";
 import { discoverLockablePages } from "./services/page-discovery.js";
@@ -443,7 +443,7 @@ app.get("/outbound-ip", async (req, res) => {
   }
 });
 
-const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js", "incognito-guard.js", "visitor-support.js", "chess-page.js", "chess-engine.js", "chess-bot.js", "chess-worker.js", "chess-pieces.js", "chess-sound.js", "chess.css"]);
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js", "incognito-guard.js", "visitor-support.js", "chess-page.js", "chess-engine.js", "chess-bot.js", "chess-worker.js", "chess-pieces.js", "chess-sound.js", "chess-voice.js", "chess.css"]);
 
 app.use(
   express.static(path.join(__dirname, "public"), {
@@ -649,6 +649,15 @@ async function verifyCaptcha(payload) {
 app.use(crossOriginWriteGuard);
 
 app.use(express.json({ limit: "25mb", verify: (req, res, buf) => { req.rawBody = buf; } }));
+const ID_ROUTE_PREFIXES = ["/api/chess", "/api/status", "/api/admin", "/api/posts", "/api/users", "/api/notifications", "/api/rewards", "/api/support", "/api/coin-gifts", "/api/follow", "/api/comments"];
+app.use((req, res, next) => {
+  const path = String(req.originalUrl || "").split("?")[0];
+  if (ID_ROUTE_PREFIXES.some((p) => path.startsWith(p)) && /%2f|%5c|%00|%2e%2e/i.test(path)) {
+    return res.status(400).json({ error: "Bad request." });
+  }
+  next();
+});
+
 app.use(cookieParser());
 app.use(visitorSupportRouter);
 app.use(blacklistMiddleware);
@@ -4622,7 +4631,7 @@ function shutdown(signal, code = 0) {
   }, 15000);
   force.unref();
   server.closeIdleConnections?.();
-  const analyticsSaved = flushCompletedDays(true).catch(() => {});
+  const analyticsSaved = persistHourly().catch(() => {});
   setTimeout(() => { try { server.closeAllConnections?.(); } catch { /* ignore */ } }, 6000).unref();
   server.close(async () => {
     await analyticsSaved;

@@ -1,6 +1,7 @@
 import { Chess } from "/chess/chess-engine.js";
 import { pieceSymbols, pieceInner, PIECE_SETS } from "/chess/chess-pieces.js";
 import { sound } from "/chess/chess-sound.js";
+import { createVoice } from "/chess/chess-voice.js";
 
 const GUEST_MATCH = /^\/chess\/guest\/([A-Za-z0-9_-]{6,40})\/?$/.exec(location.pathname);
 const GUEST_TOKEN = GUEST_MATCH ? GUEST_MATCH[1] : null;
@@ -162,6 +163,7 @@ function connect() {
     } else if (state.game && state.game.mode === "online" && !state.game.over) {
       finishOnline(null, "abandoned_both", true);
     }
+    if (!GUEST_TOKEN && d.spectate && !(state.game && state.game.id === d.spectate.id)) startSpectate(d.spectate);
     if (GUEST_TOKEN) { if (!state.game) refreshGuestInfo(); return; }
     renderLobby();
     loadPlayers();
@@ -188,6 +190,20 @@ function connect() {
     renderBanner();
   });
   on("game_start", (v) => { sound.ping(); startOnlineGame(v, {}); });
+  on("voice_peer", (d) => { const g = state.game; if (g && g.id === d.gameId) voice.onPeer(d); });
+  on("voice_signal", (d) => { const g = state.game; if (g && g.id === d.gameId) voice.onSignal(d); });
+  on("room_update", (d) => {
+    const g = state.game;
+    if (!g || g.id !== d.gameId) return;
+    g.room = d.spectator ? { ...(g.room || {}), count: d.count, max: d.max, spectators: d.spectators, open: d.open } : d;
+    paintVoice();
+  });
+  on("spectate_end", (d) => {
+    const g = state.game;
+    if (!g || !g.spectator || g.id !== d.gameId) return;
+    toast(d.reason === "closed" ? "The host closed the room." : d.reason === "full" ? "The room limit was lowered." : "This game is over.");
+    leaveGame();
+  });
   on("move", onServerMove);
   on("game_over", (d) => onServerGameOver(d));
   on("draw_offer", (d) => {
@@ -295,6 +311,7 @@ function renderOnlinePanel(card) {
   card.appendChild(wrap);
   card.appendChild(h("div", { class: "cx-players", id: "cxPlayers" }));
   paintPlayers();
+  card.appendChild(watchBox());
   card.appendChild(guestBox());
 }
 
@@ -656,6 +673,11 @@ function enterGame(g) {
 function leaveGame() {
   const g = state.game;
   if (g) g.botToken++;
+  if (g && g.spectator) api("/api/chess/spectate/leave", {}).catch(() => {});
+  voice.stop();
+  roomUi = null;
+  $("cxVoiceDock").hidden = true;
+  $("cxVoiceDock").removeAttribute("data-key");
   state.game = null;
   saveGame();
   markOnline(null);
@@ -717,7 +739,7 @@ function findKing(grid, color) {
 
 function canMove() {
   const g = state.game;
-  if (!g || g.over) return false;
+  if (!g || g.over || g.spectator) return false;
   if (g.chess.turnColor() !== g.myColor) return false;
   if (g.mode === "bot") return !g.thinking;
   return !g.pending;
@@ -896,10 +918,11 @@ function renderGameInfo() {
   const top = $("cxTop"), bottom = $("cxBottom");
   top.textContent = ""; bottom.textContent = "";
   const oppName = g.mode === "bot" ? "Computer (" + LEVELS.find((l) => l.id === g.level).name + ")" : (g.opponent.name || g.opponent.username);
-  const meName = state.me ? (state.me.name || state.me.username) + " (you)" : "You";
+  const meProfile = g.spectator ? g.meProfile : state.me;
+  const meName = g.spectator ? (g.meProfile.name || g.meProfile.username) : state.me ? (state.me.name || state.me.username) + " (you)" : "You";
   saveGame();
   top.appendChild(playerBar("opp", oppColor, oppName, g.opponent, "cxOpp"));
-  bottom.appendChild(playerBar("me", g.myColor, meName, state.me || { name: "You" }, "cxMe"));
+  bottom.appendChild(playerBar("me", g.myColor, meName, meProfile || { name: "You" }, "cxMe"));
   if (!g.over) { const mine = g.chess.turnColor() === g.myColor; $("cxMe").classList.toggle("turn", mine); $("cxOpp").classList.toggle("turn", !mine); }
   const cap = capturedOf(g);
   const fill = (color, takerColor) => {
@@ -915,12 +938,13 @@ function renderGameInfo() {
   const st = $("cxStatus");
   let text;
   if (g.over) text = resultText(g);
+  else if (g.spectator) text = (g.chess.isCheck() ? "Check! " : "") + (g.chess.turnColor() === "w" ? "White" : "Black") + " to move";
   else if (g.mode === "bot") text = g.thinking ? "Computer is thinking..." : g.chess.turnColor() === g.myColor ? (g.chess.isCheck() ? "Check! Your move" : "Your move") : "Computer's move";
   else text = g.chess.turnColor() === g.myColor ? (g.chess.isCheck() ? "Check! Your move" : "Your move") : "Waiting for " + (g.opponent.name || g.opponent.username);
   st.textContent = text;
   const note = $("cxNote");
   note.hidden = true;
-  if (g.mode === "online" && !g.over) {
+  if (g.mode === "online" && !g.over && !g.spectator) {
     if (!g.opponentOnline) { note.hidden = false; note.textContent = "Your opponent disconnected. They forfeit if they do not come back soon."; }
     else if (g.drawOffer && g.drawOffer === g.myColor) { note.hidden = false; note.textContent = "Draw offered. Waiting for an answer."; }
   }
@@ -935,7 +959,17 @@ function renderGameInfo() {
   mv.scrollTop = mv.scrollHeight;
   const ctl = $("cxControls");
   ctl.textContent = "";
-  ctl.appendChild(h("button", { type: "button", class: "cx-btn ghost sm", id: "cxFlip", onclick: () => { g.flipped = !g.flipped; buildBoard(); paintBoard(); } }, ["Flip"]));
+  ctl.appendChild(h("button", { type: "button", class: "cx-btn ghost sm", id: "cxFlip", onclick: () => {
+    g.flipped = !g.flipped;
+    if (g.spectator) { g.myColor = g.myColor === "w" ? "b" : "w"; const t = g.opponent; g.opponent = g.meProfile; g.meProfile = t; renderGameInfo(); }
+    buildBoard(); paintBoard();
+  } }, ["Flip"]));
+  if (g.spectator) {
+    ctl.appendChild(h("button", { type: "button", class: "cx-btn danger sm", id: "cxLeaveWatch", onclick: leaveGame }, ["Leave"]));
+    tickClocks();
+    paintVoice();
+    return;
+  }
   if (g.mode === "bot") {
     ctl.appendChild(h("button", { type: "button", class: "cx-btn ghost sm", id: "cxUndo", disabled: g.chess.history().length ? null : true, onclick: undoBot }, ["Undo"]));
   } else if (!g.over) {
@@ -951,10 +985,15 @@ function renderGameInfo() {
   }
   if (!g.over && !GUEST_TOKEN) ctl.appendChild(h("button", { type: "button", class: "cx-btn ghost sm", id: "cxMenuBtn", onclick: leaveAsk }, ["Menu"]));
   tickClocks();
+  paintVoice();
 }
 
 function resultText(g) {
   const r = g.result || {};
+  if (g.spectator) {
+    const why = { checkmate: "checkmate", resign: "resignation", timeout: "time", abandoned: "a player leaving", stalemate: "stalemate", agreement: "agreement", insufficient: "not enough pieces", repetition: "repetition", fifty: "the 50-move rule" }[r.reason] || r.reason;
+    return r.winner == null ? "Draw by " + why : (r.winner === "w" ? "White" : "Black") + " won by " + why;
+  }
   const you = g.myColor;
   if (r.winner == null) {
     const why = { stalemate: "stalemate", insufficient: "not enough pieces to win", repetition: "the same position three times", fifty: "the 50-move rule", agreement: "agreement", abandoned_both: "both players left", timeout_insufficient: "time ran out but the other side cannot win" }[r.reason] || r.reason;
@@ -987,8 +1026,8 @@ function showResult() {
   if (!g) return;
   const r = g.result || {};
   if (r.winner == null) sound.draw(); else sound.win();     // whoever wins, the winner tune plays
-  const title = r.winner == null ? "Draw" : r.winner === g.myColor ? "You won!" : "You lost";
-  const canRematch = g.mode === "online" && !GUEST_TOKEN && !(g.opponent && g.opponent.guest);
+  const title = r.winner == null ? "Draw" : g.spectator ? (r.winner === "w" ? "White wins" : "Black wins") : r.winner === g.myColor ? "You won!" : "You lost";
+  const canRematch = g.mode === "online" && !g.spectator && !GUEST_TOKEN && !(g.opponent && g.opponent.guest);
   const rewardLine = h("p", { id: "cxReward", class: "cx-reward", hidden: true });
   const m = modal([
     h("h2", { id: "cxResultTitle", text: title }),
@@ -1127,6 +1166,7 @@ function startOnlineGame(v, { resume }) {
   markOnline(v.status === "over" ? null : v.id);
   enterGame(g);
   if (!resume || !same) toast(resume ? "Welcome back to your game." : "Game started. You are " + (v.color === "w" ? "White." : "Black."));
+  if (v.status !== "over") startVoiceFor(state.game);
   const m = document.querySelectorAll(".cx-ov");
   m.forEach((x) => x.remove());
   renderBanner();
@@ -1136,7 +1176,7 @@ function onServerMove(ev) {
   const g = state.game;
   if (!g || g.mode !== "online" || g.id !== ev.gameId) return;
   if (ev.serverTime) state.offset = ev.serverTime - Date.now();
-  const mine = ev.move.color === g.myColor;
+  const mine = !g.spectator && ev.move.color === g.myColor;
   if (mine && g.pending === ev.move.uci) {
     g.pending = null;
   } else if (!mine) {
@@ -1183,6 +1223,281 @@ const ICON = {
   tick: '<svg viewBox="0 0 24 24" aria-label="Verified"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>',
 };
 const html = (tag, cls, markup) => { const el = h(tag, { class: cls }); el.innerHTML = markup; return el; };
+
+
+const voice = createVoice({
+  post: (path, body) => api(BASE + path, body),
+  getIce: () => api(BASE + "/ice"),
+  onChange: () => paintVoice(),
+});
+const VI = {
+  mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>',
+  micOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9v2a3 3 0 005 2.2M15 9.3V6a3 3 0 00-5.9-.8"/><path d="M5 11a7 7 0 0011.2 5.6M19 11a7 7 0 01-.6 2.8M12 18v3M3 3l18 18"/></svg>',
+  spk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg>',
+  spkOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>',
+  room: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.5" cy="9.5" r="2.3"/><path d="M16.5 14.2c2.6.2 4.5 2.1 4.5 5.3"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.9l7.6-4.3M8.2 13.1l7.6 4.3"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+};
+let voiceRaf = 0;
+let voiceLast = 0;
+let roomUi = null;
+
+function voiceAvailable() {
+  const g = state.game;
+  return !!(g && g.mode === "online" && g.id);
+}
+
+function startVoiceFor(g) {
+  if (!g || g.mode !== "online" || !state.me) return;
+  const myUid = state.me.uid;
+  if (g.spectator) {
+    voice.start({ gameId: g.id, key: null, uid: myUid, role: "spectator", color: null, players: { w: g.meProfile && g.meProfile.uid, b: g.opponent && g.opponent.uid } });
+  } else {
+    const opp = g.opponent && g.opponent.uid;
+    voice.start({ gameId: g.id, key: g.key, uid: myUid, role: "player", color: g.myColor, players: g.myColor === "w" ? { w: myUid, b: opp } : { w: opp, b: myUid } });
+  }
+}
+
+function paintVoice() {
+  const dock = $("cxVoiceDock");
+  if (!dock) return;
+  if (!voiceAvailable() || state.game.over && !state.game.spectator) { dock.hidden = true; return; }
+  const g = state.game;
+  dock.hidden = false;
+  const spectator = !!g.spectator;
+  const peers = voice.peers();
+  const connecting = peers.length && peers.every((p) => p.state === "connecting");
+  const key = [spectator, voice.micOn, voice.mutedAll, (g.room && g.room.count) || 0, connecting].join("|");
+  if (dock.getAttribute("data-key") !== key) {
+    dock.setAttribute("data-key", key);
+    dock.textContent = "";
+    if (!spectator) {
+      const mic = h("button", { type: "button", class: "cx-vbtn" + (voice.micOn ? " on" : ""), id: "cxMic", "aria-label": voice.micOn ? "Turn microphone off" : "Turn microphone on", "aria-pressed": String(voice.micOn) });
+      mic.innerHTML = voice.micOn ? VI.mic : VI.micOff;
+      mic.addEventListener("click", async () => {
+        busy(mic, true);
+        try { await voice.setMic(!voice.micOn); }
+        catch (e) { toast(e.message); }
+        busy(mic, false);
+        paintVoice();
+      });
+      dock.appendChild(h("div", { class: "cx-vwrap" }, [mic, h("span", { text: voice.micOn ? "Mic on" : "Mic off" })]));
+    }
+    const spk = h("button", { type: "button", class: "cx-vbtn" + (voice.mutedAll ? "" : " on"), id: "cxSpk", "aria-label": voice.mutedAll ? "Hear everyone" : "Mute everyone" });
+    spk.innerHTML = voice.mutedAll ? VI.spkOff : VI.spk;
+    spk.addEventListener("click", () => { voice.muteAll(!voice.mutedAll); });
+    dock.appendChild(h("div", { class: "cx-vwrap" }, [spk, h("span", { text: voice.mutedAll ? "Muted" : "Sound" })]));
+    const room = h("button", { type: "button", class: "cx-vbtn", id: "cxRoom", "aria-label": "Room settings" });
+    room.innerHTML = VI.room;
+    if (g.room && g.room.count) room.appendChild(h("i", { class: "cx-vbadge", text: String(g.room.count) }));
+    room.addEventListener("click", openRoom);
+    dock.appendChild(h("div", { class: "cx-vwrap" }, [room, h("span", { text: spectator ? "Room" : "Room" })]));
+    if (connecting) dock.appendChild(h("div", { class: "cx-vstate" }, [h("span", { class: "cx-roll" }), " Connecting voice"]));
+  }
+  if (!voiceRaf) voiceRaf = requestAnimationFrame(voiceLoop);
+  if (roomUi && roomUi.box.isConnected) roomUi.draw();
+}
+
+function voiceLoop(ts) {
+  voiceRaf = 0;
+  if (!voiceAvailable() || $("cxVoiceDock").hidden) return;
+  if (ts - voiceLast > 40) {
+    voiceLast = ts;
+    const mic = $("cxMic"), spk = $("cxSpk");
+    if (mic) mic.style.setProperty("--lv", voice.myLevel().toFixed(2));
+    if (spk) spk.style.setProperty("--lv", voice.incomingLevel().toFixed(2));
+    document.querySelectorAll("[data-lv]").forEach((el) => {
+      const uid = el.getAttribute("data-lv");
+      el.style.setProperty("--lv", (uid === "me" ? voice.myLevel() : voice.peerLevel(uid)).toFixed(2));
+    });
+  }
+  if (voice.active) voiceRaf = requestAnimationFrame(voiceLoop);
+}
+
+function roomLink(code) { return location.origin + "/chess?watch=" + encodeURIComponent(code); }
+
+async function shareText(text, url) {
+  if (navigator.share) { try { await navigator.share({ title: "Watch my chess game", text, url }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(url); toast("Link copied."); } catch { window.prompt("Copy this link", url); }
+}
+
+async function openRoom() {
+  const g = state.game;
+  if (!g || g.mode !== "online") return;
+  const spectator = !!g.spectator;
+  let info = spectator
+    ? { code: g.roomCode || "", open: true, pinSet: false, max: (g.room && g.room.max) || 0, count: (g.room && g.room.count) || 0, spectators: (g.room && g.room.spectators) || [], isHost: false }
+    : (g.room && g.room.code ? g.room : null);
+  const box = h("div", { class: "cx-set cx-roomui" });
+  const ov = modal([
+    h("h2", { text: "Room" }),
+    box,
+    h("div", { class: "row" }, [h("button", { type: "button", class: "cx-btn", id: "cxRoomDone", onclick: (e) => e.currentTarget.closest(".cx-ov").remove() }, ["Done"])]),
+  ]);
+  ov.el.classList.add("cx-ovwide");
+
+  const post = async (body) => {
+    const d = await api(BASE + "/room/settings", { gameId: g.id, key: g.key, ...body });
+    g.room = d; info = d; draw();
+  };
+  const sw = (label, sub, on, onToggle, id) => {
+    const b = h("button", { type: "button", class: "cx-switch" + (on ? " on" : ""), role: "switch", "aria-checked": String(on), id });
+    b.appendChild(h("i"));
+    b.addEventListener("click", async () => { busy(b, true); try { await onToggle(!on); } catch (e) { toast(e.message); } busy(b, false); });
+    return h("div", { class: "cx-roomrow" }, [h("div", { class: "grow" }, [h("b", { text: label }), sub ? h("small", { text: sub }) : null]), b]);
+  };
+
+  function draw() {
+    box.textContent = "";
+    const room = spectator ? info : (g.room && g.room.code ? g.room : info);
+    if (!room) { box.appendChild(h("div", { class: "cx-loading" }, [h("span", { class: "cx-roll" }), "Loading room"])); return; }
+    const host = !spectator && room.isHost;
+    if (room.code) {
+      const codeEl = h("div", { class: "cx-code", text: room.code });
+      const copy = h("button", { type: "button", class: "cx-vbtn sm", "aria-label": "Copy room code" });
+      copy.innerHTML = VI.copy;
+      copy.addEventListener("click", async () => { try { await navigator.clipboard.writeText(room.code); toast("Room code copied."); } catch { window.prompt("Room code", room.code); } });
+      const share = h("button", { type: "button", class: "cx-vbtn sm", "aria-label": "Share room link" });
+      share.innerHTML = VI.share;
+      share.addEventListener("click", () => shareText("Watch my chess game. Room code " + room.code + (room.pinSet ? " (needs the PIN)" : ""), roomLink(room.code)));
+      box.appendChild(h("div", { class: "cx-codebox" }, [h("small", { text: spectator ? "You are watching room" : "Room code" }), h("div", { class: "cx-coderow" }, [codeEl, copy, share])]));
+    }
+    if (host) {
+      box.appendChild(sw("Allow spectators", room.open ? "People with the code can watch" : "Nobody can join to watch", !!room.open, (v) => post({ open: v }), "cxAllow"));
+      if (room.open) {
+        box.appendChild(sw("PIN lock", room.pinSet ? "A 4 digit PIN is needed to watch" : "Anyone with the code can watch", !!room.pinSet, async (v) => {
+          if (!v) return post({ pin: null });
+          const pin = String(Math.floor(1000 + Math.random() * 9000));
+          await post({ pin });
+          toast("PIN set to " + pin + ". Share it with your guests.");
+        }, "cxPinSw"));
+        if (room.pinSet) {
+          const input = h("input", { class: "cx-field", id: "cxPinInput", type: "text", inputmode: "numeric", maxlength: "4", placeholder: "New 4 digit PIN", autocomplete: "off" });
+          const setBtn = h("button", { type: "button", class: "cx-btn sm", id: "cxPinSave", onclick: async (e) => {
+            const v = input.value.trim();
+            if (!/^\d{4}$/.test(v)) { toast("The PIN must be 4 digits."); return; }
+            busy(e.currentTarget, true);
+            try { await post({ pin: v }); toast("PIN changed."); } catch (err) { toast(err.message); }
+            busy(e.currentTarget, false);
+          } }, ["Change PIN"]);
+          box.appendChild(h("div", { class: "cx-pinrow" }, [input, setBtn]));
+        }
+        const minus = h("button", { type: "button", class: "cx-step", "aria-label": "Fewer spectators", text: "-" });
+        const plus = h("button", { type: "button", class: "cx-step", "aria-label": "More spectators", text: "+" });
+        const change = async (btn, n) => { busy(btn, true); try { await post({ max: n }); } catch (err) { toast(err.message); } busy(btn, false); };
+        minus.addEventListener("click", () => { if (room.max > 1) change(minus, room.max - 1); });
+        plus.addEventListener("click", () => { if (room.max < 20) change(plus, room.max + 1); });
+        box.appendChild(h("div", { class: "cx-roomrow" }, [h("div", { class: "grow" }, [h("b", { text: "Spectator limit" }), h("small", { text: "How many people can watch at once" })]), h("div", { class: "cx-stepper" }, [minus, h("span", { text: String(room.max) }), plus])]));
+      }
+    } else if (!spectator) {
+      box.appendChild(h("div", { class: "cx-hint", text: "Only the host can change who watches." }));
+    }
+    const watchers = room.spectators || [];
+    box.appendChild(h("div", { class: "cx-h" }, [h("span", { text: "People" })]));
+    const people = h("div", { class: "cx-people" });
+    const peerState = new Map(voice.peers().map((p) => [p.uid, p]));
+    const row = (uid, name, photo, role, canMute) => {
+      const ps = peerState.get(uid);
+      const ring = h("div", { class: "cx-pring", "data-lv": uid });
+      ring.appendChild(avatar({ name, photo }));
+      const kids = [ring, h("div", { class: "grow" }, [h("b", { text: name }), h("small", { text: role + (ps ? (ps.state === "connected" ? " | voice connected" : ps.state === "failed" ? " | voice failed" : " | connecting") : "") })])];
+      if (canMute && ps) {
+        const m = h("button", { type: "button", class: "cx-vbtn sm" + (ps.muted ? "" : " on"), "aria-label": ps.muted ? "Hear " + name : "Mute " + name });
+        m.innerHTML = ps.muted ? VI.spkOff : VI.spk;
+        m.addEventListener("click", () => voice.mutePeer(uid, !ps.muted));
+        kids.push(m);
+      }
+      people.appendChild(h("div", { class: "cx-person" }, kids));
+    };
+    const meUid = state.me && state.me.uid;
+    if (spectator) {
+      for (const p of [g.meProfile, g.opponent]) if (p) row(p.uid, p.name || p.username, p.photo, "Player", true);
+    } else {
+      const opp = g.opponent;
+      row(meUid, (state.me && (state.me.name || state.me.username) || "You") + " (you)", state.me && state.me.photo, "Player", false);
+      if (opp) row(opp.uid, opp.name || opp.username, opp.photo, "Player", true);
+    }
+    for (const w of watchers) if (w.uid !== meUid) row(w.uid, w.name || w.username, w.photo, "Watching", false);
+    box.appendChild(people);
+    box.appendChild(sw("Mute everyone", "Stops all voices on this phone", voice.mutedAll, (v) => { voice.muteAll(v); return Promise.resolve(); }, "cxMuteAll"));
+    const more = h("details", { class: "cx-learn" }, [
+      h("summary", { text: "Learn more" }),
+      h("div", {}, [
+        h("p", { text: "The two players can talk to each other with their microphones. Spectators can only listen." }),
+        h("p", { text: "Voice goes straight between phones, so the site does not record it. Turn your mic on or off any time with the mic button." }),
+        h("p", { text: "The host can let people watch with a room code, add a 4 digit PIN, and choose how many can watch." }),
+        h("p", { text: "You can mute any voice just for yourself. Others will not know." }),
+      ]),
+    ]);
+    box.appendChild(more);
+  }
+  roomUi = { box, draw };
+  draw();
+  if (!spectator && !(g.room && g.room.code)) {
+    try { const d = await api(BASE + "/room", { gameId: g.id, key: g.key }); g.room = d; info = d; draw(); }
+    catch (e) { toast(e.message); }
+  }
+}
+
+function startSpectate(v, code) {
+  const chess = new Chess();
+  for (const m of v.moves || []) if (!chess.move({ from: m.uci.slice(0, 2), to: m.uci.slice(2, 4), promotion: m.uci[4] })) break;
+  if (state.game && state.game.mode === "bot") state.game.botToken++;
+  voice.stop();
+  const uci = (v.moves || []).length ? v.moves[v.moves.length - 1].uci : null;
+  if (v.serverTime) state.offset = v.serverTime - Date.now();
+  const g = {
+    mode: "online", spectator: true, chess, myColor: "w", flipped: false, id: v.id, key: null,
+    opponent: v.players.b, meProfile: v.players.w, minutes: v.minutes, clocks: v.clocks, clockAt: v.serverTime || serverNow(), pending: null,
+    selected: null, targets: new Map(), legal: [], last: uci ? { from: uci.slice(0, 2), to: uci.slice(2, 4) } : null,
+    over: v.status === "over", result: v.result, opponentOnline: true, drawOffer: null, forfeitAt: null,
+    room: v.room || null, roomCode: code || (state.game && state.game.roomCode) || "",
+  };
+  enterGame(g);
+  document.querySelectorAll(".cx-ov").forEach((x) => x.remove());
+  toast("You are watching this game.");
+  startVoiceFor(g);
+  paintVoice();
+}
+
+async function watchRoom(code, pin, btn) {
+  busy(btn, true);
+  try {
+    const d = await api("/api/chess/spectate", { code, pin: pin || undefined });
+    busy(btn, false);
+    startSpectate(d.view, String(code).toUpperCase());
+    return null;
+  } catch (e) {
+    busy(btn, false);
+    return e;
+  }
+}
+
+function watchBox() {
+  const wrap = h("div", { class: "cx-guestbox", id: "cxWatchBox" });
+  wrap.appendChild(h("div", { class: "cx-h", text: "Watch a game" }));
+  wrap.appendChild(h("div", { class: "cx-hint", text: "Got a room code from a friend? Enter it to watch their game and listen in." }));
+  const code = h("input", { class: "cx-field", id: "cxWatchCode", type: "text", maxlength: "6", placeholder: "Room code", autocomplete: "off", autocapitalize: "characters", value: state.watchCode || "" });
+  const pin = h("input", { class: "cx-field", id: "cxWatchPin", type: "text", inputmode: "numeric", maxlength: "4", placeholder: "4 digit PIN", autocomplete: "off", hidden: !state.watchNeedsPin });
+  const go = h("button", { type: "button", class: "cx-btn", id: "cxWatchGo" }, [h("span", { class: "ico" }), "Watch"]);
+  go.firstChild.innerHTML = VI.eye;
+  go.addEventListener("click", async () => {
+    const c = code.value.trim().toUpperCase();
+    if (c.length < 6) { toast("Enter the 6 character room code."); return; }
+    state.watchCode = c;
+    const e = await watchRoom(c, pin.value.trim(), go);
+    if (e) {
+      if (e.code === "pin_required" || e.code === "bad_pin") { state.watchNeedsPin = true; pin.hidden = false; pin.focus(); }
+      toast(e.message);
+    }
+  });
+  wrap.appendChild(code);
+  wrap.appendChild(pin);
+  wrap.appendChild(go);
+  return wrap;
+}
 
 const BOARD_THEMES = [
   { id: "es", name: "ES Glass", a: "#3d4d69", b: "#25314a", free: true },
@@ -1408,6 +1723,7 @@ function init() {
     if (g && g.mode === "online" && !g.over) { e.preventDefault(); e.returnValue = ""; }
   });
   if (GUEST_TOKEN) { initGuest(); return; }
+  try { const w = new URLSearchParams(location.search).get("watch"); if (w) { state.watchCode = w.toUpperCase().slice(0, 6); state.tab = "online"; } } catch { /* ignore */ }
   state.resuming = hadOnlineGame();
   if (state.resuming) setTimeout(() => { if (state.resuming) { state.resuming = false; renderLobby(); } }, 12000);
   if (!restoreBotGame()) renderMenu();
@@ -1415,4 +1731,4 @@ function init() {
   connect();
 }
 init();
-window.__chess = { state, refresh: () => { const g = state.game; if (!g) return; g.selected = null; g.targets = new Map(); g.legal = g.chess.moves(); paintBoard(); renderGameInfo(); } };
+window.__chess = { state, voice, refresh: () => { const g = state.game; if (!g) return; g.selected = null; g.targets = new Map(); g.legal = g.chess.moves(); paintBoard(); renderGameInfo(); } };

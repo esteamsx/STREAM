@@ -49,7 +49,24 @@ const MESSAGES = {
   server_full: "The game server is full. Try again in a few minutes.",
   host_offline: "The host is not online right now. Try again in a moment.",
   host_busy: "The host is in another game right now. Try again in a moment.",
+  no_room: "No game found with that room code.",
+  room_closed: "This room is not open for spectators.",
+  pin_required: "This room needs a 4 digit PIN.",
+  bad_pin: "That PIN is not right.",
+  pin_locked: "Too many wrong PINs. Try again in a few minutes.",
+  room_full: "This room is full.",
+  not_host: "Only the host can change the room.",
+  bad_max: "Pick between 1 and 20 spectators.",
+  spec_busy: "Leave your current game before you watch another.",
+  spec_guest: "Sign in to watch a game.",
+  spec_over: "That game has already finished.",
+  bad_signal: "Voice message was not valid.",
 };
+const ROOM_MAX_CAP = 20;
+const SPECTATOR_OFFLINE_MS = 2 * 60 * 1000;
+const PIN_TRIES = 5;
+const PIN_LOCK_MS = 5 * 60 * 1000;
+const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const err = (code) => new HubError(code, MESSAGES[code]);
 
@@ -68,6 +85,8 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     guest: !!p.guest,
   });
   const isGuestUid = (uid) => String(uid || "").startsWith("guest_");
+  const rooms = new Map();      // room code -> game id
+  const pinTries = new Map();   // "uid|code" -> { n, lockUntil }
   let onGameOver = null;
 
   function emit(uid, event, data) {
@@ -168,7 +187,8 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     u.offlineSince = null;
     const game = u.gameId ? games.get(u.gameId) : null;
     const { incoming, outgoing } = challengesOf(uid);
-    sink.send("hello", { me: u.profile, incoming, outgoing, game: game ? gameView(game, uid, true) : null, serverTime: now() });
+    const watching = u.watching ? games.get(u.watching) : null;
+    sink.send("hello", { me: u.profile, incoming, outgoing, game: game ? gameView(game, uid, true) : null, spectate: watching && watching.spectators.has(uid) ? spectatorView(watching) : null, serverTime: now() });
     if (wasOffline && game && game.status === "active") {
       const oppUid = game.players[colorOf(game, uid) === "w" ? "b" : "w"];
       emit(oppUid, "opponent_status", { gameId: game.id, online: true });
@@ -270,6 +290,14 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     return { gameId: game.id };
   }
 
+  function newRoomCode() {
+    for (;;) {
+      let c = "";
+      for (let i = 0; i < 6; i++) c += ROOM_ALPHABET[crypto.randomInt(ROOM_ALPHABET.length)];
+      if (!rooms.has(c)) return c;
+    }
+  }
+
   function createGame(fromUid, toUid, fromIsWhite, minutes) {
     if (games.size >= MAX_GAMES) throw err("server_full");
     const players = fromIsWhite ? { w: fromUid, b: toUid } : { w: toUid, b: fromUid };
@@ -290,7 +318,10 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       drawOffers: { w: 0, b: 0 },
       createdAt: now(),
       endedAt: null,
+      room: { code: newRoomCode(), host: fromUid, open: false, pin: null, max: 5 },
+      spectators: new Map(),    // uid -> { joinedAt }
     };
+    rooms.set(game.room.code, game.id);
     games.set(game.id, game);
     users.get(fromUid).gameId = game.id;
     users.get(toUid).gameId = game.id;
@@ -329,6 +360,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     const payload = { gameId: game.id, winner, reason, fen: game.chess.fen(), clocks: game.clocks, moveCount: game.moves.length };
     emit(game.players.w, "game_over", payload);
     emit(game.players.b, "game_over", payload);
+    emitSpectators(game, "game_over", payload);
     if (onGameOver) { try { onGameOver(game); } catch { /* never block the game */ } }
   }
 
@@ -365,6 +397,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     };
     emit(game.players.w, "move", payload);
     emit(game.players.b, "move", payload);
+    emitSpectators(game, "move", payload);
     const res = game.chess.result();
     if (res.over) finish(game, res.winner, res.reason);
     return { ok: true };
@@ -416,6 +449,145 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     return game ? gameView(game, uid, true) : null;
   }
 
+
+  function emitSpectators(game, event, data) {
+    for (const uid of game.spectators.keys()) emit(uid, event, data);
+  }
+
+  const profileOf = (game, uid) => { const u = users.get(uid); return publicProfile(u ? u.profile : (game.profiles[uid] || { uid })); };
+
+  function spectatorView(game) {
+    return {
+      id: game.id, spectator: true, color: null,
+      fen: game.chess.fen(), turn: game.chess.turnColor(),
+      moves: game.moves.map((m) => ({ san: m.san, uci: m.uci })),
+      clocks: clocksNow(game), minutes: game.minutes,
+      players: { w: profileOf(game, game.players.w), b: profileOf(game, game.players.b) },
+      status: game.status, result: game.result, check: game.chess.isCheck(), serverTime: now(),
+      room: { count: game.spectators.size, max: game.room.max },
+    };
+  }
+
+  function roomState(game) {
+    return {
+      code: game.room.code, open: game.room.open, pinSet: !!game.room.pin, max: game.room.max,
+      count: game.spectators.size,
+      spectators: [...game.spectators.keys()].map((uid) => { const p = profileOf(game, uid); return { uid, name: p.name, username: p.username, photo: p.photo }; }),
+    };
+  }
+
+  function broadcastRoom(game) {
+    const st = roomState(game);
+    for (const c of ["w", "b"]) emit(game.players[c], "room_update", { gameId: game.id, ...st, isHost: game.room.host === game.players[c] });
+    for (const uid of game.spectators.keys()) emit(uid, "room_update", { gameId: game.id, count: st.count, max: st.max, spectators: st.spectators, open: st.open, spectator: true });
+  }
+
+  function dropSpectator(game, uid, reason) {
+    if (!game.spectators.delete(uid)) return;
+    const u = users.get(uid);
+    if (u && u.watching === game.id) u.watching = null;
+    emit(uid, "spectate_end", { gameId: game.id, reason });
+  }
+
+  function participant(game, uid, key) {
+    const color = colorOf(game, uid);
+    if (color) { if (!keyOk(game, color, key)) throw err("bad_key"); return "player"; }
+    if (game.spectators.has(uid)) return "spectator";
+    throw err("no_game");
+  }
+
+  function getRoom(uid, gameId, key) {
+    const { game } = playerGame(uid, gameId, key);
+    return { ...roomState(game), isHost: game.room.host === uid };
+  }
+
+  function setRoom(uid, gameId, key, opts = {}) {
+    const { game } = playerGame(uid, gameId, key);
+    if (game.room.host !== uid) throw err("not_host");
+    if (typeof opts.open === "boolean") game.room.open = opts.open;
+    if (opts.pin !== undefined) {
+      if (opts.pin === null || opts.pin === "") game.room.pin = null;
+      else if (/^\d{4}$/.test(String(opts.pin))) game.room.pin = String(opts.pin);
+      else throw err("bad_pin");
+    }
+    if (opts.max !== undefined) {
+      const m = Number(opts.max);
+      if (!Number.isInteger(m) || m < 1 || m > ROOM_MAX_CAP) throw err("bad_max");
+      game.room.max = m;
+    }
+    if (!game.room.open) for (const uid2 of [...game.spectators.keys()]) dropSpectator(game, uid2, "closed");
+    else while (game.spectators.size > game.room.max) dropSpectator(game, [...game.spectators.keys()].pop(), "full");
+    broadcastRoom(game);
+    return { ...roomState(game), isHost: true };
+  }
+
+  function spectate(uid, rawCode, pin) {
+    if (isGuestUid(uid)) throw err("spec_guest");
+    const u = users.get(uid);
+    if (!u || !u.conns.size) throw err("not_connected");
+    const code = String(rawCode || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const tryKey = uid + "|" + code;
+    const tries = pinTries.get(tryKey) || { n: 0, lockUntil: 0 };
+    if (tries.lockUntil > now()) throw err("pin_locked");
+    const game = games.get(rooms.get(code));
+    if (!game) throw err("no_room");
+    if (game.status !== "active") throw err("spec_over");
+    if (colorOf(game, uid)) throw err("spec_busy");
+    if (!game.room.open) throw err("room_closed");
+    if (isBusy(uid)) throw err("spec_busy");
+    if (game.room.pin) {
+      if (pin === undefined || pin === null || pin === "") throw err("pin_required");
+      const a = Buffer.from(String(pin)), b = Buffer.from(game.room.pin);
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        tries.n++;
+        if (tries.n >= PIN_TRIES) { tries.lockUntil = now() + PIN_LOCK_MS; tries.n = 0; }
+        pinTries.set(tryKey, tries);
+        throw err(tries.lockUntil > now() ? "pin_locked" : "bad_pin");
+      }
+    }
+    pinTries.delete(tryKey);
+    if (!game.spectators.has(uid) && game.spectators.size >= game.room.max) throw err("room_full");
+    if (u.watching && u.watching !== game.id) { const old = games.get(u.watching); if (old) dropSpectator(old, uid, "left"); }
+    game.spectators.set(uid, { joinedAt: now() });
+    u.watching = game.id;
+    broadcastRoom(game);
+    return { view: spectatorView(game) };
+  }
+
+  function leaveSpectate(uid) {
+    const u = users.get(uid);
+    const game = u && u.watching ? games.get(u.watching) : null;
+    if (u) u.watching = null;
+    if (!game) return;
+    game.spectators.delete(uid);
+    broadcastRoom(game);
+  }
+
+  function voiceJoin(uid, gameId, key) {
+    const game = games.get(String(gameId));
+    if (!game) throw err("no_game");
+    const role = participant(game, uid, key);
+    const others = [game.players.w, game.players.b, ...game.spectators.keys()].filter((x) => x !== uid);
+    const color = colorOf(game, uid);
+    for (const to of others) emit(to, "voice_peer", { gameId: game.id, uid, role, color });
+    return { ok: true, role, color, players: { w: game.players.w, b: game.players.b } };
+  }
+
+  function voiceSignal(uid, gameId, key, to, data) {
+    const game = games.get(String(gameId));
+    if (!game) throw err("no_game");
+    const role = participant(game, uid, key);
+    const target = String(to || "");
+    const toIsPlayer = target === game.players.w || target === game.players.b;
+    const toIsSpectator = game.spectators.has(target);
+    if (!toIsPlayer && !toIsSpectator) throw err("no_game");
+    if (role === "spectator" && !toIsPlayer) throw err("bad_signal");     // spectators only talk to the players
+    if (!data || typeof data !== "object" || !["offer", "answer", "ice", "bye"].includes(data.kind)) throw err("bad_signal");
+    if (JSON.stringify(data).length > 12000) throw err("bad_signal");
+    emit(target, "voice_signal", { gameId: game.id, from: uid, role, data });
+    return { ok: true };
+  }
+
   function sweep() {
     const t = now();
     for (const ch of [...challenges.values()]) if (ch.expiresAt <= t) endChallenge(ch, "expired");
@@ -434,7 +606,13 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
         else if (gone[0]) finish(game, "b", "abandoned");
         else if (gone[1]) finish(game, "w", "abandoned");
       } else if (game.endedAt && t - game.endedAt > GAME_KEEP_MS) {
+        for (const sUid of [...game.spectators.keys()]) dropSpectator(game, sUid, "ended");
+        rooms.delete(game.room.code);
         games.delete(game.id);
+      }
+      for (const sUid of [...game.spectators.keys()]) {
+        const su = users.get(sUid);
+        if (!su || (!su.conns.size && su.offlineSince && t - su.offlineSince > SPECTATOR_OFFLINE_MS)) { dropSpectator(game, sUid, "left"); broadcastRoom(game); }
       }
     }
     for (const [uid, u] of users) {
@@ -445,6 +623,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   return {
     connect, disconnect, online, annotate, presenceOf, challenge, cancelChallenge, respond,
     move, resign, offerDraw, respondDraw, myGame, sweep, startDirect, isOnline, isBusy,
+    getRoom, setRoom, spectate, leaveSpectate, voiceJoin, voiceSignal,
     setOnGameOver: (fn) => { onGameOver = typeof fn === "function" ? fn : null; },
     gameIdOf: (uid) => { const u = users.get(uid); return u && u.gameId ? u.gameId : null; },
     connectionCount: (uid) => (users.get(uid) ? users.get(uid).conns.size : 0),
