@@ -6,6 +6,7 @@ import { db } from "../config/firebase.js";
 const STORE_FILE = path.join(process.cwd(), ".analytics-daily.json");
 const MAX_DAYS_STORED = 400;
 const FIRESTORE_DOC = db.collection("analyticsStore").doc("daily");
+const HOURLY_DOC = db.collection("analyticsStore").doc("hourly");
 
 const VISITOR_COOKIE = "esv";
 const VISITOR_COOKIE_MAX_AGE = 2 * 365 * 24 * 60 * 60 * 1000;
@@ -84,6 +85,59 @@ async function persistStore(store, changedDays) {
   }
 }
 
+let hourlyDirty = false;
+let hourlyLoaded = null;
+const MAX_HOURLY_JSON = 900 * 1000;
+
+function loadHourly() {
+  if (hourlyLoaded) return hourlyLoaded;
+  hourlyLoaded = (async () => {
+    try {
+      const snap = await HOURLY_DOC.get();
+      const saved = snap.exists ? (snap.data().buckets || {}) : {};
+      for (const [hourKey, b] of Object.entries(saved)) {
+        const bucket = getOrCreateHourBucket(hourKey);
+        bucket.views += Number(b.views) || 0;
+        for (const id of b.v || []) bucket.visitorIds.add(id);
+        for (const [path, c] of b.p || []) bucket.paths.set(path, (bucket.paths.get(path) || 0) + (Number(c) || 0));
+      }
+      return true;
+    } catch (err) {
+      console.error("[analytics] could not load the hourly numbers, will retry:", err.message);
+      hourlyLoaded = null;
+      return false;
+    }
+  })();
+  return hourlyLoaded;
+}
+
+async function persistHourly() {
+  if (!hourlyDirty) return;
+  if (!(await loadHourly())) return;          // never save before the saved numbers were merged in
+  hourlyDirty = false;
+  try {
+    const keys = [...hourly.keys()].sort();
+    let buckets = {};
+    const build = (list) => {
+      const out = {};
+      for (const k of list) {
+        const b = hourly.get(k);
+        out[k] = { views: b.views, v: [...b.visitorIds].map((id) => String(id).slice(0, 12)), p: [...b.paths.entries()] };
+      }
+      return out;
+    };
+    buckets = build(keys);
+    while (JSON.stringify(buckets).length > MAX_HOURLY_JSON && keys.length > 1) { keys.shift(); buckets = build(keys); }
+    await HOURLY_DOC.set({ buckets, updatedAt: Date.now() });
+  } catch (err) {
+    hourlyDirty = true;
+    console.error("[analytics] could not save the hourly numbers:", err.message);
+  }
+}
+
+setInterval(() => { persistHourly().catch(() => {}); }, 60 * 1000).unref();
+loadHourly();
+
 function normalizePath(p) {
   return p.replace(/\/[0-9a-fA-F]{16,}/g, "/:id").replace(/\/\d{4,}/g, "/:id");
 }
@@ -105,7 +159,8 @@ function trackPageView(req, res, next) {
         const now = Date.now();
         const bucket = getOrCreateHourBucket(hourKeyFor(now));
         bucket.views++;
-        bucket.visitorIds.add(visitorId);
+        bucket.visitorIds.add(String(visitorId).slice(0, 12));   // 12 characters are plenty to tell visitors apart and keep the saved copy small
+        hourlyDirty = true;
         const key = normalizePath(p);
         bucket.paths.set(key, (bucket.paths.get(key) || 0) + 1);
       }
@@ -117,6 +172,7 @@ function trackPageView(req, res, next) {
 
 async function flushCompletedDays(force = false) {
   try {
+    if (!(await loadHourly())) return;
     const store = await ensureStoreLoaded();
     const now = Date.now();
     const currentDayKey = dayKeyFor(now);
@@ -153,6 +209,7 @@ async function flushCompletedDays(force = false) {
       changed = true;
       changedDays.push(dayKey);
       for (const [hourKey] of entries) hourly.delete(hourKey);
+      hourlyDirty = true;
     }
 
     const cutoff = now - 48 * 60 * 60 * 1000;
@@ -179,6 +236,7 @@ setInterval(() => {
 }, 5 * 60 * 1000).unref();
 
 async function getAnalytics(range) {
+  await loadHourly();
   await flushCompletedDays();
   const store = dailyStore || {};
   const now = Date.now();
@@ -241,6 +299,12 @@ async function getAnalytics(range) {
       views = todayViews;
       visitors = todayVisitors.size;
       dayPaths = todayPaths;
+      if (store[dayKey]) {
+        views += store[dayKey].views || 0;
+        visitors += store[dayKey].uniqueVisitors || 0;
+        dayPaths = new Map(todayPaths);
+        for (const p of store[dayKey].topPaths || []) dayPaths.set(p.path, (dayPaths.get(p.path) || 0) + p.count);
+      }
     } else if (store[dayKey]) {
       views = store[dayKey].views;
       visitors = store[dayKey].uniqueVisitors;
@@ -258,4 +322,4 @@ async function getAnalytics(range) {
   return { points, totals: { views: totalViews, visitors: totalVisitors }, topPaths };
 }
 
-export { trackPageView, getAnalytics, flushCompletedDays };
+export { trackPageView, getAnalytics, flushCompletedDays, persistHourly };
