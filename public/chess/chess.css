@@ -314,3 +314,6 @@
 .cx-ended .cx-btn .ico{display:inline-flex;margin-left:8px;vertical-align:-3px}
 .cx-ended .cx-btn .ico svg{width:17px;height:17px}
 .cx-ended .ic svg{width:28px;height:28px}
+
+/* voice errors and retry */
+.cx-vstate.cx-verr{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;max-width:220px;white-space:normal;line-height:1.35}

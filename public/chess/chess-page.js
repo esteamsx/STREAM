@@ -1352,9 +1352,9 @@ function paintVoice() {
   const g = state.game;
   dock.hidden = false;
   const spectator = !!g.spectator;
-  const peers = voice.peers();
-  const connecting = peers.length && peers.every((p) => p.state === "connecting");
-  const key = [spectator, voice.micOn, voice.mutedAll, (g.room && g.room.count) || 0, connecting].join("|");
+  const vs = voice.status();
+  const vnote = vs.state === "connecting" ? "connecting" : vs.state === "failed" ? "failed:" + (vs.message || "") : vs.audioBlocked ? "blocked" : "";
+  const key = [spectator, voice.micOn, voice.mutedAll, (g.room && g.room.count) || 0, vnote].join("|");
   if (dock.getAttribute("data-key") !== key) {
     dock.setAttribute("data-key", key);
     dock.textContent = "";
@@ -1379,7 +1379,9 @@ function paintVoice() {
     if (g.room && g.room.count) room.appendChild(h("i", { class: "cx-vbadge", text: String(g.room.count) }));
     room.addEventListener("click", openRoom);
     dock.appendChild(h("div", { class: "cx-vwrap" }, [room, h("span", { text: spectator ? "Room" : "Room" })]));
-    if (connecting) dock.appendChild(h("div", { class: "cx-vstate" }, [h("span", { class: "cx-roll" }), " Connecting voice"]));
+    if (vs.state === "connecting") dock.appendChild(h("div", { class: "cx-vstate" }, [h("span", { class: "cx-roll" }), " Connecting voice"]));
+    else if (vs.state === "failed") dock.appendChild(h("div", { class: "cx-vstate cx-verr" }, [h("span", { text: vs.message || "Voice could not connect." }), h("button", { type: "button", class: "cx-btn sm", id: "cxVoiceRetry", onclick: () => { voice.retry(); toast("Trying voice again."); } }, ["Retry"])]));
+    else if (vs.audioBlocked) dock.appendChild(h("div", { class: "cx-vstate" }, [h("button", { type: "button", class: "cx-btn sm", id: "cxVoiceSound", onclick: () => voice.resumeAudio() }, ["Tap to hear voice"])]));
   }
   if (!voiceRaf) voiceRaf = requestAnimationFrame(voiceLoop);
   if (roomUi && roomUi.box.isConnected) roomUi.draw();

@@ -60,13 +60,21 @@ export function renderApiTester(cfg) {
           var headerLines = [];
           res.headers.forEach(function(v, k){ headerLines.push(k + ': ' + v); });
           var statusColor = res.ok ? 'var(--green)' : 'var(--red)';
-          resultEl.innerHTML = '<div class="result-head"><span>Response</span><button class="copy-btn" id="copyResultBtn" type="button">Copy Body</button></div>' +
+          resultEl.innerHTML = '<div class="result-head"><span>Response</span><span style="display:flex;gap:6px"><button class="copy-btn" id="copyResultBtn" type="button">Copy Body</button><button class="copy-btn" id="dlResultBtn" type="button">Download</button></span></div>' +
             '<p style="font-size:.85rem;margin-bottom:8px"><b style="color:' + statusColor + '">' + res.status + ' ' + esc(res.statusText) + '</b> · ' + elapsed + 'ms</p>' +
             '<pre class="result-pre" style="max-height:140px;margin-bottom:10px">' + esc(headerLines.join('\\n') || '(no headers)') + '</pre>' +
             '<pre class="result-pre">' + esc(text || '(empty body)') + '</pre>';
           showResult();
           document.getElementById('copyResultBtn').addEventListener('click', function(){
             navigator.clipboard.writeText(text).catch(function(){});
+          });
+          var ctype = (res.headers.get('content-type') || '').toLowerCase();
+          var ext = ctype.indexOf('json') > -1 ? 'json' : ctype.indexOf('xml') > -1 ? 'xml' : ctype.indexOf('html') > -1 ? 'html' : ctype.indexOf('csv') > -1 ? 'csv' : 'txt';
+          var dlMime = ctype.split(';')[0] || 'text/plain';
+          var dlHost = 'response';
+          try { dlHost = new URL(urlInput.value.trim()).hostname.replace(/[^a-z0-9.-]/gi, '-'); } catch (e) {}
+          bindAnimatedDownload(document.getElementById('dlResultBtn'), function(){
+            triggerBlobDownload(text, dlHost + '-' + res.status + '.' + ext, dlMime);
           });
         } catch (err) {
           showMsg('Request failed. This is often the target API blocking cross-origin requests (CORS), not a bug here. ' + (err.message || ''), false);

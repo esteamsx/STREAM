@@ -234,9 +234,36 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
   const voiceLimiter = new SimpleRateLimiter(900, 60 * 1000, (req) => req.uid || (req.guest && req.guest.uid) || req.ip).middleware();
   const specLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid || req.ip, "Slow down a little.").middleware();
 
+  let turnLogged = false;
+  function turnServer() {
+    const raw = String(process.env.CHESS_TURN_URL || "").split(",").map((x) => x.trim()).filter(Boolean);
+    if (!raw.length) return null;
+    const username = String(process.env.CHESS_TURN_USER || "").trim();
+    const credential = String(process.env.CHESS_TURN_PASS || "").trim();
+    if (!username || !credential) {
+      if (!turnLogged) { turnLogged = true; console.warn("[chess] CHESS_TURN_URL is set but CHESS_TURN_USER or CHESS_TURN_PASS is missing, so voice has no relay."); }
+      return null;
+    }
+    const urls = [];
+    const extraStun = [];
+    for (const entry of raw) {
+      if (/^(turns?|stun):/i.test(entry)) { urls.push(entry); continue; }
+      const host = entry.replace(/^[a-z]+:\/\//i, "").replace(/[:/?].*$/, "");
+      if (!host) continue;
+      urls.push(`turn:${host}:80`, `turn:${host}:80?transport=tcp`, `turn:${host}:443`, `turns:${host}:443?transport=tcp`);
+      if (/\.relay\.metered\.ca$/i.test(host)) extraStun.push("stun:stun.relay.metered.ca:80");
+    }
+    if (!urls.length) return null;
+    if (!turnLogged) { turnLogged = true; console.log(`[chess] TURN relay enabled for voice (${new Set(urls).size} urls)`); }
+    return { stun: [...new Set(extraStun)], turn: { urls: [...new Set(urls)], username, credential } };
+  }
   function iceServers() {
     const list = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
-    if (process.env.CHESS_TURN_URL) list.push({ urls: process.env.CHESS_TURN_URL.split(",").map((x) => x.trim()), username: process.env.CHESS_TURN_USER || "", credential: process.env.CHESS_TURN_PASS || "" });
+    const t = turnServer();
+    if (t) {
+      for (const u of t.stun) list.push({ urls: u });
+      list.push(t.turn);
+    }
     return list;
   }
   router.get("/api/chess/ice", requireAuth, voiceLimiter, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: iceServers() }));
