@@ -2,7 +2,11 @@ import crypto from "crypto";
 import { Chess } from "../public/chess/chess-engine.js";
 
 
-export const TIME_OPTIONS = [3, 5, 10, 15, 30];     // minutes per side
+export const TIME_OPTIONS = [3, 5, 10, 15, 30];     // kept only so older callers keep working
+export const MOVE_MS = 30 * 1000;
+export const GAME_MAX_MS = 40 * 60 * 1000;
+const ACK_MAX_MS = 20 * 1000;           // a player whose phone has not yet confirmed the last move gets up to this much extra
+const ADJUDICATE_CP = 120;              // about a pawn and a bit: the side ahead by this much (or more) is likely to win
 const CHALLENGE_TTL_MS = 60 * 1000;
 const DECLINE_COOLDOWN_MS = 15 * 1000;
 const CHALLENGE_GAP_MS = 2000;
@@ -70,7 +74,7 @@ const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const err = (code) => new HubError(code, MESSAGES[code]);
 
-export function createChessHub({ now = () => Date.now(), randomHex = (n) => crypto.randomBytes(n).toString("hex"), randomBit = () => crypto.randomInt(2) } = {}) {
+export function createChessHub({ now = () => Date.now(), randomHex = (n) => crypto.randomBytes(n).toString("hex"), randomBit = () => crypto.randomInt(2), adjudicate = null } = {}) {
   const users = new Map();       // uid -> { profile, conns: Map(connId -> sink), gameId, offlineSince, lastChallengeAt }
   const challenges = new Map();  // id -> challenge
   const games = new Map();       // id -> game
@@ -102,12 +106,12 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   const presenceOf = (uid) => (!isOnline(uid) ? "offline" : isBusy(uid) ? "playing" : "available");
 
   function clocksNow(game, at = now()) {
-    const c = { w: game.clocks.w, b: game.clocks.b };
-    if (game.status === "active") {
-      const turn = game.chess.turnColor();
-      c[turn] = Math.max(0, c[turn] - (at - game.turnStartedAt));
-    }
+    const c = { w: MOVE_MS, b: MOVE_MS };
+    if (game.status === "active") c[game.chess.turnColor()] = Math.max(0, Math.min(MOVE_MS + ACK_MAX_MS, game.moveDeadline - at));
     return c;
+  }
+  function hardDeadline(game) {
+    return game.acked ? game.moveDeadline : Math.max(game.moveDeadline, game.turnStartedAt + ACK_MAX_MS + MOVE_MS);
   }
 
   function colorOf(game, uid) {
@@ -124,7 +128,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       fen: game.chess.fen(),
       turn: game.chess.turnColor(),
       moves: game.moves.map((m) => ({ san: m.san, uci: m.uci })),
-      clocks: clocksNow(game),
+      clocks: clocksNow(game), endsAt: game.endsAt, moveMs: MOVE_MS,
       minutes: game.minutes,
       opponent: opp ? publicProfile(opp.profile) : game.profiles[oppUid],
       opponentOnline: isOnline(oppUid),
@@ -232,7 +236,6 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     toUid = String(toUid || "");
     if (!toUid || toUid === fromUid) throw err("self");
     if (isGuestUid(toUid) || isGuestUid(fromUid)) throw err("offline");
-    if (!TIME_OPTIONS.includes(Number(minutes))) throw err("bad_time");
     if (!["white", "black", "random"].includes(color)) color = "random";
     if (!isOnline(toUid)) throw err("offline");
     const from = users.get(fromUid);
@@ -301,16 +304,18 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   function createGame(fromUid, toUid, fromIsWhite, minutes) {
     if (games.size >= MAX_GAMES) throw err("server_full");
     const players = fromIsWhite ? { w: fromUid, b: toUid } : { w: toUid, b: fromUid };
-    const ms = minutes * 60 * 1000;
     const game = {
       id: randomHex(16),
       players,
       keys: { w: randomHex(16), b: randomHex(16) },
       profiles: { [fromUid]: users.get(fromUid).profile, [toUid]: users.get(toUid).profile },
       chess: new Chess(),
-      minutes,
-      clocks: { w: ms, b: ms },
+      minutes: 0,
+      clocks: { w: MOVE_MS, b: MOVE_MS },
       turnStartedAt: now(),
+      moveDeadline: now() + MOVE_MS,
+      acked: false,
+      endsAt: now() + GAME_MAX_MS,
       moves: [],
       status: "active",
       result: null,
@@ -338,9 +343,8 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     if (!isOnline(guestUid)) throw err("not_connected");
     if (isBusy(hostUid)) throw err("host_busy");
     if (isBusy(guestUid)) throw err("busy");
-    if (!TIME_OPTIONS.includes(Number(minutes))) throw err("bad_time");
     const hostIsWhite = color === "white" ? true : color === "black" ? false : randomBit() === 0;
-    const game = createGame(hostUid, guestUid, hostIsWhite, Number(minutes));
+    const game = createGame(hostUid, guestUid, hostIsWhite, 0);
     cancelAllChallengesOf(hostUid, "cancelled");
     startGameFor(game);
     return game.id;
@@ -372,16 +376,16 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     const promotion = mv.promotion == null || mv.promotion === "" ? undefined : String(mv.promotion).toLowerCase();
     if (promotion !== undefined && !["q", "r", "b", "n"].includes(promotion)) throw err("bad_move");
 
-    const remaining = clocksNow(game)[color];
-    if (remaining <= 0) {
+    if (now() >= hardDeadline(game)) {
       flag(game, color);
       throw err("timeout");
     }
     const played = game.chess.move({ from: String(mv.from), to: String(mv.to), promotion });
     if (!played) throw err("illegal_move");
 
-    game.clocks[color] = remaining;
     game.turnStartedAt = now();
+    game.moveDeadline = now() + MOVE_MS;
+    game.acked = false;
     game.moves.push({ san: played.san, uci: played.uci });
     const hadOffer = game.drawOffer;
     game.drawOffer = null;
@@ -406,7 +410,51 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   function flag(game, loserColor) {
     const winnerColor = loserColor === "w" ? "b" : "w";
     if (!game.chess.hasMatingMaterial(winnerColor === "w" ? 0 : 1)) finish(game, null, "timeout_insufficient");
-    else finish(game, winnerColor, "timeout");
+    else finish(game, winnerColor, "move_timeout");
+  }
+
+  function materialCp(game) {
+    const val = { p: 100, n: 320, b: 330, r: 500, q: 900 };
+    let cp = 0;
+    for (const ch of game.chess.fen().split(" ")[0]) {
+      const v = val[ch.toLowerCase()];
+      if (v) cp += ch === ch.toUpperCase() ? v : -v;
+    }
+    return cp;
+  }
+
+  async function adjudicateGame(game) {
+    if (game.adjudicating) return;
+    game.adjudicating = true;
+    let cp = null;
+    try { if (adjudicate) cp = await adjudicate(game.chess.fen()); } catch { cp = null; }
+    if (game.status !== "active") return;
+    if (cp === null) cp = materialCp(game);
+    finish(game, cp >= ADJUDICATE_CP ? "w" : cp <= -ADJUDICATE_CP ? "b" : null, "adjudicated");
+  }
+
+  function ack(uid, gameId, key, ply) {
+    const { game, color } = playerGame(uid, gameId, key);
+    if (game.status !== "active" || game.acked) return { ok: true };
+    if (game.chess.turnColor() !== color || Number(ply) !== game.moves.length) return { ok: true };
+    game.acked = true;
+    const at = now();
+    const lateBy = Math.min(Math.max(0, at - game.turnStartedAt), ACK_MAX_MS);
+    if (lateBy > 1500) {
+      game.moveDeadline = game.turnStartedAt + lateBy + MOVE_MS;
+      const payload = { gameId: game.id, clocks: clocksNow(game), serverTime: now(), ply: game.moves.length };
+      emit(game.players.w, "timer", payload);
+      emit(game.players.b, "timer", payload);
+      emitSpectators(game, "timer", payload);
+    }
+    return { ok: true };
+  }
+
+  function syncState(uid, gameId, key) {
+    const game = games.get(String(gameId));
+    if (!game) throw err("no_game");
+    const role = participant(game, uid, key);
+    return role === "player" ? gameView(game, uid, true) : spectatorView(game);
   }
 
   function resign(uid, gameId, key) {
@@ -461,7 +509,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       id: game.id, spectator: true, color: null,
       fen: game.chess.fen(), turn: game.chess.turnColor(),
       moves: game.moves.map((m) => ({ san: m.san, uci: m.uci })),
-      clocks: clocksNow(game), minutes: game.minutes,
+      clocks: clocksNow(game), minutes: game.minutes, endsAt: game.endsAt, moveMs: MOVE_MS,
       players: { w: profileOf(game, game.players.w), b: profileOf(game, game.players.b) },
       status: game.status, result: game.result, check: game.chess.isCheck(), serverTime: now(),
       room: { count: game.spectators.size, max: game.room.max },
@@ -596,7 +644,8 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     for (const game of [...games.values()]) {
       if (game.status === "active") {
         const turn = game.chess.turnColor();
-        if (clocksNow(game, t)[turn] <= 0) { flag(game, turn); continue; }
+        if (t >= hardDeadline(game)) { flag(game, turn); continue; }
+        if (t >= game.endsAt) { adjudicateGame(game); continue; }
         const offline = ["w", "b"].map((c) => {
           const u = users.get(game.players[c]);
           return !u || !u.conns.size ? (u && u.offlineSince) || game.createdAt : null;
@@ -623,7 +672,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   return {
     connect, disconnect, online, annotate, presenceOf, challenge, cancelChallenge, respond,
     move, resign, offerDraw, respondDraw, myGame, sweep, startDirect, isOnline, isBusy,
-    getRoom, setRoom, spectate, leaveSpectate, voiceJoin, voiceSignal,
+    getRoom, setRoom, spectate, leaveSpectate, voiceJoin, voiceSignal, ack, syncState,
     setOnGameOver: (fn) => { onGameOver = typeof fn === "function" ? fn : null; },
     gameIdOf: (uid) => { const u = users.get(uid); return u && u.gameId ? u.gameId : null; },
     connectionCount: (uid) => (users.get(uid) ? users.get(uid).conns.size : 0),

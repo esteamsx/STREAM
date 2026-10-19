@@ -89,14 +89,17 @@ export async function removeUserBan(uid, banId) {
 /* ---------- admin: list / blacklist ---------- */
 
 export async function listAllBans() {
-  const snap = await db.collection(BANS).get();
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-    .slice(0, 150);
+  try {
+    const snap = await db.collection(BANS).orderBy("updatedAt", "desc").limit(150).get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch {
+    const snap = await db.collection(BANS).limit(500).get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 150);
+  }
 }
 
 export async function listBlacklist() {
+  if (blReady) return [...blEntries.values()].map((e) => ({ ...e }));
   const snap = await db.collection(BLACKLIST).get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
@@ -113,31 +116,64 @@ export async function blacklistFromBan(banId, adminUid) {
     uid: b.uid, banId, createdAt: Date.now(), createdBy: adminUid,
   };
   await db.collection(BLACKLIST).doc(id).set(entry);
-  await refreshBlacklist();
+  blEntries.set(id, { id, ...entry });
+  rebuildBlacklistSets();
   return { id, ...entry };
 }
 
 export async function removeBlacklist(id) {
   await db.collection(BLACKLIST).doc(String(id)).delete();
-  await refreshBlacklist();
+  blEntries.delete(String(id));
+  rebuildBlacklistSets();
 }
 
 /* ---------- site-wide blacklist (in-memory, refreshed) ---------- */
 
 let blDeviceIds = new Set();
 let blFps = new Set();
+const blEntries = new Map();     // id -> entry, kept in step with the database
+let blReady = false;
+
+function rebuildBlacklistSets() {
+  const list = [...blEntries.values()];
+  blDeviceIds = new Set(list.filter((e) => e.deviceId).map((e) => e.deviceId));
+  blFps = new Set(list.filter((e) => e.specific && e.fp).map((e) => e.fp));
+}
 
 export async function refreshBlacklist() {
   try {
-    const list = await listBlacklist();
-    blDeviceIds = new Set(list.filter((e) => e.deviceId).map((e) => e.deviceId));
-    blFps = new Set(list.filter((e) => e.specific && e.fp).map((e) => e.fp));
+    const snap = await db.collection(BLACKLIST).get();
+    blEntries.clear();
+    snap.docs.forEach((d) => blEntries.set(d.id, { id: d.id, ...d.data() }));
+    blReady = true;
+    rebuildBlacklistSets();
   } catch (err) {
     console.error("[device-blacklist] refresh failed:", err.message);
   }
 }
-refreshBlacklist();
-setInterval(refreshBlacklist, BLACKLIST_REFRESH_MS).unref();
+
+function listenBlacklist() {
+  try {
+    db.collection(BLACKLIST).onSnapshot((snap) => {
+      snap.docChanges().forEach((c) => {
+        if (c.type === "removed") blEntries.delete(c.doc.id);
+        else blEntries.set(c.doc.id, { id: c.doc.id, ...c.doc.data() });
+      });
+      blReady = true;
+      rebuildBlacklistSets();
+    }, (err) => {
+      console.error("[device-blacklist] listener stopped, retrying:", err && err.message);
+      blReady = false;
+      setTimeout(listenBlacklist, 30 * 1000).unref();
+    });
+  } catch (err) {
+    console.error("[device-blacklist] could not start listener:", err && err.message);
+    refreshBlacklist();
+    setTimeout(listenBlacklist, 60 * 1000).unref();
+  }
+}
+listenBlacklist();
+setInterval(refreshBlacklist, 60 * 60 * 1000).unref();   // hourly safety check
 
 export function isBlacklistedRequest(req) {
   if (!blDeviceIds.size && !blFps.size) return false;

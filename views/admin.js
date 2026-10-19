@@ -229,8 +229,8 @@ body:has(.ad-overlay.show){overflow:hidden}
 .cn-link{margin-top:10px;background:none;border:none;color:var(--accent);font-family:inherit;font-size:.78rem;font-weight:600;cursor:pointer;padding:0}
 .cn-ov{position:fixed;inset:0;z-index:600;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:24px}
 .cn-ov.show{display:flex}
-.cn-card{width:100%;max-width:380px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:22px 20px;background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(18,18,28,.72);border:1px solid rgba(255,255,255,.22);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3)}
-:root[data-theme="light"] .cn-card{background:linear-gradient(155deg,rgba(255,255,255,.7),rgba(255,255,255,.3)),rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.65)}
+.cn-card{width:100%;max-width:380px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:22px 20px;background:linear-gradient(155deg,rgba(255,255,255,.16),rgba(255,255,255,.03) 40%,rgba(255,255,255,.06) 100%),rgba(255,255,255,.06);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.22);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3)}
+:root[data-theme="light"] .cn-card{background:linear-gradient(155deg,rgba(255,255,255,.7),rgba(255,255,255,.3)),rgba(255,255,255,.55);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.65)}
 .cn-title{font-family:var(--font-display);font-size:1.05rem;font-weight:700;text-align:center}
 .cn-sub{font-size:.76rem;color:var(--muted);text-align:center;margin:4px 0 14px;line-height:1.5}
 .cn-h{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px}

@@ -261,6 +261,7 @@ import {
   adminListUsers,
   adminSearchUsers,
   adminGiftCoins,
+  followAllUsers,
   creditChessBotWin,
   recordChessReview,
   listChessReviews,
@@ -696,7 +697,7 @@ app.use("/api/rewards", coinDeviceGuard);
 app.use(rewardsRouter);
 app.use(createGiveawayRouter({ verifyCaptcha }));
 const chessRouter = express.Router();
-registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, creditChessBotWin, recordChessReview });
+registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview });
 app.use(chessRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
@@ -3807,6 +3808,16 @@ app.post("/api/notifications/mark-all-read", requireAuth, async (req, res) => {
   }
 });
 
+const followAllLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid, "Slow down a little.").middleware();
+app.post("/api/follow-all", requireAuth, requireSiteOrigin, followAllLimiter, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store").json({ ok: true, ...(await followAllUsers(req.uid, !!(req.body && req.body.restart))) });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not follow everyone right now. Try again." });
+  }
+});
+
 app.post("/api/follow/:uid", requireAuth, async (req, res) => {
   try {
     const result = await followUser(req.uid, req.params.uid);
@@ -3951,8 +3962,9 @@ app.get("/api/posts/user/:username", requireAuth, async (req, res) => {
   try {
     const target = await findUserByUsername(String(req.params.username || "").toLowerCase());
     if (!target || target.pendingDeletion) return res.status(404).json({ error: "User not found." });
-    const posts = await getPostsByUser(target.uid, req.uid);
-    res.json({ results: posts });
+    const limit = Math.min(60, Math.max(5, Number(req.query.limit) || 30));
+    const posts = await getPostsByUser(target.uid, req.uid, { limit, before: req.query.before ? Number(req.query.before) : null });
+    res.json({ results: posts, nextBefore: posts.nextBefore || null });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not load posts." });

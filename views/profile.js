@@ -1,3 +1,4 @@
+const BUILD = Date.now().toString(36);
 import { siteHeadFor } from "../config/site.js";
 
 export function renderProfile(cfg) {
@@ -12,7 +13,7 @@ ${siteHeadFor("profile")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <script nonce="__CSP_NONCE__" src="/guest-gate.js" defer></script>
-<script nonce="__CSP_NONCE__" src="/status-ui.js" defer></script>
+<script nonce="__CSP_NONCE__" src="/status-ui.js?v=${BUILD}" defer></script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -290,6 +291,14 @@ body:has(.page-overlay.show){overflow:hidden}
 }
 .flist-header{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 0}
 .flist-title{font-family:var(--font-display);font-weight:700;font-size:1.02rem}
+.flist-titlewrap{display:flex;align-items:center;gap:12px;min-width:0}
+.flist-followall{position:relative;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;border:1px solid var(--accent);background:rgba(0,224,255,.12);color:var(--accent);font-family:inherit;font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 0 14px rgba(0,224,255,.18);text-shadow:0 0 10px rgba(0,224,255,.45);transition:background .2s}
+.flist-followall[hidden]{display:none}
+.flist-followall:hover{background:rgba(0,224,255,.2)}
+.flist-followall .fa-ring{display:none;width:13px;height:13px;border-radius:50%;border:2px solid rgba(0,224,255,.3);border-top-color:var(--accent);animation:faSpin .6s linear infinite;box-sizing:border-box}
+.flist-followall.busy{pointer-events:none}
+.flist-followall.busy .fa-ring{display:inline-block}
+@keyframes faSpin{to{transform:rotate(360deg)}}
 .flist-close{
   background:transparent;border:none;color:var(--muted);width:32px;height:32px;border-radius:8px;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s var(--ease);
@@ -855,7 +864,10 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="flistOverlay">
   <div class="flist-card">
     <div class="flist-header">
-      <div class="flist-title" id="flistTitle">Followers</div>
+      <div class="flist-titlewrap">
+        <div class="flist-title" id="flistTitle">Followers</div>
+        <button type="button" class="flist-followall" id="flistFollowAll" hidden><span class="fa-ring"></span><span class="fa-t">Follow All</span></button>
+      </div>
       <button type="button" class="flist-close" id="flistCloseBtn" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
@@ -2312,6 +2324,32 @@ async function loadPosts(username, isOwner){
     } else {
       posts.forEach(p => listEl.appendChild(createPostCard(p, isOwner)));
     }
+    let cursor = data.nextBefore || null;
+    const moreWrap = document.createElement('div');
+    moreWrap.style.cssText = 'text-align:center;padding:14px 0';
+    listEl.parentNode.querySelectorAll('.pf-loadmore').forEach(n => n.remove());
+    if (cursor) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'pf-loadmore';
+      more.style.cssText = 'padding:10px 22px;border-radius:999px;border:1px solid var(--accent);background:rgba(0,224,255,.1);color:var(--accent);font-family:inherit;font-weight:700;font-size:.8rem;cursor:pointer;display:inline-flex;align-items:center;gap:8px';
+      more.textContent = 'Show more posts';
+      more.addEventListener('click', async () => {
+        more.disabled = true;
+        more.innerHTML = '<span style="width:14px;height:14px;border-radius:50%;border:2px solid rgba(0,224,255,.3);border-top-color:var(--accent);animation:faSpin .6s linear infinite;display:inline-block"></span> Loading';
+        try {
+          const next = await getJSON('/api/posts/user/' + encodeURIComponent(username) + '?before=' + encodeURIComponent(cursor));
+          (next.results || []).forEach(p => listEl.appendChild(createPostCard(p, isOwner)));
+          cursor = next.nextBefore || null;
+          if (cursor) { more.disabled = false; more.textContent = 'Show more posts'; } else moreWrap.remove();
+        } catch (err) {
+          more.disabled = false; more.textContent = 'Show more posts';
+          showToast(err.message || 'Could not load more posts.');
+        }
+      });
+      moreWrap.appendChild(more);
+      listEl.parentNode.insertBefore(moreWrap, listEl.nextSibling);
+    }
 
     const hash = window.location.hash;
     if (hash && hash.startsWith('#post-')) {
@@ -2501,6 +2539,9 @@ async function openFlist(type, username){
   document.getElementById('flistTitle').textContent = type === 'following' ? 'Following' : 'Followers';
   document.getElementById('flistSearch').value = '';
   document.getElementById('flistList').innerHTML = '<div class="sk-stack"><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div></div>';
+  const fa = document.getElementById('flistFollowAll');
+  fa.hidden = !(type === 'followers' && !username);
+  fa.querySelector('.fa-t').textContent = 'Follow All';
   overlay.classList.add('show');
   try {
     const url = '/api/follow/list?type=' + type + (username ? '&username=' + encodeURIComponent(username) : '');
@@ -2516,6 +2557,28 @@ async function openFlist(type, username){
     document.getElementById('flistList').innerHTML = '<div class="flist-empty">Could not load the list. Try again.</div>';
   }
 }
+document.getElementById('flistFollowAll').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const label = btn.querySelector('.fa-t');
+  btn.classList.add('busy');
+  let done = 0, total = 0, restart = true;
+  try {
+    for (;;) {
+      const d = await postJSON('/api/follow-all', { restart });
+      restart = false;
+      total = d.total || total;
+      done += d.followed || 0;
+      label.textContent = total ? 'Following ' + done + ' of ' + total : 'Follow All';
+      if (d.done) break;
+    }
+    showToast(total ? 'You now follow ' + done + ' more ' + (done === 1 ? 'person' : 'people') + '.' : 'You already follow everyone.');
+    try { const st = await getJSON('/api/follow/stats'); const n = st.following ?? st.followingCount; if (n != null) document.getElementById('pfFollowing').textContent = formatCount(n); } catch (err) { /* the number updates next visit */ }
+  } catch (err) {
+    showToast(err.message || 'Could not follow everyone. Try again.');
+  }
+  label.textContent = 'Follow All';
+  btn.classList.remove('busy');
+});
 document.getElementById('flistCloseBtn').addEventListener('click', () => {
   document.getElementById('flistOverlay').classList.remove('show');
 });

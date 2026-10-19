@@ -10,7 +10,7 @@ const TRUSTED = "trustedDevices";
 export const DEVICE_COOKIE = "es_did";
 const DEVICE_COOKIE_MAX_AGE = 2 * 365 * 24 * 60 * 60 * 1000;
 const TOUCH_EVERY_MS = 60 * 1000;
-const CACHE_MS = 5000;
+const CACHE_MS = 90 * 1000;
 const MAX_HISTORY = 40;
 const HISTORY_MAX_AGE_MS = 45 * 24 * 60 * 60 * 1000;
 

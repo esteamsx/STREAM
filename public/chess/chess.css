@@ -296,3 +296,21 @@
 #cxWatchCode{text-transform:uppercase;letter-spacing:.25em}
 @media (prefers-reduced-motion:reduce){.cx-vbtn,.cx-pring{transition:none;box-shadow:none}}
 .cx-ovwide .cx-modal h2{text-align:center}
+
+/* board colour swatches: the whole square is tappable */
+.cx-sw>div{min-width:0}
+.cx-swatch{display:block;width:100%;min-height:56px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.cx-swatch i{pointer-events:none}
+.cx-pcset{width:100%;touch-action:manipulation}
+
+/* ---- rules box, connection banner, game timer line, expired link card ---- */
+.cx-rulebox{margin:12px 0 4px;padding:10px 12px;border-radius:14px;border:1px solid var(--border-strong);background:var(--cx-glass);text-align:center;display:flex;flex-direction:column;gap:3px}
+.cx-rulebox b{font-size:.84rem}
+.cx-rulebox span{font-size:.72rem;color:var(--muted);line-height:1.45}
+.cx-ends{font-size:.7rem;color:var(--muted);margin-bottom:8px;font-family:var(--font-mono);letter-spacing:.02em}
+.cx-net{display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:10px 12px;border-radius:14px;background:linear-gradient(155deg,rgba(255,193,7,.2),rgba(255,255,255,.04)),var(--cx-glass);border:1px solid rgba(255,193,7,.5);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);font-size:.78rem;line-height:1.4}
+.cx-net[hidden]{display:none}
+.cx-net .t{flex:1}
+.cx-ended .cx-btn .ico{display:inline-flex;margin-left:8px;vertical-align:-3px}
+.cx-ended .cx-btn .ico svg{width:17px;height:17px}
+.cx-ended .ic svg{width:28px;height:28px}

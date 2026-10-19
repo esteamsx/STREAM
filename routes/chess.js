@@ -1,10 +1,11 @@
 import crypto from "crypto";
-import { createChessHub, TIME_OPTIONS } from "../services/chess-mp.js";
+import { createChessHub } from "../services/chess-mp.js";
+import { adjudicatePosition } from "../services/chess-adjudicate.js";
 import { replayBotGame, analyzeBotGame } from "../services/chess-anticheat.js";
 
 const MAX_TABS = 4;
 
-export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, creditChessBotWin, recordChessReview, hub = createChessHub() }) {
+export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview, hub = createChessHub({ adjudicate: adjudicatePosition }) }) {
   const readLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware();
   const challengeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
   const moveLimiter = new SimpleRateLimiter(40, 10 * 1000, (req) => req.uid).middleware();
@@ -24,12 +25,13 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
     username: p.username || "",
     name: [p.firstName, p.lastName].filter(Boolean).join(" "),
     photo: photoFor(uid, p),
-    verified: !!(isVerificationActive && isVerificationActive(p)),
+    verified: !!((isVerificationActive && isVerificationActive(p)) || (isAdminEmail && isAdminEmail(p.email))),
   });
 
   const guests = new Map();   // guestUid -> { secret, name, token, createdAt }
   const links = new Map();    // token -> guest game link
-  const GUEST_VALID_MINUTES = [10, 30, 60, 180, 1440];
+  const LINK_LIFETIME_MS = 24 * 60 * 60 * 1000;      // a link nobody plays on stops working after a day
+  const LINK_AFTER_END_MS = 5 * 60 * 1000;           // after the game it stays for 5 more minutes, then expires
   const MAX_OPEN_LINKS = 3;
   const GUEST_COOKIE = "cx_guest";
   const guestIpLimiter = new SimpleRateLimiter(40, 60 * 1000, (req) => req.ip).middleware();
@@ -37,12 +39,16 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
   const guestMoveLimiter = new SimpleRateLimiter(40, 10 * 1000, (req) => (req.guest && req.guest.uid) || req.ip).middleware();
   const avatarLimiter = new SimpleRateLimiter(400, 60 * 1000, (req) => req.uid || req.ip).middleware();
 
-  const linkStatus = (l) => (l.status === "open" && Date.now() > l.expiresAt ? "expired" : l.status);
-  const linkView = (l) => ({ token: l.token, status: linkStatus(l), minutes: l.minutes, color: l.color, validMinutes: l.validMinutes, expiresAt: l.expiresAt, createdAt: l.createdAt });
+  const linkStatus = (l) => {
+    if (l.status === "open" && Date.now() > l.expiresAt) return "expired";
+    if (l.status === "ended") return l.endedAt && Date.now() - l.endedAt <= LINK_AFTER_END_MS && l.result ? "finished" : "expired";
+    return l.status;
+  };
+  const linkView = (l) => ({ token: l.token, status: linkStatus(l), color: l.color, expiresAt: l.expiresAt, createdAt: l.createdAt });
   const linkByGame = (gameId) => { for (const l of links.values()) if (l.gameId === gameId) return l; return null; };
   hub.setOnGameOver((game) => {
     const l = linkByGame(game.id);
-    if (l) { l.status = "ended"; l.endedAt = Date.now(); }
+    if (l) { l.status = "ended"; l.endedAt = Date.now(); l.result = { winner: game.result ? game.result.winner : null, reason: game.result ? game.result.reason : null }; }
   });
 
   function readGuest(req) {
@@ -90,7 +96,7 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
     const sink = { send: (event, data) => write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`) };
     const connId = hub.connect(uid, profile, sink);
     if (onOpen) { try { onOpen(sink); } catch (e) { console.error("[chess] open", e && e.message); } }
-    const ping = setInterval(() => { try { write(": ping\n\n"); } catch { /* the close handler cleans up */ } }, 20000);
+    const ping = setInterval(() => { try { sink.send("ping", { t: Date.now() }); } catch { /* the close handler cleans up */ } }, 8000);
     let closed = false;
     const done = () => { if (closed) return; closed = true; clearInterval(ping); hub.disconnect(uid, connId); };
     req.on("close", () => { if (res.destroyed || res.writableEnded || req.destroyed || (req.socket && req.socket.destroyed)) done(); });
@@ -244,6 +250,14 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
       const b = req.body || {};
       act(res, () => hub.setRoom(uidOf(req), b.gameId, b.key, { open: b.open, pin: b.pin, max: b.max }));
     });
+    router.post(prefix + "/game/:id/ack", ...guard, (req, res) => {
+      const b = req.body || {};
+      act(res, () => hub.ack(uidOf(req), req.params.id, b.key, b.ply));
+    });
+    router.post(prefix + "/game/:id/state", ...guard, (req, res) => {
+      const b = req.body || {};
+      act(res, () => hub.syncState(uidOf(req), req.params.id, b.key));
+    });
     router.post(prefix + "/voice/join", ...guard, (req, res) => {
       const b = req.body || {};
       act(res, () => hub.voiceJoin(uidOf(req), b.gameId, b.key));
@@ -267,17 +281,13 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
 
   router.post("/api/chess/guest/links", requireAuth, requireSiteOrigin, challengeLimiter, (req, res) => {
     const b = req.body || {};
-    const minutes = Number(b.minutes);
-    const validMinutes = Number(b.validMinutes);
     const color = ["white", "black", "random"].includes(b.color) ? b.color : "random";
-    if (!TIME_OPTIONS.includes(minutes)) return res.status(400).json({ error: "Pick a valid game time." });
-    if (!GUEST_VALID_MINUTES.includes(validMinutes)) return res.status(400).json({ error: "Pick how long the link should stay active." });
     let open = 0;
     for (const l of links.values()) if (l.hostUid === req.uid && ["open", "playing"].includes(linkStatus(l))) open++;
     if (open >= MAX_OPEN_LINKS) return res.status(400).json({ error: "You already have " + MAX_OPEN_LINKS + " active guest links. Cancel one first." });
     const token = crypto.randomBytes(9).toString("base64url");
     const now = Date.now();
-    const link = { token, hostUid: req.uid, minutes, color, validMinutes, createdAt: now, expiresAt: now + validMinutes * 60 * 1000, status: "open", guestUid: null, gameId: null, endedAt: null };
+    const link = { token, hostUid: req.uid, color, createdAt: now, expiresAt: now + LINK_LIFETIME_MS, status: "open", guestUid: null, gameId: null, endedAt: null, result: null };
     links.set(token, link);
     res.set("Cache-Control", "no-store").json({ link: linkView(link) });
   });
@@ -303,7 +313,8 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
     const status = linkStatus(l);
     const me = readGuest(req);
     const you = !!(me && l.guestUid === me.uid);
-    const out = { status, minutes: l.minutes, expiresAt: l.expiresAt, you };
+    const out = { status, expiresAt: l.expiresAt, you };
+    if (status === "finished") out.result = l.result;
     if (status === "open" || (status === "playing" && you)) {
       try {
         const host = await getUserProfile(l.hostUid);
@@ -348,7 +359,7 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
     const l = links.get(guest.token);
     if (!l || l.guestUid !== guest.uid || l.status === "ended") return;
     if (hub.gameIdOf(guest.uid)) return;
-    l.gameId = hub.startDirect(l.hostUid, guest.uid, { color: l.color, minutes: l.minutes });
+    l.gameId = hub.startDirect(l.hostUid, guest.uid, { color: l.color });
   }
 
   router.get("/api/chess/guest/stream", guestIpLimiter, requireGuest, (req, res) => {
@@ -389,8 +400,8 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
     const t = Date.now();
     for (const [token, l] of links) {
       const status = linkStatus(l);
-      if (status === "playing" && l.gameId === null && l.guestUid && !hub.isOnline(l.guestUid) && t - l.createdAt > l.validMinutes * 60 * 1000) { l.status = "ended"; l.endedAt = t; }
-      const doneAt = status === "ended" ? l.endedAt || t : status === "expired" ? l.expiresAt : 0;
+      if (status === "playing" && l.gameId === null && l.guestUid && !hub.isOnline(l.guestUid) && t - l.createdAt > LINK_LIFETIME_MS) { l.status = "ended"; l.endedAt = t; }
+      const doneAt = l.status === "ended" ? l.endedAt || t : status === "expired" ? l.expiresAt : 0;
       if (doneAt && t - doneAt > 60 * 60 * 1000) {
         links.delete(token);
         if (l.guestUid) guests.delete(l.guestUid);

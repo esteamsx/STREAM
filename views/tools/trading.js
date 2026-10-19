@@ -28,11 +28,13 @@ ${siteHeadFor("trading")}
   --font-body:'Inter',-apple-system,sans-serif;
   --font-mono:'JetBrains Mono',ui-monospace,monospace;
   --ease:cubic-bezier(.22,1,.36,1);
+  --nav-bg:rgba(10,10,15,.98);
 }
 :root[data-theme="light"]{
   --dark:#F5F6FA;--dark3:#ECEEF3;--card:#FFFFFF;--card2:#F0F1F5;
   --border:rgba(0,0,0,.08);--border-strong:rgba(0,0,0,.14);
   --text:#14141C;--muted:rgba(20,20,28,.55);
+  --nav-bg:rgba(255,255,255,.92);
 }
 :root[data-theme="light"] .tr-pair-btn,
 :root[data-theme="light"] .tr-chart-card,

@@ -217,7 +217,7 @@ async function checkPendingSignupCode(email, code) {
 }
 
 const userProfileCache = new Map();
-const USER_PROFILE_CACHE_TTL_MS = 10 * 1000;
+const USER_PROFILE_CACHE_TTL_MS = 30 * 1000;
 
 function invalidateUserProfileCache(uid) {
   userProfileCache.delete(uid);
@@ -1865,7 +1865,7 @@ const FOLLOW_CACHE_TTL_MS = 15 * 60 * 1000;
 const FOLLOW_CACHE_MAX = 5000;
 const followCache = new Map();
 const followInflight = new Map();
-const FOLLOW_LIST_TTL_MS = 2 * 60 * 1000;
+const FOLLOW_LIST_TTL_MS = 10 * 60 * 1000;   // follow and unfollow clear these lists, so they can live longer
 const followListCache = new Map();
 
 function followCached(key, loader) {
@@ -1910,6 +1910,62 @@ function invalidateFollowCache(...uids) {
       }
     }
   }
+}
+
+
+const followAllJobs = new Map();   // uid -> { queue: [uid...], total, at }
+const FOLLOW_ALL_BATCH = 200;
+
+async function followAllUsers(uid, restart = false) {
+  let job = followAllJobs.get(uid);
+  if (!job || restart || Date.now() - job.at > 15 * 60 * 1000) {
+    const [mine, ] = await Promise.all([db.collection("follows").where("followerUid", "==", uid).select("targetUid").get()]);
+    const already = new Set(mine.docs.map((d) => d.data().targetUid));
+    const queue = [];
+    let last = null;
+    for (;;) {
+      let q = db.collection("users").orderBy(admin.firestore.FieldPath.documentId()).limit(500).select("username", "banned", "pendingDeletion");
+      if (last) q = q.startAfter(last);
+      const snap = await q.get();
+      if (snap.empty) break;
+      for (const d of snap.docs) {
+        const u = d.data();
+        if (d.id === uid || already.has(d.id) || !u.username || u.banned || u.pendingDeletion) continue;
+        queue.push(d.id);
+      }
+      last = snap.docs[snap.docs.length - 1];
+      if (snap.size < 500) break;
+    }
+    job = { queue, total: queue.length, at: Date.now() };
+    followAllJobs.set(uid, job);
+  }
+  const chunk = job.queue.splice(0, FOLLOW_ALL_BATCH);
+  let created = 0;
+  if (chunk.length) {
+    const now = Date.now();
+    try {
+      const batch = db.batch();
+      for (const t of chunk) {
+        batch.create(db.collection("follows").doc(followDocId(uid, t)), { followerUid: uid, targetUid: t, createdAt: now });
+        batch.update(db.collection("users").doc(t), { followersCount: admin.firestore.FieldValue.increment(1) });
+      }
+      batch.update(db.collection("users").doc(uid), { followingCount: admin.firestore.FieldValue.increment(chunk.length) });
+      await batch.commit();
+      created = chunk.length;
+    } catch {
+      for (const t of chunk) {
+        try { const r = await followUser(uid, t); if (r) created++; } catch { /* skip that account */ }
+      }
+    }
+    for (const t of chunk) {
+      followListCache.delete(`followers:${t}`);
+      for (const k of [`mutual:${t}`, `isf:${uid}>${t}`]) { followCache.delete(k); followInflight.delete(k); }
+    }
+    invalidateFollowCache(uid);
+    invalidateUserProfileCache(uid);
+  }
+  if (!job.queue.length) followAllJobs.delete(uid);
+  return { followed: created, remaining: job.queue.length, total: job.total, done: job.queue.length === 0 };
 }
 
 async function getMutualUids(uid) {
@@ -2165,9 +2221,37 @@ async function resolveCommentTargetPostId(postId) {
   return (data.resharedFrom && data.resharedFrom.postId) || postId;
 }
 
-async function getPostsByUser(targetUid, viewerUid) {
-  const snap = await db.collection("posts").where("uid", "==", targetUid).limit(200).get();
-  const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+let postsIndexRetryAt = 0;
+
+async function getPostsByUser(targetUid, viewerUid, { limit = 30, before = null } = {}) {
+  let docs = null;
+  let nextBefore = null;
+  if (Date.now() >= postsIndexRetryAt) {
+    try {
+      let q = db.collection("posts").where("uid", "==", targetUid).orderBy("createdAt", "desc");
+      if (before) q = q.where("createdAt", "<", Number(before));
+      const snap = await q.limit(limit + 1).get();
+      docs = snap.docs;
+      if (docs.length > limit) { docs = docs.slice(0, limit); nextBefore = docs[docs.length - 1].data().createdAt; }
+      if (!before) {
+        try {
+          const pins = await db.collection("posts").where("uid", "==", targetUid).where("pinnedAt", ">", 0).limit(5).get();
+          const have = new Set(docs.map((d) => d.id));
+          pins.docs.forEach((d) => { if (!have.has(d.id)) docs.push(d); });
+        } catch { /* pinned posts need their own index; the first page still works */ }
+      }
+    } catch (err) {
+      postsIndexRetryAt = Date.now() + 10 * 60 * 1000;
+      console.warn("[quota] profile posts are read the old way until this index exists (open the link in the error): " + String(err.message || err).slice(0, 400));
+      docs = null;
+    }
+  }
+  if (!docs) {
+    const snap = await db.collection("posts").where("uid", "==", targetUid).limit(200).get();
+    docs = snap.docs;
+    nextBefore = null;
+  }
+  const posts = docs.map((d) => ({ id: d.id, ...d.data() }));
   posts.sort((a, b) => (b.pinnedAt ? 1 : 0) - (a.pinnedAt ? 1 : 0) || b.createdAt - a.createdAt);
 
   const isOwner = viewerUid === targetUid;
@@ -2187,7 +2271,7 @@ async function getPostsByUser(targetUid, viewerUid) {
 
   const statsMap = await resolveEffectivePostStats(visiblePosts);
 
-  return visiblePosts.map((p) => {
+  const out = visiblePosts.map((p) => {
     const stats = statsMap.get(p.id) || { likedBy: [], commentsCount: 0, commentsEnabled: true };
     return {
       id: p.id,
@@ -2208,6 +2292,8 @@ async function getPostsByUser(targetUid, viewerUid) {
       commentsCount: stats.commentsCount,
     };
   });
+  out.nextBefore = nextBefore;
+  return out;
 }
 
 async function updatePostVisibility(uid, postId, visibility) {
@@ -4177,12 +4263,11 @@ const GIFT_CACHE_TTL_MS = 5 * 60 * 1000;
 async function getPendingCoinGift(uid) {
   const hit = giftPendingCache.get(uid);
   if (hit && Date.now() - hit.at < GIFT_CACHE_TTL_MS) return hit.gift;
-  const snap = await db.collection("notifications").where("uid", "==", uid).where("type", "==", "coin_gift").where("meta.popupShown", "==", false).limit(1).get();
+  const ask = (type) => db.collection("notifications").where("uid", "==", uid).where("type", "==", type).where("meta.popupShown", "==", false).limit(1).get();
+  const [a, b] = await Promise.all([ask("coin_gift"), ask("coin_transfer_received")]);
+  const doc = !a.empty ? a.docs[0] : !b.empty ? b.docs[0] : null;
   let gift = null;
-  if (!snap.empty) {
-    const d = snap.docs[0];
-    gift = { id: d.id, amount: d.data().meta.amount, from: d.data().meta.from || "The admin", message: d.data().message };
-  }
+  if (doc) gift = { id: doc.id, amount: doc.data().meta.amount, from: doc.data().meta.from || "Someone", message: doc.data().message };
   if (giftPendingCache.size >= 5000) giftPendingCache.clear();
   giftPendingCache.set(uid, { gift, at: Date.now() });
   return gift;
@@ -4191,7 +4276,7 @@ async function getPendingCoinGift(uid) {
 async function markCoinGiftSeen(uid, id) {
   const ref = db.collection("notifications").doc(String(id));
   const snap = await ref.get();
-  if (!snap.exists || snap.data().uid !== uid || snap.data().type !== "coin_gift") return;
+  if (!snap.exists || snap.data().uid !== uid || !["coin_gift", "coin_transfer_received"].includes(snap.data().type)) return;
   await ref.update({ "meta.popupShown": true });
   giftPendingCache.delete(uid);
   invalidateNotifState(uid);
@@ -4447,9 +4532,12 @@ async function transferCoins(uid, targetUsername, rawAmount) {
     }),
     addNotification(recipient.uid, "coin_transfer_received", `@${result.senderUsername} sent you ${amount} coins`, {
       fromUsername: result.senderUsername,
+      from: `@${result.senderUsername}`,
       amount,
+      popupShown: false,
     }),
   ]);
+  giftPendingCache.delete(recipient.uid);
 
   return { amount, toUsername: recipientUsername, newBalance: result.newBalance };
 }
@@ -5286,8 +5374,14 @@ async function deleteSupportMessage(threadUid, messageId, actorIsAdmin) {
 const supportMsgCache = new Map();
 const SUPPORT_MSG_CACHE_TTL_MS = 10 * 60 * 1000;
 
+const supportUnreadCache = new Map();
+let adminUnreadCache = null;
+const SUPPORT_UNREAD_TTL_MS = 2 * 60 * 1000;
+
 function invalidateSupportThread(uid) {
   supportMsgCache.delete(uid);
+  supportUnreadCache.delete(uid);
+  adminUnreadCache = null;
 }
 
 async function getSupportMessages(uid, asAdmin) {
@@ -5316,11 +5410,13 @@ async function getSupportMessages(uid, asAdmin) {
       entry.adminSeenAt = now;
       if (!entry.cleared.admin || now - entry.lastAdminWrite > 15000) {
         await threadRef.update({ unreadForAdmin: 0, adminSeenAt: now }).catch(() => {});
+        adminUnreadCache = null;
         entry.cleared.admin = true;
         entry.lastAdminWrite = now;
       }
     } else if (!entry.cleared.user) {
       await threadRef.update({ unreadForUser: 0 }).catch(() => {});
+      supportUnreadCache.set(uid, { at: Date.now(), count: 0 });
       entry.cleared.user = true;
     }
   }
@@ -5334,14 +5430,21 @@ async function getSupportMessages(uid, asAdmin) {
 }
 
 async function getSupportUnreadCountForUser(uid) {
+  const hit = supportUnreadCache.get(uid);
+  if (hit && Date.now() - hit.at < SUPPORT_UNREAD_TTL_MS) return hit.count;
   const snap = await db.collection("supportThreads").doc(uid).get();
-  return snap.exists ? snap.data().unreadForUser || 0 : 0;
+  const count = snap.exists ? snap.data().unreadForUser || 0 : 0;
+  if (supportUnreadCache.size >= 5000) supportUnreadCache.clear();
+  supportUnreadCache.set(uid, { at: Date.now(), count });
+  return count;
 }
 
 async function getSupportUnreadCountForAdmin() {
-  const snap = await db.collection("supportThreads").where("unreadForAdmin", ">", 0).get();
+  if (adminUnreadCache && Date.now() - adminUnreadCache.at < SUPPORT_UNREAD_TTL_MS) return adminUnreadCache.total;
+  const snap = await db.collection("supportThreads").where("unreadForAdmin", ">", 0).select("unreadForAdmin").limit(500).get();
   let total = 0;
   snap.forEach((d) => { total += d.data().unreadForAdmin || 0; });
+  adminUnreadCache = { at: Date.now(), total };
   return total;
 }
 
@@ -5499,6 +5602,7 @@ export {
   redeemCoinsForLimit,
   redeemCoinsForVerification,
   adminGiftCoins,
+  followAllUsers,
   creditChessBotWin,
   recordChessReview,
   listChessReviews,
