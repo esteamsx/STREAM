@@ -151,7 +151,7 @@ function connect() {
   on("timer", (d) => {
     const g = state.game;
     if (!g || g.mode !== "online" || g.id !== d.gameId) return;
-    g.clocks = d.clocks; g.clockAt = d.serverTime || serverNow();
+    g.clocks = d.clocks; g.clockAt = d.serverTime || serverNow(); g.paused = !!d.paused;
     if (d.serverTime) state.offset = d.serverTime - Date.now();
     tickClocks();
   });
@@ -350,7 +350,7 @@ function guestBox() {
       type: "button", class: "cx-chip" + (current() === val ? " on" : ""), onclick: () => { set(val); renderMenu(); },
     }, [text]))));
   };
-  box.appendChild(h("div", { class: "cx-rulebox" }, [h("b", { text: "30 seconds a move" }), h("span", { text: "A link nobody plays on stops working after 24 hours." })]));
+  box.appendChild(h("div", { class: "cx-rulebox" }, [h("b", { text: "60 seconds a move" }), h("span", { text: "A link nobody plays on stops working after 24 hours." })]));
   chips("You play as", [["random", "Random"], ["white", "White"], ["black", "Black"]], () => gopt.color, (v) => { gopt.color = v; save("gcolor", v); });
   box.appendChild(h("button", { type: "button", class: "cx-btn", id: "cxMakeLink", onclick: (e) => createLink(e.currentTarget) }, ["Create game link"]));
   if (state.links && state.links.length) {
@@ -482,7 +482,7 @@ function openChallengeSheet(p) {
     h("h2", { text: "Challenge " + (p.name || p.username) }),
     h("p", { text: "They will see your request and can accept or decline." }),
     colorRow,
-    h("div", { class: "cx-rulebox" }, [h("b", { text: "30 seconds a move" }), h("span", { text: "Each game lasts up to 40 minutes. If it is still undecided, the stronger position wins." })]),
+    h("div", { class: "cx-rulebox" }, [h("b", { text: "60 seconds a move" }), h("span", { text: "Each game lasts up to 40 minutes. If it is still undecided, the stronger position wins." })]),
     h("div", { class: "row" }, [
       h("button", { type: "button", class: "cx-btn ghost", onclick: () => m.close() }, ["Cancel"]),
       h("button", { type: "button", class: "cx-btn", id: "cxSend", onclick: async (e) => {
@@ -527,7 +527,7 @@ setInterval(() => {
   document.querySelectorAll("[data-req]").forEach((el) => {
     const r = state.incoming.find((x) => x.id === el.getAttribute("data-req"));
     const span = el.querySelector(".cx-pinfo span");
-    if (r && span) span.textContent = "wants to play | 30s a move | " + Math.max(0, Math.round((r.expiresAt - now) / 1000)) + "s";
+    if (r && span) span.textContent = "wants to play | 60s a move | " + Math.max(0, Math.round((r.expiresAt - now) / 1000)) + "s";
   });
 }, 1000);
 setInterval(() => { if (!document.hidden && state.tab === "online" && !$("cxMenu").hidden) loadPlayers(); }, 12000);
@@ -1004,7 +1004,7 @@ function renderGameInfo() {
 function resultText(g) {
   const r = g.result || {};
   if (g.spectator) {
-    const why = { checkmate: "checkmate", resign: "resignation", timeout: "time", move_timeout: "a move taking over 30 seconds", adjudicated: "the better position when time ended", abandoned: "a player leaving", stalemate: "stalemate", agreement: "agreement", insufficient: "not enough pieces", repetition: "repetition", fifty: "the 50-move rule" }[r.reason] || r.reason;
+    const why = { checkmate: "checkmate", resign: "resignation", timeout: "time", move_timeout: "a move taking over 60 seconds", adjudicated: "the better position when time ended", abandoned: "a player leaving", stalemate: "stalemate", agreement: "agreement", insufficient: "not enough pieces", repetition: "repetition", fifty: "the 50-move rule" }[r.reason] || r.reason;
     return r.winner == null ? "Draw by " + why : (r.winner === "w" ? "White" : "Black") + " won by " + why;
   }
   const you = g.myColor;
@@ -1013,7 +1013,7 @@ function resultText(g) {
     return "Draw by " + why;
   }
   const won = r.winner === you;
-  const why = { checkmate: "checkmate", resign: won ? "your opponent resigned" : "you resigned", timeout: "time", move_timeout: won ? "your opponent took longer than 30 seconds to move" : "taking longer than 30 seconds to move", adjudicated: won ? "a clearly better position when the game time ended" : "your opponent having a clearly better position when the game time ended", abandoned: won ? "your opponent left" : "you left" }[r.reason] || r.reason;
+  const why = { checkmate: "checkmate", resign: won ? "your opponent resigned" : "you resigned", timeout: "time", move_timeout: won ? "your opponent took longer than 60 seconds to move" : "taking longer than 60 seconds to move", adjudicated: won ? "a clearly better position when the game time ended" : "your opponent having a clearly better position when the game time ended", abandoned: won ? "your opponent left" : "you left" }[r.reason] || r.reason;
   return (won ? "You won by " : "You lost by ") + why;
 }
 
@@ -1068,7 +1068,7 @@ function tickClocks() {
     return;
   }
   const turn = g.chess.turnColor();
-  const elapsed = g.over ? 0 : serverNow() - g.clockAt;
+  const elapsed = g.over || g.paused ? 0 : serverNow() - g.clockAt;
   const left = (c) => (g.clocks[c] - (!g.over && turn === c ? elapsed : 0));
   const oppC = g.myColor === "w" ? "b" : "w";
   const paint = (id, c) => {
@@ -1076,7 +1076,7 @@ function tickClocks() {
     if (!el) return;
     const ms = left(c);
     el.textContent = fmtClock(ms);
-    el.classList.toggle("run", !g.over && turn === c);
+    el.classList.toggle("run", !g.over && !g.paused && turn === c);
     el.classList.toggle("low", ms < 10000 && ms >= 0);
   };
   paint("cxOppClk", oppC);
@@ -1090,7 +1090,7 @@ function tickClocks() {
     if (g.over || !g.endsAt) ends.textContent = "";
     else {
       const left = Math.max(0, g.endsAt - serverNow());
-      ends.textContent = "30 seconds a move | game ends in " + fmtClock(left) + (left <= 0 ? " | judging the position" : "");
+      ends.textContent = "60 seconds a move | game ends in " + fmtClock(left) + (left <= 0 ? " | judging the position" : "");
     }
   }
 }
@@ -1181,7 +1181,7 @@ function startOnlineGame(v, { resume }) {
   const uci = (v.moves || []).length ? v.moves[v.moves.length - 1].uci : null;
   const g = {
     mode: "online", chess: board, myColor: v.color, flipped: v.color === "b", id: v.id, key: v.key,
-    opponent: v.opponent, minutes: v.minutes, endsAt: v.endsAt, clocks: v.clocks, clockAt: Date.now() + state.offset - 0, pending: null,
+    opponent: v.opponent, minutes: v.minutes, endsAt: v.endsAt, paused: !!v.paused, clocks: v.clocks, clockAt: Date.now() + state.offset - 0, pending: null,
     selected: null, targets: new Map(), legal: [], last: uci ? { from: uci.slice(0, 2), to: uci.slice(2, 4) } : null,
     over: v.status === "over", result: v.result, opponentOnline: v.opponentOnline !== false, drawOffer: v.drawOffer, forfeitAt: null,
   };
@@ -1273,6 +1273,7 @@ function onServerMove(ev) {
   }
   g.clocks = ev.clocks;
   g.clockAt = ev.serverTime || serverNow();
+  g.paused = !!ev.paused;
   if (ev.drawOfferCleared) g.drawOffer = null;
   if (g.chess.fen().split(" ").slice(0, 4).join(" ") !== ev.fen.split(" ").slice(0, 4).join(" ")) { connect(); return; }
   paintBoard();
@@ -1537,7 +1538,7 @@ function startSpectate(v, code) {
   if (v.serverTime) state.offset = v.serverTime - Date.now();
   const g = {
     mode: "online", spectator: true, chess, myColor: "w", flipped: false, id: v.id, key: null,
-    opponent: v.players.b, meProfile: v.players.w, minutes: v.minutes, endsAt: v.endsAt, clocks: v.clocks, clockAt: v.serverTime || serverNow(), pending: null,
+    opponent: v.players.b, meProfile: v.players.w, minutes: v.minutes, endsAt: v.endsAt, paused: !!v.paused, clocks: v.clocks, clockAt: v.serverTime || serverNow(), pending: null,
     selected: null, targets: new Map(), legal: [], last: uci ? { from: uci.slice(0, 2), to: uci.slice(2, 4) } : null,
     over: v.status === "over", result: v.result, opponentOnline: true, drawOffer: null, forfeitAt: null,
     room: v.room || null, roomCode: code || (state.game && state.game.roomCode) || "",
@@ -1753,7 +1754,7 @@ function renderGuest() {
   card([
     hostLine,
     h("h2", { text: (host.name || host.username || "Someone") + " invited you to play chess" }),
-    h("p", { class: "cx-hint", style: "margin-top:8px", text: "30 seconds a move. No account needed. Pick a name and join." }),
+    h("p", { class: "cx-hint", style: "margin-top:8px", text: "60 seconds a move. No account needed. Pick a name and join." }),
     input,
     h("button", { type: "button", class: "cx-btn", id: "cxGuestJoin", onclick: (e) => joinGuest(e.currentTarget, input) }, ["Join game"]),
   ]);

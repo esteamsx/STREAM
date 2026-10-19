@@ -3,9 +3,10 @@ import { Chess } from "../public/chess/chess-engine.js";
 
 
 export const TIME_OPTIONS = [3, 5, 10, 15, 30];     // kept only so older callers keep working
-export const MOVE_MS = 30 * 1000;
+export const MOVE_MS = 60 * 1000;
 export const GAME_MAX_MS = 40 * 60 * 1000;
-const ACK_MAX_MS = 20 * 1000;           // a player whose phone has not yet confirmed the last move gets up to this much extra
+const RESUME_MIN_MS = 30 * 1000;         // a player who comes back (a refresh, a reconnect) always gets at least this long to move
+const ACK_MAX_MS = 45 * 1000;           // a player whose phone has not yet confirmed the last move gets up to this much extra
 const ADJUDICATE_CP = 120;              // about a pawn and a bit: the side ahead by this much (or more) is likely to win
 const CHALLENGE_TTL_MS = 60 * 1000;
 const DECLINE_COOLDOWN_MS = 15 * 1000;
@@ -107,11 +108,35 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
 
   function clocksNow(game, at = now()) {
     const c = { w: MOVE_MS, b: MOVE_MS };
-    if (game.status === "active") c[game.chess.turnColor()] = Math.max(0, Math.min(MOVE_MS + ACK_MAX_MS, game.moveDeadline - at));
+    if (game.status === "active") {
+      c[game.chess.turnColor()] = game.paused ? game.pausedLeft : Math.max(0, Math.min(MOVE_MS + ACK_MAX_MS, game.moveDeadline - at));
+    }
     return c;
   }
   function hardDeadline(game) {
     return game.acked ? game.moveDeadline : Math.max(game.moveDeadline, game.turnStartedAt + ACK_MAX_MS + MOVE_MS);
+  }
+
+  const moverUid = (game) => game.players[game.chess.turnColor()];
+  function broadcastTimer(game) {
+    const payload = { gameId: game.id, clocks: clocksNow(game), serverTime: now(), ply: game.moves.length, paused: !!game.paused };
+    emit(game.players.w, "timer", payload);
+    emit(game.players.b, "timer", payload);
+    emitSpectators(game, "timer", payload);
+  }
+  function pauseClock(game) {
+    if (game.status !== "active" || game.paused) return;
+    game.pausedLeft = Math.max(RESUME_MIN_MS, Math.min(MOVE_MS, hardDeadline(game) - now()));
+    game.paused = true;
+    broadcastTimer(game);
+  }
+  function resumeClock(game) {
+    if (!game.paused) return;
+    game.paused = false;
+    game.turnStartedAt = now();
+    game.moveDeadline = now() + game.pausedLeft;
+    game.acked = true;
+    broadcastTimer(game);
   }
 
   function colorOf(game, uid) {
@@ -128,7 +153,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       fen: game.chess.fen(),
       turn: game.chess.turnColor(),
       moves: game.moves.map((m) => ({ san: m.san, uci: m.uci })),
-      clocks: clocksNow(game), endsAt: game.endsAt, moveMs: MOVE_MS,
+      clocks: clocksNow(game), paused: !!game.paused, endsAt: game.endsAt, moveMs: MOVE_MS,
       minutes: game.minutes,
       opponent: opp ? publicProfile(opp.profile) : game.profiles[oppUid],
       opponentOnline: isOnline(oppUid),
@@ -196,6 +221,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     if (wasOffline && game && game.status === "active") {
       const oppUid = game.players[colorOf(game, uid) === "w" ? "b" : "w"];
       emit(oppUid, "opponent_status", { gameId: game.id, online: true });
+      if (game.paused && moverUid(game) === uid) resumeClock(game);
     }
     return connId;
   }
@@ -211,6 +237,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     if (game && game.status === "active") {
       const oppUid = game.players[colorOf(game, uid) === "w" ? "b" : "w"];
       emit(oppUid, "opponent_status", { gameId: game.id, online: false, forfeitAt: now() + DISCONNECT_FORFEIT_MS });
+      if (moverUid(game) === uid) pauseClock(game);
     }
   }
 
@@ -315,6 +342,8 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       turnStartedAt: now(),
       moveDeadline: now() + MOVE_MS,
       acked: false,
+      paused: false,
+      pausedLeft: MOVE_MS,
       endsAt: now() + GAME_MAX_MS,
       moves: [],
       status: "active",
@@ -376,6 +405,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     const promotion = mv.promotion == null || mv.promotion === "" ? undefined : String(mv.promotion).toLowerCase();
     if (promotion !== undefined && !["q", "r", "b", "n"].includes(promotion)) throw err("bad_move");
 
+    if (game.paused) resumeClock(game);     // their move arrived, so they are here
     if (now() >= hardDeadline(game)) {
       flag(game, color);
       throw err("timeout");
@@ -397,6 +427,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       clocks: { ...game.clocks },
       check: game.chess.isCheck(),
       serverTime: now(),
+      paused: false,
       drawOfferCleared: !!hadOffer,
     };
     emit(game.players.w, "move", payload);
@@ -404,6 +435,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     emitSpectators(game, "move", payload);
     const res = game.chess.result();
     if (res.over) finish(game, res.winner, res.reason);
+    else if (!isOnline(moverUid(game))) pauseClock(game);   // the next player is away: their clock waits for them
     return { ok: true };
   }
 
@@ -435,7 +467,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
 
   function ack(uid, gameId, key, ply) {
     const { game, color } = playerGame(uid, gameId, key);
-    if (game.status !== "active" || game.acked) return { ok: true };
+    if (game.status !== "active" || game.acked || game.paused) return { ok: true };
     if (game.chess.turnColor() !== color || Number(ply) !== game.moves.length) return { ok: true };
     game.acked = true;
     const at = now();
@@ -509,7 +541,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       id: game.id, spectator: true, color: null,
       fen: game.chess.fen(), turn: game.chess.turnColor(),
       moves: game.moves.map((m) => ({ san: m.san, uci: m.uci })),
-      clocks: clocksNow(game), minutes: game.minutes, endsAt: game.endsAt, moveMs: MOVE_MS,
+      clocks: clocksNow(game), paused: !!game.paused, minutes: game.minutes, endsAt: game.endsAt, moveMs: MOVE_MS,
       players: { w: profileOf(game, game.players.w), b: profileOf(game, game.players.b) },
       status: game.status, result: game.result, check: game.chess.isCheck(), serverTime: now(),
       room: { count: game.spectators.size, max: game.room.max },
@@ -644,7 +676,8 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     for (const game of [...games.values()]) {
       if (game.status === "active") {
         const turn = game.chess.turnColor();
-        if (t >= hardDeadline(game)) { flag(game, turn); continue; }
+        if (!game.paused && !isOnline(moverUid(game))) pauseClock(game);
+        if (!game.paused && t >= hardDeadline(game)) { flag(game, turn); continue; }
         if (t >= game.endsAt) { adjudicateGame(game); continue; }
         const offline = ["w", "b"].map((c) => {
           const u = users.get(game.players[c]);
