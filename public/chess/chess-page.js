@@ -331,6 +331,10 @@ const gopt = {
   color: ["white", "black", "random"].includes(store("gcolor")) ? store("gcolor") : "random",
 };
 
+function learnMore(paragraphs) {
+  return h("details", { class: "cx-learn mini" }, [h("summary", { text: "Learn more" }), h("div", {}, paragraphs.map((t) => h("p", { text: t })))]);
+}
+
 function guestLinkUrl(token) { return location.origin + "/chess/guest/" + token; }
 
 function leftText(ms) {
@@ -343,16 +347,19 @@ function leftText(ms) {
 function guestBox() {
   const box = h("div", { class: "cx-guestbox", id: "cxGuestBox" });
   box.appendChild(h("div", { class: "cx-h", text: "Play with a guest" }));
-  box.appendChild(h("div", { class: "cx-hint", text: "Make a link for someone who does not have an account. They can play you straight away. The link stops working when the game ends." }));
   const chips = (label, items, current, set) => {
     box.appendChild(h("div", { class: "cx-sub", style: "margin:10px 0 6px", text: label }));
     box.appendChild(h("div", { class: "cx-chips" }, items.map(([val, text]) => h("button", {
       type: "button", class: "cx-chip" + (current() === val ? " on" : ""), onclick: () => { set(val); renderMenu(); },
     }, [text]))));
   };
-  box.appendChild(h("div", { class: "cx-rulebox" }, [h("b", { text: "60 seconds a move" }), h("span", { text: "A link nobody plays on stops working after 24 hours." })]));
   chips("You play as", [["random", "Random"], ["white", "White"], ["black", "Black"]], () => gopt.color, (v) => { gopt.color = v; save("gcolor", v); });
   box.appendChild(h("button", { type: "button", class: "cx-btn", id: "cxMakeLink", onclick: (e) => createLink(e.currentTarget) }, ["Create game link"]));
+  box.appendChild(learnMore([
+    "Make a link for someone who does not have an account. They can play you straight away.",
+    "Each player must make each move within 60 seconds.",
+    "A link nobody plays on stops working after 24 hours, and it stops working when the game ends.",
+  ]));
   if (state.links && state.links.length) {
     box.appendChild(h("div", { class: "cx-h", text: "Your active links" }));
     for (const l of state.links) {
@@ -458,7 +465,7 @@ function paintPlayers() {
     return;
   }
   if (!state.players.length) {
-    box.appendChild(h("div", { class: "cx-empty", text: state.search.trim() ? "No players found." : "Nobody else is online right now. Share the page with a friend, or play the computer." }));
+    box.appendChild(h("div", { class: "cx-empty", text: "No player at the moment" }));
     return;
   }
   for (const p of state.players) {
@@ -480,9 +487,12 @@ function openChallengeSheet(p) {
   paint();
   const m = modal([
     h("h2", { text: "Challenge " + (p.name || p.username) }),
-    h("p", { text: "They will see your request and can accept or decline." }),
     colorRow,
-    h("div", { class: "cx-rulebox" }, [h("b", { text: "60 seconds a move" }), h("span", { text: "Each game lasts up to 40 minutes. If it is still undecided, the stronger position wins." })]),
+    learnMore([
+      "They will see your request and can accept or decline.",
+      "Each player must make each move within 60 seconds.",
+      "Each game lasts up to 40 minutes. If it is still undecided, the stronger position wins.",
+    ]),
     h("div", { class: "row" }, [
       h("button", { type: "button", class: "cx-btn ghost", onclick: () => m.close() }, ["Cancel"]),
       h("button", { type: "button", class: "cx-btn", id: "cxSend", onclick: async (e) => {
@@ -1067,6 +1077,7 @@ function showResult() {
 
 function tickClocks() {
   const g = state.game;
+  updateGameTimer(g);
   if (!g || g.mode !== "online") {
     const a = $("cxOppClk"), b = $("cxMeClk");
     if (a) a.style.display = "none";
@@ -1087,19 +1098,92 @@ function tickClocks() {
   };
   paint("cxOppClk", oppC);
   paint("cxMeClk", g.myColor);
-  let ends = $("cxEnds");
-  if (!ends) {
-    const info = document.querySelector(".cx-info");
-    if (info) { ends = h("div", { class: "cx-ends", id: "cxEnds" }); info.insertBefore(ends, info.querySelector(".cx-moves")); }
-  }
-  if (ends) {
-    if (g.over || !g.endsAt) ends.textContent = "";
-    else {
-      const left = Math.max(0, g.endsAt - serverNow());
-      ends.textContent = "60 seconds a move | game ends in " + fmtClock(left) + (left <= 0 ? " | judging the position" : "");
-    }
-  }
 }
+const CLOCK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const HIDE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+const DIAL_R = 84;
+const DIAL_C = 2 * Math.PI * DIAL_R;
+let gtBtn = null;
+let gtDial = null;
+
+function setGameTimerHidden(on) {
+  save("gthide", on ? "1" : "0");
+  if (gtBtn) gtBtn.classList.toggle("min", on);
+}
+
+function closeGameTimer() {
+  if (!gtDial) return;
+  gtDial.modal.close();
+  gtDial = null;
+}
+
+function paintDial(g, left) {
+  if (!gtDial) return;
+  const total = Math.max(1, (g.minutes || 40) * 60000);
+  const frac = Math.max(0, Math.min(1, left / total));
+  const secs = Math.ceil(left / 1000);
+  gtDial.prog.style.strokeDashoffset = String(DIAL_C * (1 - frac));
+  gtDial.hand.style.transform = "rotate(" + (secs % 60) * 6 + "deg)";
+  gtDial.time.textContent = fmtClock(left);
+  gtDial.sub.textContent = left <= 0 ? "Judging the position" : "Game ends in";
+  gtDial.svg.classList.toggle("low", left < 120000);
+}
+
+function openGameTimer() {
+  const g = state.game;
+  if (!g || gtDial) return;
+  const ticks = [];
+  for (let i = 0; i < 60; i++) {
+    const major = i % 5 === 0;
+    ticks.push('<line x1="100" y1="' + (major ? 30 : 30) + '" x2="100" y2="' + (major ? 41 : 35) + '" transform="rotate(' + i * 6 + ' 100 100)"' + (major ? ' class="M"' : "") + "/>");
+  }
+  const svg = html("div", "cx-dialwrap", "");
+  svg.innerHTML = '<svg class="cx-dial" viewBox="0 0 200 200" aria-hidden="true">'
+    + '<circle class="trk" cx="100" cy="100" r="' + DIAL_R + '"/>'
+    + '<circle class="prog" cx="100" cy="100" r="' + DIAL_R + '" stroke-dasharray="' + DIAL_C + '" stroke-dashoffset="0" transform="rotate(-90 100 100)"/>'
+    + '<g class="ticks">' + ticks.join("") + "</g>"
+    + '<line class="hand" x1="100" y1="100" x2="100" y2="48"/><circle class="hub" cx="100" cy="100" r="4.5"/></svg>'
+    + '<div class="cx-dialtxt"><b></b><span></span></div>';
+  const mins = g.minutes || 40;
+  const learn = h("details", { class: "cx-learn mini" }, [
+    h("summary", { text: "Learn more" }),
+    h("div", {}, [
+      h("p", { text: "Each player must make each move within 60 seconds. If you run out of time, your opponent wins." }),
+      h("p", { text: "Every game lasts up to " + mins + " minutes. If it is still going when the time is up, the player with the stronger position wins, or it is a draw if both sides are equal." }),
+      h("p", { text: "If a player is away or reconnecting, their move clock waits for them." }),
+    ]),
+  ]);
+  const closeBtn = h("button", { type: "button", class: "cx-ulink", id: "cxGameTimerClose", onclick: closeGameTimer }, ["Close"]);
+  const m = modal([h("h2", { text: "Game time" }), svg, learn, closeBtn]);
+  m.el.addEventListener("click", (e) => { if (e.target === m.el) closeGameTimer(); });
+  const root = svg.firstChild;
+  gtDial = { modal: m, svg: root, prog: root.querySelector(".prog"), hand: root.querySelector(".hand"), time: svg.querySelector(".cx-dialtxt b"), sub: svg.querySelector(".cx-dialtxt span") };
+  paintDial(g, Math.max(0, g.endsAt - serverNow()));
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeGameTimer(); });
+
+function updateGameTimer(g) {
+  const gameEl = $("cxGame");
+  const show = !!(g && g.mode === "online" && !g.over && g.endsAt && gameEl && !gameEl.hidden);
+  if (!show) {
+    if (gtBtn) { gtBtn.remove(); gtBtn = null; }
+    closeGameTimer();
+    return;
+  }
+  const left = Math.max(0, g.endsAt - serverNow());
+  if (!gtBtn) {
+    const main = h("button", { type: "button", class: "cx-gt-main", "aria-label": "Game time", onclick: () => { if (gtBtn.classList.contains("min")) setGameTimerHidden(false); else openGameTimer(); } });
+    main.innerHTML = CLOCK_ICON + '<span class="t"></span>';
+    const hide = h("button", { type: "button", class: "cx-gt-hide", "aria-label": "Hide game time", onclick: () => setGameTimerHidden(true) });
+    hide.innerHTML = HIDE_ICON;
+    gtBtn = h("div", { class: "cx-gt" + (store("gthide") === "1" ? " min" : ""), id: "cxGameTimer" }, [main, hide]);
+    document.body.appendChild(gtBtn);
+  }
+  gtBtn.querySelector(".t").textContent = fmtClock(left);
+  gtBtn.classList.toggle("low", left < 120000);
+  if (gtDial) paintDial(g, left);
+}
+
 setInterval(tickClocks, 250);
 
 function undoBot() {
@@ -1572,7 +1656,6 @@ async function watchRoom(code, pin, btn) {
 function watchBox() {
   const wrap = h("div", { class: "cx-guestbox", id: "cxWatchBox" });
   wrap.appendChild(h("div", { class: "cx-h", text: "Watch a game" }));
-  wrap.appendChild(h("div", { class: "cx-hint", text: "Got a room code from a friend? Enter it to watch their game and listen in." }));
   const code = h("input", { class: "cx-field", id: "cxWatchCode", type: "text", maxlength: "6", placeholder: "Room code", autocomplete: "off", autocapitalize: "characters", value: state.watchCode || "" });
   const pin = h("input", { class: "cx-field", id: "cxWatchPin", type: "text", inputmode: "numeric", maxlength: "4", placeholder: "4 digit PIN", autocomplete: "off", hidden: !state.watchNeedsPin });
   const go = h("button", { type: "button", class: "cx-btn", id: "cxWatchGo" }, [h("span", { class: "ico" }), "Watch"]);
@@ -1590,6 +1673,10 @@ function watchBox() {
   wrap.appendChild(code);
   wrap.appendChild(pin);
   wrap.appendChild(go);
+  wrap.appendChild(learnMore([
+    "Got a room code from a friend? Enter it to watch their game and listen in.",
+    "Some rooms also ask for a 4 digit PIN from the host.",
+  ]));
   return wrap;
 }
 

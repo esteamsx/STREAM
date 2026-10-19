@@ -322,3 +322,46 @@
 .cx-nm{display:flex !important;align-items:center;gap:5px;min-width:0}
 .cx-nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .cx-nm svg{width:15px;height:15px;flex-shrink:0}
+
+/* ---- Learn more: a light clickable text, not a box ---- */
+.cx-learn.mini{margin-top:8px;border:0;background:transparent;padding:0;border-radius:0;text-align:left}
+.cx-learn.mini summary{display:inline-flex;align-items:center;gap:6px;padding:6px 0;font-size:.78rem}
+.cx-learn.mini summary::after{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .25s var(--ease)}
+.cx-learn.mini[open] summary::after{transform:rotate(-135deg) translateY(-1px)}
+.cx-learn.mini[open] > div{animation:cxToastIn .25s var(--ease)}
+.cx-modal .cx-learn.mini{margin-top:12px;text-align:center}
+.cx-modal .cx-learn.mini summary{justify-content:center}
+
+/* ---- Game time: see-through button at the bottom right ---- */
+.cx-gt{position:fixed;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:55;display:flex;align-items:center;border-radius:999px;background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(14px) saturate(150%);-webkit-backdrop-filter:blur(14px) saturate(150%);opacity:.55;transition:opacity .25s var(--ease),transform .35s var(--ease)}
+.cx-gt:hover,.cx-gt:focus-within{opacity:.95}
+.cx-gt button{background:none;border:0;color:var(--text);font:inherit;cursor:pointer;display:flex;align-items:center;gap:6px;-webkit-tap-highlight-color:transparent}
+.cx-gt-main{padding:7px 8px 7px 12px;font-family:var(--font-mono);font-size:.72rem;font-weight:700;letter-spacing:.02em}
+.cx-gt-main svg{width:15px;height:15px;flex-shrink:0}
+.cx-gt-hide{padding:7px 10px 7px 4px}
+.cx-gt-hide svg{width:14px;height:14px}
+.cx-gt.low{border-color:rgba(255,107,107,.6)}
+.cx-gt.low .t{color:#ff6b6b}
+/* hidden: only a small clock icon peeks in from the edge */
+.cx-gt.min{transform:translateX(calc(100% - 30px));opacity:.35}
+.cx-gt.min .t,.cx-gt.min .cx-gt-hide{display:none}
+.cx-gt.min .cx-gt-main{padding:7px 8px}
+:root[data-theme="light"] .cx-gt{background:linear-gradient(155deg,rgba(255,255,255,.7),rgba(255,255,255,.3)),rgba(255,255,255,.55);border-color:rgba(255,255,255,.75);box-shadow:0 6px 20px rgba(20,20,28,.12)}
+
+/* ---- Game time overlay: round clock ---- */
+.cx-dialwrap{position:relative;width:210px;max-width:100%;margin:14px auto 4px}
+.cx-dial{width:100%;display:block}
+.cx-dial .trk{fill:none;stroke:rgba(255,255,255,.12);stroke-width:8}
+.cx-dial .prog{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .6s linear,stroke .3s}
+.cx-dial .ticks line{stroke:var(--muted);stroke-width:1;opacity:.6}
+.cx-dial .ticks line.M{stroke-width:2.2;opacity:.95}
+.cx-dial .hand{stroke:var(--text);stroke-width:2.2;stroke-linecap:round;transform-origin:100px 100px;transform-box:view-box}
+.cx-dial .hub{fill:var(--accent)}
+.cx-dial.low .prog{stroke:#ff6b6b}
+.cx-dial.low .hub{fill:#ff6b6b}
+:root[data-theme="light"] .cx-dial .trk{stroke:rgba(20,20,28,.12)}
+.cx-dialtxt{position:absolute;left:0;right:0;top:56%;text-align:center;display:flex;flex-direction:column;gap:2px;pointer-events:none}
+.cx-dialtxt b{font-family:var(--font-mono);font-size:1.45rem;letter-spacing:.02em}
+.cx-dialtxt span{font-size:.68rem;color:var(--muted)}
+.cx-ulink{display:block;margin:16px auto 0;background:none;border:0;padding:6px 10px;color:var(--text);font:inherit;font-weight:700;font-size:.84rem;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.cx-ulink:hover{color:var(--accent)}
