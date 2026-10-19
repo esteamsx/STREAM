@@ -1,5 +1,5 @@
 import express from "express";
-import { requireAuth, getUserProfile, isAdminEmail } from "../services/auth.js";
+import { requireAuth, getUserProfile, isAdminEmail, spinTheWheel, getSpinStatus } from "../services/auth.js";
 import { SimpleRateLimiter, requireSiteOrigin } from "../middleware/security-middleware.js";
 import {
   getPublicStatus,
@@ -28,6 +28,26 @@ export function createGiveawayRouter({ verifyCaptcha }) {
   }
 
   const fail = (res, err, fallback) => res.status(err.status || 500).json({ error: err.message || fallback });
+
+  const spinLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid, "Slow down a little, then spin again.").middleware();
+
+  router.get("/api/giveaway/spin", requireAuth, async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    try {
+      res.json(await getSpinStatus(req.uid));
+    } catch (err) {
+      fail(res, err, "Could not load the wheel.");
+    }
+  });
+
+  router.post("/api/giveaway/spin", requireAuth, requireSiteOrigin, spinLimiter, async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    try {
+      res.json(await spinTheWheel(req.uid));
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.message || "Could not spin the wheel.", code: err.code || "" });
+    }
+  });
 
   router.get("/api/giveaway/status", requireAuth, async (req, res) => {
     res.set("Cache-Control", "no-store");

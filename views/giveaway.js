@@ -94,6 +94,7 @@ button{cursor:pointer}
 .gv-ico.off{background:rgba(255,255,255,.07);color:var(--muted)}
 .gv-wrap.gv-center{min-height:calc(100vh - 58px);min-height:calc(100dvh - 58px);display:flex;align-items:center;justify-content:center;padding-top:0;padding-bottom:58px}
 .gv-wrap.gv-center .gv-card{width:100%}
+.gv-wrap.gv-center .gv-views-clip{width:100%}
 .gv-share{margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}
 .gv-share h3{font-family:var(--font-display);font-size:1.02rem;font-weight:700;text-align:center;letter-spacing:-.01em}
 .gv-share p{text-align:center;color:var(--muted);font-size:.78rem;line-height:1.5;margin:6px 0 14px}
@@ -111,6 +112,80 @@ button{cursor:pointer}
 .gv-skel{height:260px;border-radius:14px;background:linear-gradient(90deg,var(--card),var(--card2),var(--card));background-size:200% 100%;animation:gvsk 1.4s linear infinite}
 @keyframes gvsk{to{background-position:-200% 0}}
 .gv-steps{margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;font-size:.74rem;color:var(--muted)}
+
+/* ---- two sections that slide, like the account page ---- */
+.gv-views-clip{overflow:hidden;width:100%;transition:height .3s var(--ease)}
+.gv-views-track{display:flex;align-items:flex-start;width:200%;transition:transform .4s cubic-bezier(.22,.61,.36,1)}
+.gv-views-track.show-spin{transform:translateX(-50%)}
+.gv-view-panel{width:50%;flex-shrink:0;min-width:0}
+.gv-swipe-hint{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:20;background:var(--card);border:1px solid var(--border-strong);border-right:none;border-radius:12px 0 0 12px;padding:12px 8px;color:var(--muted);display:flex;align-items:center;cursor:pointer;box-shadow:-4px 0 14px rgba(0,0,0,.18)}
+.gv-swipe-hint:hover{color:var(--accent)}
+.swipe-hint-icon{width:16px;height:16px;animation:swipeHintPulse 1.8s ease-in-out infinite}
+@keyframes swipeHintPulse{0%,100%{transform:translateX(0);opacity:.5}50%{transform:translateX(-3px);opacity:1}}
+
+/* ---- spin the wheel ---- */
+.cr-coin{display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 6px;border-radius:20px;text-decoration:none;flex-shrink:0;background:rgba(0,224,255,.09);border:1px solid rgba(0,224,255,.28);font-size:.8rem;font-weight:700;color:var(--accent);font-family:var(--font-mono);transition:border-color .2s var(--ease),background .2s var(--ease)}
+.cr-coin:hover{background:rgba(0,224,255,.16);border-color:rgba(0,224,255,.5)}
+.cr-coin-ico{width:21px;height:21px;position:relative;flex-shrink:0;display:inline-block}
+.cr-coin-ico i{position:absolute;left:0;width:21px;height:14px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:inset 0 0 0 1.2px rgba(255,255,255,.32)}
+.cr-coin-ico i:nth-child(1){top:7px;opacity:.5}
+.cr-coin-ico i:nth-child(2){top:3.5px;opacity:.75}
+.cr-coin-ico i:nth-child(3){top:0;box-shadow:inset 0 0 0 1.2px rgba(255,255,255,.4),0 0 8px rgba(0,224,255,.3)}
+.cr-coin-ico i:nth-child(3)::after{content:"";position:absolute;inset:3.5px 6px;border-radius:50%;border:1.2px solid rgba(4,18,26,.45)}
+.cr-coin.bump{animation:coinBump .5s var(--ease)}
+@keyframes coinBump{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
+.sw-top{display:flex;justify-content:center;margin-bottom:10px}
+.sw-stage{position:relative;width:min(300px,76vw);aspect-ratio:1;margin:22px auto 20px}
+.sw-pointer{position:absolute;left:50%;top:-8px;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:22px solid var(--accent);filter:drop-shadow(0 0 7px rgba(0,224,255,.75));z-index:3}
+.sw-ring{position:absolute;inset:-7px;border-radius:50%;border:1px solid rgba(255,255,255,.2);box-shadow:0 0 34px rgba(0,224,255,.16),inset 0 0 22px rgba(124,92,255,.1);animation:swGlow 3s ease-in-out infinite;pointer-events:none}
+@keyframes swGlow{0%,100%{box-shadow:0 0 22px rgba(0,224,255,.12),inset 0 0 18px rgba(124,92,255,.08)}50%{box-shadow:0 0 40px rgba(0,224,255,.3),inset 0 0 26px rgba(124,92,255,.18)}}
+.sw-wheel{position:absolute;inset:0;border-radius:50%;transition:transform 5.2s cubic-bezier(.12,.72,.12,1);background:rgba(255,255,255,.04);box-shadow:0 14px 40px rgba(0,0,0,.35)}
+.sw-wheel svg{width:100%;height:100%;display:block;overflow:visible}
+.sw-wheel .seg{stroke:rgba(255,255,255,.3);stroke-width:.8}
+.sw-wheel .seg.livetv{fill:rgba(0,224,255,.3)}
+.sw-wheel .seg.devapi{fill:rgba(124,92,255,.34)}
+.sw-wheel .seg.verify1d{fill:rgba(18,196,139,.3)}
+.sw-wheel .seg.naira{fill:rgba(255,201,60,.36)}
+.sw-wheel .seg.nothing{fill:rgba(255,255,255,.07)}
+.sw-wheel text{fill:var(--text);font-family:var(--font-display);font-weight:700;text-anchor:middle}
+.sw-wheel text.dim{fill:var(--muted);font-weight:600}
+:root[data-theme="light"] .sw-wheel .seg{stroke:rgba(20,20,40,.18)}
+:root[data-theme="light"] .sw-wheel .seg.nothing{fill:rgba(20,20,40,.06)}
+:root[data-theme="light"] .sw-ring{border-color:rgba(20,20,40,.14)}
+.sw-hub{position:absolute;left:50%;top:50%;width:62px;height:62px;margin:-31px 0 0 -31px;border-radius:50%;z-index:2;display:flex;align-items:center;justify-content:center;background:linear-gradient(155deg,rgba(255,255,255,.18),rgba(255,255,255,.04)),rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 18px rgba(0,0,0,.3)}
+:root[data-theme="light"] .sw-hub{background:linear-gradient(155deg,rgba(255,255,255,.8),rgba(255,255,255,.4));border-color:rgba(255,255,255,.8)}
+.sw-hub .cr-coin-ico{transform:scale(1.25)}
+.sw-msg{min-height:1.2em;text-align:center;font-size:.78rem;color:var(--muted);margin-bottom:10px}
+.sw-msg.err{color:var(--red)}
+.sw-btn .cr-coin-ico{margin-left:2px}
+.sw-btn[disabled]{opacity:.6;cursor:default}
+.sw-learn{margin-top:14px;text-align:center}
+.sw-learn summary{display:inline-flex;align-items:center;gap:6px;cursor:pointer;list-style:none;font-size:.78rem;font-weight:700;color:var(--muted);padding:6px 0}
+.sw-learn summary::-webkit-details-marker{display:none}
+.sw-learn summary::after{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .25s var(--ease)}
+.sw-learn[open] summary::after{transform:rotate(-135deg) translateY(-1px)}
+.sw-learn summary:hover{color:var(--accent)}
+.sw-learn ul{list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:6px;font-size:.78rem;color:var(--muted);text-align:left}
+.sw-learn li b{color:var(--text)}
+
+/* ---- result popup (same look as the gift popup) ---- */
+@keyframes spIn{from{opacity:0;transform:translateY(18px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes spShake{0%,100%{transform:rotate(0)}10%{transform:rotate(-12deg) scale(1.04)}20%{transform:rotate(11deg) scale(1.04)}30%{transform:rotate(-9deg)}40%{transform:rotate(8deg)}50%{transform:rotate(-5deg)}60%{transform:rotate(3deg)}70%,90%{transform:rotate(0)}}
+@keyframes spGlow{0%,100%{box-shadow:0 0 0 0 rgba(0,224,255,.35),0 12px 30px rgba(0,0,0,.35)}50%{box-shadow:0 0 0 14px rgba(0,224,255,0),0 12px 30px rgba(0,0,0,.35)}}
+@keyframes spSpark{0%{opacity:0;transform:translate(0,0) scale(.3)}25%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1)}}
+@keyframes spPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
+.sp-ov{position:fixed;inset:0;z-index:9600;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,10,15,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.sp-card{position:relative;width:100%;max-width:340px;padding:30px 22px 22px;border-radius:20px;text-align:center;overflow:hidden;background:linear-gradient(155deg,rgba(255,255,255,.16),rgba(255,255,255,.03) 40%,rgba(255,255,255,.06) 100%),rgba(255,255,255,.06);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.24);box-shadow:0 24px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.32);animation:spIn .45s cubic-bezier(.2,.9,.3,1.2) both}
+:root[data-theme="light"] .sp-card{background:linear-gradient(155deg,rgba(255,255,255,.75),rgba(255,255,255,.35)),rgba(255,255,255,.7);border-color:rgba(255,255,255,.7);box-shadow:0 24px 70px rgba(20,20,28,.2),inset 0 1px 0 rgba(255,255,255,.8)}
+.sp-glow{position:absolute;left:50%;top:-60px;width:260px;height:260px;margin-left:-130px;border-radius:50%;background:radial-gradient(circle,rgba(0,224,255,.28),rgba(124,92,255,.14) 45%,transparent 70%);pointer-events:none}
+.sp-box{position:relative;width:84px;height:84px;margin:0 auto 14px;border-radius:24px;display:flex;align-items:center;justify-content:center;color:#04141a;background:linear-gradient(135deg,var(--accent),var(--accent2));animation:spShake 1.5s .5s ease-in-out 2,spGlow 2s 1.9s ease-out infinite}
+.sp-box svg{width:48px;height:48px}
+.sp-spark{position:absolute;left:50%;top:42px;width:7px;height:7px;margin-left:-3px;border-radius:50%;background:var(--accent);opacity:0;animation:spSpark 1.6s ease-out infinite}
+.sp-title{position:relative;font-family:var(--font-display);font-size:1.15rem;font-weight:700;letter-spacing:-.01em;color:var(--text)}
+.sp-sub{position:relative;margin-top:8px;font-size:.84rem;line-height:1.5;color:var(--muted)}
+.sp-amt{position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin:16px 0 4px;padding:10px 22px;border-radius:20px;font-family:var(--font-mono);font-size:1.6rem;font-weight:800;color:var(--text);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.2);animation:spPop .6s .35s both}
+.sp-amt small{font-size:.66rem;font-weight:700;color:var(--muted);letter-spacing:.06em}
+.sp-btn{position:relative;width:100%;margin-top:18px;padding:14px;border:none;border-radius:13px;font-weight:700;font-size:.92rem;cursor:pointer;font-family:inherit;color:#04141a;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 8px 22px rgba(0,224,255,.25)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -125,8 +200,17 @@ button{cursor:pointer}
   <div class="gv-nav-title">Giveaway</div>
 </nav>
 
+<button type="button" class="gv-swipe-hint" id="gvSwipeHint" aria-label="Swipe for Spin the Wheel">
+  <svg class="swipe-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>
+</button>
+
 <main class="gv-wrap">
-  <div class="gv-card" id="gvCard"><div class="gv-skel"></div></div>
+  <div class="gv-views-clip" id="gvViewsClip">
+  <div class="gv-views-track" id="gvViewsTrack">
+    <div class="gv-view-panel" id="view-giveaway"><div class="gv-card" id="gvCard"><div class="gv-skel"></div></div></div>
+    <div class="gv-view-panel" id="view-spin"><div class="gv-card" id="spinCard"></div></div>
+  </div>
+  </div>
 </main>
 
 <script nonce="__CSP_NONCE__" type="module">
@@ -377,6 +461,188 @@ async function load(){
   else import('/face-scan.js').then((m) => m.preloadFaceModels()).catch(() => {});
 }
 load();
+
+var gvClip = document.getElementById('gvViewsClip');
+var gvTrack = document.getElementById('gvViewsTrack');
+var gvPanelGive = document.getElementById('view-giveaway');
+var gvPanelSpin = document.getElementById('view-spin');
+function gvSyncHeight(){
+  var p = gvTrack.classList.contains('show-spin') ? gvPanelSpin : gvPanelGive;
+  gvClip.style.height = p.scrollHeight + 'px';
+}
+if (window.ResizeObserver) { var gvRo = new ResizeObserver(gvSyncHeight); gvRo.observe(gvPanelGive); gvRo.observe(gvPanelSpin); }
+window.addEventListener('resize', gvSyncHeight);
+function showGiveawayView(){ gvTrack.classList.remove('show-spin'); gvSyncHeight(); window.scrollTo(0, 0); }
+function showSpinView(){ gvTrack.classList.add('show-spin'); gvSyncHeight(); window.scrollTo(0, 0); swLoad(); }
+document.getElementById('gvSwipeHint').addEventListener('click', function(){
+  if (gvTrack.classList.contains('show-spin')) showGiveawayView(); else showSpinView();
+});
+(function(){
+  var startX = 0, startY = 0, dragging = false, moved = false;
+  function skip(t){ return t && t.closest && t.closest('input,textarea,select,video,canvas'); }
+  function onStart(x, y, t){ if (skip(t)) return; startX = x; startY = y; dragging = true; moved = false; }
+  function onMove(x, y, evt){
+    if (!dragging) return;
+    var dx = x - startX, dy = y - startY;
+    if (!moved && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) moved = true;
+    if (moved && evt && evt.cancelable) evt.preventDefault();
+  }
+  function onEnd(x){
+    if (!dragging) return;
+    dragging = false;
+    if (moved && Math.abs(x - startX) > 50) { if (gvTrack.classList.contains('show-spin')) showGiveawayView(); else showSpinView(); }
+  }
+  gvClip.addEventListener('touchstart', function(e){ onStart(e.touches[0].clientX, e.touches[0].clientY, e.target); }, { passive: true });
+  gvClip.addEventListener('touchmove', function(e){ onMove(e.touches[0].clientX, e.touches[0].clientY, e); }, { passive: false });
+  gvClip.addEventListener('touchend', function(e){ onEnd(e.changedTouches[0].clientX); });
+  gvClip.addEventListener('mousedown', function(e){ onStart(e.clientX, e.clientY, e.target); });
+  gvClip.addEventListener('mousemove', function(e){ onMove(e.clientX, e.clientY, e); });
+  window.addEventListener('mouseup', function(e){ onEnd(e.clientX); });
+})();
+
+var SW_COIN = '<span class="cr-coin-ico"><i></i><i></i><i></i></span>';
+var SW_LABELS = {
+  livetv: ['+5', 'Live TV API'],
+  devapi: ['+5', 'Dev API'],
+  verify1d: ['1 Day', 'Verified'],
+  naira: ['₦100', ''],
+  nothing: ['Nothing', '']
+};
+var sw = { loaded: false, loading: false, cost: 10, coins: 0, segments: [], rot: 0, busy: false };
+var swCard = document.getElementById('spinCard');
+swCard.innerHTML = '<div class="gv-skel"></div>';
+
+function swWheelSvg(segments){
+  var n = segments.length, R = 100, out = '';
+  function pt(deg, r){ var a = deg * Math.PI / 180; return (r * Math.sin(a)).toFixed(2) + ' ' + (-r * Math.cos(a)).toFixed(2); }
+  for (var i = 0; i < n; i++) {
+    var a0 = i * 360 / n, a1 = (i + 1) * 360 / n, mid = (a0 + a1) / 2;
+    var lab = SW_LABELS[segments[i].type] || ['', ''];
+    out += '<path class="seg ' + segments[i].type + '" d="M0 0 L' + pt(a0, R) + ' A' + R + ' ' + R + ' 0 0 1 ' + pt(a1, R) + ' Z"/>';
+    out += '<g transform="rotate(' + mid + ')"><text y="-66" font-size="' + (lab[0].length > 6 ? 9 : 12) + '">' + esc(lab[0]) + '</text>' +
+      (lab[1] ? '<text class="dim" y="-53" font-size="7.5">' + esc(lab[1]) + '</text>' : '') + '</g>';
+  }
+  return '<svg viewBox="-100 -100 200 200" aria-hidden="true">' + out + '</svg>';
+}
+
+function swRender(){
+  swCard.innerHTML =
+    '<div class="gv-eyebrow">Spin the Wheel</div>' +
+    '<div class="gv-title">Spin to win</div>' +
+    '<div class="gv-sub">Each spin costs ' + sw.cost + ' coins. Win API requests, free verification or cash.</div>' +
+    '<div class="sw-top" style="margin-top:14px"><a class="cr-coin" id="swChip" href="/account#rewards">' + SW_COIN + '<span id="swCoins">' + sw.coins + '</span></a></div>' +
+    '<div class="sw-stage"><div class="sw-ring"></div><div class="sw-pointer"></div>' +
+    '<div class="sw-wheel" id="swWheel">' + swWheelSvg(sw.segments) + '</div>' +
+    '<div class="sw-hub">' + SW_COIN + '</div></div>' +
+    '<div class="sw-msg" id="swMsg"></div>' +
+    '<button class="gv-btn sw-btn" id="swSpin" type="button"></button>' +
+    '<details class="sw-learn"><summary>What can I win?</summary><ul>' +
+    '<li><b>+5 Live TV API requests</b> added to your monthly limit</li>' +
+    '<li><b>+5 Developer API requests</b> added to your monthly limit</li>' +
+    '<li><b>1 day of account verification</b></li>' +
+    '<li><b>₦100</b> added to your wallet</li>' +
+    '<li>Most spins win nothing, so spin for fun.</li></ul></details>';
+  document.getElementById('swSpin').addEventListener('click', swSpin);
+  document.getElementById('swWheel').style.transform = 'rotate(' + sw.rot + 'deg)';
+  swButton();
+  gvSyncHeight();
+}
+
+function swButton(){
+  var b = document.getElementById('swSpin');
+  if (!b) return;
+  if (sw.busy) { b.disabled = true; b.innerHTML = 'Spinning...'; return; }
+  b.disabled = false;
+  b.innerHTML = sw.coins < sw.cost ? 'Get coins' : 'Spin for ' + SW_COIN + ' ' + sw.cost;
+}
+function swMsg(text, err){ var m = document.getElementById('swMsg'); if (m) { m.textContent = text || ''; m.className = 'sw-msg' + (err ? ' err' : ''); } }
+function swSetCoins(v, bump){
+  sw.coins = v;
+  var el = document.getElementById('swCoins'), chip = document.getElementById('swChip');
+  if (el) el.textContent = String(v);
+  if (bump && chip) { chip.classList.remove('bump'); void chip.offsetWidth; chip.classList.add('bump'); }
+  swButton();
+}
+function swGoCoins(){
+  swMsg('You need ' + sw.cost + ' coins to spin. Taking you to your account...', true);
+  setTimeout(function(){ location.href = '/account#rewards'; }, 900);
+}
+
+async function swLoad(){
+  if (sw.loaded || sw.loading) return;
+  sw.loading = true;
+  try {
+    var d = await api('/api/giveaway/spin');
+    sw.cost = d.cost || 10; sw.coins = d.coinBalance || 0; sw.segments = d.segments || [];
+    sw.loaded = true;
+    swRender();
+  } catch (err) {
+    swCard.innerHTML = '<div class="gv-state"><div class="gv-ico off">' + CLOCK + '</div><h2>Could not load</h2><p>' + esc(err.message) + '</p></div>';
+    gvSyncHeight();
+  }
+  sw.loading = false;
+}
+
+async function swSpin(){
+  if (sw.busy) return;
+  if (sw.coins < sw.cost) return swGoCoins();
+  sw.busy = true; swMsg(''); swButton();
+  var res;
+  try {
+    res = await api('/api/giveaway/spin', {});
+  } catch (err) {
+    sw.busy = false; swButton();
+    if (err.status === 402) { sw.coins = 0; return swGoCoins(); }
+    return swMsg(err.message, true);
+  }
+  swSetCoins(res.coinBalance, true);
+  var n = sw.segments.length, per = 360 / n;
+  var jitter = (Math.random() - 0.5) * per * 0.6;
+  var want = (((-(res.segment * per + per / 2 + jitter)) % 360) + 360) % 360;
+  var cur = ((sw.rot % 360) + 360) % 360;
+  sw.rot = sw.rot + 360 * 6 + ((want - cur + 360) % 360);
+  var wheel = document.getElementById('swWheel');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  wheel.style.transform = 'rotate(' + sw.rot + 'deg)';
+  setTimeout(function(){
+    swPopup(res, function(){ sw.busy = false; swButton(); });
+  }, reduce ? 250 : 5400);
+}
+
+function swPopup(res, onClose){
+  var win = res.outcome !== 'nothing';
+  var info = {
+    livetv: ['You won!', '+5', 'LIVE TV API REQUESTS', 'Added to your Live TV API limit for this month.'],
+    devapi: ['You won!', '+5', 'DEVELOPER API REQUESTS', 'Added to your Developer API limit for this month.'],
+    verify1d: ['You won!', '1 DAY', 'VERIFIED', res.verifiedUntil ? 'Your account is verified until ' + new Date(res.verifiedUntil).toLocaleString() + '.' : 'Your account is verified for a day.'],
+    naira: ['You won!', '₦100', 'ADDED TO YOUR WALLET', 'See it under Rewards on your account page.'],
+    nothing: ['No luck this time', '', '', 'Nothing on this spin. Give it another go!']
+  }[res.outcome] || ['Done', '', '', ''];
+  var ov = document.createElement('div');
+  ov.className = 'sp-ov';
+  var card = document.createElement('div');
+  card.className = 'sp-card';
+  var html = '<div class="sp-glow"></div>';
+  if (win) {
+    for (var i = 0; i < 10; i++) {
+      var ang = Math.PI * 2 * i / 10;
+      html += '<i class="sp-spark" style="--dx:' + Math.round(Math.cos(ang) * (70 + (i % 3) * 14)) + 'px;--dy:' + Math.round(Math.sin(ang) * (60 + (i % 3) * 12)) + 'px;animation-delay:' + (0.5 + (i % 5) * 0.12) + 's"></i>';
+    }
+  }
+  html += '<div class="sp-box">' + GIFT + '</div><div class="sp-title">' + esc(info[0]) + '</div>';
+  if (win) html += '<div class="sp-amt">' + esc(info[1]) + '<small>' + esc(info[2]) + '</small></div>';
+  html += '<div class="sp-sub">' + esc(info[3]) + '</div><button class="sp-btn" type="button">' + (win ? 'Awesome' : 'Spin again') + '</button>';
+  card.innerHTML = html;
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+  function close(){ document.removeEventListener('keydown', onKey); ov.remove(); onClose(); }
+  function onKey(e){ if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  card.querySelector('.sp-btn').addEventListener('click', close);
+}
+
+gvSyncHeight();
+if (location.hash === '#spin') showSpinView();
 </script>
 <script nonce="__CSP_NONCE__" src="/select-overlay.js" defer></script>
 </body>

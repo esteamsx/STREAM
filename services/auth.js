@@ -4156,7 +4156,7 @@ async function refundCoins(uid, amount) {
   invalidateUserProfileCache(uid);
 }
 
-async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, amount) {
+async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, amount, opts = {}) {
   if (!amount || isAdminEmail(spenderEmail)) return;
   try {
     const adminUid = await getAdminUid();
@@ -4166,12 +4166,12 @@ async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, a
     await db.runTransaction(async (tx) => {
       const adminSnap = await tx.get(adminDoc.ref);
       const data = adminSnap.exists ? adminSnap.data() : {};
-      const ledger = appendCoinLedger(tx, adminDoc.ref, data, amount, "channel_react_income", { fromUid: spenderUid });
+      const ledger = appendCoinLedger(tx, adminDoc.ref, data, amount, opts.reason || "channel_react_income", { fromUid: spenderUid });
       tx.set(adminDoc.ref, { coinBalance: admin.firestore.FieldValue.increment(amount), ...ledger }, { merge: true });
     });
     invalidateUserProfileCache(adminDoc.id);
     const handle = spenderUsername ? `@${spenderUsername}` : "A user";
-    await addNotification(adminDoc.id, "coin_income", `${handle} paid +${amount} coins`, { fromUid: spenderUid, amount });
+    await addNotification(adminDoc.id, "coin_income", opts.message ? opts.message(handle, amount) : `${handle} paid +${amount} coins`, { fromUid: spenderUid, amount });
   } catch {
   }
 }
@@ -4447,6 +4447,112 @@ async function redeemCoinsForVerification(uid) {
   creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, item.coinCost).catch(() => {});
   await addNotification(uid, "coin_redeem", `Redeemed ${item.coinCost} coins for 3-day account verification`, { itemKey: "verify3d" });
   return { expiresAt: result.expiresAt };
+}
+
+const SPIN_COST = 10;
+const SPIN_SEGMENTS = [
+  { type: "livetv", label: "+5 Live TV API requests" },
+  { type: "nothing", label: "Nothing" },
+  { type: "devapi", label: "+5 Developer API requests" },
+  { type: "nothing", label: "Nothing" },
+  { type: "verify1d", label: "1 day verification" },
+  { type: "naira", label: "₦100" },
+];
+const SPIN_API_BONUS = 5;
+const SPIN_NAIRA_PRIZE = 100;
+const SPIN_VERIFY_MS = 24 * 60 * 60 * 1000;
+const SPIN_ODDS = { livetv: 0.02, devapi: 0.02, verify1d: 0.005, naira: 0.002 };
+const SPIN_NOTHING_PITY = 5;    // after 5 nothings in a row, the next spin is one of the API wins
+const SPIN_VERIFY_PITY = 40;    // a day of verification at least once in 40 spins
+const SPIN_NAIRA_PITY = 50;     // and the 100 naira at least once in 50 spins
+
+function pickSpinOutcome(stats, canWinVerify) {
+  const st = stats || {};
+  const sinceNaira = (st.sinceNaira || 0) + 1;
+  const sinceVerify = (st.sinceVerify || 0) + 1;
+  if (sinceNaira >= SPIN_NAIRA_PITY) return "naira";
+  if (canWinVerify && sinceVerify >= SPIN_VERIFY_PITY) return "verify1d";
+  if ((st.nothingRun || 0) >= SPIN_NOTHING_PITY) return crypto.randomInt(2) === 0 ? "livetv" : "devapi";
+  const roll = crypto.randomInt(1000000) / 1000000;
+  let acc = 0;
+  for (const type of ["livetv", "devapi", "verify1d", "naira"]) {
+    if (type === "verify1d" && !canWinVerify) continue;
+    acc += SPIN_ODDS[type];
+    if (roll < acc) return type;
+  }
+  return "nothing";
+}
+
+async function getSpinStatus(uid) {
+  const snap = await db.collection("users").doc(uid).get();
+  const data = snap.exists ? snap.data() : {};
+  return {
+    cost: SPIN_COST,
+    coinBalance: data.coinBalance || 0,
+    segments: SPIN_SEGMENTS.map((x) => ({ type: x.type, label: x.label })),
+  };
+}
+
+async function spinTheWheel(uid) {
+  const userRef = db.collection("users").doc(uid);
+  let spenderData = null;
+  let outcome = "nothing";
+  let balanceAfter = 0;
+  let verifiedUntil = 0;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) throw Object.assign(new Error("Account not found."), { status: 404 });
+    const data = snap.data();
+    spenderData = data;
+    if (coinLedgerMismatch(data)) {
+      throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
+    }
+    assertCoinsAllowed(data);
+    const balance = data.coinBalance || 0;
+    if (balance < SPIN_COST) {
+      throw Object.assign(new Error(`You need ${SPIN_COST} coins to spin. You have ${balance}.`), { status: 402, code: "coins/insufficient" });
+    }
+    const canWinVerify = !(data.verified && !data.verifiedExpiresAt);
+    const stats = data.spinStats || {};
+    outcome = pickSpinOutcome(stats, canWinVerify);
+    const ledger = appendCoinLedger(tx, userRef, data, -SPIN_COST, "spin_wheel", { outcome });
+    const update = {
+      coinBalance: admin.firestore.FieldValue.increment(-SPIN_COST),
+      spinStats: {
+        total: (stats.total || 0) + 1,
+        nothingRun: outcome === "nothing" ? (stats.nothingRun || 0) + 1 : 0,
+        sinceNaira: outcome === "naira" ? 0 : (stats.sinceNaira || 0) + 1,
+        sinceVerify: outcome === "verify1d" ? 0 : (stats.sinceVerify || 0) + 1,
+        lastAt: Date.now(),
+      },
+      ...ledger,
+    };
+    if (outcome === "naira") update.nairaBalance = admin.firestore.FieldValue.increment(SPIN_NAIRA_PRIZE);
+    if (outcome === "verify1d") {
+      verifiedUntil = Math.max(Date.now(), data.verifiedExpiresAt || 0) + SPIN_VERIFY_MS;
+      update.verified = true;
+      update.verifiedAt = data.verified ? data.verifiedAt || Date.now() : Date.now();
+      update.verifiedExpiresAt = verifiedUntil;
+      update.verifiedVia = data.verified && data.verifiedVia ? data.verifiedVia : "spin";
+    }
+    tx.update(userRef, update);
+    if (outcome === "livetv") addMonthlyBonusRequests(tx, userRef, data, "livetv", SPIN_API_BONUS);
+    if (outcome === "devapi") addMonthlyBonusRequests(tx, userRef, data, "devapi", SPIN_API_BONUS);
+    balanceAfter = balance - SPIN_COST;
+  });
+  invalidateUserProfileCache(uid);
+  creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, SPIN_COST, {
+    reason: "spin_wheel_income",
+    message: (handle, amount) => `${handle} sent you ${amount} coins on the spin wheel`,
+  }).catch(() => {});
+  const slots = SPIN_SEGMENTS.map((x, i) => (x.type === outcome ? i : -1)).filter((i) => i >= 0);
+  const segment = slots[crypto.randomInt(slots.length)];
+  const prize = SPIN_SEGMENTS[segment];
+  if (outcome !== "nothing") {
+    const text = outcome === "naira" ? `You won ₦${SPIN_NAIRA_PRIZE} on the spin wheel` : `You won ${prize.label} on the spin wheel`;
+    await addNotification(uid, "spin_win", text, { outcome }).catch(() => {});
+  }
+  return { ok: true, segment, outcome, label: prize.label, coinBalance: balanceAfter, verifiedUntil: verifiedUntil || null };
 }
 
 async function findUserByAnyUsername(username) {
@@ -5601,6 +5707,8 @@ export {
   finalizeClaimPayment,
   redeemCoinsForLimit,
   redeemCoinsForVerification,
+  spinTheWheel,
+  getSpinStatus,
   adminGiftCoins,
   followAllUsers,
   creditChessBotWin,
