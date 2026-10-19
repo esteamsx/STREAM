@@ -174,6 +174,29 @@ export const suspiciousRequestDetector = (req, res, next) => {
   next();
 };
 
+const FRONTEND_GUARD_SKIP = ["/api/", "/embed/", "/health", "/.well-known/", "/robots.txt", "/sitemap", "/site.webmanifest", "/favicon", "/apple-touch-icon", "/og.png", "/icon-"];
+const PREVIEW_BOTS = /(facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot|skypeuripreview|pinterest|redditbot|applebot|googlebot|bingbot)/i;
+const COPY_TOOLS = /(curl|wget|httrack|webcopy|sitesucker|webzip|teleport|offline explorer|python-requests|python-urllib|python\/|aiohttp|httpx|scrapy|go-http-client|libwww|lwp|node-fetch|undici|axios|java\/|apache-httpclient|okhttp|postman|insomnia|httpie|guzzle|mechanize|colly|rest-client|powershell|winhttp|nikto|sqlmap|masscan|zgrab)/i;
+
+export const frontendGuard = (req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+  const p = req.path;
+  if (FRONTEND_GUARD_SKIP.some((x) => p.startsWith(x))) return next();
+  const ua = String(req.get("user-agent") || "");
+  if (PREVIEW_BOTS.test(ua)) return next();
+
+  const site = req.get("sec-fetch-site");
+  const mode = req.get("sec-fetch-mode");
+  let why = null;
+  if (!ua || COPY_TOOLS.test(ua)) why = "copy-tool";
+  else if (site === "cross-site" && mode && mode !== "navigate") why = "cross-site";   // visiting from a link is fine, loading our files from another site is not
+  if (!why) return next();
+
+  if (why === "cross-site") res.locals.noRefusalCount = true;
+  res.setHeader("Cache-Control", "no-store");
+  return res.status(403).type("text/plain").send("Forbidden");
+};
+
 export const ROBOTS_TXT = `User-agent: *
 Disallow: /
 Allow: /og.png

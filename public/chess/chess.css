@@ -317,3 +317,8 @@
 
 /* voice errors and retry */
 .cx-vstate.cx-verr{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;max-width:220px;white-space:normal;line-height:1.35}
+
+/* verified badge next to names in the game and the people list */
+.cx-nm{display:flex !important;align-items:center;gap:5px;min-width:0}
+.cx-nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.cx-nm svg{width:15px;height:15px;flex-shrink:0}

@@ -920,8 +920,14 @@ function capturedOf(g) {
   return { lost, score };    // lost.w = white pieces that were taken; score > 0 means white is ahead
 }
 
+function nameWithBadge(name, verified) {
+  const b = h("b", { class: "cx-nm" }, [h("span", { text: name })]);
+  if (verified) b.insertAdjacentHTML("beforeend", ICON.tick);
+  return b;
+}
+
 function playerBar(who, color, name, p, id) {
-  return h("div", { class: "cx-pbar", id }, [avatar(p), h("div", { class: "who" }, [h("b", { text: name }), h("div", { class: "cx-cap", "data-cap": color })]), h("div", { class: "cx-clk", id: id + "Clk", text: "" })]);
+  return h("div", { class: "cx-pbar", id }, [avatar(p), h("div", { class: "who" }, [nameWithBadge(name, !!(p && p.verified)), h("div", { class: "cx-cap", "data-cap": color })]), h("div", { class: "cx-clk", id: id + "Clk", text: "" })]);
 }
 
 function renderGameInfo() {
@@ -1486,11 +1492,11 @@ async function openRoom() {
     box.appendChild(h("div", { class: "cx-h" }, [h("span", { text: "People" })]));
     const people = h("div", { class: "cx-people" });
     const peerState = new Map(voice.peers().map((p) => [p.uid, p]));
-    const row = (uid, name, photo, role, canMute) => {
+    const row = (uid, name, photo, role, canMute, verified) => {
       const ps = peerState.get(uid);
       const ring = h("div", { class: "cx-pring", "data-lv": uid });
       ring.appendChild(avatar({ name, photo }));
-      const kids = [ring, h("div", { class: "grow" }, [h("b", { text: name }), h("small", { text: role + (ps ? (ps.state === "connected" ? " | voice connected" : ps.state === "failed" ? " | voice failed" : " | connecting") : "") })])];
+      const kids = [ring, h("div", { class: "grow" }, [nameWithBadge(name, verified), h("small", { text: role + (ps ? (ps.state === "connected" ? " | voice connected" : ps.state === "failed" ? " | voice failed" : " | connecting") : "") })])];
       if (canMute && ps) {
         const m = h("button", { type: "button", class: "cx-vbtn sm" + (ps.muted ? "" : " on"), "aria-label": ps.muted ? "Hear " + name : "Mute " + name });
         m.innerHTML = ps.muted ? VI.spkOff : VI.spk;
@@ -1501,13 +1507,13 @@ async function openRoom() {
     };
     const meUid = state.me && state.me.uid;
     if (spectator) {
-      for (const p of [g.meProfile, g.opponent]) if (p) row(p.uid, p.name || p.username, p.photo, "Player", true);
+      for (const p of [g.meProfile, g.opponent]) if (p) row(p.uid, p.name || p.username, p.photo, "Player", true, p.verified);
     } else {
       const opp = g.opponent;
-      row(meUid, (state.me && (state.me.name || state.me.username) || "You") + " (you)", state.me && state.me.photo, "Player", false);
-      if (opp) row(opp.uid, opp.name || opp.username, opp.photo, "Player", true);
+      row(meUid, (state.me && (state.me.name || state.me.username) || "You") + " (you)", state.me && state.me.photo, "Player", false, state.me && state.me.verified);
+      if (opp) row(opp.uid, opp.name || opp.username, opp.photo, "Player", true, opp.verified);
     }
-    for (const w of watchers) if (w.uid !== meUid) row(w.uid, w.name || w.username, w.photo, "Watching", false);
+    for (const w of watchers) if (w.uid !== meUid) row(w.uid, w.name || w.username, w.photo, "Watching", false, w.verified);
     box.appendChild(people);
     box.appendChild(sw("Mute everyone", "Stops all voices on this phone", voice.mutedAll, (v) => { voice.muteAll(v); return Promise.resolve(); }, "cxMuteAll"));
     const more = h("details", { class: "cx-learn" }, [

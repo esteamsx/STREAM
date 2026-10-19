@@ -365,6 +365,7 @@ import {
   SimpleRateLimiter,
   DurableRateLimiter,
   suspiciousRequestDetector,
+  frontendGuard,
   ipBlocklist,
   ROBOTS_TXT,
   permissionsPolicy,
@@ -408,6 +409,7 @@ app.use(new RepeatedRefusalGuard(15, 5 * 60 * 1000, 30 * 60 * 1000).middleware()
 app.use(ipBlocklist);
 app.use(vpnGuard);
 app.use(suspiciousRequestDetector);
+app.use(frontendGuard);
 const globalLimiter = new SimpleRateLimiter(400, 60000).middleware();
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/v1/hls/")) return next();

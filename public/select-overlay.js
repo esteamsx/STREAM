@@ -67,6 +67,7 @@
 
   function upgrade(select) {
     if (seen.has(select) || select.multiple || select.size > 1 || !select.parentNode) return;
+    if (select.hasAttribute("data-xsel") || (select.closest && select.closest(".xsel"))) return;   // the tools pages already have their own dropdown
     seen.add(select);
 
     var items = [];

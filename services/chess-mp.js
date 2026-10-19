@@ -552,7 +552,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     return {
       code: game.room.code, open: game.room.open, pinSet: !!game.room.pin, max: game.room.max,
       count: game.spectators.size,
-      spectators: [...game.spectators.keys()].map((uid) => { const p = profileOf(game, uid); return { uid, name: p.name, username: p.username, photo: p.photo }; }),
+      spectators: [...game.spectators.keys()].map((uid) => { const p = profileOf(game, uid); return { uid, name: p.name, username: p.username, photo: p.photo, verified: !!p.verified }; }),
     };
   }
 
