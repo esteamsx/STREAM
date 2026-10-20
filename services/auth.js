@@ -4171,7 +4171,12 @@ async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, a
     });
     invalidateUserProfileCache(adminDoc.id);
     const handle = spenderUsername ? `@${spenderUsername}` : "A user";
-    await addNotification(adminDoc.id, "coin_income", opts.message ? opts.message(handle, amount) : `${handle} paid +${amount} coins`, { fromUid: spenderUid, amount });
+    if (opts.popup) {
+      await addNotification(adminDoc.id, "coin_gift", opts.message ? opts.message(handle, amount) : `${handle} sent you ${amount} coins`, { fromUid: spenderUid, from: handle, amount, popupShown: false });
+      giftPendingCache.delete(adminDoc.id);
+    } else {
+      await addNotification(adminDoc.id, "coin_income", opts.message ? opts.message(handle, amount) : `${handle} paid +${amount} coins`, { fromUid: spenderUid, amount });
+    }
   } catch {
   }
 }
@@ -4543,6 +4548,7 @@ async function spinTheWheel(uid) {
   invalidateUserProfileCache(uid);
   creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, SPIN_COST, {
     reason: "spin_wheel_income",
+    popup: true,
     message: (handle, amount) => `${handle} sent you ${amount} coins on the spin wheel`,
   }).catch(() => {});
   const slots = SPIN_SEGMENTS.map((x, i) => (x.type === outcome ? i : -1)).filter((i) => i >= 0);

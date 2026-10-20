@@ -186,6 +186,12 @@ button{cursor:pointer}
 .sp-amt{position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin:16px 0 4px;padding:10px 22px;border-radius:20px;font-family:var(--font-mono);font-size:1.6rem;font-weight:800;color:var(--text);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.2);animation:spPop .6s .35s both}
 .sp-amt small{font-size:.66rem;font-weight:700;color:var(--muted);letter-spacing:.06em}
 .sp-btn{position:relative;width:100%;margin-top:18px;padding:14px;border:none;border-radius:13px;font-weight:700;font-size:.92rem;cursor:pointer;font-family:inherit;color:#04141a;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 8px 22px rgba(0,224,255,.25)}
+.sw-sound{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin-left:8px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.2);color:var(--muted);transition:color .2s,border-color .2s,transform .2s var(--ease)}
+.sw-sound svg{width:15px;height:15px}
+.sw-sound:hover{color:var(--accent);border-color:var(--accent)}
+.sw-sound.off{opacity:.6}
+:root[data-theme="light"] .sw-sound{background:rgba(255,255,255,.6);border-color:rgba(20,20,40,.14)}
+.sw-top{align-items:center}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -509,6 +515,66 @@ var SW_LABELS = {
   nothing: ['Nothing', '']
 };
 var sw = { loaded: false, loading: false, cost: 10, coins: 0, segments: [], rot: 0, busy: false };
+
+var swAudio = null;
+var swSoundOn = true;
+try { swSoundOn = localStorage.getItem('gv_sound') !== '0'; } catch (e) {}
+var SW_SOUND_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg>';
+var SW_SOUND_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>';
+function swCtx(){
+  try {
+    var C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return null;
+    if (!swAudio) swAudio = new C();
+    if (swAudio.state === 'suspended') swAudio.resume();
+    return swAudio;
+  } catch (e) { return null; }
+}
+function swTone(freq, at, len, vol, type, endFreq){
+  if (!swSoundOn) return;
+  var c = swCtx();
+  if (!c) return;
+  var t = c.currentTime + at;
+  var o = c.createOscillator(), g = c.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, t);
+  if (endFreq) o.frequency.exponentialRampToValueAtTime(endFreq, t + len);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  o.connect(g); g.connect(c.destination);
+  o.start(t); o.stop(t + len + 0.02);
+}
+function swTick(){ swTone(1500 + Math.random() * 90, 0, 0.05, 0.1, 'square', 800); }
+function swWinSound(){
+  [523.25, 659.25, 783.99, 1046.5].forEach(function(f, i){ swTone(f, i * 0.11, 0.34, 0.16, 'triangle'); });
+  swTone(1568, 0.5, 0.5, 0.1, 'sine');
+  swTone(2093, 0.6, 0.55, 0.07, 'sine');
+}
+function swNothingSound(){
+  swTone(330, 0, 0.3, 0.14, 'sine', 220);
+  swTone(247, 0.24, 0.45, 0.14, 'sine', 150);
+}
+function swTickLoop(wheel, startRot, ms){
+  var cum = startRot, last = 0, lastSeg = Math.floor(startRot / 60), lastAt = 0, begin = performance.now();
+  function angle(){
+    var m = getComputedStyle(wheel).transform;
+    if (!m || m === 'none') return 0;
+    var v = m.slice(m.indexOf('(') + 1, m.indexOf(')')).split(',');
+    return Math.atan2(parseFloat(v[1]), parseFloat(v[0])) * 180 / Math.PI;
+  }
+  last = angle();
+  function frame(now){
+    var a = angle(), d = a - last;
+    if (d < -180) d += 360;
+    if (d > 180) d -= 360;
+    cum += d; last = a;
+    var seg = Math.floor(cum / 60);
+    if (seg !== lastSeg) { lastSeg = seg; if (now - lastAt > 30) { swTick(); lastAt = now; } }
+    if (now - begin < ms) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
 var swCard = document.getElementById('spinCard');
 swCard.innerHTML = '<div class="gv-skel"></div>';
 
@@ -530,7 +596,8 @@ function swRender(){
     '<div class="gv-eyebrow">Spin the Wheel</div>' +
     '<div class="gv-title">Spin to win</div>' +
     '<div class="gv-sub">Each spin costs ' + sw.cost + ' coins. Win API requests, free verification or cash.</div>' +
-    '<div class="sw-top" style="margin-top:14px"><a class="cr-coin" id="swChip" href="/account#rewards">' + SW_COIN + '<span id="swCoins">' + sw.coins + '</span></a></div>' +
+    '<div class="sw-top" style="margin-top:14px"><a class="cr-coin" id="swChip" href="/account#rewards">' + SW_COIN + '<span id="swCoins">' + sw.coins + '</span></a>' +
+    '<button type="button" class="sw-sound" id="swSound" aria-label="Sound on or off"></button></div>' +
     '<div class="sw-stage"><div class="sw-ring"></div><div class="sw-pointer"></div>' +
     '<div class="sw-wheel" id="swWheel">' + swWheelSvg(sw.segments) + '</div>' +
     '<div class="sw-hub">' + SW_COIN + '</div></div>' +
@@ -543,6 +610,15 @@ function swRender(){
     '<li><b>₦100</b> added to your wallet</li>' +
     '<li>Most spins win nothing, so spin for fun.</li></ul></details>';
   document.getElementById('swSpin').addEventListener('click', swSpin);
+  var sBtn = document.getElementById('swSound');
+  function paintSound(){ sBtn.innerHTML = swSoundOn ? SW_SOUND_ON : SW_SOUND_OFF; sBtn.classList.toggle('off', !swSoundOn); }
+  paintSound();
+  sBtn.addEventListener('click', function(){
+    swSoundOn = !swSoundOn;
+    try { localStorage.setItem('gv_sound', swSoundOn ? '1' : '0'); } catch (e) {}
+    paintSound();
+    if (swSoundOn) swTick();
+  });
   document.getElementById('swWheel').style.transform = 'rotate(' + sw.rot + 'deg)';
   swButton();
   gvSyncHeight();
@@ -586,6 +662,7 @@ async function swLoad(){
 async function swSpin(){
   if (sw.busy) return;
   if (sw.coins < sw.cost) return swGoCoins();
+  swCtx();   // this tap lets the browser play sound
   sw.busy = true; swMsg(''); swButton();
   var res;
   try {
@@ -600,11 +677,14 @@ async function swSpin(){
   var jitter = (Math.random() - 0.5) * per * 0.6;
   var want = (((-(res.segment * per + per / 2 + jitter)) % 360) + 360) % 360;
   var cur = ((sw.rot % 360) + 360) % 360;
+  var startRot = sw.rot;
   sw.rot = sw.rot + 360 * 6 + ((want - cur + 360) % 360);
   var wheel = document.getElementById('swWheel');
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   wheel.style.transform = 'rotate(' + sw.rot + 'deg)';
+  swTickLoop(wheel, startRot, reduce ? 300 : 5300);
   setTimeout(function(){
+    if (res.outcome === 'nothing') swNothingSound(); else swWinSound();
     swPopup(res, function(){ sw.busy = false; swButton(); });
   }, reduce ? 250 : 5400);
 }
