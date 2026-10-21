@@ -4461,13 +4461,19 @@ const SPIN_SEGMENTS = [
   { type: "devapi", label: "+5 Developer API requests" },
   { type: "nothing", label: "Nothing" },
   { type: "verify1d", label: "1 day verification" },
+  { type: "nothing", label: "Nothing" },
+  { type: "devapi", label: "+5 Developer API requests" },
+  { type: "nothing", label: "Nothing" },
+  { type: "livetv", label: "+5 Live TV API requests" },
+  { type: "nothing", label: "Nothing" },
   { type: "naira", label: "₦100" },
+  { type: "nothing", label: "Nothing" },
 ];
 const SPIN_API_BONUS = 5;
 const SPIN_NAIRA_PRIZE = 100;
 const SPIN_VERIFY_MS = 24 * 60 * 60 * 1000;
-const SPIN_ODDS = { livetv: 0.02, devapi: 0.02, verify1d: 0.005, naira: 0.002 };
-const SPIN_NOTHING_PITY = 5;    // after 5 nothings in a row, the next spin is one of the API wins
+const SPIN_ODDS = { livetv: 0.17, devapi: 0.17, verify1d: 0.02, naira: 0.005 };
+const SPIN_NOTHING_PITY = 3;    // after 3 nothings in a row, the next spin is one of the API wins
 const SPIN_VERIFY_PITY = 40;    // a day of verification at least once in 40 spins
 const SPIN_NAIRA_PITY = 50;     // and the 100 naira at least once in 50 spins
 

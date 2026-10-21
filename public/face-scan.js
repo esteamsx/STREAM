@@ -5,6 +5,7 @@ const TURN_THRESHOLD = 0.16;
 const CENTER_THRESHOLD = 0.09;
 const NOD_THRESHOLD = 0.12;
 const RESULT_HOLD_MS = 400;
+const SUCCESS_HOLD_MS = 1050;   // long enough to watch the Face ID check animation finish
 const DETECT_INPUT_SIZE = 160;
 const DETECT_SCORE_THRESHOLD = 0.2;
 const WORK_CANVAS_MAX = 480;
@@ -26,10 +27,22 @@ const FACE_CLIP_PATH_D =
   'C 0.72 0.92 0.62 0.98 0.5 0.98 C 0.38 0.98 0.28 0.92 0.20 0.80 ' +
   'C 0.15 0.72 0.05 0.60 0.05 0.42 C 0.05 0.22 0.25 0.03 0.5 0.03 Z';
 
+const FACE_BRACKETS = [
+  { a: 'M5 17L5 13A8 8 0 0 1 13 5L17 5', b: 'M5 24L5 24A19 19 0 0 1 24 5L24 5' },
+  { a: 'M31 5L35 5A8 8 0 0 1 43 13L43 17', b: 'M24 5L24 5A19 19 0 0 1 43 24L43 24' },
+  { a: 'M43 31L43 35A8 8 0 0 1 35 43L31 43', b: 'M43 24L43 24A19 19 0 0 1 24 43L24 43' },
+  { a: 'M17 43L13 43A8 8 0 0 1 5 35L5 31', b: 'M24 43L24 43A19 19 0 0 1 5 24L5 24' },
+];
 const FACE_GLYPH_PATHS =
-  '<path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/>' +
-  '<circle class="fs-eye" cx="9" cy="10" r=".8" fill="currentColor" stroke="none"/><circle class="fs-eye" cx="15" cy="10" r=".8" fill="currentColor" stroke="none"/>' +
-  '<path d="M9 15c1 1 5 1 6 0"/>';
+  FACE_BRACKETS.map(function (c) {
+    return '<path class="fs-bracket" d="' + c.a + '"><animate class="fs-morph" attributeName="d" begin="indefinite" dur="0.42s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.4 0 0.2 1" from="' + c.a + '" to="' + c.b + '"/></path>';
+  }).join('') +
+  '<g class="fs-feat"><path d="M17 18V22"/><path d="M31 18V22"/><path d="M24 18V26Q24 28.5 21.5 28.5"/><path d="M17 33Q24 38.5 31 33"/></g>' +
+  '<path class="fs-glyph-check" d="M16 25L22 31L33 18" stroke-linejoin="round"/>';
+function fsPlayMorph(root) {
+  if (!root) return;
+  root.querySelectorAll('animate.fs-morph').forEach(function (a) { try { a.beginElement(); } catch (e) { /* the CSS fade still plays */ } });
+}
 
 let modelsLoaded = false;
 let modelsLoadingPromise = null;
@@ -185,8 +198,8 @@ function ensureOverlayStyles() {
 #${OVERLAY_ID}.fs-top-mode .fs-abstract,#${OVERLAY_ID}.fs-top-mode .fs-status,#${OVERLAY_ID}.fs-top-mode .fs-cancel{
   pointer-events:auto}
 #${OVERLAY_ID}.fs-top-mode .fs-abstract{width:112px;height:112px}
-#${OVERLAY_ID}.fs-top-mode .fs-abstract-face{width:46px;height:46px}
-#${OVERLAY_ID}.fs-top-mode .fs-abstract-check,#${OVERLAY_ID}.fs-top-mode .fs-abstract-cross{width:42px;height:42px}
+#${OVERLAY_ID}.fs-top-mode .fs-abstract-face{width:54px;height:54px}
+#${OVERLAY_ID}.fs-top-mode .fs-abstract-cross{width:42px;height:42px}
 #${OVERLAY_ID}.fs-top-mode .fs-status{background:rgba(20,20,28,.75);backdrop-filter:blur(12px);
   padding:6px 14px;border-radius:14px;font-size:.76rem}
 #${OVERLAY_ID}.fs-top-mode .fs-cancel{padding:5px 16px;font-size:.72rem}
@@ -242,14 +255,18 @@ function ensureOverlayStyles() {
   0%,88%,100%{transform:scaleY(1)}
   92%{transform:scaleY(.1)}
 }
-#${OVERLAY_ID} .fs-abstract-check,#${OVERLAY_ID} .fs-abstract-cross{position:absolute;width:56px;height:56px;
+#${OVERLAY_ID} .fs-abstract-cross{position:absolute;width:56px;height:56px;
   opacity:0;transform:scale(.5);transition:opacity .25s ease,transform .25s cubic-bezier(.34,1.56,.64,1)}
-#${OVERLAY_ID} .fs-abstract-check-path,#${OVERLAY_ID} .fs-abstract-cross-path{
+#${OVERLAY_ID} .fs-abstract-cross-path{
   stroke-dasharray:36;stroke-dashoffset:36;transition:stroke-dashoffset .3s ease .1s}
-#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face{opacity:0;transform:scale(.6)}
-#${OVERLAY_ID} .fs-abstract.success .fs-abstract-check{opacity:1;transform:scale(1)}
-#${OVERLAY_ID} .fs-abstract.success .fs-abstract-check-path{stroke-dashoffset:0}
-#${OVERLAY_ID} .fs-abstract.success .fs-abstract-ring{animation:none;border-color:#00E0FF}
+#${OVERLAY_ID} .fs-abstract-face .fs-feat{transform-box:fill-box;transform-origin:center;transition:opacity .2s ease,transform .32s cubic-bezier(.4,0,.2,1)}
+#${OVERLAY_ID} .fs-abstract-face .fs-glyph-check{stroke-dasharray:30;stroke-dashoffset:30;stroke:#00E0FF;stroke-width:2.9}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face,#${OVERLAY_ID} .fs-abstract.fs-live.success .fs-abstract-face{opacity:1;transform:none;animation:fsRingPop .4s cubic-bezier(.34,1.56,.64,1) .34s both}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face .fs-feat{opacity:0;transform:scale(.3)}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face .fs-eye{animation:none}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face .fs-glyph-check{stroke-dashoffset:0;transition:stroke-dashoffset .34s cubic-bezier(.65,0,.35,1) .42s}
+@keyframes fsRingPop{0%{transform:scale(1)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-ring{animation:none;border-color:rgba(0,224,255,.3)}
 #${OVERLAY_ID} .fs-abstract.failed .fs-abstract-face{opacity:0;transform:scale(.6)}
 #${OVERLAY_ID} .fs-abstract.failed .fs-abstract-cross{opacity:1;transform:scale(1)}
 #${OVERLAY_ID} .fs-abstract.failed .fs-abstract-cross-path{stroke-dashoffset:0}
@@ -328,8 +345,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         '<video class="fs-scan-video" autoplay playsinline muted></video>' +
         '<div class="fs-abstract-backdrop"></div>' +
         '<div class="fs-abstract-ring"></div>' +
-        '<svg class="fs-abstract-face" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">' + FACE_GLYPH_PATHS + '</svg>' +
-        '<svg class="fs-abstract-check" viewBox="0 0 24 24" fill="none" stroke="#00E0FF" stroke-width="2.6"><path class="fs-abstract-check-path" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>' +
+        '<svg class="fs-abstract-face" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' + FACE_GLYPH_PATHS + '</svg>' +
         '<svg class="fs-abstract-cross" viewBox="0 0 24 24" fill="none" stroke="#FF3B5C" stroke-width="2.6"><path class="fs-abstract-cross-path" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>' +
       '</div>' +
       '<div class="fs-status">Starting camera…</div>' +
@@ -488,13 +504,13 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
           if (!verify) {
             overlay.classList.add('fs-success');
-            if (abstractEl) abstractEl.classList.add('success');
+            if (abstractEl) { abstractEl.classList.add('success'); fsPlayMorph(abstractEl); }
             playSuccessSound();
             setStatus('Face recognized');
             setTimeout(() => {
               cleanup();
               resolve(payload);
-            }, RESULT_HOLD_MS);
+            }, SUCCESS_HOLD_MS);
             return;
           }
 
@@ -502,13 +518,13 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           try {
             const outcome = await verify(descriptor, collected);
             overlay.classList.add('fs-success');
-            if (abstractEl) abstractEl.classList.add('success');
+            if (abstractEl) { abstractEl.classList.add('success'); fsPlayMorph(abstractEl); }
             playSuccessSound();
             setStatus('Verified');
             setTimeout(() => {
               cleanup();
               resolve(outcome);
-            }, RESULT_HOLD_MS);
+            }, SUCCESS_HOLD_MS);
           } catch (err) {
             overlay.classList.add('fs-failed');
             if (abstractEl) abstractEl.classList.add('failed');

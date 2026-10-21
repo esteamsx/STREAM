@@ -186,12 +186,7 @@ button{cursor:pointer}
 .sp-amt{position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin:16px 0 4px;padding:10px 22px;border-radius:20px;font-family:var(--font-mono);font-size:1.6rem;font-weight:800;color:var(--text);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.2);animation:spPop .6s .35s both}
 .sp-amt small{font-size:.66rem;font-weight:700;color:var(--muted);letter-spacing:.06em}
 .sp-btn{position:relative;width:100%;margin-top:18px;padding:14px;border:none;border-radius:13px;font-weight:700;font-size:.92rem;cursor:pointer;font-family:inherit;color:#04141a;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 8px 22px rgba(0,224,255,.25)}
-.sw-sound{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin-left:8px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.2);color:var(--muted);transition:color .2s,border-color .2s,transform .2s var(--ease)}
-.sw-sound svg{width:15px;height:15px}
-.sw-sound:hover{color:var(--accent);border-color:var(--accent)}
-.sw-sound.off{opacity:.6}
-:root[data-theme="light"] .sw-sound{background:rgba(255,255,255,.6);border-color:rgba(20,20,40,.14)}
-.sw-top{align-items:center}
+:root[data-theme="light"] .sw-top{align-items:center}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -518,9 +513,6 @@ var sw = { loaded: false, loading: false, cost: 10, coins: 0, segments: [], rot:
 
 var swAudio = null;
 var swSoundOn = true;
-try { swSoundOn = localStorage.getItem('gv_sound') !== '0'; } catch (e) {}
-var SW_SOUND_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg>';
-var SW_SOUND_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>';
 function swCtx(){
   try {
     var C = window.AudioContext || window.webkitAudioContext;
@@ -556,7 +548,8 @@ function swNothingSound(){
   swTone(247, 0.24, 0.45, 0.14, 'sine', 150);
 }
 function swTickLoop(wheel, startRot, ms){
-  var cum = startRot, last = 0, lastSeg = Math.floor(startRot / 60), lastAt = 0, begin = performance.now();
+  var segDeg = 360 / (sw.segments.length || 6);
+  var cum = startRot, last = 0, lastSeg = Math.floor(startRot / segDeg), lastAt = 0, begin = performance.now();
   function angle(){
     var m = getComputedStyle(wheel).transform;
     if (!m || m === 'none') return 0;
@@ -569,7 +562,7 @@ function swTickLoop(wheel, startRot, ms){
     if (d < -180) d += 360;
     if (d > 180) d -= 360;
     cum += d; last = a;
-    var seg = Math.floor(cum / 60);
+    var seg = Math.floor(cum / segDeg);
     if (seg !== lastSeg) { lastSeg = seg; if (now - lastAt > 30) { swTick(); lastAt = now; } }
     if (now - begin < ms) requestAnimationFrame(frame);
   }
@@ -585,8 +578,8 @@ function swWheelSvg(segments){
     var a0 = i * 360 / n, a1 = (i + 1) * 360 / n, mid = (a0 + a1) / 2;
     var lab = SW_LABELS[segments[i].type] || ['', ''];
     out += '<path class="seg ' + segments[i].type + '" d="M0 0 L' + pt(a0, R) + ' A' + R + ' ' + R + ' 0 0 1 ' + pt(a1, R) + ' Z"/>';
-    out += '<g transform="rotate(' + mid + ')"><text y="-66" font-size="' + (lab[0].length > 6 ? 9 : 12) + '">' + esc(lab[0]) + '</text>' +
-      (lab[1] ? '<text class="dim" y="-53" font-size="7.5">' + esc(lab[1]) + '</text>' : '') + '</g>';
+    out += '<g transform="rotate(' + mid + ')"><text y="-70" font-size="' + (n > 8 ? (lab[0].length > 5 ? 7.5 : 9.5) : (lab[0].length > 6 ? 9 : 12)) + '">' + esc(lab[0]) + '</text>' +
+      (lab[1] ? '<text class="dim" y="-60" font-size="' + (n > 8 ? 5.2 : 7.5) + '">' + esc(lab[1]) + '</text>' : '') + '</g>';
   }
   return '<svg viewBox="-100 -100 200 200" aria-hidden="true">' + out + '</svg>';
 }
@@ -597,7 +590,7 @@ function swRender(){
     '<div class="gv-title">Spin to win</div>' +
     '<div class="gv-sub">Each spin costs ' + sw.cost + ' coins. Win API requests, free verification or cash.</div>' +
     '<div class="sw-top" style="margin-top:14px"><a class="cr-coin" id="swChip" href="/account#rewards">' + SW_COIN + '<span id="swCoins">' + sw.coins + '</span></a>' +
-    '<button type="button" class="sw-sound" id="swSound" aria-label="Sound on or off"></button></div>' +
+    '</div>' +
     '<div class="sw-stage"><div class="sw-ring"></div><div class="sw-pointer"></div>' +
     '<div class="sw-wheel" id="swWheel">' + swWheelSvg(sw.segments) + '</div>' +
     '<div class="sw-hub">' + SW_COIN + '</div></div>' +
@@ -607,18 +600,8 @@ function swRender(){
     '<li><b>+5 Live TV API requests</b> added to your monthly limit</li>' +
     '<li><b>+5 Developer API requests</b> added to your monthly limit</li>' +
     '<li><b>1 day of account verification</b></li>' +
-    '<li><b>₦100</b> added to your wallet</li>' +
-    '<li>Most spins win nothing, so spin for fun.</li></ul></details>';
+    '<li><b>₦100</b> added to your wallet</li></ul></details>';
   document.getElementById('swSpin').addEventListener('click', swSpin);
-  var sBtn = document.getElementById('swSound');
-  function paintSound(){ sBtn.innerHTML = swSoundOn ? SW_SOUND_ON : SW_SOUND_OFF; sBtn.classList.toggle('off', !swSoundOn); }
-  paintSound();
-  sBtn.addEventListener('click', function(){
-    swSoundOn = !swSoundOn;
-    try { localStorage.setItem('gv_sound', swSoundOn ? '1' : '0'); } catch (e) {}
-    paintSound();
-    if (swSoundOn) swTick();
-  });
   document.getElementById('swWheel').style.transform = 'rotate(' + sw.rot + 'deg)';
   swButton();
   gvSyncHeight();

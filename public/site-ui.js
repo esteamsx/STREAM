@@ -49,6 +49,31 @@ body.es-replaced-nav.es-has-nav{padding-bottom:0}
   body.es-has-nav .acc-fab-stack{bottom:calc(84px + var(--bnav-h) + env(safe-area-inset-bottom,0px))}
   body.es-has-nav .acc-deploy-fab,body.es-has-nav .acc-promote-fab,body.es-has-nav .acc-cert-fab,body.es-has-nav .acc-support-fab,body.es-has-nav .pf-feed-fab,body.es-has-nav .cr-support-fab,body.es-has-nav .tr-settings-fab,body.es-has-nav .tr-fab-stack,body.es-has-nav .music-player,body.es-has-nav .pn-card{transform:translateY(calc(-1 * (var(--bnav-h) + env(safe-area-inset-bottom,0px))))}\nbody.es-has-nav .acc-toast,body.es-has-nav .pf-toast,body.es-has-nav .db-toast,body.es-has-nav .pm-toast,body.es-has-nav .tr-toast{translate:0 calc(-1 * (var(--bnav-h) + env(safe-area-inset-bottom,0px)))}
 }
+
+/* ---- glass floating bottom navigation ---- */
+body.es-has-nav{--bnav-h:80px}
+#esBottomNav.es-bottom-nav{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));height:62px;max-width:520px;margin:0 auto;padding:0 6px;border-radius:28px;
+  background:linear-gradient(155deg,rgba(255,255,255,.17),rgba(255,255,255,.03) 45%,rgba(255,255,255,.07)),rgba(255,255,255,.05);
+  backdrop-filter:blur(22px) saturate(190%);-webkit-backdrop-filter:blur(22px) saturate(190%);
+  border:1px solid rgba(255,255,255,.24);
+  box-shadow:0 14px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.36),inset 0 -1px 0 rgba(255,255,255,.06);
+  transition:transform .4s var(--ease),opacity .3s var(--ease)}
+:root[data-theme="light"] #esBottomNav.es-bottom-nav{background:linear-gradient(155deg,rgba(255,255,255,.75),rgba(255,255,255,.3)),rgba(255,255,255,.35);border-color:rgba(255,255,255,.8);box-shadow:0 14px 40px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.95)}
+#esBottomNav.es-nav-compact{transform:translateY(6px) scale(.93);opacity:.88}
+#esBottomNav .es-nav-glass{position:absolute;top:6px;bottom:6px;left:0;width:0;border-radius:22px;z-index:0;pointer-events:none;opacity:0;
+  background:linear-gradient(160deg,rgba(255,255,255,.28),rgba(255,255,255,.05)),rgba(0,224,255,.1);
+  border:1px solid rgba(255,255,255,.32);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 6px 18px rgba(0,224,255,.2);
+  transition:transform .5s cubic-bezier(.34,1.45,.5,1),width .5s cubic-bezier(.34,1.45,.5,1),opacity .25s var(--ease)}
+#esBottomNav .es-nav-glass.no-anim{transition:none}
+:root[data-theme="light"] #esBottomNav .es-nav-glass{background:linear-gradient(160deg,rgba(255,255,255,.95),rgba(255,255,255,.4)),rgba(0,160,200,.1);border-color:rgba(255,255,255,.9);box-shadow:inset 0 1px 0 #fff,0 6px 18px rgba(0,120,160,.16)}
+#esBottomNav .bnav-item{position:relative;z-index:1;padding:8px 2px 6px;border-radius:22px;transition:color .25s var(--ease),transform .2s var(--ease)}
+#esBottomNav .bnav-item:active{transform:scale(.92)}
+#esBottomNav .bnav-item.active svg{transform:translateY(-1px) scale(1.1);filter:drop-shadow(0 0 7px rgba(0,224,255,.55))}
+#esBottomNav .es-post-fab{position:relative;z-index:1;margin:-16px 4px 0;border:1px solid rgba(255,255,255,.5);box-shadow:0 10px 26px rgba(0,224,255,.38),inset 0 1px 0 rgba(255,255,255,.55)}
+#esBottomNav .es-count{border-color:rgba(20,20,30,.55)}
+.es-menu-fab{background:linear-gradient(155deg,rgba(255,255,255,.17),rgba(255,255,255,.03) 45%,rgba(255,255,255,.07)),rgba(255,255,255,.05);backdrop-filter:blur(22px) saturate(190%);-webkit-backdrop-filter:blur(22px) saturate(190%);border-color:rgba(255,255,255,.24);box-shadow:0 10px 30px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.36)}
+:root[data-theme="light"] .es-menu-fab{background:linear-gradient(155deg,rgba(255,255,255,.75),rgba(255,255,255,.3)),rgba(255,255,255,.35);border-color:rgba(255,255,255,.8)}
+@media (prefers-reduced-motion:reduce){#esBottomNav,#esBottomNav .es-nav-glass{transition:none!important}}
 `;
 (function () {
   const st = document.createElement("style");
@@ -1008,6 +1033,43 @@ function esBuildMenu() {
 function esMarkActive() {
   document.querySelectorAll("#esMenuList [data-es-href]").forEach((a) => a.classList.toggle("active", esIsActive(a.getAttribute("data-es-href"))));
   document.querySelectorAll("#esBottomNav [data-es-href]").forEach((a) => a.classList.toggle("active", esIsActive(a.getAttribute("data-es-href"))));
+  esMoveNavGlass();
+}
+
+function esMoveNavGlass(instant) {
+  const nav = document.getElementById("esBottomNav");
+  if (!nav) return;
+  const glass = nav.querySelector(".es-nav-glass");
+  if (!glass) return;
+  const item = nav.querySelector(".bnav-item.active");
+  if (!item || !item.offsetWidth) { glass.style.opacity = "0"; return; }
+  if (instant) glass.classList.add("no-anim");
+  const inset = 4;
+  glass.style.width = Math.max(0, item.offsetWidth - inset * 2) + "px";
+  glass.style.transform = "translateX(" + (item.offsetLeft + inset) + "px)";
+  glass.style.opacity = "1";
+  if (instant) { void glass.offsetWidth; glass.classList.remove("no-anim"); }
+}
+
+function esInitNavMotion(nav) {
+  requestAnimationFrame(() => esMoveNavGlass(true));
+  window.addEventListener("resize", () => esMoveNavGlass(true));
+  window.addEventListener("load", () => esMoveNavGlass(true));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => esMoveNavGlass(true)).catch(() => {});
+  let lastY = window.scrollY || 0, ticking = false;
+  window.addEventListener("scroll", () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const y = window.scrollY || 0, d = y - lastY;
+      if (Math.abs(d) > 6) {
+        nav.classList.toggle("es-nav-compact", d > 0 && y > 80);
+        lastY = y;
+      }
+      if (y < 40) nav.classList.remove("es-nav-compact");
+      ticking = false;
+    });
+  }, { passive: true });
 }
 
 function esOpenMenu() {
@@ -1026,6 +1088,7 @@ function esGoCompose() {
 
 function esBuildBottomNav() {
   const nav = esEl("nav", { class: "bottom-nav es-bottom-nav", id: "esBottomNav", "aria-label": "Main" });
+  nav.appendChild(esEl("span", { class: "es-nav-glass no-anim", "aria-hidden": "true" }));
   function tab(href, label, icon, countKey) {
     const wrap = esEl("span", { class: "bnav-icon-wrap" }, [esSvg(icon, 22)]);
     if (countKey) wrap.appendChild(esEl("span", { class: "es-count", "data-es-count": countKey }));
@@ -1044,6 +1107,7 @@ function esBuildBottomNav() {
   const fab = esEl("button", { type: "button", class: "es-menu-fab", "aria-label": "Menu", onclick: esOpenMenu }, [esSvg(ES_ICON_MENU, 22), esEl("span", { class: "notif-nav-dot js-dot" })]);
   document.body.appendChild(fab);
   document.body.classList.add("es-has-nav");
+  esInitNavMotion(nav);
   const oldNav = document.getElementById("bottomNav");
   if (oldNav) {
     oldNav.style.setProperty("display", "none", "important");

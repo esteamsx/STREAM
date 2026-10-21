@@ -23,9 +23,21 @@ const NAV_PATHS = [
   "/developers",
 ];
 
+const PRESENCE_SKIP_PATHS = [
+  "/api/",
+  "/embed/",
+  "/.well-known/",
+  "/s/",
+  "/login",
+  "/verify",
+  "/reset",
+  "/chess",
+];
+
 const BUILD = Date.now().toString(36);
 
 const SPONSOR_TAG = `<script nonce="__CSP_NONCE__" src="/sponsor.js?v=${BUILD}" defer></script>`;
+const PRESENCE_TAG = `<script nonce="__CSP_NONCE__" src="/chess-presence.js?v=${BUILD}" defer></script>`;
 const NAV_TAG = `<script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defer></script>`;
 
 function matches(path, list) {
@@ -36,7 +48,8 @@ export function injectPromoSlot(req, res, next) {
   if (req.method !== "GET") return next();
   const wantsAds = !matches(req.path, SKIP_PATHS);
   const wantsNav = matches(req.path, NAV_PATHS);
-  if (!wantsAds && !wantsNav) return next();
+  const wantsPresence = !matches(req.path, PRESENCE_SKIP_PATHS);
+  if (!wantsAds && !wantsNav && !wantsPresence) return next();
   const originalSend = res.send.bind(res);
   res.send = (body) => {
     if (typeof body === "string" && res.statusCode === 200) {
@@ -44,7 +57,7 @@ export function injectPromoSlot(req, res, next) {
       if (!type.includes("json")) {
         const at = body.lastIndexOf("</body>");
         if (at !== -1) {
-          const tags = (wantsNav ? NAV_TAG : "") + (wantsAds ? SPONSOR_TAG : "");
+          const tags = (wantsNav ? NAV_TAG : "") + (wantsAds ? SPONSOR_TAG : "") + (wantsPresence ? PRESENCE_TAG : "");
           body = body.slice(0, at) + tags + body.slice(at);
         }
       }

@@ -3,7 +3,7 @@ import { createChessHub } from "../services/chess-mp.js";
 import { adjudicatePosition } from "../services/chess-adjudicate.js";
 import { replayBotGame, analyzeBotGame } from "../services/chess-anticheat.js";
 
-const MAX_TABS = 4;
+const MAX_TABS = 10;
 
 export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview, hub = createChessHub({ adjudicate: adjudicatePosition }) }) {
   const readLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware();
