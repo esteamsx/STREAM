@@ -8,7 +8,7 @@
 })();
 
 (function () {
-  var SELECTOR = 'button,[role="button"],.btn,a.btn';
+  var SELECTOR = 'button,[role="button"],.btn,a.btn,.bnav-item,.es-bottom-nav a';
   var audioCtx = null;
 
   function playTapSound() {

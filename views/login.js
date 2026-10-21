@@ -800,10 +800,17 @@ async function firebaseSignInResilient({ direct, relay, label }){
   }
 }
 
+function withWelcome(path){
+  var hash = '', at = path.indexOf('#');
+  if (at !== -1) { hash = path.slice(at); path = path.slice(0, at); }
+  if (/[?&]welcome=1(&|$)/.test(path)) return path + hash;
+  return path + (path.indexOf('?') === -1 ? '?' : '&') + 'welcome=1' + hash;
+}
+
 function postSignInTarget(){
   try{
     var next = new URLSearchParams(window.location.search).get('next');
-    if (next && next.charAt(0) === '/' && next.charAt(1) !== '/' && next.charAt(1) !== '\\\\') return next;
+    if (next && next.charAt(0) === '/' && next.charAt(1) !== '/' && next.charAt(1) !== '\\\\') return withWelcome(next);
   }catch(e){}
   return '/?welcome=1';
 }

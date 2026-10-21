@@ -13,6 +13,7 @@ import { renderAccount } from "./views/account.js";
 import { renderPromote } from "./views/promote.js";
 import { renderGiveaway } from "./views/giveaway.js";
 import { renderChess } from "./views/chess.js";
+import { renderLudo } from "./views/ludo.js";
 import { renderHome } from "./views/home.js";
 import { renderLiveTv } from "./views/live-tv.js";
 import { renderProfile } from "./views/profile.js";
@@ -338,6 +339,7 @@ import { statusRouter } from "./routes/status.js";
 import { visitorSupportRouter } from "./routes/visitor-support.js";
 import { createGiveawayRouter } from "./routes/giveaway.js";
 import { registerChessRoutes } from "./routes/chess.js";
+import { registerLudoRoutes } from "./routes/ludo.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
 import { deviceBansRouter, enforceLoginDevice } from "./routes/device-bans.js";
@@ -699,8 +701,11 @@ app.use("/api/rewards", coinDeviceGuard);
 app.use(rewardsRouter);
 app.use(createGiveawayRouter({ verifyCaptcha }));
 const chessRouter = express.Router();
-registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview });
+const chessHub = registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview });
 app.use(chessRouter);
+const ludoRouter = express.Router();
+registerLudoRoutes(ludoRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
+app.use(ludoRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
 app.use(devicesRouter);
@@ -811,6 +816,7 @@ const cachedAccountHtml = renderAccount(authPageConfig);
 const cachedPromoHtml = renderPromote(authPageConfig);
 const cachedGiveawayHtml = renderGiveaway(authPageConfig);
 const cachedChessHtml = renderChess(authPageConfig);
+const cachedLudoHtml = renderLudo(authPageConfig);
 const cachedAccountGuestHtml = wrapWithGuestBlur(cachedAccountHtml, "/account");
 const cachedProfileHtml = renderProfile(authPageConfig);
 const cachedAdminHtml = renderAdmin(authPageConfig);
@@ -1049,6 +1055,27 @@ app.get(
   scrapeGate,
   (req, res) => {
     res.send(retargetGuestHead(cachedChessHtml, req));
+  }
+);
+
+app.get("/ludo", scrapeGate, requireUser, (req, res) => {
+  res.send(cachedLudoHtml);
+});
+
+const LUDO_GUEST_PREVIEW = {
+  title: "Join my Ludo game | ES TEAMS TV",
+  description: "You have been invited to play Ludo. No account needed, just pick a name and play.",
+};
+app.get(
+  "/ludo/guest/:token",
+  (req, res, next) => {
+    const path = "/ludo/guest/" + String(req.params.token || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    res.locals.previewTags = siteHead({ ...LUDO_GUEST_PREVIEW, path });
+    next();
+  },
+  scrapeGate,
+  (req, res) => {
+    res.send(cachedLudoHtml);
   }
 );
 

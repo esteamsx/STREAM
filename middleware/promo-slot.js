@@ -32,6 +32,7 @@ const PRESENCE_SKIP_PATHS = [
   "/verify",
   "/reset",
   "/chess",
+  "/ludo",
 ];
 
 const BUILD = Date.now().toString(36);

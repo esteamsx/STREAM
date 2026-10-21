@@ -93,6 +93,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   const rooms = new Map();      // room code -> game id
   const pinTries = new Map();   // "uid|code" -> { n, lockUntil }
   let onGameOver = null;
+  const connectHooks = [];   // other games (Ludo) use the same stream, so they get told when a connection opens
 
   function emit(uid, event, data) {
     const u = users.get(uid);
@@ -223,6 +224,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       emit(oppUid, "opponent_status", { gameId: game.id, online: true });
       if (game.paused && moverUid(game) === uid) resumeClock(game);
     }
+    for (const fn of connectHooks) { try { fn(uid, sink); } catch { /* a hook must never break a connection */ } }
     return connId;
   }
 
@@ -703,6 +705,8 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   }
 
   return {
+    emit, onConnect: (fn) => { if (typeof fn === "function") connectHooks.push(fn); },
+    profileOf: (uid) => { const u = users.get(uid); return u ? u.profile : null; },
     connect, disconnect, online, annotate, presenceOf, challenge, cancelChallenge, respond,
     move, resign, offerDraw, respondDraw, myGame, sweep, startDirect, isOnline, isBusy,
     getRoom, setRoom, spectate, leaveSpectate, voiceJoin, voiceSignal, ack, syncState,

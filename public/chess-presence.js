@@ -6,7 +6,7 @@
   "use strict";
   if (window.__cxPresence) return;
   window.__cxPresence = true;
-  if (/^\/chess(\/|$)/.test(location.pathname)) return;
+  if (/^\/(chess|ludo)(\/|$)/.test(location.pathname)) return;
   if (!window.EventSource) return;
 
   var es = null;
@@ -101,6 +101,7 @@
     if (document.querySelector('.cxp-card[data-id="' + c.id + '"]')) return;
     if (c.expiresAt && c.expiresAt - (Date.now() + offset) <= 0) return;
     injectCss();
+    var game = c.game === "ludo" ? "ludo" : "chess";
     var from = c.from || {};
     var nm = from.name || from.username || "Someone";
     var letter = nm.trim().charAt(0).toUpperCase() || "?";
@@ -110,7 +111,7 @@
     card.setAttribute("role", "alertdialog");
     card.innerHTML =
       '<div class="cxp-row"><div class="cxp-av">' + (from.photo ? "" : esc(letter)) + '</div>' +
-      '<div class="cxp-txt"><b>' + esc(nm) + '</b><span>challenged you to chess | ' + esc(c.minutes) + ' min</span></div></div>' +
+      '<div class="cxp-txt"><b>' + esc(nm) + '</b><span>' + (game === "ludo" ? "challenged you to Ludo" : "challenged you to chess | " + esc(c.minutes) + " min") + '</span></div></div>' +
       '<div class="cxp-acts"><button type="button" class="cxp-btn" data-act="no">Decline</button>' +
       '<button type="button" class="cxp-btn go" data-act="yes">Accept</button></div>';
     if (from.photo) {
@@ -123,8 +124,8 @@
     var btns = card.querySelectorAll(".cxp-btn");
     function respond(accept) {
       for (var i = 0; i < btns.length; i++) btns[i].disabled = true;
-      post("/api/chess/challenge/" + encodeURIComponent(c.id) + "/respond", { accept: accept }).then(function () {
-        if (accept) { location.href = "/chess"; } else removeCard(c.id);
+      post("/api/" + game + "/challenge/" + encodeURIComponent(c.id) + "/respond", { accept: accept }).then(function () {
+        if (accept) { location.href = "/" + game; } else removeCard(c.id);
       }).catch(function (e) {
         removeCard(c.id);
         alert(e.message);
@@ -157,6 +158,13 @@
     });
     on("challenge", function (c) { ping(); incoming.push(c); showCard(c); });
     on("challenge_update", function (u) { removeCard(u.id); });
+    on("ludo_hello", function (d) {
+      (d.incoming || []).forEach(function (c) { c.game = "ludo"; incoming.push(c); showCard(c); });
+      if (d.game && d.game.status === "active") location.href = "/ludo";
+    });
+    on("ludo_challenge", function (c) { c.game = "ludo"; ping(); incoming.push(c); showCard(c); });
+    on("ludo_challenge_update", function (u) { removeCard(u.id); });
+    on("ludo_game_start", function () { location.href = "/ludo"; });
     on("game_start", function () { location.href = "/chess"; });
     es.onerror = function () {
       /* A closed stream (not logged in, too many tabs) is final; otherwise the

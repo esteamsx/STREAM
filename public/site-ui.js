@@ -667,6 +667,7 @@ const ES_LINKS = [
 const ES_ICON_SEARCH = '<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>';
 const ES_ICON_BELL = '<path stroke-linecap="round" stroke-linejoin="round" d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/>';
 const ES_ICON_MOON = '<path stroke-linecap="round" stroke-linejoin="round" d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+const ES_ICON_LUDO = '<rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.1" fill="currentColor"/><circle cx="15" cy="15" r="1.1" fill="currentColor"/><circle cx="15" cy="9" r="1.1" fill="currentColor"/><circle cx="9" cy="15" r="1.1" fill="currentColor"/>';
 const ES_ICON_CHESS = '<circle cx="12" cy="6.5" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 10.5h4.4M10.4 10.5c0 3-2 4-2.6 7h8.4c-.6-3-2.6-4-2.6-7M6 20.5h12"/>';
 const ES_ICON_SHIELD = '<path stroke-linecap="round" stroke-linejoin="round" d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/>';
 const ES_ICON_LOGOUT = '<path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>';
@@ -1005,6 +1006,7 @@ function esBuildMenu() {
 
   section("Games");
   list.appendChild(item({ href: "/chess", label: "Chess", icon: ES_ICON_CHESS }));
+  list.appendChild(item({ href: "/ludo", label: "Ludo", icon: ES_ICON_LUDO }));
 
   section("Build");
   list.appendChild(link("/deploy-bot"));
@@ -1201,6 +1203,19 @@ function esBusyOn(btn) {
   };
 })();
 
+function esWelcomeToast(me) {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("welcome") !== "1") return;
+    params.delete("welcome");
+    const rest = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (rest ? "?" + rest : "") + window.location.hash);
+    if (document.querySelector(".lg-toast")) return;
+    const name = me && (me.firstName || me.username);
+    showLiquidToast("Welcome back, " + (name || "there"));
+  } catch (e) {}
+}
+
 window.EsUI = {
   openNotifications: esOpenNotifications,
   openSearch: esOpenSearch,
@@ -1221,6 +1236,7 @@ window.EsUI = {
     if (!document.body.hasAttribute("data-es-no-nav")) esBuildBottomNav();
     if (me) { esState.me = me; esApplyMe(); }
     esState.ready = true;
+    esWelcomeToast(esState.me);
     (esState.waiters || []).forEach((fn) => fn(esState.me));
     esRefreshDots();
     esCheckCoinGift();

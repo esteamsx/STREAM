@@ -1,0 +1,61 @@
+/* Ludo. Everything else (menu, cards, buttons, lobby) comes from /chess/chess.css so the two games feel the same. */
+.lx-sw{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:7px;vertical-align:-1px;border:1px solid rgba(255,255,255,.55);flex-shrink:0}
+.cx-chip{display:inline-flex;align-items:center}
+
+.lx-players{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:0 auto 12px;max-width:560px}
+.lx-pl{display:flex;align-items:center;gap:9px;padding:6px 12px 6px 7px;border-radius:16px;border:2px solid transparent;background:var(--card);box-shadow:inset 0 0 0 1px var(--border);transition:border-color .25s,box-shadow .25s,transform .25s;min-width:0}
+.lx-pl .cx-av{width:34px;height:34px;font-size:.9rem}
+.lx-pl.live{border-color:var(--pc);box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 28%,transparent);transform:translateY(-1px)}
+.lx-pin{min-width:0;display:flex;flex-direction:column}
+.lx-pin b{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
+.lx-pin span{font-size:.68rem;color:var(--muted);white-space:nowrap}
+.lx-pt{font-family:var(--font-mono);font-size:.78rem;font-weight:600;color:var(--text);min-width:26px;text-align:right}
+.lx-pt.low{color:var(--red)}
+
+.lx-boardwrap{position:relative;width:min(94vw,560px);aspect-ratio:1/1;margin:0 auto}
+.lx-board{width:100%;height:100%;transition:transform .5s var(--ease)}
+.lx-svg{width:100%;height:100%;display:block;border-radius:5.5%;box-shadow:0 18px 50px rgba(0,0,0,.45),0 0 0 1px var(--border-strong)}
+.lx-bg{fill:#eceff7}
+.lx-quad{stroke:rgba(0,0,0,.12);stroke-width:.04}
+.lx-yard{fill:rgba(255,255,255,.93);stroke:rgba(0,0,0,.08);stroke-width:.04}
+.lx-cell{fill:#fff;stroke:rgba(20,20,40,.2);stroke-width:.035}
+.lx-star{fill:#9aa0b4}
+.lx-star-w{fill:rgba(255,255,255,.9)}
+.lx-tri{stroke:rgba(0,0,0,.12);stroke-width:.03}
+
+.lx-token{transition:transform .13s linear;pointer-events:none}
+.lx-token .lx-tshadow{fill:rgba(0,0,0,.3)}
+.lx-token .lx-tbody{stroke:#fff;stroke-width:.07}
+.lx-token .lx-tdot{fill:#fff;opacity:.92}
+.lx-token .lx-tring{fill:none;stroke:transparent;stroke-width:.08}
+.lx-token.moving{filter:drop-shadow(0 .12px .1px rgba(0,0,0,.4))}
+.lx-token.can{pointer-events:auto;cursor:pointer}
+.lx-token.can .lx-tring{stroke:#fff;animation:lxRing 0.95s ease-in-out infinite}
+.lx-token.can .lx-tbody{filter:drop-shadow(0 0 .22px var(--tc))}
+@keyframes lxRing{0%,100%{opacity:.35;stroke-width:.06}50%{opacity:1;stroke-width:.13}}
+
+.lx-dicewrap{display:flex;justify-content:center;margin:14px 0 4px;min-height:84px}
+.lx-dice{--dc:#00E0FF;width:78px;height:78px;border-radius:21px;border:2.5px solid var(--dc);background:var(--card);color:var(--dc);display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 8px 24px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);transition:transform .2s var(--ease),box-shadow .3s,opacity .3s}
+.lx-dice:disabled{cursor:default;opacity:1}
+.lx-dice.waiting{opacity:.88}
+.lx-dice.ready{cursor:pointer;animation:lxReady 1.25s ease-in-out infinite}
+.lx-dice.ready:active{transform:scale(.92)}
+.lx-dice.rolling{animation:lxShake .24s linear infinite}
+.lx-dice-ico svg{width:34px;height:34px;opacity:.75}
+@keyframes lxReady{0%,100%{box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 0 color-mix(in srgb,var(--dc) 55%,transparent)}50%{box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 11px color-mix(in srgb,var(--dc) 0%,transparent)}}
+@keyframes lxShake{0%{transform:rotate(0) scale(1)}25%{transform:rotate(-14deg) scale(1.06)}50%{transform:rotate(10deg) scale(1)}75%{transform:rotate(-8deg) scale(1.06)}100%{transform:rotate(0) scale(1)}}
+.lx-face{display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);width:100%;height:100%;padding:13px}
+.lx-face i{width:11px;height:11px;margin:auto;border-radius:50%;background:transparent}
+.lx-face i.on{background:var(--dc)}
+
+.cx-status{border-left:3px solid var(--sc,var(--accent));padding-left:10px}
+.lx-logbox{margin-top:8px;display:flex;flex-direction:column;gap:1px}
+.lx-log{font-size:.78rem;color:var(--muted)}
+.lx-log:first-child{color:var(--text);font-weight:600}
+.cx-controls{display:flex;gap:10px;justify-content:center;margin-top:12px}
+@media (max-width:420px){.lx-pin b{max-width:78px}.lx-dice{width:70px;height:70px}}
+@media (prefers-reduced-motion:reduce){.lx-token,.lx-board{transition:none}.lx-dice.ready,.lx-token.can .lx-tring{animation:none}}
+
+/* the colour chips use their own coloured dot instead of chess's white/black circle */
+.cx-chip[data-color]::before{display:none}
+.cx-chip[data-color]{gap:0}
