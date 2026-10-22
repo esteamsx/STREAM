@@ -4,6 +4,17 @@ import { createLudoHub } from "../services/ludo-mp.js";
 /* Ludo API. Presence and the event stream are shared with chess (/api/chess/stream), so a
    signed-in player is online for Ludo on every page. Guests get their own stream below. */
 export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub, hub = createLudoHub({ chess: chessHub }) }) {
+  const photoFor = (uid, p) => {
+    if (!p || p.showProfilePhoto === false || !p.photoURL) return null;
+    const url = String(p.photoURL);
+    if (url.startsWith("data:")) {
+      const v = crypto.createHash("sha1").update(url).digest("hex").slice(0, 10);
+      return `/api/chess/avatar/${encodeURIComponent(uid)}?v=${v}`;
+    }
+    return /^https:\/\//i.test(url) ? url : null;
+  };
+  const voiceLimiter = new SimpleRateLimiter(120, 60 * 1000, (req) => req.uid || (req.guest && req.guest.uid) || req.ip).middleware();
+  const specLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
   const readLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware();
   const challengeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
   const moveLimiter = new SimpleRateLimiter(40, 10 * 1000, (req) => req.uid).middleware();
@@ -70,7 +81,7 @@ export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, Sim
       if (q.length >= 2 && list.length < 20) {
         const found = await searchUsersByUsername(q, req.uid, 10).catch(() => []);
         const seen = new Set(list.map((p) => p.uid));
-        const extra = found.filter((u) => !seen.has(u.uid)).map((u) => ({ uid: u.uid, username: u.username || "", name: [u.firstName, u.lastName].filter(Boolean).join(" "), photo: null, verified: false }));
+        const extra = found.filter((u) => !seen.has(u.uid)).map((u) => ({ uid: u.uid, username: u.username || "", name: [u.firstName, u.lastName].filter(Boolean).join(" "), photo: photoFor(u.uid, u), verified: !!u.verified }));
         list.push(...chessHub.annotate(extra));
       }
       list = list.map((p) => ({ ...p, status: p.status === "offline" ? "offline" : hub.isBusy(p.uid) ? "playing" : "available" }));
@@ -82,8 +93,10 @@ export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, Sim
 
   router.post("/api/ludo/challenge", requireAuth, requireSiteOrigin, challengeLimiter, (req, res) => {
     const b = req.body || {};
-    act(res, () => hub.challenge(req.uid, { toUid: String(b.toUid || ""), color: b.color }));
+    act(res, () => hub.challenge(req.uid, { toUid: String(b.toUid || ""), color: b.color, size: b.size }));
   });
+  router.post("/api/ludo/table/start", requireAuth, requireSiteOrigin, challengeLimiter, (req, res) => act(res, () => hub.startTableNow(req.uid)));
+  router.post("/api/ludo/table/leave", requireAuth, requireSiteOrigin, challengeLimiter, (req, res) => act(res, () => hub.leaveTable(req.uid)));
   router.post("/api/ludo/challenge/:id/cancel", requireAuth, requireSiteOrigin, challengeLimiter, (req, res) => {
     act(res, () => hub.cancelChallenge(req.uid, req.params.id));
   });
@@ -99,9 +112,27 @@ export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, Sim
     });
     router.post(prefix + "/game/:id/resign", ...guard, (req, res) => act(res, () => hub.resign(uidOf(req), req.params.id, (req.body || {}).key)));
     router.post(prefix + "/game/:id/state", ...guard, (req, res) => act(res, () => hub.syncState(uidOf(req), req.params.id, (req.body || {}).key)));
+    router.post(prefix + "/game/:id/room", ...guard, (req, res) => act(res, () => hub.getRoom(uidOf(req), req.params.id, (req.body || {}).key)));
+    router.post(prefix + "/game/:id/room/settings", ...guard, (req, res) => {
+      const b = req.body || {};
+      act(res, () => hub.setRoom(uidOf(req), req.params.id, b.key, { open: b.open, pin: b.pin, max: b.max }));
+    });
+    router.post(prefix + "/game/:id/voice/join", ...guard, voiceLimiter, (req, res) => act(res, () => hub.voiceJoin(uidOf(req), req.params.id, (req.body || {}).key)));
+    router.post(prefix + "/game/:id/voice/signal", ...guard, voiceLimiter, (req, res) => {
+      const b = req.body || {};
+      act(res, () => hub.voiceSignal(uidOf(req), req.params.id, b.key, b.to, b.data));
+    });
   };
   gameRoutes("/api/ludo", (req) => req.uid, [requireAuth, requireSiteOrigin, moveLimiter]);
   gameRoutes("/api/ludo/guest", (req) => req.guest.uid, [requireSiteOrigin, guestMoveLimiter, requireGuest]);
+
+  router.get("/api/ludo/ice", requireAuth, voiceLimiter, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: chessHub.iceServers ? chessHub.iceServers() : [] }));
+  router.get("/api/ludo/guest/ice", voiceLimiter, requireGuest, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: chessHub.iceServers ? chessHub.iceServers() : [] }));
+  router.post("/api/ludo/spectate", requireAuth, requireSiteOrigin, specLimiter, (req, res) => {
+    const b = req.body || {};
+    act(res, () => hub.spectate(req.uid, b.code, b.pin));
+  });
+  router.post("/api/ludo/spectate/leave", requireAuth, requireSiteOrigin, specLimiter, (req, res) => act(res, () => hub.leaveSpectate(req.uid)));
 
   /* ---- guest links ---- */
   router.post("/api/ludo/guest/links", requireAuth, requireSiteOrigin, challengeLimiter, (req, res) => {

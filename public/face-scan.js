@@ -4,8 +4,8 @@ const CAPTURE_TIMEOUT_MS = 60000;
 const TURN_THRESHOLD = 0.16;
 const CENTER_THRESHOLD = 0.09;
 const NOD_THRESHOLD = 0.12;
-const RESULT_HOLD_MS = 400;
-const SUCCESS_HOLD_MS = 1050;   // long enough to watch the Face ID check animation finish
+const RESULT_HOLD_MS = 700;
+const SUCCESS_HOLD_MS = 1650;   // long enough to watch the Face ID check animation finish
 const DETECT_INPUT_SIZE = 160;
 const DETECT_SCORE_THRESHOLD = 0.2;
 const WORK_CANVAS_MAX = 480;
@@ -37,8 +37,19 @@ const FACE_GLYPH_PATHS =
   FACE_BRACKETS.map(function (c) {
     return '<path class="fs-bracket" d="' + c.a + '"><animate class="fs-morph" attributeName="d" begin="indefinite" dur="0.42s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.4 0 0.2 1" from="' + c.a + '" to="' + c.b + '"/></path>';
   }).join('') +
-  '<g class="fs-feat"><path d="M17 18V22"/><path d="M31 18V22"/><path d="M24 18V26Q24 28.5 21.5 28.5"/><path d="M17 33Q24 38.5 31 33"/></g>' +
-  '<path class="fs-glyph-check" d="M16 25L22 31L33 18" stroke-linejoin="round"/>';
+  '<g class="fs-feat"><path d="M17 18V22"/><path d="M31 18V22"/><path d="M24 18V26Q24 28.5 21.5 28.5"/><path d="M17 33Q24 38.5 31 33"/></g>';
+function fsResetMorph(root) {
+  if (!root) return;
+  root.querySelectorAll('path.fs-bracket').forEach(function (p) {
+    var an = p.querySelector('animate.fs-morph');
+    if (!an) return;
+    var from = an.getAttribute('from');
+    var clone = an.cloneNode(false);
+    an.remove();
+    p.setAttribute('d', from);
+    p.appendChild(clone);
+  });
+}
 function fsPlayMorph(root) {
   if (!root) return;
   root.querySelectorAll('animate.fs-morph').forEach(function (a) { try { a.beginElement(); } catch (e) { /* the CSS fade still plays */ } });
@@ -151,18 +162,18 @@ function playSuccessSound() {
   const ctx = getAudioCtx();
   if (!ctx) return;
   try {
-    const t = ctx.currentTime;
-    [0, 0.09].forEach((offset, i) => {
+    const t = ctx.currentTime + 0.8;
+    [[2350, 0.13, 0.3], [4700, 0.03, 0.14]].forEach(([f, vol, len]) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(i === 0 ? 740 : 990, t + offset);
-      gain.gain.setValueAtTime(0.0001, t + offset);
-      gain.gain.exponentialRampToValueAtTime(0.18, t + offset + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + offset + 0.16);
+      osc.frequency.setValueAtTime(f, t);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(vol, t + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + len);
       osc.connect(gain).connect(ctx.destination);
-      osc.start(t + offset);
-      osc.stop(t + offset + 0.18);
+      osc.start(t);
+      osc.stop(t + len + 0.02);
     });
   } catch (e) {}
 }
@@ -174,15 +185,16 @@ function playErrorSound() {
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(300, t);
-    osc.frequency.linearRampToValueAtTime(170, t + 0.22);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1430, t);
+    osc.frequency.linearRampToValueAtTime(1130, t + 0.04);
+    osc.frequency.linearRampToValueAtTime(710, t + 0.11);
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+    gain.gain.exponentialRampToValueAtTime(0.16, t + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
     osc.connect(gain).connect(ctx.destination);
     osc.start(t);
-    osc.stop(t + 0.28);
+    osc.stop(t + 0.22);
   } catch (e) {}
 }
 
@@ -259,18 +271,47 @@ function ensureOverlayStyles() {
   opacity:0;transform:scale(.5);transition:opacity .25s ease,transform .25s cubic-bezier(.34,1.56,.64,1)}
 #${OVERLAY_ID} .fs-abstract-cross-path{
   stroke-dasharray:36;stroke-dashoffset:36;transition:stroke-dashoffset .3s ease .1s}
-#${OVERLAY_ID} .fs-abstract-face .fs-feat{transform-box:fill-box;transform-origin:center;transition:opacity .2s ease,transform .32s cubic-bezier(.4,0,.2,1)}
-#${OVERLAY_ID} .fs-abstract-face .fs-glyph-check{stroke-dasharray:30;stroke-dashoffset:30;stroke:#00E0FF;stroke-width:2.9}
-#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face,#${OVERLAY_ID} .fs-abstract.fs-live.success .fs-abstract-face{opacity:1;transform:none;animation:fsRingPop .4s cubic-bezier(.34,1.56,.64,1) .34s both}
-#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face .fs-feat{opacity:0;transform:scale(.3)}
-#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face .fs-eye{animation:none}
-#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face .fs-glyph-check{stroke-dashoffset:0;transition:stroke-dashoffset .34s cubic-bezier(.65,0,.35,1) .42s}
-@keyframes fsRingPop{0%{transform:scale(1)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
-#${OVERLAY_ID} .fs-abstract.success .fs-abstract-ring{animation:none;border-color:rgba(0,224,255,.3)}
-#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-face{opacity:0;transform:scale(.6)}
-#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-cross{opacity:1;transform:scale(1)}
-#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-cross-path{stroke-dashoffset:0}
-#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-ring{animation:none;border-color:#FF3B5C}
+/* ---- iOS Face ID sequence (green): gray glyph, brackets close into a ring, a 3D orbit scans, the ring settles, a dot draws into the check ---- */
+#${OVERLAY_ID} .fs-abstract:not(.fs-live){color:#8e9099}
+#${OVERLAY_ID} .fs-abstract:not(.fs-live) .fs-abstract-ring{animation:none;border:1.5px solid rgba(108,240,138,.2);box-shadow:inset 0 0 18px rgba(108,240,138,.04)}
+#${OVERLAY_ID} .fs-abstract-face .fs-feat{transform-box:fill-box;transform-origin:center;transition:opacity .25s ease,transform .3s cubic-bezier(.4,0,.2,1)}
+#${OVERLAY_ID} .fs-abstract-face .fs-bracket{transition:stroke .25s ease,stroke-width .25s ease}
+#${OVERLAY_ID} .fs-abstract-face{animation:fsGlyphIn .5s ease both}
+@keyframes fsGlyphIn{0%{opacity:0;filter:blur(5px);transform:scale(.9)}100%{opacity:1;filter:blur(0);transform:scale(1)}}
+#${OVERLAY_ID} .fs-abstract.scanning:not(.fs-live) .fs-abstract-face{color:#6CF08A;filter:drop-shadow(0 0 4px rgba(108,240,138,.7))}
+#${OVERLAY_ID} .fs-abstract.scanning .fs-abstract-face .fs-feat{opacity:0;transform:scale(.4)}
+#${OVERLAY_ID} .fs-abstract.scanning .fs-abstract-face .fs-bracket{stroke-width:3.2}
+#${OVERLAY_ID} .fs-abstract.scanning .fs-abstract-face{animation:fsGlyphOut .45s ease .38s both}
+@keyframes fsGlyphOut{0%{opacity:1}100%{opacity:0}}
+#${OVERLAY_ID} .fs-orbit{position:absolute;width:54px;height:54px;perspective:230px;transform-style:preserve-3d;opacity:0;transition:opacity .3s ease;pointer-events:none}
+#${OVERLAY_ID} .fs-abstract.scanning:not(.fs-live):not(.success):not(.failed) .fs-orbit{opacity:1;transition-delay:.4s}
+#${OVERLAY_ID} .fs-orb{position:absolute;inset:0;border-radius:50%;border:2.6px solid #6CF08A;filter:blur(.7px) drop-shadow(0 0 5px rgba(108,240,138,.85));transform-style:preserve-3d}
+#${OVERLAY_ID} .fs-orb.o1{animation:fsOrb1 1.7s linear infinite}
+#${OVERLAY_ID} .fs-orb.o2{animation:fsOrb2 2.1s linear infinite;border-width:2.2px;opacity:.85}
+#${OVERLAY_ID} .fs-orb.o3{animation:fsOrb3 2.6s linear infinite;border-width:1.8px;opacity:.7}
+@keyframes fsOrb1{from{transform:rotateY(0) rotateZ(18deg)}to{transform:rotateY(360deg) rotateZ(18deg)}}
+@keyframes fsOrb2{from{transform:rotateX(0) rotateZ(-30deg)}to{transform:rotateX(360deg) rotateZ(-30deg)}}
+@keyframes fsOrb3{from{transform:rotate3d(1,1,0,0deg)}to{transform:rotate3d(1,1,0,360deg)}}
+#${OVERLAY_ID} .fs-okmark{position:absolute;width:54px;height:54px;opacity:0;pointer-events:none}
+#${OVERLAY_ID} .fs-ok-circle{fill:none;stroke:#7CF59A;stroke-width:2.9;stroke-linecap:round;filter:drop-shadow(0 0 3px rgba(108,240,138,.55))}
+#${OVERLAY_ID} .fs-ok-check{fill:none;stroke:#7CF59A;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:27;stroke-dashoffset:27;opacity:0}
+#${OVERLAY_ID} .fs-ok-dot{fill:#7CF59A;opacity:0;transform-box:fill-box;transform-origin:center;transform:scale(.2)}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-face{animation:none;opacity:0;transition:opacity .15s ease}
+#${OVERLAY_ID} .fs-abstract.success .fs-orbit{opacity:0;transition:opacity .22s ease}
+#${OVERLAY_ID} .fs-abstract.success .fs-okmark{opacity:1;animation:fsOkIn .38s cubic-bezier(.3,1.3,.5,1) .12s both}
+@keyframes fsOkIn{0%{opacity:0;transform:scale(.8);filter:blur(3px)}100%{opacity:1;transform:scale(1);filter:blur(0)}}
+#${OVERLAY_ID} .fs-abstract.success .fs-ok-dot{animation:fsOkDot .5s ease .42s both}
+@keyframes fsOkDot{0%{opacity:0;transform:scale(.2)}35%{opacity:1;transform:scale(1)}100%{opacity:1;transform:scale(1)}}
+#${OVERLAY_ID} .fs-abstract.success .fs-ok-check{opacity:1;stroke-dashoffset:0;transition:stroke-dashoffset .42s cubic-bezier(.65,0,.35,1) .62s}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-ring{border-color:rgba(108,240,138,.28)}
+#${OVERLAY_ID} .fs-abstract.fs-live.success .fs-okmark{z-index:2}
+#${OVERLAY_ID} .fs-abstract.fs-live .fs-orbit{display:none}
+#${OVERLAY_ID} .fs-abstract.success .fs-abstract-ring{animation:none;border-color:rgba(108,240,138,.3)}
+#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-face,#${OVERLAY_ID} .fs-abstract.fs-live.failed .fs-abstract-face{opacity:1;transform:none;color:#8e9099;filter:none;animation:fsShake .45s ease both}
+#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-face .fs-feat{opacity:1;transform:none}
+#${OVERLAY_ID} .fs-abstract.failed .fs-orbit{opacity:0}
+#${OVERLAY_ID} .fs-abstract.failed .fs-abstract-cross{display:none}
+@keyframes fsShake{0%,100%{transform:translateX(0)}18%{transform:translateX(-6px)}36%{transform:translateX(5px)}54%{transform:translateX(-4px)}72%{transform:translateX(3px)}}
 
 #${OVERLAY_ID} .fs-status{color:#F3F3FA;font-family:system-ui,-apple-system,sans-serif;font-size:.85rem;
   font-weight:600;text-align:center;max-width:280px;min-height:1.2em}
@@ -346,6 +387,8 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         '<div class="fs-abstract-backdrop"></div>' +
         '<div class="fs-abstract-ring"></div>' +
         '<svg class="fs-abstract-face" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' + FACE_GLYPH_PATHS + '</svg>' +
+        '<div class="fs-orbit"><i class="fs-orb o1"></i><i class="fs-orb o2"></i><i class="fs-orb o3"></i></div>' +
+        '<svg class="fs-okmark" viewBox="0 0 48 48"><circle class="fs-ok-circle" cx="24" cy="24" r="19"/><circle class="fs-ok-dot" cx="16.5" cy="25.5" r="1.7"/><path class="fs-ok-check" d="M16.5 25.5L22 31L32.5 18.5"/></svg>' +
         '<svg class="fs-abstract-cross" viewBox="0 0 24 24" fill="none" stroke="#FF3B5C" stroke-width="2.6"><path class="fs-abstract-cross-path" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>' +
       '</div>' +
       '<div class="fs-status">Starting camera…</div>' +
@@ -366,6 +409,11 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
     outlineProgressPath.style.strokeDashoffset = requireLiveness ? String(outlineLen) : '0';
   }
 
+  let scanTimer = null;
+  if (abstractEl) {
+    scanTimer = setTimeout(() => { abstractEl.classList.add('scanning'); fsPlayMorph(abstractEl); }, 550);
+  }
+
   function setStatus(text) {
     statusEl.textContent = text;
     if (voice) speak(text);
@@ -382,6 +430,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
   let watchdogTimer = null;
 
   function cleanup() {
+    if (scanTimer) clearTimeout(scanTimer);
     if (loopTimer) clearTimeout(loopTimer);
     if (watchdogTimer) clearTimeout(watchdogTimer);
     if (stream) stream.getTracks().forEach((t) => t.stop());
@@ -504,7 +553,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
           if (!verify) {
             overlay.classList.add('fs-success');
-            if (abstractEl) { abstractEl.classList.add('success'); fsPlayMorph(abstractEl); }
+            if (abstractEl) { if (scanTimer) clearTimeout(scanTimer); abstractEl.classList.add('success'); }
             playSuccessSound();
             setStatus('Face recognized');
             setTimeout(() => {
@@ -518,7 +567,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           try {
             const outcome = await verify(descriptor, collected);
             overlay.classList.add('fs-success');
-            if (abstractEl) { abstractEl.classList.add('success'); fsPlayMorph(abstractEl); }
+            if (abstractEl) { if (scanTimer) clearTimeout(scanTimer); abstractEl.classList.add('success'); }
             playSuccessSound();
             setStatus('Verified');
             setTimeout(() => {
@@ -527,7 +576,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             }, SUCCESS_HOLD_MS);
           } catch (err) {
             overlay.classList.add('fs-failed');
-            if (abstractEl) abstractEl.classList.add('failed');
+            if (abstractEl) { if (scanTimer) clearTimeout(scanTimer); abstractEl.classList.remove('scanning'); abstractEl.classList.add('failed'); fsResetMorph(abstractEl); }
             playErrorSound();
             setStatus(err.message || 'Not recognized');
             setTimeout(() => {

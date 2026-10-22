@@ -12,16 +12,16 @@
 .lx-pt{font-family:var(--font-mono);font-size:.78rem;font-weight:600;color:var(--text);min-width:26px;text-align:right}
 .lx-pt.low{color:var(--red)}
 
-.lx-boardwrap{position:relative;width:min(94vw,560px);aspect-ratio:1/1;margin:0 auto}
+.lx-boardwrap{position:relative;width:min(94vw,560px);aspect-ratio:1/1;margin:0 auto;border-radius:6%;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02));-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);box-shadow:0 18px 50px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.2)}
 .lx-board{width:100%;height:100%;transition:transform .5s var(--ease)}
-.lx-svg{width:100%;height:100%;display:block;border-radius:5.5%;box-shadow:0 18px 50px rgba(0,0,0,.45),0 0 0 1px var(--border-strong)}
-.lx-bg{fill:#eceff7}
-.lx-quad{stroke:rgba(0,0,0,.12);stroke-width:.04}
-.lx-yard{fill:rgba(255,255,255,.93);stroke:rgba(0,0,0,.08);stroke-width:.04}
-.lx-cell{fill:#fff;stroke:rgba(20,20,40,.2);stroke-width:.035}
-.lx-star{fill:#9aa0b4}
+.lx-svg{width:100%;height:100%;display:block;border-radius:6%;box-shadow:0 0 0 1px rgba(255,255,255,.2)}
+.lx-bg{fill:var(--lx-bg)}
+.lx-quad{fill-opacity:var(--lx-quad-op);stroke:rgba(255,255,255,.22);stroke-width:.05}
+.lx-yard{fill:var(--lx-yard);stroke:rgba(255,255,255,.18);stroke-width:.05}
+.lx-cell{fill:var(--lx-cell);stroke:var(--lx-cell-stroke);stroke-width:.035}
+.lx-star{fill:var(--lx-star)}
 .lx-star-w{fill:rgba(255,255,255,.9)}
-.lx-tri{stroke:rgba(0,0,0,.12);stroke-width:.03}
+.lx-tri{fill-opacity:var(--lx-tri-op);stroke:rgba(255,255,255,.2);stroke-width:.03}
 
 .lx-token{transition:transform .13s linear;pointer-events:none}
 .lx-token .lx-tshadow{fill:rgba(0,0,0,.3)}
@@ -59,3 +59,38 @@
 /* the colour chips use their own coloured dot instead of chess's white/black circle */
 .cx-chip[data-color]::before{display:none}
 .cx-chip[data-color]{gap:0}
+
+/* ---- board colours: ES Glass is the default (transparent like chess); the rest are for verified members ---- */
+.lx-board{--lx-bg:rgba(255,255,255,.04);--lx-cell:rgba(255,255,255,.09);--lx-cell-stroke:rgba(255,255,255,.2);--lx-yard:rgba(255,255,255,.07);--lx-star:rgba(255,255,255,.45);--lx-quad-op:.5;--lx-col-op:.8;--lx-tri-op:.82}
+.lx-col{fill-opacity:var(--lx-col-op)}
+.lx-spot{fill-opacity:.32}
+.lx-board[data-board="classic"]{--lx-bg:#f2ecda;--lx-cell:#fffdf4;--lx-cell-stroke:rgba(70,60,40,.28);--lx-yard:rgba(255,255,255,.92);--lx-star:#b3a98b;--lx-quad-op:1;--lx-col-op:1;--lx-tri-op:1}
+.lx-board[data-board="ocean"]{--lx-bg:#cfe3ee;--lx-cell:#f2f9fd;--lx-cell-stroke:rgba(40,90,120,.28);--lx-yard:rgba(255,255,255,.92);--lx-star:#6f98b3;--lx-quad-op:1;--lx-col-op:1;--lx-tri-op:1}
+.lx-board[data-board="royal"]{--lx-bg:#d9cdf0;--lx-cell:#f6f1ff;--lx-cell-stroke:rgba(80,60,130,.28);--lx-yard:rgba(255,255,255,.92);--lx-star:#8a74c2;--lx-quad-op:1;--lx-col-op:1;--lx-tri-op:1}
+.lx-board[data-board="sunset"]{--lx-bg:#ffe3c4;--lx-cell:#fff6ec;--lx-cell-stroke:rgba(150,80,40,.28);--lx-yard:rgba(255,255,255,.92);--lx-star:#d9915f;--lx-quad-op:1;--lx-col-op:1;--lx-tri-op:1}
+.lx-board[data-board="wood"]{--lx-bg:#e8c999;--lx-cell:#f7e7c8;--lx-cell-stroke:rgba(110,70,30,.35);--lx-yard:rgba(255,246,225,.92);--lx-star:#a8743f;--lx-quad-op:1;--lx-col-op:1;--lx-tri-op:1}
+.lx-board[data-board="mono"]{--lx-bg:#e6e6ea;--lx-cell:#fafafb;--lx-cell-stroke:rgba(60,60,70,.28);--lx-yard:rgba(255,255,255,.92);--lx-star:#8d8f99;--lx-quad-op:1;--lx-col-op:1;--lx-tri-op:1}
+.lx-board[data-board="midnight"]{--lx-bg:#151a2b;--lx-cell:#252b46;--lx-cell-stroke:rgba(255,255,255,.14);--lx-yard:rgba(255,255,255,.07);--lx-star:#6d759b;--lx-quad-op:.7;--lx-col-op:.9;--lx-tri-op:.9}
+
+/* ---- token styles ---- */
+.lx-board[data-tokens="flat"] .lx-tbody{fill:var(--tc)}
+.lx-board[data-tokens="flat"] .lx-tdot{display:none}
+.lx-board[data-tokens="gem"] .lx-tbody{stroke:rgba(255,255,255,.95);stroke-width:.11}
+.lx-board[data-tokens="gem"] .lx-tdot{fill:rgba(255,255,255,.6)}
+.lx-board[data-tokens="gem"] .lx-token{filter:drop-shadow(0 0 .1px var(--tc))}
+.lx-token.out{opacity:.14}
+.lx-pl.gone{opacity:.42}
+.cx-chip.locked{opacity:.5}
+
+/* ---- the table for 3 and 4 player games ---- */
+.lx-table{margin:4px 0 14px}
+.lx-seats{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.lx-seat{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--pc,var(--border))}
+.lx-seat .grow{flex:1;min-width:0}
+.lx-seat small{display:block;color:var(--muted);font-size:.72rem;margin-top:1px}
+.lx-seat.empty{opacity:.55;border-left-color:var(--border);border-style:dashed}
+.lx-seat.wait{opacity:.8}
+.lx-sizes{margin-top:6px}
+.lx-sizes .cx-chips{justify-content:center}
+.lx-pin .cx-nm{max-width:112px;font-size:.82rem}
+.lx-pin .cx-nm svg{width:13px;height:13px}

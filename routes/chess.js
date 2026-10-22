@@ -266,6 +266,7 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
     }
     return list;
   }
+  hub.iceServers = iceServers;   // Ludo uses the same voice servers
   router.get("/api/chess/ice", requireAuth, voiceLimiter, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: iceServers() }));
 
   const roomRoutes = (prefix, uidOf, guard) => {

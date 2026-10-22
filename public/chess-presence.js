@@ -111,7 +111,7 @@
     card.setAttribute("role", "alertdialog");
     card.innerHTML =
       '<div class="cxp-row"><div class="cxp-av">' + (from.photo ? "" : esc(letter)) + '</div>' +
-      '<div class="cxp-txt"><b>' + esc(nm) + '</b><span>' + (game === "ludo" ? "challenged you to Ludo" : "challenged you to chess | " + esc(c.minutes) + " min") + '</span></div></div>' +
+      '<div class="cxp-txt"><b>' + esc(nm) + '</b><span>' + (game === "ludo" ? "challenged you to Ludo" + (c.size > 2 ? " | " + esc(c.size) + " players" : "") : "challenged you to chess | " + esc(c.minutes) + " min") + '</span></div></div>' +
       '<div class="cxp-acts"><button type="button" class="cxp-btn" data-act="no">Decline</button>' +
       '<button type="button" class="cxp-btn go" data-act="yes">Accept</button></div>';
     if (from.photo) {

@@ -16,7 +16,7 @@ export function newState(seatColors) {
   const seats = [...seatColors].sort((a, b) => a - b);
   const tokens = [null, null, null, null];
   for (const c of seats) tokens[c] = [-1, -1, -1, -1];
-  return { seats, tokens, turn: 0, roll: null, sixes: 0, winner: null, lastMove: null };
+  return { seats, tokens, turn: 0, roll: null, sixes: 0, winner: null, lastMove: null, out: [] };
 }
 
 export const colorOfTurn = (s) => s.seats[s.turn];
@@ -35,10 +35,24 @@ export function legalTokens(s, roll = s.roll) {
 }
 
 export function passTurn(s) {
-  s.turn = (s.turn + 1) % s.seats.length;
+  const out = s.out || [];
+  for (let i = 0; i < s.seats.length; i++) {
+    s.turn = (s.turn + 1) % s.seats.length;
+    if (!out.includes(s.seats[s.turn])) break;
+  }
   s.roll = null;
   s.sixes = 0;
 }
+
+/* a player who leaves is taken off the board; the game goes on for everyone else */
+export function removeSeat(s, color) {
+  if (!s.out) s.out = [];
+  if (s.out.includes(color)) return;
+  s.out.push(color);
+  if (s.tokens[color]) s.tokens[color] = [-1, -1, -1, -1];
+  if (colorOfTurn(s) === color) passTurn(s);
+}
+export const activeSeats = (s) => s.seats.filter((c) => !(s.out || []).includes(c));
 
 /* Apply a rolled value. Returns { skipped: null | "no_move" | "three_sixes" } */
 export function applyRoll(s, value) {
@@ -62,7 +76,7 @@ export function applyMove(s, t) {
   const sq = absSquare(c, to);
   if (sq >= 0 && !SAFE.has(sq)) {
     for (const o of s.seats) {
-      if (o === c) continue;
+      if (o === c || (s.out || []).includes(o)) continue;
       for (let j = 0; j < 4; j++) {
         const q = s.tokens[o][j];
         if (q >= 0 && q <= 50 && absSquare(o, q) === sq) { s.tokens[o][j] = -1; captured.push({ color: o, token: j }); }

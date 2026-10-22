@@ -64,6 +64,7 @@ button{cursor:pointer}
     Back
   </a>
   <div class="cx-nav-title">Ludo</div>
+  <div class="cx-cog" id="cxCog" tabindex="0" aria-label="Board settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 01-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 01-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 012.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 012.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></div>
   <div class="cx-sound" id="cxSound" tabindex="0" aria-label="Sound on or off" aria-pressed="true"></div>
   <div class="cx-conn" id="cxConn"><i></i><span id="cxConnText">Connecting</span></div>
 </nav>
@@ -78,6 +79,7 @@ button{cursor:pointer}
       <div class="lx-boardwrap"><div class="lx-board" id="cxBoard"></div></div>
       <div class="lx-dicewrap" id="lxDiceWrap"></div>
       <div id="cxBottom"></div>
+      <div class="cx-vdock" id="cxVoiceDock" hidden></div>
       <div class="cx-card cx-info">
         <div class="cx-status" id="cxStatus"></div>
         <div class="cx-note" id="cxNote" hidden></div>
