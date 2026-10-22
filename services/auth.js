@@ -3044,7 +3044,7 @@ async function searchUsersByUsername(query, excludeUid, limit = 15) {
 
 const LAST_ACTIVE_UPDATE_THROTTLE_MS = 2 * 60 * 1000;
 
-const BACKGROUND_POLL_PATHS = ["/api/notifications/unread", "/api/feed/following/unseen-count", "/api/status/unseen-count", "/api/devices/prompt"];
+const BACKGROUND_POLL_PATHS = ["/api/chess/hb", "/api/notifications/unread", "/api/feed/following/unseen-count", "/api/status/unseen-count", "/api/devices/prompt"];
 
 function requireAuth(req, res, next) {
   const sessionId = req.cookies?.session;

@@ -85,6 +85,22 @@ input{font-family:inherit}
 #certFab{color:#12c48b}
 #supportFab{color:#22d1ee}
 #deployFab{color:var(--accent2)}
+#themesFab{color:#ff7ad9}
+.theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 6px}
+.theme-tile{position:relative;border-radius:16px;border:1px solid var(--border-strong);background:var(--card);padding:8px 6px 9px;display:flex;flex-direction:column;align-items:center;gap:7px;color:var(--text);cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:.72rem;transition:transform .18s var(--ease),border-color .18s var(--ease),box-shadow .18s var(--ease)}
+.theme-tile:active{transform:scale(.96)}
+.theme-tile.on{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+.theme-prev{width:100%;height:50px;border-radius:11px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.14)}
+.theme-prev i{position:absolute;left:8px;bottom:7px;width:22px;height:6px;border-radius:3px;opacity:.95}
+.theme-prev i+i{left:34px;width:14px;opacity:.7}
+.theme-lock{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(10,10,15,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;color:#fff}
+.theme-lock svg{width:12px;height:12px}
+.theme-tile.locked .theme-prev{filter:saturate(.75) brightness(.9)}
+.theme-note{font-size:.74rem;color:var(--muted);text-align:center;line-height:1.45;margin-top:6px}
+.theme-learn{margin:10px 0 4px;text-align:left}
+.theme-learn summary{cursor:pointer;color:var(--accent);font-size:.8rem;font-weight:600;list-style:none;text-align:center}
+.theme-learn summary::-webkit-details-marker{display:none}
+.theme-learn p{font-size:.8rem;color:var(--muted);line-height:1.55;margin-top:8px}
 .acc-fab-sub.dead{color:var(--muted2)}
 .acc-fab-toggle .fab-badge{top:-4px;right:-4px}
 .fab-badge{
@@ -1791,6 +1807,31 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 </div>
 
+<div class="page-overlay" id="themesOverlay">
+  <div class="overlay-card" style="max-width:380px">
+    <div class="overlay-title" style="text-align:center">Themes</div>
+    <div class="overlay-sub" style="text-align:center">Pick the colours and background you like. Only you see this.</div>
+    <div class="theme-grid" id="themeGrid"></div>
+    <div class="theme-note" id="themeNote"></div>
+    <button class="overlay-cancel" id="themesCloseBtn" type="button">Close</button>
+  </div>
+</div>
+
+<div class="page-overlay" id="themeLockedOverlay">
+  <div class="overlay-card" style="max-width:320px;text-align:center">
+    <div class="overlay-title">You're not verified</div>
+    <div class="overlay-sub">Themes are only for verified accounts. Get verified to change the look of the site.</div>
+    <details class="theme-learn">
+      <summary>Learn more</summary>
+      <p>Verified members can change the colours and the background of the whole site to what they like.</p>
+      <p>Your theme only changes how the site looks for you, on your own device. Nobody else sees it, and it does not change anyone else's site.</p>
+      <p>Everyone can use the default site colours and theme.</p>
+    </details>
+    <button class="acc-btn" id="themeLockedGoBtn" type="button" style="width:100%;justify-content:center;margin-top:6px">Get Verified</button>
+    <button class="overlay-cancel" id="themeLockedCancelBtn" type="button">Cancel</button>
+  </div>
+</div>
+
 <div class="page-overlay" id="rwBankDeleteOverlay">
   <div class="overlay-card" style="max-width:320px;text-align:center">
     <div class="overlay-title">Delete this card?</div>
@@ -2152,6 +2193,10 @@ body:has(.page-overlay.show){overflow:hidden}
       <path d="M12 11V7m-3 0h6"/>
     </svg>
   </a>
+  <button type="button" class="acc-fab-sub" id="themesFab" aria-label="Themes" title="Themes">
+    <span class="acc-fab-sub-label">Themes</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 100 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 005-5c0-4.1-4-7.2-9-7.2z"/><circle cx="7.5" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="10.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="7.5" r="1" fill="currentColor" stroke="none"/></svg>
+  </button>
 </div>
 
 <button type="button" class="acc-fab-toggle" id="accFabToggle" aria-label="Menu" aria-expanded="false">
@@ -4232,8 +4277,66 @@ function updateVerificationUI(){
   const fab = document.getElementById('certFab');
   heroBtn.style.display = (profile.verified || profile.isAdmin) ? 'none' : 'flex';
   fab.classList.toggle('dead', !profile.verified);
+  try { if (window.EsTheme) EsTheme.sync(profile); } catch (e) {}
+  try { if (themesOverlay.classList.contains('show')) paintThemes(); } catch (e) {}
 }
 document.getElementById('getVerifiedLink').addEventListener('click', openVerifyOverlay);
+
+/* ---- themes: verified members only, and only on their own device ---- */
+const themesOverlay = document.getElementById('themesOverlay');
+const themeLockedOverlay = document.getElementById('themeLockedOverlay');
+const LOCK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>';
+function memberCanTheme(){ return !!(profile && (profile.verified || profile.isAdmin)); }
+function paintThemes(){
+  const grid = document.getElementById('themeGrid');
+  if (!grid || !window.EsTheme) return;
+  const current = EsTheme.get();
+  const can = memberCanTheme();
+  grid.innerHTML = '';
+  EsTheme.themes.forEach((t) => {
+    const locked = !can && t.id !== 'default';
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'theme-tile' + (current === t.id ? ' on' : '') + (locked ? ' locked' : '');
+    tile.setAttribute('data-theme-id', t.id);
+    tile.setAttribute('aria-label', t.name + (locked ? ' (locked)' : ''));
+    const base = t.bg ? t.bg[0] : '#0A0A0F';
+    const prev = document.createElement('div');
+    prev.className = 'theme-prev';
+    prev.style.background = 'radial-gradient(circle at 22% 28%,' + t.a + 'cc,transparent 62%),radial-gradient(circle at 82% 84%,' + t.b + 'aa,transparent 62%),' + base;
+    const d1 = document.createElement('i'); d1.style.background = t.a;
+    const d2 = document.createElement('i'); d2.style.background = t.b;
+    prev.appendChild(d1); prev.appendChild(d2);
+    tile.appendChild(prev);
+    const name = document.createElement('span');
+    name.textContent = t.name;
+    tile.appendChild(name);
+    if (locked) {
+      const lock = document.createElement('span');
+      lock.className = 'theme-lock';
+      lock.innerHTML = LOCK_SVG;
+      tile.appendChild(lock);
+    }
+    tile.addEventListener('click', () => {
+      if (locked) { themeLockedOverlay.classList.add('show'); return; }
+      EsTheme.set(t.id);
+      paintThemes();
+      showToast(t.id === 'default' ? 'Default theme restored' : t.name + ' theme applied');
+    });
+    grid.appendChild(tile);
+  });
+  document.getElementById('themeNote').textContent = can ? 'Your theme is saved on this device.' : 'Verified members can unlock all themes.';
+}
+document.getElementById('themesFab').addEventListener('click', () => { paintThemes(); themesOverlay.classList.add('show'); });
+document.getElementById('themesCloseBtn').addEventListener('click', () => themesOverlay.classList.remove('show'));
+themesOverlay.addEventListener('click', (e) => { if (e.target === themesOverlay) themesOverlay.classList.remove('show'); });
+document.getElementById('themeLockedCancelBtn').addEventListener('click', () => themeLockedOverlay.classList.remove('show'));
+themeLockedOverlay.addEventListener('click', (e) => { if (e.target === themeLockedOverlay) themeLockedOverlay.classList.remove('show'); });
+document.getElementById('themeLockedGoBtn').addEventListener('click', () => {
+  themeLockedOverlay.classList.remove('show');
+  themesOverlay.classList.remove('show');
+  openVerifyOverlay();
+});
 document.getElementById('certFab').addEventListener('click', () => {
   if (profile.verified) openCertOverlay();
   else showToast('No verified certificate found');

@@ -1146,7 +1146,7 @@ function connect() {
     else if (state.game && state.game.mode === "online" && !state.game.over) resync();
     renderLobby(); renderBanner();
   });
-  on("ludo_challenge", (c) => { state.incoming = state.incoming.filter((x) => x.id !== c.id).concat(c); try { sound.ping(); } catch { /* optional */ } renderLobby(); renderBanner(); });
+  on("ludo_challenge", (c) => { state.incoming = state.incoming.filter((x) => x.id !== c.id).concat(c); renderLobby(); renderBanner(); });
   on("ludo_challenge_sent", (c) => { state.outgoing = state.outgoing.filter((x) => x.id !== c.id).concat(c); renderLobby(); });
   on("ludo_challenge_update", (u) => {
     const was = state.outgoing.find((x) => x.id === u.id);
@@ -1432,14 +1432,8 @@ function renderLobby() {
 }
 
 function renderBanner() {
-  if (GUEST_TOKEN) return;
-  let b = $("cxBanner");
-  if (!b) { b = h("div", { id: "cxBanner", class: "cx-banner" }); document.body.appendChild(b); }
-  b.textContent = "";
-  const inGame = state.game && state.game.mode === "online" && !state.game.over && !state.game.spectator;
-  if (inGame) return;
-  if (state.tab === "online" && $("cxMenu") && !$("cxMenu").hidden) return;
-  for (const r of state.incoming) b.appendChild(requestRow(r));
+  const old = $("cxBanner");
+  if (old) old.textContent = "";
 }
 
 setInterval(() => {

@@ -3565,6 +3565,22 @@ app.get("/api/profile", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/ads/eligibility", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    const sessionId = req.cookies?.session;
+    if (!sessionId) return res.json({ status: "guest" });
+    const uid = await verifySession(sessionId);
+    if (!uid) return res.json({ status: "guest" });
+    const profile = await getUserProfile(uid);
+    if (!profile || profile.pendingDeletion || profile.banned || isSessionRevoked(sessionId, profile)) return res.json({ status: "guest" });
+    const verified = isVerificationActive(profile) || isAdminEmail(profile.email);
+    return res.json({ status: verified ? "verified" : "unverified" });
+  } catch (err) {
+    return res.status(503).json({ status: "unknown" });
+  }
+});
+
 app.post("/api/privacy/update", requireAuth, async (req, res) => {
   try {
     const updated = await updatePrivacySettings(req.uid, req.body);

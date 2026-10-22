@@ -93,6 +93,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   const rooms = new Map();      // room code -> game id
   const pinTries = new Map();   // "uid|code" -> { n, lockUntil }
   let onGameOver = null;
+  const STALE_MS = 65 * 1000;   // a page that stops sending its heartbeat this long is gone
   const connectHooks = [];   // other games (Ludo) use the same stream, so they get told when a connection opens
 
   function emit(uid, event, data) {
@@ -214,6 +215,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     const connId = randomHex(6);
     const wasOffline = u.conns.size === 0;
     u.conns.set(connId, sink);
+    if (u.hb) u.hbAt = now();
     u.offlineSince = null;
     const game = u.gameId ? games.get(u.gameId) : null;
     const { incoming, outgoing } = challengesOf(uid);
@@ -228,10 +230,29 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     return connId;
   }
 
+  function touch(uid) {
+    const u = users.get(uid);
+    if (!u) return false;
+    u.hb = true;
+    u.hbAt = now();
+    return true;
+  }
+  function dropStale() {
+    const t = now();
+    for (const [uid, u] of users) {
+      if (!u.conns.size || !u.hb || t - (u.hbAt || 0) <= STALE_MS) continue;
+      for (const [connId, sink] of [...u.conns]) {
+        try { if (typeof sink.close === "function") sink.close(); } catch { /* ignore */ }
+        disconnect(uid, connId);
+      }
+      u.hb = false;
+    }
+  }
+
   function disconnect(uid, connId) {
     const u = users.get(uid);
     if (!u) return;
-    u.conns.delete(connId);
+    if (!u.conns.delete(connId)) return;   // already gone (the stream's own close handler can follow a forced close)
     if (u.conns.size) return;
     u.offlineSince = now();
     cancelAllChallengesOf(uid, "cancelled");
@@ -671,6 +692,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   }
 
   function sweep() {
+    dropStale();
     const t = now();
     for (const ch of [...challenges.values()]) if (ch.expiresAt <= t) endChallenge(ch, "expired");
     for (const [k, until] of cooldowns) if (until <= t) cooldowns.delete(k);
@@ -705,7 +727,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   }
 
   return {
-    emit, onConnect: (fn) => { if (typeof fn === "function") connectHooks.push(fn); },
+    touch, emit, onConnect: (fn) => { if (typeof fn === "function") connectHooks.push(fn); },
     profileOf: (uid) => { const u = users.get(uid); return u ? u.profile : null; },
     connect, disconnect, online, annotate, presenceOf, challenge, cancelChallenge, respond,
     move, resign, offerDraw, respondDraw, myGame, sweep, startDirect, isOnline, isBusy,

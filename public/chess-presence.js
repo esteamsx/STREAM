@@ -6,7 +6,9 @@
   "use strict";
   if (window.__cxPresence) return;
   window.__cxPresence = true;
-  if (/^\/(chess|ludo)(\/|$)/.test(location.pathname)) return;
+  if (/^\/(chess|ludo)\/guest\//.test(location.pathname)) return;
+  var onChess = /^\/chess(\/|$)/.test(location.pathname);
+  var onLudo = /^\/ludo(\/|$)/.test(location.pathname);
   if (!window.EventSource) return;
 
   var es = null;
@@ -153,19 +155,23 @@
       retries = 0;
       opened = true;
       offset = (d.serverTime || Date.now()) - Date.now();
+      beat();
+      if (onChess) return;
       (d.incoming || []).forEach(function (c) { incoming.push(c); showCard(c); });
       if (d.game && d.game.status === "active") location.href = "/chess";
     });
-    on("challenge", function (c) { ping(); incoming.push(c); showCard(c); });
-    on("challenge_update", function (u) { removeCard(u.id); });
+    if (!onChess) {
+      on("challenge", function (c) { ping(); incoming.push(c); showCard(c); });
+      on("challenge_update", function (u) { removeCard(u.id); });
+      on("game_start", function () { location.href = "/chess"; });
+    }
     on("ludo_hello", function (d) {
       (d.incoming || []).forEach(function (c) { c.game = "ludo"; incoming.push(c); showCard(c); });
-      if (d.game && d.game.status === "active") location.href = "/ludo";
+      if (!onLudo && d.game && d.game.status === "active") location.href = "/ludo";
     });
     on("ludo_challenge", function (c) { c.game = "ludo"; ping(); incoming.push(c); showCard(c); });
     on("ludo_challenge_update", function (u) { removeCard(u.id); });
-    on("ludo_game_start", function () { location.href = "/ludo"; });
-    on("game_start", function () { location.href = "/chess"; });
+    if (!onLudo) on("ludo_game_start", function () { location.href = "/ludo"; });
     es.onerror = function () {
       /* A closed stream (not logged in, too many tabs) is final; otherwise the
          browser reconnects by itself, and we rebuild it if it gave up. */
@@ -176,8 +182,18 @@
     };
   }
 
+  var hbTimer = null;
+  function beat() {
+    try {
+      fetch("/api/chess/hb", { method: "POST", credentials: "same-origin", keepalive: true, headers: { "Content-Type": "application/json" }, body: "{}" }).catch(function () {});
+    } catch (e) {}
+    if (!hbTimer) hbTimer = setInterval(beat, 20000);
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && opened) beat(); });
+
   function start() { connect(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();
-  window.addEventListener("pagehide", function () { if (es) { es.close(); es = null; } });
+  window.addEventListener("pageshow", function (e) { if (e.persisted && !es) { retries = 0; connect(); } });
+  window.addEventListener("pagehide", function () { if (hbTimer) { clearInterval(hbTimer); hbTimer = null; } if (es) { es.close(); es = null; } });
 })();

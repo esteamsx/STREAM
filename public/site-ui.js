@@ -1204,6 +1204,7 @@ function esBusyOn(btn) {
 })();
 
 function esWelcomeToast(me) {
+  try { if (window.EsTheme) window.EsTheme.sync(me); } catch (e) {}
   try {
     const params = new URLSearchParams(window.location.search);
     if (params.get("welcome") !== "1") return;
@@ -1247,7 +1248,7 @@ window.EsUI = {
   }
   let cached = null;
   try { cached = JSON.parse(sessionStorage.getItem("es_me") || "null"); } catch (e) {}
-  esLoadMe().then((me) => { if (!esState.ready) start(me); else { esState.me = me; esApplyMe(); } }).catch(() => {
+  esLoadMe().then((me) => { if (!esState.ready) start(me); else { esState.me = me; esApplyMe(); try { if (window.EsTheme) window.EsTheme.sync(me); } catch (e) {} } }).catch(() => {
     try { sessionStorage.removeItem("es_me"); } catch (e) {}
   });
   if (cached) start(cached);

@@ -31,14 +31,23 @@ const PRESENCE_SKIP_PATHS = [
   "/login",
   "/verify",
   "/reset",
-  "/chess",
-  "/ludo",
+  "/chess/guest",
+  "/ludo/guest",
+];
+
+const SOCIAL_SKIP_PATHS = [
+  "/api/",
+  "/embed/",
+  "/.well-known/",
+  "/s/",
 ];
 
 const BUILD = Date.now().toString(36);
 
 const SPONSOR_TAG = `<script nonce="__CSP_NONCE__" src="/sponsor.js?v=${BUILD}" defer></script>`;
 const PRESENCE_TAG = `<script nonce="__CSP_NONCE__" src="/chess-presence.js?v=${BUILD}" defer></script>`;
+const SOCIAL_TAG = `<script nonce="__CSP_NONCE__" src="/social-bar.js?v=${BUILD}" defer></script>`;
+const THEME_TAG = `<script nonce="__CSP_NONCE__" src="/site-theme.js?v=${BUILD}"></script>`;
 const NAV_TAG = `<script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defer></script>`;
 
 function matches(path, list) {
@@ -50,15 +59,20 @@ export function injectPromoSlot(req, res, next) {
   const wantsAds = !matches(req.path, SKIP_PATHS);
   const wantsNav = matches(req.path, NAV_PATHS);
   const wantsPresence = !matches(req.path, PRESENCE_SKIP_PATHS);
-  if (!wantsAds && !wantsNav && !wantsPresence) return next();
+  const wantsSocial = !matches(req.path, SOCIAL_SKIP_PATHS);
+  if (!wantsAds && !wantsNav && !wantsPresence && !wantsSocial) return next();
   const originalSend = res.send.bind(res);
   res.send = (body) => {
     if (typeof body === "string" && res.statusCode === 200) {
       const type = String(res.getHeader("Content-Type") || "");
       if (!type.includes("json")) {
+        if (wantsSocial) {
+          const head = body.indexOf("</head>");
+          if (head !== -1) body = body.slice(0, head) + THEME_TAG + body.slice(head);
+        }
         const at = body.lastIndexOf("</body>");
         if (at !== -1) {
-          const tags = (wantsNav ? NAV_TAG : "") + (wantsAds ? SPONSOR_TAG : "") + (wantsPresence ? PRESENCE_TAG : "");
+          const tags = (wantsNav ? NAV_TAG : "") + (wantsAds ? SPONSOR_TAG : "") + (wantsPresence ? PRESENCE_TAG : "") + (wantsSocial ? SOCIAL_TAG : "");
           body = body.slice(0, at) + tags + body.slice(at);
         }
       }

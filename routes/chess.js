@@ -93,7 +93,7 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
     if (res.flushHeaders) res.flushHeaders();
     res.write("retry: 3000\n\n");
     const write = (text) => { res.write(text); if (typeof res.flush === "function") res.flush(); };
-    const sink = { send: (event, data) => write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`) };
+    const sink = { send: (event, data) => write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`), close: () => { try { res.end(); } catch { /* already closed */ } } };
     const connId = hub.connect(uid, profile, sink);
     if (onOpen) { try { onOpen(sink); } catch (e) { console.error("[chess] open", e && e.message); } }
     const ping = setInterval(() => { try { sink.send("ping", { t: Date.now() }); } catch { /* the close handler cleans up */ } }, 8000);
@@ -104,6 +104,8 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
     res.on("error", done);
     if (req.socket) req.socket.on("close", done);
   }
+
+  router.post("/api/chess/hb", requireAuth, (req, res) => { hub.touch(req.uid); res.set("Cache-Control", "no-store").json({ ok: true }); });
 
   router.get("/api/chess/stream", requireAuth, streamLimiter, async (req, res) => {
     try {
