@@ -42,11 +42,28 @@ const SOCIAL_SKIP_PATHS = [
   "/s/",
 ];
 
+const POPUNDER_SKIP_PATHS = [
+  "/api/",
+  "/embed/",
+  "/.well-known/",
+  "/s/",
+  "/chess",
+  "/ludo",
+  "/login",
+  "/verify",
+  "/reset",
+  "/account",
+  "/pay/",
+  "/promote",
+  "/admin",
+];
+
 const BUILD = Date.now().toString(36);
 
 const SPONSOR_TAG = `<script nonce="__CSP_NONCE__" src="/sponsor.js?v=${BUILD}" defer></script>`;
 const PRESENCE_TAG = `<script nonce="__CSP_NONCE__" src="/chess-presence.js?v=${BUILD}" defer></script>`;
 const SOCIAL_TAG = `<script nonce="__CSP_NONCE__" src="/social-bar.js?v=${BUILD}" defer></script>`;
+const POPUNDER_TAG = `<script nonce="__CSP_NONCE__" src="/popunder.js?v=${BUILD}" defer></script>`;
 const THEME_TAG = `<script nonce="__CSP_NONCE__" src="/site-theme.js?v=${BUILD}"></script>`;
 const NAV_TAG = `<script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defer></script>`;
 
@@ -60,6 +77,7 @@ export function injectPromoSlot(req, res, next) {
   const wantsNav = matches(req.path, NAV_PATHS);
   const wantsPresence = !matches(req.path, PRESENCE_SKIP_PATHS);
   const wantsSocial = !matches(req.path, SOCIAL_SKIP_PATHS);
+  const wantsPopunder = !matches(req.path, POPUNDER_SKIP_PATHS);
   if (!wantsAds && !wantsNav && !wantsPresence && !wantsSocial) return next();
   const originalSend = res.send.bind(res);
   res.send = (body) => {
@@ -72,7 +90,13 @@ export function injectPromoSlot(req, res, next) {
         }
         const at = body.lastIndexOf("</body>");
         if (at !== -1) {
-          const tags = (wantsNav ? NAV_TAG : "") + (wantsAds ? SPONSOR_TAG : "") + (wantsPresence ? PRESENCE_TAG : "") + (wantsSocial ? SOCIAL_TAG : "");
+          const adsOk = !(res.locals && res.locals.noAds);
+          const tags =
+            (wantsNav ? NAV_TAG : "") +
+            (wantsAds ? SPONSOR_TAG : "") +
+            (wantsPresence ? PRESENCE_TAG : "") +
+            (wantsSocial && adsOk ? SOCIAL_TAG : "") +
+            (wantsPopunder && adsOk && body.indexOf("/popunder.js") === -1 ? POPUNDER_TAG : "");
           body = body.slice(0, at) + tags + body.slice(at);
         }
       }

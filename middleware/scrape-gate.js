@@ -1,6 +1,7 @@
 
 import crypto from "crypto";
 import { siteHead } from "../config/site.js";
+import { clientIp } from "../services/client-ip.js";
 
 const COOKIE_NAME = "sg";
 
@@ -13,13 +14,13 @@ const TICKET_TTL_MS = 2 * 60 * 60 * 1000;
 
 const GATE_SECRET = process.env.SCRAPE_GATE_SECRET || "es-teams-tv-dev-gate";
 
-const BIND_IP = process.env.SCRAPE_GATE_BIND_IP !== "0";
+const BIND_IP = process.env.SCRAPE_GATE_BIND_IP === "1";
 
 const IPV4_OCTETS = Math.min(4, Math.max(1, Number(process.env.SCRAPE_GATE_IPV4_OCTETS) || 3));
 
 function ipPrefix(req) {
   if (!BIND_IP) return "-";
-  let ip = String(req.ip || "").trim();
+  let ip = String(clientIp(req) || req.ip || "").trim(); // real visitor IP, not the proxy/edge address
   if (!ip) return "-";
   if (ip.startsWith("::ffff:")) ip = ip.slice(7);
   if (ip.includes(".")) return ip.split(".").slice(0, IPV4_OCTETS).join(".");
@@ -150,6 +151,7 @@ export function scrapeGate(req, res, next) {
     return next();
   }
 
+  if (res.locals) res.locals.noAds = true; // verification screen: no ads
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.set("Vary", "Cookie, User-Agent");
   res.status(200).type("html").send(interstitialHtml(issueTicket(req), secureCookie, (res.locals && res.locals.previewTags) || PREVIEW_TAGS));

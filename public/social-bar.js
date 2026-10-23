@@ -18,10 +18,19 @@
     (document.body || document.documentElement).appendChild(s);
   }
 
-  fetch("/api/ads/eligibility", { credentials: "same-origin", cache: "no-store" })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) {
-      if (d && (d.status === "guest" || d.status === "unverified")) loadAd();
-    })
-    .catch(function () { /* unknown: do not load ads */ });
+  function check(retry) {
+    return fetch("/api/ads/eligibility", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; })
+      .then(function (d) {
+        if (d && d.status !== "unknown") return d;
+        if (!retry) return d;
+        return new Promise(function (resolve) { setTimeout(resolve, 3000); }).then(function () { return check(false); });
+      });
+  }
+  window.__esAdsEligibility = window.__esAdsEligibility || check(true);
+
+  window.__esAdsEligibility.then(function (d) {
+    if (d && (d.status === "guest" || d.status === "unverified")) loadAd();
+  });
 })();
