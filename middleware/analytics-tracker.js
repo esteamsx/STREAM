@@ -99,7 +99,12 @@ function loadHourly() {
         const bucket = getOrCreateHourBucket(hourKey);
         bucket.views += Number(b.views) || 0;
         for (const id of b.v || []) bucket.visitorIds.add(id);
-        for (const [path, c] of b.p || []) bucket.paths.set(path, (bucket.paths.get(path) || 0) + (Number(c) || 0));
+        for (const entry of b.p || []) {
+          const path = Array.isArray(entry) ? entry[0] : entry && entry.path;
+          const c = Array.isArray(entry) ? entry[1] : entry && entry.count;
+          if (typeof path !== "string") continue;
+          bucket.paths.set(path, (bucket.paths.get(path) || 0) + (Number(c) || 0));
+        }
       }
       return true;
     } catch (err) {
@@ -122,7 +127,7 @@ async function persistHourly() {
       const out = {};
       for (const k of list) {
         const b = hourly.get(k);
-        out[k] = { views: b.views, v: [...b.visitorIds].map((id) => String(id).slice(0, 12)), p: [...b.paths.entries()] };
+        out[k] = { views: b.views, v: [...b.visitorIds].map((id) => String(id).slice(0, 12)), p: [...b.paths.entries()].map(([path, count]) => ({ path, count })) };
       }
       return out;
     };
