@@ -1,4 +1,5 @@
 import { siteHeadFor } from "../config/site.js";
+import { VERIFICATION_PRICE_NGN, NGN_PER_USD } from "../services/paystack.js";
 
 const PAGE_BUILD = "cr-16";
 
@@ -14,6 +15,8 @@ ${siteHeadFor("channelReact")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <script nonce="__CSP_NONCE__" async defer src="https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js" type="module"></script>
+<script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
+<script nonce="__CSP_NONCE__" src="/pay-method.js?v=1"></script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -200,7 +203,8 @@ altcha-widget{--altcha-max-width:100%}
 .altcha-row{margin:14px 0}
 .cr-hint{font-size:.72rem;color:var(--muted);margin-top:7px;line-height:1.5}
 .cr-quota{font-size:.73rem;color:var(--muted);margin:-8px 0 14px;line-height:1.5}
-.cr-quota a{color:var(--accent);text-decoration:none;font-weight:600}
+.cr-quota a,.cr-quota button{color:var(--accent);text-decoration:none;font-weight:600}
+.cr-quota button{border:0;background:transparent;padding:0;font:inherit;cursor:pointer}
 .cr-hero{padding:4px 2px 2px}
 .cr-hero-badge{display:inline-block;flex-shrink:0;font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
   padding:5px 10px;border-radius:20px;background:rgba(0,224,255,.12);color:var(--accent);
@@ -239,6 +243,20 @@ altcha-widget{--altcha-max-width:100%}
   color:var(--text);font-size:.72rem;font-weight:600;cursor:pointer}
 .cr-history-btn:disabled{opacity:.4;cursor:not-allowed}
 .cr-hide{display:none}
+.cr-verify-overlay{position:fixed;inset:0;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:100;padding:24px}
+.cr-verify-overlay.show{display:flex}
+body:has(.cr-verify-overlay.show){overflow:hidden}
+.cr-verify-card{width:100%;max-width:380px;max-height:90vh;overflow-y:auto;background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:26px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3)}
+:root[data-theme="light"] .cr-verify-card{background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);border-color:rgba(255,255,255,.65);box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7)}
+.cr-verify-step{display:none;flex-direction:column;gap:14px}.cr-verify-step.active{display:flex}
+.overlay-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem}.overlay-sub{font-size:.82rem;color:var(--muted);line-height:1.5}
+.overlay-cancel{background:transparent;border:none;color:var(--muted);font-size:.78rem;align-self:center;text-decoration:underline}
+.verify-icon-wrap{width:56px;height:56px;border-radius:16px;margin:0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a}.verify-icon-wrap svg{width:28px;height:28px}
+.verify-benefits{display:flex;flex-direction:column;gap:9px;margin:2px 0}.verify-benefit{display:flex;align-items:center;gap:9px;font-size:.82rem;color:var(--text)}.verify-benefit svg{width:16px;height:16px;color:var(--green);flex-shrink:0}
+.verify-price-row{display:flex;align-items:baseline;justify-content:center;gap:6px;padding:14px 0;border-top:1px dashed var(--border-strong);border-bottom:1px dashed var(--border-strong)}.verify-price{font-family:var(--font-display);font-size:1.9rem;font-weight:700;color:var(--text)}.verify-price-usd,.verify-price-period{font-size:.78rem;color:var(--muted)}
+.cr-verify-hint{font-size:.72rem;line-height:1.55;color:var(--muted)}.cr-verify-msg{font-size:.78rem;line-height:1.4;color:var(--red);min-height:1.1em}.cr-verify-msg.ok{color:var(--green)}
+.acc-btn{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#04141a;font-weight:700;font-size:.85rem;padding:11px 16px;border-radius:10px;transition:transform .15s var(--ease),box-shadow .15s var(--ease)}.acc-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,224,255,.25)}.acc-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+.acc-loader-ring{width:28px;height:28px;border-radius:50%;border:3px solid rgba(0,224,255,.2);border-top-color:var(--accent);animation:crSpin .8s linear infinite}.verify-success-icon{width:64px;height:64px;border-radius:50%;margin:4px auto 0;display:flex;align-items:center;justify-content:center;background:rgba(18,196,139,.12);color:var(--green)}.verify-success-icon svg{width:32px;height:32px}
 </style>
 </head>
 <body>
@@ -381,7 +399,44 @@ altcha-widget{--altcha-max-width:100%}
 
 </div>
 
+<div class="cr-verify-overlay" id="crVerifyOverlay" aria-hidden="true">
+  <div class="cr-verify-card">
+    <div class="cr-verify-step active" id="crVerifyStepIntro">
+      <div class="verify-icon-wrap">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
+      </div>
+      <div class="overlay-title" style="text-align:center">Get Verified</div>
+      <div class="overlay-sub" style="text-align:center">Stand out with a verified badge and a personal ES TEAMS TV certificate.</div>
+      <div class="verify-benefits">
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified badge on your profile</div>
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Unlimited use of every free tool</div>
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>A downloadable verification certificate</div>
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>No ads on your account</div>
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Free bot deployment</div>
+      </div>
+      <div class="verify-price-row"><span class="verify-price" id="crVerifyPriceLabel">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span><span class="verify-price-usd">≈ $${(VERIFICATION_PRICE_NGN / NGN_PER_USD).toFixed(2)}</span><span class="verify-price-period">/ 30 days</span></div>
+      <div class="cr-verify-hint">Your card is saved securely for renewals. Auto-renew stays off until you switch it on in Account settings, and you can remove the card there any time.</div>
+      <div class="cr-verify-msg" id="crVerifyIntroMsg"></div>
+      <button class="acc-btn" id="crVerifyPayBtn" type="button">Pay &amp; Verify</button>
+      <button class="overlay-cancel" id="crVerifyCancel1" type="button">Cancel</button>
+    </div>
+    <div class="cr-verify-step" id="crVerifyStepProcessing">
+      <div class="acc-loader-ring" style="margin:24px auto"></div>
+      <div class="overlay-sub" style="text-align:center">Confirming your payment…</div>
+    </div>
+    <div class="cr-verify-step" id="crVerifyStepSuccess">
+      <div class="verify-success-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg></div>
+      <div class="overlay-title" style="text-align:center">You are now Verified</div>
+      <div class="overlay-sub" style="text-align:center">Your certificate is ready, valid for 30 days.</div>
+      <button class="acc-btn" id="crVerifyCloseSuccess" type="button">Continue</button>
+    </div>
+  </div>
+</div>
+
 <script nonce="__CSP_NONCE__">
+  const PAYSTACK_PUBLIC_KEY = ${JSON.stringify(cfg.paystackPublicKey || "")};
+  const VERIFICATION_PRICE_NGN = ${Number(VERIFICATION_PRICE_NGN)};
+  const NGN_PER_USD = ${Number(NGN_PER_USD)};
   const LINK_RE = /^https:[/][/](www[.])?whatsapp[.]com[/]channel[/][A-Za-z0-9]{10,40}[/][0-9]{1,12}[/]?([?].*)?$/;
   const DEFAULT_IMG = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="24" fill="#12C48B"/><path d="M24 11a13 13 0 00-11.2 19.6L11 37l6.6-1.7A13 13 0 1024 11z" fill="none" stroke="#fff" stroke-width="2.6" stroke-linejoin="round"/></svg>');
 
@@ -477,6 +532,81 @@ altcha-widget{--altcha-max-width:100%}
     return mode === 'vote' ? (c.voteCost || 5) : (c.reactCost || 5);
   }
 
+  function showCrVerifyStep(id){
+    document.querySelectorAll('#crVerifyOverlay .cr-verify-step').forEach(function(el){ el.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+  function closeCrVerifyOverlay(){
+    document.getElementById('crVerifyOverlay').classList.remove('show');
+    document.getElementById('crVerifyOverlay').setAttribute('aria-hidden', 'true');
+  }
+  async function openCrVerifyOverlay(){
+    const overlay = document.getElementById('crVerifyOverlay');
+    const msgEl = document.getElementById('crVerifyIntroMsg');
+    showCrVerifyStep('crVerifyStepIntro');
+    msgEl.textContent = '';
+    overlay.classList.add('show');
+    overlay.setAttribute('aria-hidden', 'false');
+    try {
+      const profile = await getJSON('/api/profile');
+      if (profile.verified || profile.isAdmin) {
+        msgEl.textContent = 'Your account is already verified.';
+        document.getElementById('crVerifyPayBtn').disabled = true;
+        return;
+      }
+    } catch (err) {
+      msgEl.textContent = err.message || 'Could not check your verification status.';
+    }
+  }
+  document.getElementById('crVerifyCancel1').addEventListener('click', closeCrVerifyOverlay);
+  document.getElementById('crVerifyCloseSuccess').addEventListener('click', closeCrVerifyOverlay);
+  document.getElementById('crVerifyOverlay').addEventListener('click', function(e){
+    if (e.target.id === 'crVerifyOverlay') closeCrVerifyOverlay();
+  });
+  document.getElementById('crVerifyPayBtn').addEventListener('click', async function(){
+    const btn = document.getElementById('crVerifyPayBtn');
+    const msgEl = document.getElementById('crVerifyIntroMsg');
+    if (!PAYSTACK_PUBLIC_KEY || typeof PaystackPop === 'undefined') {
+      msgEl.textContent = 'Payments are temporarily unavailable. Please try again later.';
+      return;
+    }
+    const payMethod = await esPay.choose({ ngn: VERIFICATION_PRICE_NGN });
+    if (!payMethod) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span>Starting…';
+    let data;
+    try {
+      data = await postJSON('/api/verification/initialize', { method: payMethod });
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Pay & Verify';
+      msgEl.textContent = err.message || 'Could not start payment.';
+      return;
+    }
+    btn.disabled = false;
+    btn.textContent = 'Pay & Verify';
+    esPay.open(data, {
+      onSuccess: function(reference){
+        showCrVerifyStep('crVerifyStepProcessing');
+        confirmCrVerificationPayment(reference);
+      },
+      onError: function(err){ msgEl.textContent = (err && err.message) || 'Could not open payment.'; },
+      onClose: function(){ if (!document.getElementById('crVerifyStepProcessing').classList.contains('active')) msgEl.textContent = 'Payment cancelled.'; },
+    });
+  });
+  async function confirmCrVerificationPayment(reference){
+    try {
+      const result = await postJSON('/api/verification/confirm', { reference: reference });
+      showCrVerifyStep('crVerifyStepSuccess');
+      loadStatus();
+      return result;
+    } catch (err) {
+      showCrVerifyStep('crVerifyStepIntro');
+      document.getElementById('crVerifyIntroMsg').textContent = err.message || 'Could not confirm your payment. If you were charged, please contact support.';
+      document.getElementById('crVerifyPayBtn').disabled = false;
+    }
+  }
+
   function paintMode(){
     const vote = state.mode === 'vote';
     document.querySelectorAll('.cr-tab').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-mode') === state.mode); });
@@ -508,7 +638,9 @@ altcha-widget{--altcha-max-width:100%}
       crSkeleton.classList.add('cr-hide');
       crMain.classList.remove('cr-hide');
       flowBox.classList.remove('cr-hide');
-      quotaNote.innerHTML = data.unlimited || data.free ? '' : '<a href="/verify">Get verified</a> for unlimited uses.';
+      quotaNote.innerHTML = data.unlimited || data.free ? '' : '<button type="button" id="crGetVerifiedBtn">Get verified</button> for unlimited uses.';
+      const getVerifiedBtn = document.getElementById('crGetVerifiedBtn');
+      if (getVerifiedBtn) getVerifiedBtn.addEventListener('click', openCrVerifyOverlay);
       paintMode();
     } catch (err) {
       state.loaded = true;
