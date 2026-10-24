@@ -929,9 +929,16 @@ function esThemeToggle() {
   const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
   try { localStorage.setItem("theme", next); } catch (e) {}
   document.documentElement.setAttribute("data-theme", next);
-  const meta = document.getElementById("themeColorMeta");
-  if (meta) meta.setAttribute("content", next === "light" ? "#F5F6FA" : "#0A0A0F");
+  esSyncThemeChrome(next);
   try { if (window.EsTheme) window.EsTheme.saveMode(next); } catch (e) {}
+}
+
+function esSyncThemeChrome(theme) {
+  const mode = theme === "light" ? "light" : "dark";
+  const color = mode === "light" ? "#F5F6FA" : "#0A0A0F";
+  const meta = document.getElementById("themeColorMeta");
+  if (meta) meta.setAttribute("content", color);
+  document.documentElement.style.colorScheme = mode;
 }
 
 function esOpenOverlay(id) {
@@ -1231,6 +1238,10 @@ window.EsUI = {
 };
 
 (function () {
+  esSyncThemeChrome(document.documentElement.getAttribute("data-theme"));
+  new MutationObserver(function () {
+    esSyncThemeChrome(document.documentElement.getAttribute("data-theme"));
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   const isHome = !!document.getElementById("hmSide");
   if (isHome) document.body.classList.add("es-home");
   function start(me) {
