@@ -1,7 +1,6 @@
 import crypto from "crypto";
 import { db } from "../config/firebase.js";
-
-/* Automatic WhatsApp channel reactions and poll votes.
+/* WhatsApp channel reactions and poll votes.
 
    The provider's base URL and the account tokens are NOT in the code or in env variables. They live in
    the database and are edited from the admin page, so changing a domain or swapping a token never needs a
@@ -15,7 +14,8 @@ const MAX_IN_WINDOW = 4;         // stay one under the limit
 const STATUS_TTL = 30 * 1000;    // how long a cached /account answer is trusted
 // Provider keys have used more than one prefix over time. Validate the value
 // as an API key instead of rejecting newer provider-issued prefixes.
-const TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._~-]{7,511}$/;
+const TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._~+\/=~-]{15,511}$/;
+const DEFAULT_PROVIDER_BASE_URL = "https://host.emmyhenztech.xyz";
 const PREVIEW_TTL = 60 * 60 * 1000;
 const MAX_HTML = 600000;
 const MAX_IMG = 2000000;
@@ -57,7 +57,10 @@ async function loadSettings(force = false) {
   if (!force && settingsCache.data && Date.now() - settingsCache.at < SETTINGS_TTL_MS) return settingsCache.data;
   const snap = await settingsRef().get();
   const d = snap.exists ? snap.data() : {};
-  const data = { baseUrl: String(d.baseUrl || ""), keys: Array.isArray(d.keys) ? d.keys : [] };
+  const data = {
+    baseUrl: String(d.baseUrl || process.env.EMMYHENZ_BASE_URL || DEFAULT_PROVIDER_BASE_URL),
+    keys: Array.isArray(d.keys) ? d.keys : [],
+  };
   settingsCache = { at: Date.now(), data };
   return data;
 }
@@ -139,11 +142,13 @@ export async function adminDeleteToken(id) {
 async function accounts() {
   const s = await loadSettings();
   const list = [];
+  const used = new Set();
   for (const k of s.keys) {
     if (k.enabled === false) continue;
     let key;
     try { key = unseal(k); } catch { continue; }
     if (!TOKEN_RE.test(key)) continue;
+    used.add(key);
     let a = accountState.get(k.id);
     if (!a || a.key !== key) {
       a = { id: k.id, key, label: k.label || "Account", coins: null, premium: false, reactFree: 0, voteFree: 0, invalid: false, rateUntil: 0, hits: [], checkedAt: 0 };
@@ -151,6 +156,21 @@ async function accounts() {
     }
     a.label = k.label || a.label;
     list.push(a);
+  }
+  // Keep the website compatible with the bot deployment, which supplies
+  // EMMYHENZ_TOKEN, EMMYHENZ_TOKEN1, ... rather than storing those keys in Firestore.
+  for (const [name, raw] of Object.entries(process.env)) {
+    const m = /^EMMYHENZ_TOKEN(\d*)$/.exec(name);
+    const key = String(raw || "").trim().replace(/^bearer\s+/i, "").replace(/^['"]+|['"]+$/g, "").trim();
+    if (!m || !TOKEN_RE.test(key) || used.has(key)) continue;
+    const id = `env-${m[1] === "" ? 0 : Number(m[1])}`;
+    let a = accountState.get(id);
+    if (!a || a.key !== key) {
+      a = { id, key, label: m[1] === "" ? "Main (environment)" : `Account ${m[1]} (environment)`, coins: null, premium: false, reactFree: 0, voteFree: 0, invalid: false, rateUntil: 0, hits: [], checkedAt: 0 };
+      accountState.set(id, a);
+    }
+    list.push(a);
+    used.add(key);
   }
   return { baseUrl: s.baseUrl, list };
 }
@@ -180,7 +200,9 @@ async function call(baseUrl, acc, method, path, body) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 30000);
   try {
-    const res = await fetch(`${baseUrl}/${path}`, {
+    const root = String(baseUrl || "").replace(/\/+$/, "");
+    const url = /\/api\/v1$/i.test(root) ? `${root}/${path}` : `${root}/api/v1/${path}`;
+    const res = await fetch(url, {
       method,
       headers: { "x-api-key": acc.key, ...(body ? { "Content-Type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined,
