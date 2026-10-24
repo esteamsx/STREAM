@@ -1343,6 +1343,7 @@ async function runTagSearch(q){
       row.style.cursor = 'pointer';
       const avatar = document.createElement('div');
       avatar.className = 'flist-avatar';
+      if (u.uid) avatar.setAttribute('data-st-uid', u.uid);
       if (u.photoURL) {
         avatar.style.backgroundImage = 'url(' + u.photoURL + ')';
       } else {
@@ -1403,6 +1404,7 @@ function createFeedPostCard(post){
 
   const avatar = document.createElement('div');
   avatar.className = 'feed-post-avatar';
+  if (author.uid) avatar.setAttribute('data-st-uid', author.uid);
   if (author.photoURL) {
     avatar.style.backgroundImage = 'url(' + author.photoURL + ')';
   } else {
@@ -1986,6 +1988,7 @@ function renderCommentRow(c, postId){
 
   const avatar = document.createElement('div');
   avatar.className = 'comment-avatar';
+  if (c.author && c.author.uid) avatar.setAttribute('data-st-uid', c.author.uid);
   if (c.author && c.author.photoURL) {
     avatar.style.backgroundImage = 'url(' + c.author.photoURL + ')';
   } else {
@@ -2525,6 +2528,7 @@ function flistRenderRow(u){
   row.className = 'flist-row';
   const avatar = document.createElement('div');
   avatar.className = 'flist-avatar';
+  if (u.uid) avatar.setAttribute('data-st-uid', u.uid);
   if (u.photoURL) {
     avatar.style.backgroundImage = 'url(' + u.photoURL + ')';
   } else {
@@ -2624,6 +2628,7 @@ async function openMiniPreview(username){
   try {
     const u = await getJSON('/api/users/' + encodeURIComponent(username) + '/public');
     const avatar = document.getElementById('mpvAvatar');
+    if (u.uid) avatar.setAttribute('data-st-uid', u.uid);
     if (u.photoURL) {
       avatar.style.backgroundImage = 'url(' + u.photoURL + ')';
       avatar.textContent = '';
@@ -2923,6 +2928,8 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
   document.getElementById('pfViewAsBtn').style.display = 'flex';
   document.getElementById('pfViewAsBtn').addEventListener('click', () => {
     const vaAvatar = document.getElementById('vaAvatar');
+    vaAvatar.setAttribute('data-st-self', '1');
+    vaAvatar.setAttribute('data-st-noclick', '1');
     if (ownProfile.photoURL) {
       vaAvatar.style.backgroundImage = 'url(' + ownProfile.photoURL + ')';
       vaAvatar.textContent = '';

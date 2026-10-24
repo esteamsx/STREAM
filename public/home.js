@@ -102,7 +102,11 @@
     var me = state.me;
     if (!me) return;
     paintAvatar($("hmNavAvatar"), me);
+    $("hmNavAvatar").setAttribute("data-st-self", "1");
+    $("hmNavAvatar").setAttribute("data-st-noclick", "1");
     paintAvatar($("hmComposerAvatar"), me);
+    $("hmComposerAvatar").setAttribute("data-st-self", "1");
+    $("hmComposerAvatar").setAttribute("data-st-noclick", "1");
     var menuName = $("hmMenuName");
     menuName.textContent = "";
     menuName.appendChild(h("span", { class: "hm-name-text", text: nameOf(me) }));
@@ -114,6 +118,8 @@
     card.setAttribute("href", me.username ? "/u/" + encodeURIComponent(me.username) : "/profile");
     card.textContent = "";
     var av = h("span", { class: "hm-avatar big" });
+    av.setAttribute("data-st-self", "1");
+    av.setAttribute("data-st-noclick", "1");
     paintAvatar(av, me);
     card.appendChild(av);
     card.appendChild(h("div", { class: "hm-me-info" }, [h("div", { class: "hm-me-name" }, [h("span", { class: "hm-name-text", text: nameOf(me) }), badgeFor(me)]), h("div", { class: "hm-me-user", text: me.username ? "@" + me.username : "" })]));
@@ -189,6 +195,7 @@
         var list = h("div", { class: "sd-list" });
         rows.forEach(function (u) {
           var av = h("span", { class: "sd-avatar" });
+          if (u.uid) av.setAttribute("data-st-uid", u.uid);
           paintAvatar(av, u);
           var item = h("button", { class: "sd-item", type: "button", "data-nospin": "1" }, [
             av,
@@ -251,6 +258,7 @@
 
   function peopleRow(u) {
     var av = h("span", { class: "hm-avatar big", style: "cursor:pointer" });
+    if (u.uid) av.setAttribute("data-st-uid", u.uid);
     paintAvatar(av, u);
     av.addEventListener("click", function () { window.EsUI.openProfile(u.username); });
     var follow = h("button", { class: "hm-btn small", type: "button", text: "Follow" });

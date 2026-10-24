@@ -330,6 +330,7 @@ async function runTagSearch(q){
       row.style.cursor = 'pointer';
       const avatar = document.createElement('div');
       avatar.className = 'flist-avatar';
+      if (u.uid) avatar.setAttribute('data-st-uid', u.uid);
       if (u.photoURL) {
         avatar.style.backgroundImage = 'url(' + u.photoURL + ')';
       } else {
@@ -724,6 +725,7 @@ function renderCommentRow(c, postId){
 
   const avatar = document.createElement('div');
   avatar.className = 'comment-avatar';
+  if (c.author && c.author.uid) avatar.setAttribute('data-st-uid', c.author.uid);
   if (c.author && c.author.photoURL) {
     avatar.style.backgroundImage = 'url(' + c.author.photoURL + ')';
   } else {
