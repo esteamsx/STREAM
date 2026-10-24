@@ -3,7 +3,7 @@
   window.__pnLoaded = true;
 
   var QUIET_KEY = "pn_quiet_until";
-  var QUIET_MS = 10 * 60 * 1000;
+  var QUIET_MS = 3 * 60 * 1000;
   var FIRST_DELAY_MS = 1500;
   var ROTATE_MS = 30000;
   var MAX_ROTATIONS = 8;
