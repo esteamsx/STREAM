@@ -1,5 +1,3 @@
-import { requestMedia } from '/permission-gate.js';
-
 const OVERLAY_ID = 'faceScanOverlay';
 const CLIP_ID = 'faceScanClipPath';
 const CAPTURE_TIMEOUT_MS = 60000;
@@ -50,6 +48,18 @@ function fsResetMorph(root) {
     an.remove();
     p.setAttribute('d', from);
     p.appendChild(clone);
+  });
+}
+// Face ID finish, used only after the face was accepted: the camera gives way to the dark circle, the brackets
+// close into a ring and the orbit scans around it, then the ring settles and a dot draws into the checkmark.
+const FACE_RING_MS = 1250;
+function fsPlayFaceIdSuccess(el) {
+  if (!el) return Promise.resolve();
+  el.classList.remove('fs-live');
+  el.classList.add('scanning');
+  fsPlayMorph(el);
+  return new Promise(function (resolve) {
+    setTimeout(function () { if (el.isConnected) el.classList.add('success'); resolve(); }, FACE_RING_MS);
   });
 }
 function fsPlayMorph(root) {
@@ -411,6 +421,8 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
     outlineProgressPath.style.strokeDashoffset = requireLiveness ? String(outlineLen) : '0';
   }
 
+  // The Face ID bracket/orbit/check sequence belongs to the result, so nothing animates while the camera opens;
+  // the success class (set only after verification) plays it.
   let scanTimer = null;
 
   function setStatus(text) {
@@ -456,9 +468,9 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
     (async () => {
       try {
         const modelsPromise = warmUpModels();
-        const cameraPromise = requestMedia({
+        const cameraPromise = navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
-        }, { kind: 'camera', title: 'Face ID needs your camera', reason: 'ES TEAMS uses your camera only to scan your face for Face ID. The browser will ask for access next.' });
+        });
 
         stream = await cameraPromise;
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
@@ -553,9 +565,10 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
           if (!verify) {
             overlay.classList.add('fs-success');
-            if (abstractEl) { if (scanTimer) clearTimeout(scanTimer); abstractEl.classList.add('success'); }
-            playSuccessSound();
+            if (scanTimer) clearTimeout(scanTimer);
             setStatus('Face recognized');
+            await fsPlayFaceIdSuccess(abstractEl);
+            playSuccessSound();
             setTimeout(() => {
               cleanup();
               resolve(payload);
@@ -567,9 +580,10 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           try {
             const outcome = await verify(descriptor, collected);
             overlay.classList.add('fs-success');
-            if (abstractEl) { if (scanTimer) clearTimeout(scanTimer); abstractEl.classList.add('success'); }
-            playSuccessSound();
+            if (scanTimer) clearTimeout(scanTimer);
             setStatus('Verified');
+            await fsPlayFaceIdSuccess(abstractEl);
+            playSuccessSound();
             setTimeout(() => {
               cleanup();
               resolve(outcome);
