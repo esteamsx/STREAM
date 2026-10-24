@@ -2006,7 +2006,7 @@ function deviceBanItemHtml(b){
       'Strikes: ' + esc(b.strikes) + ' &middot; ' + esc(when) +
     '</div>' +
     (b.blacklistId
-      ? '<button type="button" class="withdrawal-confirm-btn" data-unbl="' + esc(b.blacklistId) + '">Remove from blacklist</button>'
+      ? '<button type="button" class="withdrawal-confirm-btn" data-unbl="' + esc(b.blacklistId) + '">Unban device</button>'
       : '<button type="button" class="withdrawal-confirm-btn" data-bl="' + esc(b.id) + '" style="background:var(--red);color:#fff">Blacklist device</button>') +
   '</div>';
 }
@@ -2063,15 +2063,10 @@ function renderDeviceBans(list){
   });
   deviceBansList.querySelectorAll('[data-unbl]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      const confirmed = await askConfirm(
-        'Remove device from blacklist?',
-        'This will remove the site-wide blacklist. The device may still be subject to its existing account block or Face ID requirement.'
-      );
-      if (!confirmed) return;
       btn.disabled = true;
       try {
         await postJSON('/api/admin/device-blacklist/' + encodeURIComponent(btn.getAttribute('data-unbl')) + '/remove', {});
-        showToast('Device removed from blacklist.');
+        showToast('Device unbanned.');
         loadDeviceBans();
       } catch (err) {
         showToast(err.message || 'Could not unban that device.');
