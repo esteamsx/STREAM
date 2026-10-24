@@ -18,6 +18,35 @@ const byIp = new Map();        // ip -> until
 const byDevice = new Map();    // deviceId -> until
 const byFp = new Map();        // device fingerprint (specific phones only) -> until
 
+const RECOVERY_PATHS = new Set([
+  "/login",
+  "/api/session",
+  "/api/session/exchange",
+  "/api/2fa/login-verify",
+  "/api/logout",
+  "/interactive.js",
+  "/permission-gate.js",
+  "/face-scan.js",
+  "/devtools-guard.js",
+]);
+
+function isRecoveryPath(req) {
+  const path = String(req.path || "");
+  return RECOVERY_PATHS.has(path) || path.startsWith("/vendor/");
+}
+
+async function isVerifiedAdmin(req) {
+  if (!deps || !deps.verifySession || !deps.getUserProfile || !deps.isAdminEmail) return false;
+  try {
+    const uid = await deps.verifySession(req.cookies?.session, req);
+    if (!uid) return false;
+    const profile = await deps.getUserProfile(uid);
+    return !!(profile && deps.isAdminEmail(profile.email));
+  } catch {
+    return false;
+  }
+}
+
 export function initInspectGuard(d) {
   deps = d;
   load();
@@ -92,10 +121,16 @@ function suspendedHtml() {
 export function inspectBlockGuard(req, res, next) {
   if (req.path === "/favicon.svg" || req.path === "/health") return next();
   if (!isBlocked(req)) return next();
-  const wantsHtml = !req.path.startsWith("/api/") && String(req.headers.accept || "").includes("text/html");
-  res.set("Cache-Control", "no-store");
-  if (wantsHtml) return res.status(403).type("html").send(suspendedHtml());
-  return res.status(403).json({ error: "Access suspended for 72 hours.", code: "inspect/suspended" });
+  if (isRecoveryPath(req)) return next();
+  isVerifiedAdmin(req).then((admin) => {
+    if (admin) return next();
+    const wantsHtml = !req.path.startsWith("/api/") && String(req.headers.accept || "").includes("text/html");
+    res.set("Cache-Control", "no-store");
+    if (wantsHtml) return res.status(403).type("html").send(suspendedHtml());
+    return res.status(403).json({ error: "Access suspended for 72 hours.", code: "inspect/suspended" });
+  }).catch(() => {
+    res.status(403).json({ error: "Access suspended for 72 hours.", code: "inspect/suspended" });
+  });
 }
 
 /* A backup for anyone who skips the tester's own check: a fetch() made from the API tester page that asks

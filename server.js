@@ -4658,7 +4658,7 @@ discoverLockablePages(app, LOCKABLE_PAGES);
 const server = app.listen(PORT, function () {
   console.log("ES TEAMS TV running on port " + PORT);
   initFakeCoins({ addNotification, getAdminUid, invalidateUserProfileCache, isAdminEmail });
-  initInspectGuard({ addNotification, getAdminUid, getUserProfile, isAdminEmail, sendPushToUid, tempBanUser, liftExpiredTempBans });
+  initInspectGuard({ verifySession, addNotification, getAdminUid, getUserProfile, isAdminEmail, sendPushToUid, tempBanUser, liftExpiredTempBans });
   startFakeCoinSchedule();
 });
 
