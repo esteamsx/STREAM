@@ -60,7 +60,7 @@
       function finish(v) { if (done) return; done = true; clearTimeout(timer); resolve(v); }
       var heap = 1073741824;
       try { if (performance && performance.memory && performance.memory.jsHeapSizeLimit) heap = performance.memory.jsHeapSizeLimit; } catch (e) {}
-      var limitMiB = Math.round(heap / 1048576) * 2;
+      var limitMiB = Math.min(Math.round(heap / 1048576) * 2, 6 * 1024);
       sig.quotaLimitMiB = limitMiB;
       function judge(quota) {
         if (typeof quota !== "number" || !isFinite(quota)) return finish(null);
@@ -86,7 +86,17 @@
   }
 
   function chromiumPrivate() {
-    return anyTrue([quotaSignal(), opfsTimingSignal()]);
+    // Chrome's private profile has a reduced storage quota. Keep the absolute
+    // ceiling from the older detector as well as the heap-relative limit;
+    // newer Chrome builds can report a larger JS heap while still exposing the
+    // private-profile quota. OPFS remains a useful secondary signal when quota
+    // information is unavailable.
+    return quotaSignal().then(function (quotaResult) {
+      if (quotaResult === true) return true;
+      return opfsTimingSignal().then(function (opfsResult) {
+        return quotaResult === false && opfsResult === false ? false : (opfsResult === true ? true : quotaResult);
+      });
+    });
   }
 
   function firefoxPrivate() {
