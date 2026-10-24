@@ -12,7 +12,6 @@ import {
   adminBanUser,
 } from "../services/auth.js";
 import { getDeviceSession, revokeSessionsForDevice, isTrustedDevice } from "../services/device-sessions.js";
-import { removeInspectBlock } from "../services/inspect-guard.js";
 import {
   BAN_MS,
   banState,
@@ -170,20 +169,6 @@ deviceBansRouter.get("/api/admin/device-bans", requireAuth, requireAdmin, async 
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not load flagged devices." });
-  }
-});
-
-deviceBansRouter.post("/api/admin/device-bans/:id/remove", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const ref = db.collection("deviceBans").doc(String(req.params.id || ""));
-    const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ error: "Device block not found." });
-    const ban = snap.data() || {};
-    await Promise.all([ref.delete(), removeInspectBlock(ban)]);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: "Could not remove that device block." });
   }
 });
 
