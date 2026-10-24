@@ -182,7 +182,11 @@ input{font-family:inherit}
 .remember-row{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--muted);cursor:pointer;user-select:none}
 .remember-row input{width:15px;height:15px;accent-color:var(--accent)}
 
-.gsi-wrap{display:flex;justify-content:center}
+.gsi-wrap{
+  width:40px;height:40px;flex:0 0 40px;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;border-radius:8px;background:var(--card2);border:1px solid var(--border-strong);
+}
+.gsi-wrap>div,.gsi-wrap iframe{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;border:0!important}
 
 .social-row{display:flex;justify-content:center;align-items:center;gap:10px}
 .social-box{
