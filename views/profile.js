@@ -260,6 +260,15 @@ input{font-family:inherit}
 .pf-verified{display:inline-flex;vertical-align:middle;margin-left:5px;position:relative;top:-1px}
 .pf-edit-hint{font-size:.82rem;color:var(--muted);text-align:center;margin:-6px 0 18px}
 .pf-edit-link{color:var(--accent);font-weight:700;text-decoration:underline;cursor:pointer}
+.pf-verify-btn{
+  display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:11px 14px;margin-bottom:18px;
+  border:1px solid rgba(0,224,255,.42);border-radius:12px;background:rgba(0,224,255,.08);color:var(--accent);
+  font-weight:700;font-size:.84rem;transition:background .2s var(--ease),border-color .2s var(--ease),transform .2s var(--ease)
+}
+.pf-verify-btn:hover{background:rgba(0,224,255,.14);border-color:var(--accent);transform:translateY(-1px)}
+.pf-verify-btn:active{transform:translateY(0)}
+.pf-verify-btn svg{width:18px;height:18px;flex-shrink:0}
+:root[data-theme="light"] .pf-verify-btn{background:rgba(0,145,170,.08);border-color:rgba(0,145,170,.35);color:#007b91}
 .pf-follow-btn{
   display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:12px;
   border-radius:12px;border:none;font-weight:700;font-size:.88rem;margin-bottom:18px;
@@ -966,6 +975,7 @@ async function postJSON(url, body){
   return data;
 }
 const VERIFIED_BADGE = '<svg class="pf-verified" viewBox="0 0 24 24" width="18" height="18" aria-label="Verified"><path fill="#00E0FF" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path fill="none" stroke="#04141a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
+const VERIFY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>';
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
 
 function setupAltUsernames(altUsernames){
@@ -1055,6 +1065,16 @@ function setFollowBtn(btn, following, followsYou){
   else if (following) btn.textContent = 'Following';
   else if (followsYou) btn.textContent = 'Follow Back';
   else btn.textContent = 'Follow';
+}
+
+function addGetVerifiedButton(user){
+  if (!user || !user.isSelf || user.verified || user.isAdmin) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pf-verify-btn';
+  btn.innerHTML = VERIFY_ICON + '<span>Get verified</span>';
+  btn.addEventListener('click', () => { window.location.href = '/account#verify'; });
+  document.getElementById('pfActionSlot').appendChild(btn);
 }
 
 async function toggleFollow(uid, btn){
@@ -2719,6 +2739,7 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
       (((user.firstName || '') + ' ' + (user.lastName || '')).trim() || ('@' + user.username)) +
       ((user.isAdmin || user.verified) ? VERIFIED_BADGE : '');
     document.getElementById('pfUsername').textContent = '@' + user.username;
+    addGetVerifiedButton(user);
     setupAltUsernames(user.altUsernames);
     document.getElementById('pfFollowing').textContent = formatCount(user.following ?? 0);
     document.getElementById('pfFollowers').textContent = formatCount(user.followers ?? 0);
@@ -2842,6 +2863,7 @@ document.getElementById('pfAvatarInput').addEventListener('change', async (e) =>
     (((profile.firstName || '') + ' ' + (profile.lastName || '')).trim() || 'Unnamed') +
     ((profile.isAdmin || profile.verified) ? VERIFIED_BADGE : '');
   document.getElementById('pfUsername').textContent = profile.username ? ('@' + profile.username) : profile.email;
+  addGetVerifiedButton({ ...profile, isSelf: true });
   setupAltUsernames(profile.altUsernames);
   const bioEl = document.getElementById('pfBio');
   if (profile.bio) {

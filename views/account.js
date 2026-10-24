@@ -2610,6 +2610,9 @@ async function loadProfile(){
   if (window.location.hash === '#addEmail' && addEmailLink.style.display !== 'none') {
     document.getElementById('addEmailOverlay').classList.add('show');
   }
+  if (window.location.hash === '#verify' && !profile.verified && !profile.isAdmin) {
+    setTimeout(openVerifyOverlay, 0);
+  }
   syncPanelHeight();
 }
 loadProfile();
