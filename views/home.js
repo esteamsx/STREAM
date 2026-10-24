@@ -107,13 +107,13 @@ button{cursor:pointer}
 .hm-btn.ghost{background:var(--card2);color:var(--text);border:1px solid var(--border-strong)}
 .hm-btn.ghost:hover{border-color:var(--accent);box-shadow:none;transform:none}
 .hm-btn.small{padding:6px 12px;font-size:.74rem;border-radius:8px}
-.hm-verify-banner{display:none;align-items:center;gap:12px;margin-bottom:14px;padding:12px 14px;border:1px solid rgba(245,166,35,.55);border-radius:12px;background:linear-gradient(135deg,rgba(245,166,35,.22),rgba(245,166,35,.1));color:var(--text);box-shadow:0 10px 30px rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.18)}
+.hm-verify-banner{display:none;align-items:center;gap:12px;margin-bottom:14px;padding:12px 14px;border:1px solid rgba(245,166,35,.82);border-radius:12px;background:linear-gradient(135deg,rgba(245,166,35,.34),rgba(245,166,35,.2));color:#ffe8b0;box-shadow:0 10px 30px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.2)}
 .hm-verify-banner.show{display:flex}
-.hm-verify-banner .info{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:#6d4300;border:1.7px solid currentColor;font-weight:800;font-size:.82rem}
+.hm-verify-banner .info{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:#ffd166;border:1.7px solid currentColor;font-weight:800;font-size:.82rem}
 .hm-verify-banner .copy{min-width:0;flex:1;font-size:.82rem;line-height:1.4}
-.hm-verify-banner .copy a{color:#7a4b00;text-decoration:underline;text-underline-offset:2px;font-weight:700;white-space:nowrap}
-.hm-verify-banner .close{width:28px;height:28px;border:0;background:transparent;color:#7a4b00;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
-.hm-verify-banner .close:hover{background:rgba(109,67,0,.12)}
+.hm-verify-banner .copy a{color:#ffd166;text-decoration:underline;text-underline-offset:2px;font-weight:700;white-space:nowrap}
+.hm-verify-banner .close{width:28px;height:28px;border:0;background:transparent;color:#ffd166;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.hm-verify-banner .close:hover{background:rgba(255,209,102,.16)}
 .hm-verify-banner .close svg{width:16px;height:16px}
 :root[data-theme="light"] .hm-verify-banner{background:linear-gradient(135deg,rgba(245,166,35,.3),rgba(245,166,35,.18));color:#4a3100;box-shadow:0 10px 30px rgba(173,104,0,.12)}
 :root[data-theme="light"] .hm-verify-banner .copy a,:root[data-theme="light"] .hm-verify-banner .close{color:#6d4300}

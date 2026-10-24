@@ -3398,6 +3398,7 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   const next = current === 'dark' ? 'light' : 'dark';
   localStorage.setItem('theme', next);
   applyTheme(next);
+  try { if (window.EsTheme) window.EsTheme.saveMode(next); } catch (e) {}
 });
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
