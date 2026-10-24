@@ -12,7 +12,10 @@ const PREVIEW_TAGS = siteHead();
 
 const TICKET_TTL_MS = 2 * 60 * 60 * 1000;
 
-const GATE_SECRET = process.env.SCRAPE_GATE_SECRET || "es-teams-tv-dev-gate";
+// Never use a predictable fallback: anyone who knows the source could forge a
+// valid gate ticket. A random process secret keeps local development usable,
+// while production should still set SCRAPE_GATE_SECRET for stable restarts.
+const GATE_SECRET = process.env.SCRAPE_GATE_SECRET || crypto.randomBytes(32).toString("hex");
 
 const BIND_IP = process.env.SCRAPE_GATE_BIND_IP === "1";
 

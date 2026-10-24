@@ -433,9 +433,18 @@ app.get("/api/security/my-ip", (req, res) => {
   res.set("Cache-Control", "no-store").json({
     clientIp: clientIp(req),
     expressIp: req.ip,
-    forwardedFor: req.headers["x-forwarded-for"] || null,
-    cfConnectingIp: req.headers["cf-connecting-ip"] || null,
   });
+});
+
+const cspReportLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.ip).middleware();
+app.post("/api/security/csp-report", cspReportLimiter, (req, res) => {
+  const report = req.body?.["csp-report"] || req.body || {};
+  console.warn("[csp-report]", {
+    document: String(report.documentURI || report["document-uri"] || "").slice(0, 300),
+    violated: String(report.violatedDirective || report["violated-directive"] || "").slice(0, 160),
+    blocked: String(report.blockedURL || report["blocked-uri"] || "").slice(0, 300),
+  });
+  res.status(204).end();
 });
 
 const devtoolsReportLimiter = new SimpleRateLimiter(5, 60 * 1000).middleware();
@@ -660,7 +669,11 @@ async function verifyCaptcha(payload) {
 
 app.use(crossOriginWriteGuard);
 
-app.use(express.json({ limit: "25mb", verify: (req, res, buf) => { req.rawBody = buf; } }));
+app.use(express.json({
+  limit: "25mb",
+  type: ["application/json", "application/csp-report"],
+  verify: (req, res, buf) => { req.rawBody = buf; },
+}));
 const ID_ROUTE_PREFIXES = ["/api/chess", "/api/status", "/api/admin", "/api/posts", "/api/users", "/api/notifications", "/api/rewards", "/api/support", "/api/coin-gifts", "/api/follow", "/api/comments"];
 app.use((req, res, next) => {
   const path = String(req.originalUrl || "").split("?")[0];

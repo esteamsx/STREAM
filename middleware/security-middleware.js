@@ -58,6 +58,31 @@ export const securityHeaders = (req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-XSS-Protection", "0");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  const nonce = String(res.locals?.nonce || "");
+  const proto = String(req.get?.("x-forwarded-proto") || "").split(",")[0].trim().toLowerCase();
+  if (req.secure || proto === "https") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  // Begin in report-only mode because the site uses feature-specific third-party
+  // scripts. This gives us browser telemetry without breaking auth or ads.
+  res.setHeader(
+    "Content-Security-Policy-Report-Only",
+    [
+      "default-src 'self'",
+      `script-src 'self'${nonce ? ` 'nonce-${nonce}'` : ""} 'unsafe-eval' https:`,
+      "style-src 'self' 'unsafe-inline' https:",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data: https:",
+      "connect-src 'self' https: wss:",
+      "media-src 'self' blob: https:",
+      "frame-src 'self' https:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self' https:",
+      "frame-ancestors 'none'",
+      "report-uri /api/security/csp-report",
+    ].join("; ")
+  );
   next();
 };
 
