@@ -107,6 +107,16 @@ button{cursor:pointer}
 .hm-btn.ghost{background:var(--card2);color:var(--text);border:1px solid var(--border-strong)}
 .hm-btn.ghost:hover{border-color:var(--accent);box-shadow:none;transform:none}
 .hm-btn.small{padding:6px 12px;font-size:.74rem;border-radius:8px}
+.hm-verify-banner{display:none;align-items:center;gap:12px;margin-bottom:14px;padding:12px 14px;border:1px solid rgba(245,166,35,.55);border-radius:12px;background:linear-gradient(135deg,rgba(245,166,35,.22),rgba(245,166,35,.1));color:var(--text);box-shadow:0 10px 30px rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.18)}
+.hm-verify-banner.show{display:flex}
+.hm-verify-banner .info{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:#6d4300;border:1.7px solid currentColor;font-weight:800;font-size:.82rem}
+.hm-verify-banner .copy{min-width:0;flex:1;font-size:.82rem;line-height:1.4}
+.hm-verify-banner .copy a{color:#7a4b00;text-decoration:underline;text-underline-offset:2px;font-weight:700;white-space:nowrap}
+.hm-verify-banner .close{width:28px;height:28px;border:0;background:transparent;color:#7a4b00;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.hm-verify-banner .close:hover{background:rgba(109,67,0,.12)}
+.hm-verify-banner .close svg{width:16px;height:16px}
+:root[data-theme="light"] .hm-verify-banner{background:linear-gradient(135deg,rgba(245,166,35,.3),rgba(245,166,35,.18));color:#4a3100;box-shadow:0 10px 30px rgba(173,104,0,.12)}
+:root[data-theme="light"] .hm-verify-banner .copy a,:root[data-theme="light"] .hm-verify-banner .close{color:#6d4300}
 
 .hm-nav{position:fixed;top:0;left:0;right:0;z-index:250;height:calc(var(--nav-h) + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) 16px 0;display:flex;align-items:center;gap:12px;background:var(--nav-bg);border-bottom:1px solid var(--border);backdrop-filter:blur(20px);box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 8px 24px rgba(0,0,0,.35)}
 .hm-logo{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:1.05rem;font-weight:700;letter-spacing:-.02em;white-space:nowrap;flex-shrink:0}
@@ -285,6 +295,13 @@ button{cursor:pointer}
   </aside>
 
   <main class="hm-main" id="hmMain">
+    <div class="hm-verify-banner" id="hmVerifyBanner" role="status" aria-label="Verification information">
+      <span class="info" aria-hidden="true">i</span>
+      <div class="copy">Want to stop seeing ads? <a href="/account#verify" id="hmVerifyLink">Stop Ads</a></div>
+      <button class="close" id="hmVerifyBannerClose" type="button" aria-label="Close information banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
     <section class="hm-glass hm-composer" id="hmComposer">
       <div class="hm-avatar big" id="hmComposerAvatar"></div>
       <div class="hm-composer-body">

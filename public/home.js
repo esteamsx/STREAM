@@ -16,6 +16,12 @@
   var fileEl = $("hmFile");
   var previewEl = $("hmPreview");
   var previewImg = $("hmPreviewImg");
+  var verifyBanner = $("hmVerifyBanner");
+  var verifyBannerClose = $("hmVerifyBannerClose");
+  var VERIFY_BANNER_KEY = "es_verify_banner_v1";
+  var VERIFY_BANNER_WINDOW = 7 * 24 * 60 * 60 * 1000;
+  var VERIFY_BANNER_MAX = 4;
+  var VERIFY_BANNER_COOLDOWN = 24 * 60 * 60 * 1000;
 
   var state = { me: null, profile: null, tab: "discover", before: null, loading: false, token: 0, image: null, posting: false, people: [], peopleLoaded: false };
 
@@ -63,6 +69,39 @@
 
   function spin(btn) {
     return window.EsUI && window.EsUI.setBusy ? window.EsUI.setBusy(btn) : null;
+  }
+
+  function readVerifyBannerState() {
+    var now = Date.now();
+    var data = { shownAt: [], dismissedUntil: 0 };
+    try { data = JSON.parse(localStorage.getItem(VERIFY_BANNER_KEY) || "null") || data; } catch (e) {}
+    data.shownAt = Array.isArray(data.shownAt) ? data.shownAt.filter(function (ts) { return Number(ts) > now - VERIFY_BANNER_WINDOW; }) : [];
+    data.dismissedUntil = Number(data.dismissedUntil) || 0;
+    return data;
+  }
+
+  function saveVerifyBannerState(data) {
+    try { localStorage.setItem(VERIFY_BANNER_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+
+  function showVerifyBanner(profile) {
+    if (!verifyBanner || !profile || profile.verified || profile.isAdmin) return;
+    var now = Date.now();
+    var data = readVerifyBannerState();
+    saveVerifyBannerState(data);
+    if (data.shownAt.length >= VERIFY_BANNER_MAX || data.dismissedUntil > now) return;
+    data.shownAt.push(now);
+    saveVerifyBannerState(data);
+    verifyBanner.classList.add("show");
+  }
+
+  if (verifyBannerClose) {
+    verifyBannerClose.addEventListener("click", function () {
+      verifyBanner.classList.remove("show");
+      var data = readVerifyBannerState();
+      data.dismissedUntil = Date.now() + VERIFY_BANNER_COOLDOWN;
+      saveVerifyBannerState(data);
+    });
   }
 
   function badgeFor(user) {
@@ -142,6 +181,7 @@
       if (window.EsPosts && window.EsPosts.setViewer) window.EsPosts.setViewer(p);
       try { if (window.EsTheme) window.EsTheme.sync(p); } catch (e) {}
       fillMe();
+      showVerifyBanner(p);
     }).catch(function () {});
   }
 
