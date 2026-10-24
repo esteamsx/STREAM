@@ -1033,7 +1033,7 @@ app.get("/verify", scrapeGate, (req, res) => {
 
 app.get("/account", scrapeGate, async (req, res) => {
   const sessionId = req.cookies?.session;
-  const uid = await verifySession(sessionId);
+  const uid = await verifySession(sessionId, req);
   if (!uid) return res.send(cachedAccountGuestHtml);
   const profile = await getUserProfile(uid);
   if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.send(cachedAccountGuestHtml);
@@ -1115,7 +1115,7 @@ app.get("/u/:username", scrapeGate, (req, res) => {
 
 app.get("/admin", scrapeGate, async (req, res) => {
   const sessionId = req.cookies?.session;
-  const uid = await verifySession(sessionId);
+  const uid = await verifySession(sessionId, req);
   if (!uid) return res.redirect("/login");
   const profile = await getUserProfile(uid);
   if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.redirect("/login");
@@ -1764,7 +1764,7 @@ app.get("/channel-react", scrapeGate, requireUser, (req, res) => {
 
 app.get("/tools", scrapeGate, async (req, res) => {
   const sessionId = req.cookies?.session;
-  const uid = await verifySession(sessionId);
+  const uid = await verifySession(sessionId, req);
   if (!uid) return res.send(cachedToolsIndexGuestHtml);
   const profile = await getUserProfile(uid);
   if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.send(cachedToolsIndexGuestHtml);
@@ -1781,7 +1781,7 @@ app.get("/tools/obfuscate", scrapeGate, (req, res) => {
 
 app.get("/tools/trading", scrapeGate, async (req, res) => {
   const sessionId = req.cookies?.session;
-  const uid = await verifySession(sessionId);
+  const uid = await verifySession(sessionId, req);
   if (!uid) return res.send(cachedToolsTradingGuestHtml);
   const profile = await getUserProfile(uid);
   if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.send(cachedToolsTradingGuestHtml);
@@ -3385,10 +3385,10 @@ app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, re
       return res.status(403).json({ error: "This account is scheduled for deletion." });
     }
     if (profile?.twoFactorEnabled) {
-      const pendingToken = await withDeadline(issueTwoFactorPendingLogin(decoded.uid, remember), "issueTwoFactorPendingLogin");
+      const pendingToken = await withDeadline(issueTwoFactorPendingLogin(decoded.uid, remember, req.deviceFaceVerified === true), "issueTwoFactorPendingLogin");
       return res.json({ requires2FA: true, pendingToken });
     }
-    const login = await withDeadline(createDeviceSession(decoded.uid, req, res), "createSession");
+    const login = await withDeadline(createDeviceSession(decoded.uid, req, res, { trustedOverride: req.deviceFaceVerified === true }), "createSession");
     res.cookie("session", login.token, {
       httpOnly: true,
       secure: true,
@@ -3403,6 +3403,7 @@ app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, re
         error: `Sign-in is temporarily unavailable (${err.label} timed out). Please try again shortly.`,
       });
     }
+    if (err?.status) return res.status(err.status).json({ code: err.code || "auth/unavailable", error: err.message });
     console.error("[/api/session] failed:", err);
     res.status(401).json({ error: "Could not sign in." });
   }
@@ -3473,7 +3474,7 @@ app.post("/api/session/exchange", requireSiteOrigin, authExchangeLimiter, async 
   }
 });
 
-app.post("/api/2fa/login-verify", twoFactorLoginLimiter, async (req, res) => {
+app.post("/api/2fa/login-verify", requireSiteOrigin, twoFactorLoginLimiter, async (req, res) => {
   try {
     const { pendingToken, code } = req.body;
     const pending = await getTwoFactorPendingLogin(pendingToken);
@@ -3481,7 +3482,7 @@ app.post("/api/2fa/login-verify", twoFactorLoginLimiter, async (req, res) => {
     const valid = await verifyTwoFactorCode(pending.uid, code);
     if (!valid) return res.status(400).json({ error: "Incorrect code." });
     await deleteTwoFactorPendingLogin(pendingToken);
-    const login = await createDeviceSession(pending.uid, req, res);
+    const login = await createDeviceSession(pending.uid, req, res, { trustedOverride: pending.deviceFaceVerified === true });
     res.cookie("session", login.token, {
       httpOnly: true,
       secure: true,
@@ -3491,6 +3492,7 @@ app.post("/api/2fa/login-verify", twoFactorLoginLimiter, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
+    if (err?.status) return res.status(err.status).json({ code: err.code || "auth/unavailable", error: err.message });
     res.status(400).json({ error: "Could not verify code." });
   }
 });
@@ -3545,7 +3547,7 @@ app.get("/api/ads/eligibility", async (req, res) => {
   try {
     const sessionId = req.cookies?.session;
     if (!sessionId) return res.json({ status: "guest" });
-    const uid = await verifySession(sessionId);
+    const uid = await verifySession(sessionId, req);
     if (!uid) return res.json({ status: "guest" });
     const profile = await getUserProfile(uid);
     if (!profile || profile.pendingDeletion || profile.banned || isSessionRevoked(sessionId, profile)) return res.json({ status: "guest" });

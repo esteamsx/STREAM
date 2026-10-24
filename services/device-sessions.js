@@ -131,7 +131,7 @@ function remember(sid, rec) {
   cache.set(sid, { rec, t: Date.now() });
 }
 
-export async function openDeviceSession({ uid, req, res }) {
+export async function openDeviceSession({ uid, req, res, trustedOverride = false }) {
   let deviceId = req.cookies?.[DEVICE_COOKIE];
   if (!/^[a-f0-9]{32}$/.test(String(deviceId || ""))) deviceId = newDeviceId();
   res.cookie(DEVICE_COOKIE, deviceId, { httpOnly: true, secure: true, sameSite: "lax", maxAge: DEVICE_COOKIE_MAX_AGE });
@@ -139,8 +139,11 @@ export async function openDeviceSession({ uid, req, res }) {
   const device = parseDevice(req);
   const trustRef = db.collection(TRUSTED).doc(uid + "_" + deviceId);
   const trustSnap = await trustRef.get();
-  const trusted = trustSnap.exists && trustSnap.data().trusted === true;
+  const trusted = (trustSnap.exists && trustSnap.data().trusted === true) || trustedOverride;
   if (trusted) trustRef.update({ lastUsedAt: Date.now(), name: device.name, os: device.os, browser: device.browser, ip: device.ip }).catch(() => {});
+  if (trustedOverride && !(trustSnap.exists && trustSnap.data().trusted === true)) {
+    await trustRef.set({ uid, deviceId, trusted: true, name: device.name, os: device.os, browser: device.browser, ip: device.ip, trustedAt: Date.now(), lastUsedAt: Date.now() });
+  }
 
   const active = await db.collection(SESSIONS).where("uid", "==", uid).where("revoked", "==", false).get();
   const kicked = [];
@@ -168,19 +171,26 @@ export async function openDeviceSession({ uid, req, res }) {
   return { sid, trusted, device, kicked };
 }
 
-export async function checkDeviceSession(sid, uid) {
+export async function checkDeviceSession(sid, uid, deviceId = null) {
   try {
     const rec = await getRec(sid);
     if (!rec || rec.uid !== uid || rec.revoked) return false;
+    if (deviceId !== null && rec.deviceId !== deviceId) return false;
     if (rec.trusted && Date.now() - (rec.lastActiveAt || rec.createdAt || 0) > TRUSTED_IDLE_MS) {
       await revokeDeviceSession(sid, "idle");
       return false;
     }
     return true;
   } catch (err) {
-    console.error("[device-sessions] check failed, allowing:", err.message);
-    return true;
+    console.error("[device-sessions] check failed; rejecting session:", err.message);
+    return false;
   }
+}
+
+export async function isTrustedDevice(uid, deviceId) {
+  if (!/^[a-f0-9]{32}$/.test(String(deviceId || ""))) return false;
+  const snap = await db.collection(TRUSTED).doc(uid + "_" + deviceId).get();
+  return snap.exists && snap.data().trusted === true;
 }
 
 export function touchDeviceSession(sid) {

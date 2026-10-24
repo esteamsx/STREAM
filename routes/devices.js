@@ -1,5 +1,5 @@
 import express from "express";
-import { requireAuth, sessionSid, reissueSessionToken, SESSION_TTL_MS } from "../services/auth.js";
+import { requireAuth, sessionSid, reissueSessionToken, SESSION_TTL_MS, userHasFaceId, verifyLoginFace } from "../services/auth.js";
 import { listUserBans } from "../services/device-bans.js";
 import { getDeviceSession, listDevices, setTrusted, removeTrustedDevice, revokeDeviceSession } from "../services/device-sessions.js";
 
@@ -41,6 +41,15 @@ devicesRouter.post("/api/devices/trust", requireAuth, async (req, res) => {
     const sid = sessionSid(req.cookies?.session);
     if (!sid) return res.status(400).json({ error: "Sign in again to manage this device." });
     const trusted = req.body?.trusted === true;
+    if (trusted && (await userHasFaceId(req.uid))) {
+      const probe = req.body?.faceDescriptor;
+      if (!probe) return res.status(403).json({ code: "device/face-required", error: "Face ID is required before trusting this device." });
+      try {
+        await verifyLoginFace(req.uid, probe);
+      } catch {
+        return res.status(403).json({ code: "device/face-mismatch", error: "That face does not match this account." });
+      }
+    }
     const rec = await setTrusted(req.uid, sid, trusted);
     if (!rec) return res.status(404).json({ error: "Device session not found." });
     const fresh = reissueSessionToken(req.cookies.session, trusted);

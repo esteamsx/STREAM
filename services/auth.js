@@ -915,16 +915,17 @@ async function createSession(uid) {
   return signSessionToken({ uid, iat: now, exp: now + SESSION_TTL_MS });
 }
 
-async function createDeviceSession(uid, req, res) {
+async function createDeviceSession(uid, req, res, options = {}) {
   const now = Date.now();
   let sid = null;
   let trusted = false;
   let kicked = [];
   let device = null;
   try {
-    ({ sid, trusted, kicked, device } = await openDeviceSession({ uid, req, res }));
+    ({ sid, trusted, kicked, device } = await openDeviceSession({ uid, req, res, trustedOverride: options.trustedOverride === true }));
   } catch (err) {
-    console.error("[device-sessions] could not record device, using plain session:", err.message);
+    console.error("[device-sessions] could not record device session:", err.message);
+    throw Object.assign(new Error("Secure device session could not be established."), { status: 503, code: "device/session-unavailable" });
   }
   if (kicked.length) {
     const who = device && device.name ? device.name : "a new device";
@@ -949,13 +950,13 @@ function reissueSessionToken(oldToken, trusted) {
   return { token: signSessionToken({ ...p, exp }), maxAge: ttl };
 }
 
-async function verifySession(sessionId) {
+async function verifySession(sessionId, req = null) {
   if (!sessionId) return null;
 
   const payload = readSessionToken(sessionId);
   if (payload) {
     if (typeof payload.exp !== "number" || Date.now() >= payload.exp) return null;
-    if (payload.sid && !(await checkDeviceSession(payload.sid, payload.uid))) return null;
+    if (payload.sid && !(await checkDeviceSession(payload.sid, payload.uid, req?.cookies?.es_did ?? null))) return null;
     return payload.uid;
   }
 
@@ -1041,11 +1042,12 @@ async function verifyTwoFactorCode(uid, code) {
   return delta !== null;
 }
 
-async function issueTwoFactorPendingLogin(uid, remember) {
+async function issueTwoFactorPendingLogin(uid, remember, deviceFaceVerified = false) {
   const token = crypto.randomBytes(24).toString("hex");
   await db.collection("twofa_pending_logins").doc(token).set({
     uid,
     remember: !!remember,
+    deviceFaceVerified: deviceFaceVerified === true,
     expiresAt: Date.now() + TWOFA_PENDING_TTL_MS,
   });
   return token;
@@ -3059,7 +3061,7 @@ const BACKGROUND_POLL_PATHS = ["/api/chess/hb", "/api/notifications/unread", "/a
 
 function requireAuth(req, res, next) {
   const sessionId = req.cookies?.session;
-  verifySession(sessionId)
+  verifySession(sessionId, req)
     .then(async (uid) => {
       if (!uid) return res.status(401).json({ error: "not_authenticated" });
       const isBackgroundPoll = BACKGROUND_POLL_PATHS.some((p) => req.path.startsWith(p));

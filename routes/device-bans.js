@@ -11,7 +11,7 @@ import {
   sessionSid,
   adminBanUser,
 } from "../services/auth.js";
-import { getDeviceSession, revokeSessionsForDevice } from "../services/device-sessions.js";
+import { getDeviceSession, revokeSessionsForDevice, isTrustedDevice } from "../services/device-sessions.js";
 import {
   BAN_MS,
   banState,
@@ -47,7 +47,23 @@ async function notifyAdmin(message) {
 
 export async function enforceLoginDevice(req, uid) {
   const bans = await findBansForLogin(uid, req);
-  if (!bans.length) return null;
+  const deviceId = req.cookies?.es_did;
+  const alreadyTrusted = await isTrustedDevice(uid, deviceId);
+  if (!bans.length && alreadyTrusted) return null;
+  if (!bans.length) {
+    if (!(await userHasFaceId(uid))) return null;
+    const probe = req.body?.faceDescriptor;
+    if (!probe) {
+      return { status: 403, body: { code: "device/face-required", error: "Face ID is required to sign in from this device." } };
+    }
+    try {
+      await verifyLoginFace(uid, probe);
+      req.deviceFaceVerified = true;
+      return null;
+    } catch {
+      return { status: 403, body: { code: "device/face-mismatch", error: "That face does not match this account." } };
+    }
+  }
   const now = Date.now();
   const active = bans.filter((b) => banState(b, now) === "banned").sort((a, b) => b.expiresAt - a.expiresAt)[0];
   if (active) {
@@ -61,6 +77,7 @@ export async function enforceLoginDevice(req, uid) {
   }
   try {
     await verifyLoginFace(uid, probe);
+    req.deviceFaceVerified = true;
     return null;
   } catch (err) {
     if (err && err.code === "claim/face-mismatch") {

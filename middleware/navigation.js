@@ -65,7 +65,7 @@ export function pageGuards({ verifySession, getUserProfile, isSessionRevoked }) 
   async function currentUser(req) {
     const sessionId = req.cookies?.session;
     if (!sessionId) return null;
-    const uid = await verifySession(sessionId);
+    const uid = await verifySession(sessionId, req);
     if (!uid) return null;
     if (!getUserProfile) return { uid, profile: null };
     const profile = await getUserProfile(uid);

@@ -99,7 +99,7 @@ async function resolveViewer(req) {
   if (hit && hit.exp > now) return hit;
   let out = { uid: null, premium: false };
   try {
-    const uid = await verifySession(sessionId);
+    const uid = await verifySession(sessionId, req);
     if (uid) {
       const profile = await getUserProfile(uid);
       if (profile && !profile.banned && !profile.pendingDeletion) {
