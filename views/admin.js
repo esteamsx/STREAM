@@ -2007,7 +2007,10 @@ function deviceBanItemHtml(b){
     '</div>' +
     (b.blacklistId
       ? '<button type="button" class="withdrawal-confirm-btn" data-unbl="' + esc(b.blacklistId) + '">Remove from blacklist</button>'
-      : '<button type="button" class="withdrawal-confirm-btn" data-bl="' + esc(b.id) + '" style="background:var(--red);color:#fff">Blacklist device</button>') +
+      : '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button type="button" class="withdrawal-confirm-btn" data-unban-temp="' + esc(b.id) + '" style="background:var(--red);color:#fff">Remove 72-hour block</button>' +
+        '<button type="button" class="withdrawal-confirm-btn" data-bl="' + esc(b.id) + '">Blacklist device</button>' +
+      '</div>') +
   '</div>';
 }
 
@@ -2054,6 +2057,24 @@ function renderDeviceBans(list){
         loadDeviceBans();
       } catch (err) {
         showToast(err.message || 'Could not blacklist that device.');
+        btn.disabled = false;
+      }
+    });
+  });
+  deviceBansList.querySelectorAll('[data-unban-temp]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const confirmed = await askConfirm(
+        'Remove 72-hour device block?',
+        'This will clear the active 72-hour device and network suspension and allow this device back into the account. The site-wide blacklist, if any, is managed separately.'
+      );
+      if (!confirmed) return;
+      btn.disabled = true;
+      try {
+        await postJSON('/api/admin/device-bans/' + encodeURIComponent(btn.getAttribute('data-unban-temp')) + '/remove', {});
+        showToast('72-hour device block removed.');
+        loadDeviceBans();
+      } catch (err) {
+        showToast(err.message || 'Could not remove the device block.');
         btn.disabled = false;
       }
     });

@@ -111,6 +111,32 @@ export function isBlocked(req) {
   return !!(specific && (byFp.get(fp) || 0) > now);
 }
 
+export async function removeInspectBlock(identity = {}) {
+  const ip = String(identity.ip || "");
+  const deviceId = String(identity.deviceId || "");
+  const fp = String(identity.fp || "");
+  if (ip) byIp.delete(ip);
+  if (deviceId) byDevice.delete(deviceId);
+  if (fp) byFp.delete(fp);
+
+  const queries = [];
+  if (ip) queries.push(db.collection(COLLECTION).where("ip", "==", ip).get());
+  if (deviceId) queries.push(db.collection(COLLECTION).where("deviceId", "==", deviceId).get());
+  if (fp) queries.push(db.collection(COLLECTION).where("fp", "==", fp).get());
+  const snaps = await Promise.all(queries);
+  const refs = new Map();
+  snaps.forEach((snap) => snap.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    const sameDevice = (deviceId && data.deviceId === deviceId) || (fp && data.fp === fp) || (!deviceId && !fp && ip && data.ip === ip);
+    if (sameDevice && (!ip || data.ip === ip)) refs.set(doc.id, doc.ref);
+  }));
+  if (refs.size) {
+    const batch = db.batch();
+    refs.forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+}
+
 function suspendedHtml() {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>ES TEAMS TV</title>
 <style>body{background:#0A0A0F;color:#F3F3FA;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}
