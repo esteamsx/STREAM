@@ -144,7 +144,7 @@ deviceBansRouter.get("/api/admin/device-bans", requireAuth, requireAdmin, async 
           id: b.id, uid: b.uid, username: u.username || "", email: u.email || "",
           name: b.name, model: b.model, browser: b.browser, os: b.os, ip: b.ip,
           createdAt: b.createdAt, updatedAt: b.updatedAt, expiresAt: b.expiresAt,
-          strikes: b.strikes || 0, state: banState(b, now),
+          strikes: b.strikes || 0, state: banState(b, now), source: b.source || "",
           blacklistId: bl ? bl.id : null,
         };
       }),

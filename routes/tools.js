@@ -1,4 +1,5 @@
 import express from "express";
+import { isOwnSiteUrl, flagWebsiteInspect } from "../services/inspect-guard.js";
 import dns from "node:dns/promises";
 import tls from "node:tls";
 import net from "node:net";
@@ -2267,7 +2268,13 @@ router.post("/api/tools/favicon-gate", optionalAuth, toolGate("favicon"), async 
 router.post("/api/tools/meme-text-gate", optionalAuth, toolGate("meme-text"), async (req, res) => { res.json({ ok: true }); });
 router.post("/api/tools/signature-gate", optionalAuth, toolGate("signature"), async (req, res) => { res.json({ ok: true }); });
 router.post("/api/tools/colorblind-gate", optionalAuth, toolGate("colorblind"), async (req, res) => { res.json({ ok: true }); });
-router.post("/api/tools/api-tester-gate", optionalAuth, toolGate("api-tester"), async (req, res) => { res.json({ ok: true }); });
+router.post("/api/tools/api-tester-gate", optionalAuth, toolGate("api-tester"), async (req, res) => {
+  if (isOwnSiteUrl(req.body && req.body.url, req)) {
+    await flagWebsiteInspect(req, { url: req.body.url }).catch(() => {});
+    return res.status(403).json({ error: "Access suspended for 72 hours.", code: "inspect/suspended" });
+  }
+  res.json({ ok: true });
+});
 router.post("/api/tools/ws-tester-gate", optionalAuth, toolGate("ws-tester"), async (req, res) => { res.json({ ok: true }); });
 router.post("/api/tools/file-detect-gate", optionalAuth, toolGate("file-detect"), async (req, res) => { res.json({ ok: true }); });
 router.post("/api/tools/speech-gate", optionalAuth, toolGate("speech"), async (req, res) => { res.json({ ok: true }); });

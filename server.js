@@ -33,6 +33,7 @@ import { verifyCoinLedgerChain } from "./services/coin-ledger.js";
 import { pageLockGate } from "./middleware/page-lock.js";
 import { discoverLockablePages } from "./services/page-discovery.js";
 import { scrapeGate } from "./middleware/scrape-gate.js";
+import { saveThemePreference } from "./services/theme-preference.js";
 import { apiRouter } from "./routes/api.js";
 import { devApiRouter } from "./routes/dev-api.js";
 import { renderDeployBot } from "./views/deploy-bot.js";
@@ -322,6 +323,10 @@ import {
   adminListWithdrawalRequests,
   adminConfirmWithdrawalPaid,
   logChannelReactUse,
+  logChannelJob,
+  releaseDailyLimit,
+  tempBanUser,
+  liftExpiredTempBans,
   getChannelReactHistory,
   adminListChannelReactLog,
   adminMarkChannelReactResent,
@@ -340,11 +345,13 @@ import { visitorSupportRouter } from "./routes/visitor-support.js";
 import { createGiveawayRouter } from "./routes/giveaway.js";
 import { registerChessRoutes } from "./routes/chess.js";
 import { registerLudoRoutes } from "./routes/ludo.js";
+import { registerChannelRoutes } from "./routes/channel-tools.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
 import { deviceBansRouter, enforceLoginDevice } from "./routes/device-bans.js";
 import { adminFacesRouter } from "./routes/admin-faces.js";
 import { blacklistMiddleware } from "./services/device-bans.js";
+import { initInspectGuard, inspectBlockGuard, inspectPageFetchGuard } from "./services/inspect-guard.js";
 import { vpnGuard } from "./services/vpn-guard.js";
 import { clientIp } from "./services/client-ip.js";
 import { db, auth as firebaseAuth } from "./config/firebase.js";
@@ -666,6 +673,8 @@ app.use((req, res, next) => {
 app.use(cookieParser());
 app.use(visitorSupportRouter);
 app.use(blacklistMiddleware);
+app.use(inspectBlockGuard);        // 72 hour block for anyone caught inspecting the website
+app.use(inspectPageFetchGuard);
 app.use(trackPageView);
 
 const REFERRAL_CODE_RE = /^[A-Z0-9]{4,16}$/;
@@ -2895,36 +2904,13 @@ async function submitChannelReactRequest(req, link) {
   return { charged, coinBalance: Number(after?.coinBalance || 0) };
 }
 
-app.post("/api/channel/react", requireAuth, requireSiteOrigin, channelReactLimiter, async (req, res) => {
-  let charged = 0;
-  try {
-    if (!(await verifyCaptcha(req.body?.altcha))) {
-      return res.status(400).json({ error: "Captcha not completed." });
-    }
-
-    const raw = String(req.body?.link || "").trim();
-    if (!/^https:\/\/(?:www\.)?whatsapp\.com\/channel\//i.test(raw)) {
-      return res.status(400).json({ error: "The link must start with https://whatsapp.com/channel/" });
-    }
-    const link = normalizeChannelLink(raw);
-    if (!link || !/\/\d{1,12}$/.test(link)) {
-      return res.status(400).json({ error: "That link is missing the post number at the end, like /5749." });
-    }
-
-    const result = await submitChannelReactRequest(req, link);
-    charged = result.charged;
-    res.json({
-      ok: true,
-      message: "Reaction request queued. It's usually confirmed within a few hours, and up to 6.",
-      charged: result.charged,
-      coinBalance: result.coinBalance,
-    });
-  } catch (err) {
-    if (charged) await refundCoins(req.uid, charged).catch(() => {});
-    console.error(`channel-react failed for ${req.uid}: ${err && err.stack ? err.stack : err}`);
-    res.status(err.status || 500).json({ error: err.message || "Server error." });
-  }
+const channelToolsRouter = express.Router();
+registerChannelRoutes(channelToolsRouter, {
+  requireAuth, requireSiteOrigin, SimpleRateLimiter, verifyCaptcha, spendCoins, refundCoins, addNotification,
+  notifyAdminOfCoinSpend, checkAndIncrementDailyLimit, releaseDailyLimit, logChannelJob, getUserProfile, getAdminUid,
+  isAdminEmail, isVerificationActive, reactPrice: CHANNEL_REACT_COIN_COST,
 });
+app.use(channelToolsRouter);
 
 app.get("/api/channel-react/history", requireAuth, botStatusLimiter, async (req, res) => {
   try {
@@ -2932,30 +2918,6 @@ app.get("/api/channel-react/history", requireAuth, botStatusLimiter, async (req,
   } catch (err) {
     console.error(`channel-react history failed for ${req.uid}: ${err && err.stack ? err.stack : err}`);
     res.status(500).json({ error: "Could not load your reaction history." });
-  }
-});
-
-app.post("/api/channel-react/:id/resend", requireAuth, requireSiteOrigin, channelReactLimiter, async (req, res) => {
-  let charged = 0;
-  try {
-    const history = await getChannelReactHistory(req.uid);
-    const entry = history.find((e) => e.id === req.params.id);
-    if (!entry) return res.status(404).json({ error: "That reaction request was not found." });
-    if (entry.status === "pending") {
-      return res.status(409).json({ error: "That request is still pending. Wait for it to be confirmed or for it to expire before resending." });
-    }
-
-    const result = await submitChannelReactRequest(req, entry.link);
-    charged = result.charged;
-    res.json({
-      ok: true,
-      message: "Reaction request queued. It's usually confirmed within a few hours, and up to 6.",
-      charged: result.charged,
-      coinBalance: result.coinBalance,
-    });
-  } catch (err) {
-    if (charged) await refundCoins(req.uid, charged).catch(() => {});
-    res.status(err.status || 500).json({ error: err.message || "Could not resend that reaction." });
   }
 });
 
@@ -3578,6 +3540,17 @@ app.get("/api/ads/eligibility", async (req, res) => {
     return res.json({ status: verified ? "verified" : "unverified" });
   } catch (err) {
     return res.status(503).json({ status: "unknown" });
+  }
+});
+
+app.post("/api/theme", requireAuth, async (req, res) => {
+  try {
+    const saved = await saveThemePreference(req.uid, req.body, { getUserProfile, updateUserProfile, isVerificationActive, isAdminEmail });
+    res.json({ ok: true, ...saved });
+  } catch (err) {
+    if (err && err.status) return res.status(err.status).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: "Could not save theme." });
   }
 });
 
@@ -4670,6 +4643,7 @@ discoverLockablePages(app, LOCKABLE_PAGES);
 const server = app.listen(PORT, function () {
   console.log("ES TEAMS TV running on port " + PORT);
   initFakeCoins({ addNotification, getAdminUid, invalidateUserProfileCache, isAdminEmail });
+  initInspectGuard({ addNotification, getAdminUid, getUserProfile, isAdminEmail, sendPushToUid, tempBanUser, liftExpiredTempBans });
   startFakeCoinSchedule();
 });
 

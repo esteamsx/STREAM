@@ -97,6 +97,22 @@ input{font-family:inherit}
 @keyframes coinBump{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
 .cr-build{font-family:var(--font-mono);font-size:.62rem;color:var(--muted2);letter-spacing:.04em}
 
+.cr-tabs{display:flex;gap:6px;padding:4px;border-radius:14px;background:var(--card2);border:1px solid var(--border);margin-bottom:14px}
+.cr-tab{flex:1;padding:10px 8px;border-radius:11px;border:none;background:transparent;color:var(--muted);font-weight:700;font-size:.84rem;font-family:var(--font-display);transition:background .2s var(--ease),color .2s var(--ease)}
+.cr-tab.on{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a}
+.cr-prev{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;background:var(--card2);border:1px solid var(--border);margin-top:12px}
+.cr-prev img{width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--card)}
+.cr-prev b{display:block;font-family:var(--font-display);font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cr-prev small{display:block;color:var(--muted);font-size:.74rem;margin-top:2px}
+.cr-emojis{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.cr-emoji{width:46px;height:46px;border-radius:13px;border:1px solid var(--border-strong);background:var(--card2);font-size:1.4rem;line-height:1;display:flex;align-items:center;justify-content:center;transition:transform .15s var(--ease),border-color .2s var(--ease),background .2s var(--ease)}
+.cr-emoji:active{transform:scale(.92)}
+.cr-emoji.on{border-color:var(--accent);background:rgba(0,224,255,.14);box-shadow:0 0 0 2px rgba(0,224,255,.22)}
+.cr-pollq{font-family:var(--font-display);font-weight:700;font-size:.92rem;margin:10px 0 8px;line-height:1.4;word-break:break-word}
+.cr-options{display:flex;flex-direction:column;gap:8px}
+.cr-option{text-align:left;padding:12px 14px;border-radius:13px;border:1px solid var(--border-strong);background:var(--card2);color:var(--text);font-size:.86rem;font-weight:600;word-break:break-word;transition:border-color .2s var(--ease),background .2s var(--ease)}
+.cr-option.on{border-color:var(--accent);background:rgba(0,224,255,.12)}
+.cr-hint2{font-size:.76rem;color:var(--muted);margin-top:6px;line-height:1.5}
 .cr-wrap{position:relative;z-index:1;max-width:660px;margin:0 auto;padding:22px 18px 60px;display:flex;flex-direction:column;gap:16px}
 
 .cr-card{
@@ -256,7 +272,7 @@ altcha-widget{--altcha-max-width:100%}
       </a>
     </div>
     <h1 class="cr-hero-title">WhatsApp Channel Reaction</h1>
-    <p class="cr-hero-sub">Drop a channel post link and reactions land on it in seconds. No app switching, no manual work.</p>
+    <p class="cr-hero-sub">Drop a channel post link and reactions or poll votes land on it in seconds. Nothing manual, nothing to wait for.</p>
   </div>
 
   <div id="crSkeleton" class="cr-card">
@@ -282,8 +298,12 @@ altcha-widget{--altcha-max-width:100%}
   </script>
 
   <div class="cr-card cr-hide" id="crMain">
-    <div class="cr-card-title">React to a channel post</div>
-    <div class="cr-card-sub">Paste a WhatsApp channel post link. Reactions are added manually and confirmed here, usually within a few hours.</div>
+    <div class="cr-tabs" id="crTabs">
+      <button type="button" class="cr-tab on" data-mode="react">Channel react</button>
+      <button type="button" class="cr-tab" data-mode="vote">Poll votes</button>
+    </div>
+    <div class="cr-card-title" id="crTitle">React to a channel post</div>
+    <div class="cr-card-sub" id="crSub">Paste a WhatsApp channel post link. Reactions are sent straight away.</div>
     <div class="cr-quota" id="quotaNote"></div>
 
     <div id="flowBox" class="cr-flow cr-hide">
@@ -293,24 +313,44 @@ altcha-widget{--altcha-max-width:100%}
     <form id="reactForm">
       <div class="cr-field">
         <label class="cr-label" for="channelLink">Channel post link</label>
-        <input class="cr-input" id="channelLink" placeholder="https://whatsapp.com/channel/..." autocomplete="off" spellcheck="false">
+        <input class="cr-input" id="channelLink" placeholder="https://whatsapp.com/channel/.../123" autocomplete="off" spellcheck="false" inputmode="url">
       </div>
+      <div class="cr-prev cr-hide" id="crPrev">
+        <img id="crPrevImg" alt="" referrerpolicy="no-referrer">
+        <div><b id="crPrevName"></b><small id="crPrevPost"></small></div>
+      </div>
+
+      <div id="reactBox" class="cr-field" style="margin-top:14px">
+        <label class="cr-label">Emojis (pick up to 5, or leave empty for random)</label>
+        <div class="cr-emojis" id="crEmojis"><button type="button" class="cr-emoji" data-emoji="❤️" aria-label="❤️">❤️</button><button type="button" class="cr-emoji" data-emoji="👍" aria-label="👍">👍</button><button type="button" class="cr-emoji" data-emoji="😂" aria-label="😂">😂</button><button type="button" class="cr-emoji" data-emoji="😮" aria-label="😮">😮</button><button type="button" class="cr-emoji" data-emoji="😢" aria-label="😢">😢</button><button type="button" class="cr-emoji" data-emoji="🙏" aria-label="🙏">🙏</button><button type="button" class="cr-emoji" data-emoji="🔥" aria-label="🔥">🔥</button><button type="button" class="cr-emoji" data-emoji="🎉" aria-label="🎉">🎉</button><button type="button" class="cr-emoji" data-emoji="💯" aria-label="💯">💯</button><button type="button" class="cr-emoji" data-emoji="👏" aria-label="👏">👏</button><button type="button" class="cr-emoji" data-emoji="😍" aria-label="😍">😍</button><button type="button" class="cr-emoji" data-emoji="🤔" aria-label="🤔">🤔</button></div>
+      </div>
+
+      <div id="pollBox" class="cr-field cr-hide" style="margin-top:14px">
+        <label class="cr-label">Poll</label>
+        <div class="cr-pollq" id="crPollQ"></div>
+        <div class="cr-options" id="crOptions"></div>
+        <div class="cr-hint2" id="crPollHint">Paste a poll post link to see its options.</div>
+      </div>
+
+      <div class="cr-field" style="margin-top:14px">
+        <label class="cr-label" for="crAmount">Amount <span style="font-weight:500;color:var(--muted)">(optional, empty = as many as possible)</span></label>
+        <input class="cr-input" id="crAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="Leave empty for the maximum">
+      </div>
+
       <div class="altcha-row"><altcha-widget id="crAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>
       <div class="cr-hint cr-block cr-hide" id="blockNote"></div>
       <button class="cr-btn" id="sendBtn" type="submit">
         <span class="cr-spin cr-hide" id="sendSpin"></span>
         <svg id="sendIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-        <span id="sendLabel">Send reaction</span>
+        <span id="sendLabel">Send reactions</span>
       </button>
     </form>
     <div class="cr-msg" id="msg"></div>
-    <div class="cr-diag cr-hide" id="diagBox"></div>
-    <div class="cr-cmd cr-hide" id="cmdBox"></div>
   </div>
 
   <div class="cr-card" id="crHistoryCard">
     <div class="cr-card-title">History</div>
-    <div class="cr-card-sub">Your last 5 requests. Each can take up to 6 hours to be confirmed.</div>
+    <div class="cr-card-sub">Your last 5 requests.</div>
     <div class="cr-history-list" id="crHistoryList"></div>
   </div>
 
@@ -321,45 +361,37 @@ altcha-widget{--altcha-max-width:100%}
     </div>
     <div class="cr-step">
       <span class="cr-step-n">2</span>
-      <div><b>Paste it above</b><span>The link ends with the post number, like /5749.</span></div>
+      <div><b>Paste it above</b><span>The link ends with the post number, like /5749. For polls, pick the option you want.</span></div>
     </div>
     <div class="cr-step">
       <span class="cr-step-n">3</span>
-      <div><b>Send</b><span>Your request goes to a queue and is reacted to manually, then confirmed here.</span></div>
+      <div><b>Send</b><span>It is sent automatically and you see the result right here.</span></div>
     </div>
   </div>
 
   <div class="cr-card">
     <div class="cr-card-title">Before you send</div>
     <ul class="cr-rules">
-      <li><a href="/account#rewards">5 coins</a> are deducted from your balance when you submit a request.</li>
-      <li>Free accounts get <b>3 reactions a day</b>. Verified accounts get unlimited reactions, still at 5 coins each.</li>
-      <li>Requests are usually confirmed within a few hours, and take up to 6 hours at most.</li>
+      <li><a href="/account#rewards" id="ruleCost">Coins</a> are deducted from your balance when you send, and returned if it could not be done.</li>
+      <li>Free accounts get <b>3 uses a day</b>. Verified accounts get unlimited uses.</li>
       <li>The link must be a channel <b>post</b> link, ending with the post number.</li>
+      <li>Reactions and votes are sent automatically. Some may take a moment to arrive.</li>
     </ul>
   </div>
-
-  <div class="cr-foot">Reactions are reviewed and confirmed manually.</div>
 
 </div>
 
 <script nonce="__CSP_NONCE__">
-  const STATUS_LABELS = {
-    downloading: 'Downloading', extracting: 'Extracting', starting: 'Starting', installing: 'Installing',
-    pairing: 'Awaiting pairing', connected: 'Connected', reconnecting: 'Reconnecting', stopped: 'Stopped',
-    crashed: 'Crashed', needs_repair: 'Needs re-pair', disconnected: 'Disconnected', unknown: 'Unknown',
-  };
-  const LINK_RE = /^https:\\/\\/(?:www\\.)?whatsapp\\.com\\/channel\\/[A-Za-z0-9_-]{8,64}(?:\\/\\d{1,12})?$/;
+  const LINK_RE = /^https:[/][/](www[.])?whatsapp[.]com[/]channel[/][A-Za-z0-9]{10,40}[/][0-9]{1,12}[/]?([?].*)?$/;
+  const DEFAULT_IMG = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="24" fill="#12C48B"/><path d="M24 11a13 13 0 00-11.2 19.6L11 37l6.6-1.7A13 13 0 1024 11z" fill="none" stroke="#fff" stroke-width="2.6" stroke-linejoin="round"/></svg>');
 
   const linkInput = document.getElementById('channelLink');
   const sendBtn = document.getElementById('sendBtn');
   const sendLabel = document.getElementById('sendLabel');
   const msg = document.getElementById('msg');
-  const cmdBox = document.getElementById('cmdBox');
   const flowBox = document.getElementById('flowBox');
   const flowText = document.getElementById('flowText');
   const quotaNote = document.getElementById('quotaNote');
-  const diagBox = document.getElementById('diagBox');
   const blockNote = document.getElementById('blockNote');
   const crSkeleton = document.getElementById('crSkeleton');
   const crMain = document.getElementById('crMain');
@@ -367,6 +399,16 @@ altcha-widget{--altcha-max-width:100%}
   const sendIcon = document.getElementById('sendIcon');
   const coinChip = document.getElementById('coinChip');
   const coinValue = document.getElementById('coinValue');
+  const crPrev = document.getElementById('crPrev');
+  const crPrevImg = document.getElementById('crPrevImg');
+  const crPrevName = document.getElementById('crPrevName');
+  const crPrevPost = document.getElementById('crPrevPost');
+  const reactBox = document.getElementById('reactBox');
+  const pollBox = document.getElementById('pollBox');
+  const crPollQ = document.getElementById('crPollQ');
+  const crOptions = document.getElementById('crOptions');
+  const crPollHint = document.getElementById('crPollHint');
+  const crAmount = document.getElementById('crAmount');
 
   function setCoins(value, bump){
     if (typeof value !== 'number' || !isFinite(value)) return;
@@ -387,7 +429,7 @@ altcha-widget{--altcha-max-width:100%}
     syncButton();
   });
 
-  let state = { ready: false, free: false, loaded: false, sending: false };
+  let state = { ready: false, free: false, loaded: false, sending: false, mode: 'react', config: null, option: null, pollOk: false, emojis: [] };
 
   document.getElementById('crBackBtn').addEventListener('click', function(){
     if (window.history.length > 1) window.history.back();
@@ -397,13 +439,13 @@ altcha-widget{--altcha-max-width:100%}
   function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
   async function getJSON(url){
-    const r = await fetch(url);
+    const r = await fetch(url, { credentials: 'same-origin' });
     const d = await r.json().catch(function(){ return {}; });
     if(!r.ok) throw new Error(d.error || 'Request failed');
     return d;
   }
   async function postJSON(url, body){
-    const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body || {}) });
+    const r = await fetch(url, { method:'POST', credentials: 'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body || {}) });
     const d = await r.json().catch(function(){ return {}; });
     if(!r.ok) throw new Error(d.error || 'Request failed');
     return d;
@@ -416,23 +458,49 @@ altcha-widget{--altcha-max-width:100%}
 
   function blockedReason(){
     if(!state.loaded) return 'Checking availability\u2026';
-    if(!state.ready) return 'The reaction service is not available right now.';
+    if(!state.ready) return 'This service is not available right now.';
+    if(state.mode === 'vote' && !state.pollOk) return 'Paste a poll post link and pick an option.';
     if(!altchaPassed) return 'Complete the verification above first.';
     return '';
   }
 
   function syncButton(){
-    sendBtn.disabled = state.sending || !state.ready || !altchaPassed;
-    const why = state.sending ? '' : blockedReason();
+    const voteReady = state.mode !== 'vote' || (state.pollOk && state.option !== null);
+    sendBtn.disabled = state.sending || !state.ready || !altchaPassed || !voteReady;
+    const why = state.sending ? '' : (state.mode === 'vote' && state.pollOk && state.option === null ? 'Pick an option to vote for.' : blockedReason());
     blockNote.textContent = why;
     blockNote.className = why ? 'cr-hint cr-block' : 'cr-hint cr-block cr-hide';
   }
 
+  function costFor(mode){
+    const c = state.config || {};
+    return mode === 'vote' ? (c.voteCost || 5) : (c.reactCost || 5);
+  }
 
+  function paintMode(){
+    const vote = state.mode === 'vote';
+    document.querySelectorAll('.cr-tab').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-mode') === state.mode); });
+    reactBox.classList.toggle('cr-hide', vote);
+    pollBox.classList.toggle('cr-hide', !vote);
+    document.getElementById('crTitle').textContent = vote ? 'Vote on a channel poll' : 'React to a channel post';
+    document.getElementById('crSub').textContent = vote
+      ? 'Paste a WhatsApp channel poll link, pick an option, and the votes are sent straight away.'
+      : 'Paste a WhatsApp channel post link. Reactions are sent straight away.';
+    sendLabel.textContent = vote ? 'Send votes' : 'Send reactions';
+    const c = state.config;
+    if (c) {
+      flowText.textContent = c.free
+        ? 'Admin access, no coins and no daily limit'
+        : costFor(state.mode) + ' coins per ' + (vote ? 'vote request' : 'reaction request') + (c.unlimited ? ', unlimited uses' : ', ' + (c.dailyLimit || 3) + ' a day');
+      document.getElementById('ruleCost').textContent = costFor(state.mode) + ' coins';
+    }
+    syncButton();
+  }
 
   async function loadStatus(){
     try {
-      const data = await getJSON('/api/channel/targets');
+      const data = await getJSON('/api/wa/config');
+      state.config = data;
       state.ready = !!data.ready;
       state.free = !!data.free;
       state.loaded = true;
@@ -440,14 +508,8 @@ altcha-widget{--altcha-max-width:100%}
       crSkeleton.classList.add('cr-hide');
       crMain.classList.remove('cr-hide');
       flowBox.classList.remove('cr-hide');
-      flowText.innerHTML = data.free
-        ? 'Admin access, no coins and no daily limit'
-        : (data.coinCost || 5) + ' coins per reaction' +
-          (data.unlimited ? ', unlimited uses' : ', ' + (data.dailyLimit || 3) + ' a day');
-      quotaNote.innerHTML = data.unlimited || data.free
-        ? ''
-        : '<a href="/verify">Get verified</a> for unlimited uses.';
-      syncButton();
+      quotaNote.innerHTML = data.unlimited || data.free ? '' : '<a href="/verify">Get verified</a> for unlimited uses.';
+      paintMode();
     } catch (err) {
       state.loaded = true;
       state.ready = false;
@@ -457,10 +519,84 @@ altcha-widget{--altcha-max-width:100%}
     }
   }
 
+  document.querySelectorAll('.cr-tab').forEach(function(t){
+    t.addEventListener('click', function(){
+      state.mode = t.getAttribute('data-mode');
+      setMsg('');
+      paintMode();
+      if (state.mode === 'vote' && LINK_RE.test(linkInput.value.trim())) loadPoll(linkInput.value.trim());
+    });
+  });
+
+  document.querySelectorAll('.cr-emoji').forEach(function(b){
+    b.addEventListener('click', function(){
+      const e = b.getAttribute('data-emoji');
+      const at = state.emojis.indexOf(e);
+      if (at >= 0) state.emojis.splice(at, 1);
+      else if (state.emojis.length < 5) state.emojis.push(e);
+      else { setMsg('You can pick up to 5 emojis.', 'err'); return; }
+      setMsg('');
+      b.classList.toggle('on', state.emojis.indexOf(e) >= 0);
+    });
+  });
+
+  /* ---- the channel's name and picture ---- */
+  let previewTimer = null;
+  let previewSeq = 0;
+  async function loadPreview(){
+    const link = linkInput.value.trim();
+    const my = ++previewSeq;
+    crPrev.classList.add('cr-hide');
+    state.option = null; state.pollOk = false;
+    crOptions.innerHTML = ''; crPollQ.textContent = '';
+    crPollHint.textContent = 'Paste a poll post link to see its options.';
+    syncButton();
+    if (!LINK_RE.test(link)) return;
+    try {
+      const p = await getJSON('/api/wa/preview?link=' + encodeURIComponent(link));
+      if (my !== previewSeq) return;
+      crPrevImg.onerror = function(){ crPrevImg.onerror = null; crPrevImg.src = DEFAULT_IMG; };
+      crPrevImg.src = p.image || DEFAULT_IMG;
+      crPrevName.textContent = p.name || 'WhatsApp Channel';
+      crPrevPost.textContent = 'Post #' + p.postId;
+      crPrev.classList.remove('cr-hide');
+    } catch (err) { /* the page works fine without a preview */ }
+    if (state.mode === 'vote') loadPoll(link);
+  }
+
+  async function loadPoll(link){
+    const my = previewSeq;
+    crPollHint.textContent = 'Loading the poll\u2026';
+    try {
+      const p = await postJSON('/api/wa/poll-info', { link: link });
+      if (my !== previewSeq) return;
+      crPollQ.textContent = p.question || '';
+      crOptions.innerHTML = '';
+      (p.options || []).forEach(function(o){
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'cr-option'; b.textContent = o.text;
+        b.addEventListener('click', function(){
+          state.option = o.index;
+          Array.prototype.forEach.call(crOptions.children, function(c){ c.classList.remove('on'); });
+          b.classList.add('on');
+          syncButton();
+        });
+        crOptions.appendChild(b);
+      });
+      state.pollOk = true;
+      crPollHint.textContent = 'Pick the option you want to vote for.';
+    } catch (err) {
+      if (my !== previewSeq) return;
+      state.pollOk = false;
+      crPollHint.textContent = err.message || 'Could not read that poll.';
+    }
+    syncButton();
+  }
 
   linkInput.addEventListener('input', function(){
     setMsg('');
-    cmdBox.classList.add('cr-hide');
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(loadPreview, 450);
   });
 
   document.getElementById('reactForm').addEventListener('submit', async function(e){
@@ -469,7 +605,7 @@ altcha-widget{--altcha-max-width:100%}
 
     const link = linkInput.value.trim();
     if(!link){ setMsg('Paste a channel post link first.', 'err'); return; }
-    if(!/^https:\\/\\/(www\\.)?whatsapp\\.com\\/channel\\//i.test(link)){
+    if(!/^https:[/][/](www[.])?whatsapp[.]com[/]channel[/]/i.test(link)){
       setMsg('The link must start with https://whatsapp.com/channel/', 'err');
       return;
     }
@@ -479,28 +615,35 @@ altcha-widget{--altcha-max-width:100%}
     }
     const blocked = blockedReason();
     if(blocked){ setMsg(blocked, 'err'); return; }
+    const amountRaw = crAmount.value.trim();
+    const amount = amountRaw ? Number(amountRaw) : undefined;
+    if (amountRaw && (!isFinite(amount) || amount < 1 || Math.floor(amount) !== amount)) { setMsg('Amount must be a whole number, or leave it empty.', 'err'); return; }
 
+    const vote = state.mode === 'vote';
     state.sending = true;
     syncButton();
-    sendLabel.textContent = 'Sending…';
+    sendLabel.textContent = 'Sending\u2026';
     sendSpin.classList.remove('cr-hide');
     sendIcon.classList.add('cr-hide');
     setMsg('');
-    cmdBox.classList.add('cr-hide');
     try {
-      const body = { link: link, altcha: altchaValue };
-      const res = await postJSON('/api/channel/react', body);
-      setMsg(res.message || 'Reaction request queued.', 'ok');
+      const body = { link: link, altcha: altchaValue, amount: amount };
+      let res;
+      if (vote) { body.option = state.option; res = await postJSON('/api/wa/vote', body); }
+      else { body.emojis = state.emojis.slice(); res = await postJSON('/api/wa/react', body); }
+      const n = Number(res.sent || 0).toLocaleString();
+      setMsg(vote
+        ? n + ' vote' + (res.sent === 1 ? '' : 's') + ' sent' + (res.option ? ' for ' + res.option : '') + '.'
+        : n + ' reaction' + (res.sent === 1 ? '' : 's') + ' sent' + (res.processing ? '. Some are still arriving, it may take a moment.' : '.'), 'ok');
       setCoins(res.coinBalance, true);
       if (crAltcha.reset) crAltcha.reset();
       altchaPassed = false; altchaValue = '';
-      linkInput.value = '';
       loadHistory();
     } catch (err) {
-      setMsg(err.message || 'Could not send that command.', 'err');
+      setMsg(err.message || 'Could not send that.', 'err');
     } finally {
       state.sending = false;
-      sendLabel.textContent = 'Send reaction';
+      sendLabel.textContent = vote ? 'Send votes' : 'Send reactions';
       sendSpin.classList.add('cr-hide');
       sendIcon.classList.remove('cr-hide');
       syncButton();
@@ -508,7 +651,6 @@ altcha-widget{--altcha-max-width:100%}
   });
 
   const STATUS_TEXT = { pending: 'Pending', confirmed: 'Confirmed', declined: 'Declined', expired: 'Expired' };
-  const crHistoryCard = document.getElementById('crHistoryCard');
   const crHistoryList = document.getElementById('crHistoryList');
 
   function fmtHistoryTime(ts){
@@ -518,22 +660,26 @@ altcha-widget{--altcha-max-width:100%}
 
   function historyItemHtml(entry){
     const status = entry.status || 'pending';
-    const canResend = status !== 'pending';
+    const auto = !!entry.auto;
+    const label = auto ? 'Sent' : (STATUS_TEXT[status] || status);
+    const kind = entry.kind === 'vote' ? 'Poll vote' : 'Reaction';
+    const sent = auto && entry.sent ? ' | ' + Number(entry.sent).toLocaleString() + ' sent' : '';
     return '<div class="cr-history-item">' +
       '<div class="cr-history-head">' +
-        '<span class="cr-history-status ' + status + '">' + (STATUS_TEXT[status] || status) + '</span>' +
+        '<span class="cr-history-status ' + status + '">' + label + '</span>' +
+        '<span class="cr-history-time" style="margin-left:8px">' + escapeHtml(kind) + sent + '</span>' +
       '</div>' +
       '<div class="cr-history-link">' + escapeHtml(entry.link || '') + '</div>' +
       '<div class="cr-history-time">' + fmtHistoryTime(entry.createdAt) + '</div>' +
       '<div class="cr-history-actions">' +
         '<button type="button" class="cr-history-btn" data-copy-link="' + escapeHtml(entry.link || '') + '">Copy Link</button>' +
-        '<button type="button" class="cr-history-btn" data-resend-id="' + escapeHtml(entry.id) + '"' + (canResend ? '' : ' disabled') + '>Resend</button>' +
+        '<button type="button" class="cr-history-btn" data-again-link="' + escapeHtml(entry.link || '') + '" data-again-kind="' + (entry.kind === 'vote' ? 'vote' : 'react') + '">Use again</button>' +
       '</div>' +
     '</div>';
   }
 
   function renderHistory(list){
-    if(!list.length){ crHistoryList.innerHTML = '<div class="cr-history-empty">No requests yet. Your submitted links will show up here.</div>'; return; }
+    if(!list.length){ crHistoryList.innerHTML = '<div class="cr-history-empty">No requests yet. Your sent links will show up here.</div>'; return; }
     crHistoryList.innerHTML = list.map(historyItemHtml).join('');
     crHistoryList.querySelectorAll('[data-copy-link]').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -541,22 +687,13 @@ altcha-widget{--altcha-max-width:100%}
         navigator.clipboard.writeText(link).then(function(){ setMsg('Link copied.', 'ok'); }).catch(function(){ setMsg('Could not copy link.', 'err'); });
       });
     });
-    crHistoryList.querySelectorAll('[data-resend-id]').forEach(function(btn){
-      btn.addEventListener('click', async function(){
-        if (btn.disabled) return;
-        btn.disabled = true;
-        const original = btn.textContent;
-        btn.textContent = 'Resending\u2026';
-        try {
-          const res = await postJSON('/api/channel-react/' + encodeURIComponent(btn.getAttribute('data-resend-id')) + '/resend', {});
-          setMsg(res.message || 'Reaction request queued.', 'ok');
-          setCoins(res.coinBalance, true);
-          loadHistory();
-        } catch (err) {
-          setMsg(err.message || 'Could not resend that reaction.', 'err');
-          btn.disabled = false;
-          btn.textContent = original;
-        }
+    crHistoryList.querySelectorAll('[data-again-link]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        state.mode = btn.getAttribute('data-again-kind') === 'vote' ? 'vote' : 'react';
+        linkInput.value = btn.getAttribute('data-again-link');
+        paintMode();
+        loadPreview();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
   }

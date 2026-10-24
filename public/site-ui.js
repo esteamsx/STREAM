@@ -931,6 +931,7 @@ function esThemeToggle() {
   document.documentElement.setAttribute("data-theme", next);
   const meta = document.getElementById("themeColorMeta");
   if (meta) meta.setAttribute("content", next === "light" ? "#F5F6FA" : "#0A0A0F");
+  try { if (window.EsTheme) window.EsTheme.saveMode(next); } catch (e) {}
 }
 
 function esOpenOverlay(id) {
@@ -1151,7 +1152,7 @@ function esLoadMe() {
     if (!r.ok) throw new Error("guest");
     return r.json();
   }).then((p) => {
-    esState.me = { uid: p.uid, username: p.username || "", firstName: p.firstName || "", lastName: p.lastName || "", photoURL: p.showProfilePhoto === false ? null : (p.photoURL || null), isAdmin: !!p.isAdmin, verified: !!p.verified };
+    esState.me = { uid: p.uid, username: p.username || "", firstName: p.firstName || "", lastName: p.lastName || "", photoURL: p.showProfilePhoto === false ? null : (p.photoURL || null), isAdmin: !!p.isAdmin, verified: !!p.verified, themeAccent: p.themeAccent || null, themeMode: p.themeMode || null };
     try { sessionStorage.setItem("es_me", JSON.stringify(esState.me)); } catch (e) {}
     return esState.me;
   });

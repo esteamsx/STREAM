@@ -95,6 +95,7 @@
     document.documentElement.setAttribute("data-theme", next);
     var meta = document.getElementById("themeColorMeta");
     if (meta) meta.setAttribute("content", next === "light" ? "#F5F6FA" : "#0A0A0F");
+    try { if (window.EsTheme) window.EsTheme.saveMode(next); } catch (e) {}
   }
 
   function fillMe() {
@@ -133,6 +134,7 @@
         verified: !!p.verified
       };
       if (window.EsPosts && window.EsPosts.setViewer) window.EsPosts.setViewer(p);
+      try { if (window.EsTheme) window.EsTheme.sync(p); } catch (e) {}
       fillMe();
     }).catch(function () {});
   }

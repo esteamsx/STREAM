@@ -1,10 +1,13 @@
-/* Personal site themes. Only verified members can pick one, and it only changes how the site looks
-   on their own device: the choice is kept in this browser, never sent to anyone else.
+/* Personal site themes. Only verified members can pick one. The choice is saved on the member's own account,
+   so it survives logging out, refreshing and signing in on another device, and it only changes how the site
+   looks for that member. A member who has never chosen gets the default.
    This file runs in the page head so the colours are in place before anything paints. */
 (function () {
   "use strict";
   if (window.EsTheme) return;
   var KEY = "es_theme";
+  var MODE_KEY = "theme";
+  var OWNER_KEY = "es_theme_owner";
   var STYLE_ID = "esThemeStyle";
 
   var THEMES = [
@@ -54,18 +57,70 @@
   function get() {
     try { var v = localStorage.getItem(KEY); return find(v) ? v : "default"; } catch (e) { return "default"; }
   }
-  function set(id) {
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  var viewer = null;     // uid of the signed-in member once sync() has run; guests never call the server
+  var chosen = {};       // choices made on this page, newer than any profile copy sync() may be handed
+  var migrated = {};
+
+  function save(patch) {
+    if (!viewer) return;
+    for (var k in patch) chosen[k] = patch[k];
+    try {
+      fetch("/api/theme", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) })
+        .then(function (r) { if (!r.ok) console.warn("[theme] could not save your choice (" + r.status + ")"); })
+        .catch(function () { console.warn("[theme] could not save your choice"); });
+    } catch (e) {}
+  }
+  function setLocal(id) {
     var t = find(id) ? id : "default";
     try { if (t === "default") localStorage.removeItem(KEY); else localStorage.setItem(KEY, t); } catch (e) {}
     apply(t);
     return t;
   }
+  function set(id) {                       // the member picked a theme
+    var t = setLocal(id);
+    save({ accent: t });
+    return t;
+  }
+  function applyMode(mode) {
+    lsSet(MODE_KEY, mode);
+    document.documentElement.setAttribute("data-theme", mode);
+    var meta = document.getElementById("themeColorMeta");
+    if (meta) meta.setAttribute("content", mode === "light" ? "#F5F6FA" : "#0A0A0F");
+  }
+  function saveMode(mode) {                // the member switched light/dark (the page has already applied it)
+    if (mode === "light" || mode === "dark") save({ mode: mode });
+  }
   function sync(me) {
     if (!me) return;
     var ok = !!(me.verified || me.isAdmin);
-    if (!ok && get() !== "default") set("default");
+    if (!me.uid) { if (!ok && get() !== "default") setLocal("default"); return; }
+    viewer = me.uid;
+    var owner = lsGet(OWNER_KEY);
+    var mine = !owner || owner === viewer;
+    var localAccent = get();
+
+    var accent = chosen.accent !== undefined ? chosen.accent : me.themeAccent;
+    var want = "default";
+    if (ok) {
+      if (find(accent)) want = accent;
+      else if (mine && localAccent !== "default" && !migrated[viewer + ":a"]) { want = localAccent; migrated[viewer + ":a"] = 1; save({ accent: want }); }
+    }
+    if (localAccent !== want) setLocal(want);
+
+    var mode = chosen.mode !== undefined ? chosen.mode : me.themeMode;
+    if (mode === "light" || mode === "dark") {
+      if (document.documentElement.getAttribute("data-theme") !== mode || lsGet(MODE_KEY) !== mode) applyMode(mode);
+    } else if (mine) {
+      if (lsGet(MODE_KEY) === "light" && !migrated[viewer + ":m"]) { migrated[viewer + ":m"] = 1; save({ mode: "light" }); }
+    } else {
+      applyMode("dark");                   // this member has not chosen yet: safe default, never another member's choice
+    }
+    lsSet(OWNER_KEY, viewer);
   }
 
-  window.EsTheme = { themes: THEMES, apply: apply, get: get, set: set, sync: sync };
+  window.EsTheme = { themes: THEMES, apply: apply, get: get, set: set, sync: sync, saveMode: saveMode };
   apply(get());
 })();

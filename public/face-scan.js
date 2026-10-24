@@ -410,9 +410,6 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
   }
 
   let scanTimer = null;
-  if (abstractEl) {
-    scanTimer = setTimeout(() => { abstractEl.classList.add('scanning'); fsPlayMorph(abstractEl); }, 550);
-  }
 
   function setStatus(text) {
     statusEl.textContent = text;
@@ -472,6 +469,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
         }
         if (cancelled) return;
         video.play().catch(() => {});
+        if (abstractEl) abstractEl.classList.add('fs-live'); // show the live camera as soon as it is running, not after the models finish loading
         const videoReadyAt = Date.now();
 
         const faceapi = await modelsPromise;

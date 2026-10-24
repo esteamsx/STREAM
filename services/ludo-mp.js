@@ -88,6 +88,7 @@ export function createLudoHub({ chess, now = () => Date.now(), randomHex = (n) =
   const isGuestUid = (uid) => String(uid || "").startsWith("guest_");
   const emit = (uid, event, data) => chess.emit(uid, event, data);
   const isOnline = (uid) => chess.isOnline(uid);
+  const isPresent = (uid) => (chess.isPresent ? chess.isPresent(uid) : chess.isOnline(uid));   // includes a short gap while someone changes page
   const activeGameOf = (uid) => { const g = games.get(byUid.get(uid)); return g && g.status === "active" ? g : null; };
   const isBusy = (uid) => !!activeGameOf(uid);
   const fallbackProfile = (uid) => ({ uid, username: "", name: "Player", photo: null, verified: false, guest: isGuestUid(uid) });
@@ -289,7 +290,7 @@ export function createLudoHub({ chess, now = () => Date.now(), randomHex = (n) =
     size = [2, 3, 4].includes(Number(size)) ? Number(size) : 2;
     if (!isOnline(fromUid)) throw err("not_connected");
     if (fromUid === toUid) throw err("self");
-    if (!isOnline(toUid)) throw err("offline");
+    if (!isPresent(toUid)) throw err("offline");
     if (isBusy(fromUid)) throw err("busy");
     if (isBusy(toUid) || tableOf.has(toUid)) throw err("target_busy");
     const gap = size > 2 || tableOf.has(fromUid) ? TABLE_INVITE_GAP_MS : CHALLENGE_GAP_MS;

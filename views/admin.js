@@ -508,6 +508,29 @@ body:has(.ad-overlay.show){overflow:hidden}
 }
 .withdrawal-confirm-btn:disabled{opacity:.55}
 
+.cs-box{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card2);margin-bottom:12px}
+.cs-label{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cs-row{display:flex;align-items:center;gap:8px}
+.cs-input{flex:1;min-width:0;background:var(--card);border:1px solid var(--border-strong);border-radius:10px;padding:10px 12px;color:var(--text);font-size:.82rem;outline:none;font-family:var(--font-mono,inherit)}
+.cs-input:focus{border-color:var(--accent)}
+.cs-input[readonly]{opacity:.8}
+.cs-icon{width:34px;height:34px;flex-shrink:0;border-radius:10px;border:1px solid var(--border-strong);background:var(--card);color:var(--text);display:flex;align-items:center;justify-content:center}
+.cs-icon svg{width:16px;height:16px}
+.cs-icon.danger{color:var(--red)}
+.cs-icon.on{color:var(--accent);border-color:var(--accent)}
+.cs-btn{padding:9px 14px;border-radius:10px;border:none;font-weight:700;font-size:.78rem;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;display:inline-flex;align-items:center;gap:6px}
+.cs-btn.ghost{background:var(--card);border:1px solid var(--border-strong);color:var(--text)}
+.cs-btn:disabled{opacity:.55}
+.cs-token{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--card);margin-bottom:8px}
+.cs-token-head{display:flex;align-items:center;gap:8px}
+.cs-token-name{font-family:var(--font-display);font-weight:700;font-size:.84rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cs-chip{font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:999px;background:rgba(61,220,132,.14);color:#3DDC84}
+.cs-chip.off{background:rgba(255,255,255,.08);color:var(--muted)}
+.cs-chip.bad{background:rgba(255,59,92,.14);color:var(--red)}
+.cs-token-meta{font-size:.72rem;color:var(--muted);margin-top:6px;line-height:1.5}
+.cs-note{font-size:.72rem;color:var(--muted);line-height:1.5;margin-top:8px}
+.cs-note.warn{color:#FFC93C}
+.cs-edit{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .crlog-item{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card2)}
 .crlog-item-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px}
 .crlog-item-user{font-family:var(--font-display);font-weight:700;font-size:.86rem}
@@ -898,6 +921,36 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div>
     <div class="ad-card-body"><div class="ad-card-body-inner">
       <div class="bonus-list ad-scroll-list" id="crlogList"><div class="sk-stack"><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div></div></div>
+    </div></div>
+  </div>
+
+  <div class="ad-card accent-gold" id="csCard">
+    <div class="ad-card-header" id="csHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1"/><circle cx="12" cy="12" r="3.5"/></svg>
+      <div class="ad-card-header-title">Channel Service</div>
+      <div class="ad-card-count" id="csCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="cs-box">
+        <div class="cs-label"><span>Base URL</span></div>
+        <div class="cs-row">
+          <input type="text" class="cs-input" id="csBaseUrl" readonly placeholder="Not set yet" autocomplete="off" spellcheck="false">
+          <button type="button" class="cs-icon" id="csBaseEdit" aria-label="Edit base URL"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+          <button type="button" class="cs-icon on" id="csBaseSave" aria-label="Save base URL" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+        </div>
+        <div class="cs-note">Change this here if the provider's address ever changes. No redeploy needed.</div>
+      </div>
+      <div class="cs-box">
+        <div class="cs-label"><span>Tokens</span><span id="csTokenCount"></span></div>
+        <div id="csTokens"><div class="ad-empty">Loading...</div></div>
+        <div class="cs-edit" id="csAddForm">
+          <input type="text" class="cs-input" id="csAddLabel" placeholder="Name (optional)" maxlength="40" autocomplete="off">
+          <input type="password" class="cs-input" id="csAddToken" placeholder="Paste a token (ehk_...)" autocomplete="new-password" spellcheck="false">
+          <div class="cs-row"><button type="button" class="cs-btn" id="csAddBtn">Add token</button><button type="button" class="cs-btn ghost" id="csPoolBtn">Refresh pool</button><button type="button" class="cs-btn ghost" id="csClaimBtn">Claim now</button></div>
+        </div>
+        <div class="cs-note" id="csEncNote"></div>
+      </div>
     </div></div>
   </div>
 
@@ -1948,6 +2001,7 @@ function deviceBanItemHtml(b){
     '<div class="withdrawal-item-meta">' +
       '@' + esc(b.username || 'user') + (b.email ? ' &middot; ' + esc(b.email) : '') + '<br>' +
       esc([b.browser, b.os, b.ip].filter(Boolean).join(' · ')) + '<br>' +
+      (b.source === 'inspect' ? '<b style="color:var(--red)">Website inspect detected</b><br>' : '') +
       'Strikes: ' + esc(b.strikes) + ' &middot; ' + esc(when) +
     '</div>' +
     (b.blacklistId
@@ -2049,6 +2103,7 @@ function crlogItemHtml(entry){
       '<span class="status-pill ' + (status === 'confirmed' ? 'ok' : status === 'declined' ? 'bad' : 'warn') + '">' + (CRLOG_STATUS_TEXT[status] || status) + '</span>' +
     '</div>' +
     '<div class="crlog-item-link">' + esc(entry.link || '') + '<br>' + fmtCrlogTime(entry.createdAt) +
+      (entry.auto ? ' &middot; ' + (entry.kind === 'vote' ? 'Poll vote' : 'Reaction') + ' &middot; ' + Number(entry.sent || 0).toLocaleString() + ' sent' : '') +
       (entry.lastResendAt ? ' &middot; Last resent ' + fmtCrlogTime(entry.lastResendAt) : '') +
     '</div>' +
     '<div class="crlog-item-actions">' +
@@ -2117,6 +2172,160 @@ function loadCrlog(){
 document.getElementById('crlogHeader').addEventListener('click', () => {
   document.getElementById('crlogCard').classList.toggle('open');
 });
+
+/* ---- Channel Service: base URL and tokens live in the database, edited here ---- */
+const csBaseUrl = document.getElementById('csBaseUrl');
+const csBaseEdit = document.getElementById('csBaseEdit');
+const csBaseSave = document.getElementById('csBaseSave');
+const csTokens = document.getElementById('csTokens');
+let csData = { baseUrl: '', keys: [], encrypted: true };
+let csPool = {};
+let csBaseOriginal = '';
+
+const CS_PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>';
+const CS_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>';
+const CS_POWER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M6.4 6.6a8 8 0 1011.2 0"/></svg>';
+
+function csRender(){
+  csBaseUrl.value = csData.baseUrl || '';
+  const n = csData.keys.length;
+  const count = document.getElementById('csCount');
+  count.style.display = n ? '' : 'none';
+  count.textContent = String(n);
+  document.getElementById('csTokenCount').textContent = n ? n + ' saved' : '';
+  document.getElementById('csEncNote').className = 'cs-note' + (csData.encrypted ? '' : ' warn');
+  document.getElementById('csEncNote').textContent = csData.encrypted
+    ? 'Tokens are encrypted in the database and are never sent to any browser.'
+    : 'Tokens are stored without encryption. Set TRADING_VAULT_KEY (or CHANNEL_VAULT_KEY) on Railway once to encrypt them at rest.';
+  if (!n) { csTokens.innerHTML = '<div class="ad-empty">No tokens yet. Add one below.</div>'; return; }
+  csTokens.innerHTML = csData.keys.map((k) => {
+    const pl = csPool[k.id];
+    let chip = '<span class="cs-chip">Active</span>';
+    if (!k.enabled) chip = '<span class="cs-chip off">Off</span>';
+    else if (pl && pl.invalid) chip = '<span class="cs-chip bad">Rejected</span>';
+    const meta = pl && !pl.disabled && !pl.invalid
+      ? 'Coins ' + (pl.coins == null ? '-' : pl.coins) + ' | Free react ' + pl.reactFree + ' | Free votes ' + pl.voteFree + (pl.premium ? ' | Premium' : '')
+      : (pl && pl.invalid ? 'The provider rejected this token. Replace it.' : 'Token ' + esc(k.preview));
+    return '<div class="cs-token" data-id="' + esc(k.id) + '">' +
+      '<div class="cs-token-head"><div class="cs-token-name">' + esc(k.label) + '</div>' + chip +
+      '<button type="button" class="cs-icon" data-act="edit" aria-label="Edit token">' + CS_PENCIL + '</button>' +
+      '<button type="button" class="cs-icon' + (k.enabled ? ' on' : '') + '" data-act="toggle" aria-label="Turn on or off">' + CS_POWER + '</button>' +
+      '<button type="button" class="cs-icon danger" data-act="delete" aria-label="Delete token">' + CS_TRASH + '</button></div>' +
+      '<div class="cs-token-meta">' + esc(meta) + '</div>' +
+      '<div class="cs-edit" data-edit style="display:none"><input type="text" class="cs-input" data-f="label" value="' + esc(k.label) + '" maxlength="40" placeholder="Name">' +
+      '<input type="password" class="cs-input" data-f="token" placeholder="New token (leave empty to keep the current one)" autocomplete="new-password" spellcheck="false">' +
+      '<div class="cs-row"><button type="button" class="cs-btn" data-act="save">Save</button><button type="button" class="cs-btn ghost" data-act="cancel">Cancel</button></div></div></div>';
+  }).join('');
+}
+
+function csApply(data){
+  if (data && data.settings) { csData = data.settings; csRender(); }
+}
+async function csLoad(){
+  try { csApply(await getJSON('/api/wa/admin/settings')); }
+  catch (e) { csTokens.innerHTML = '<div class="ad-empty">Could not load the channel service.</div>'; }
+}
+async function csLoadPool(btn){
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="ad-spinner"></span> Checking'; }
+  try {
+    const d = await getJSON('/api/wa/admin/pool');
+    csPool = {};
+    (d.accounts || []).forEach((a) => { csPool[a.id] = a; });
+    csRender();
+    if (btn) showToast('Pool updated.');
+  } catch (e) { if (btn) showToast(e.message || 'Could not check the pool.'); }
+  if (btn) { btn.disabled = false; btn.textContent = 'Refresh pool'; }
+}
+
+csBaseEdit.addEventListener('click', () => {
+  csBaseOriginal = csBaseUrl.value;
+  csBaseUrl.removeAttribute('readonly');
+  csBaseUrl.focus();
+  csBaseEdit.style.display = 'none';
+  csBaseSave.style.display = '';
+});
+csBaseSave.addEventListener('click', async () => {
+  csBaseSave.disabled = true;
+  try {
+    csApply(await postJSON('/api/wa/admin/base-url', { baseUrl: csBaseUrl.value }));
+    showToast('Base URL saved.');
+    csBaseUrl.setAttribute('readonly', '');
+    csBaseSave.style.display = 'none';
+    csBaseEdit.style.display = '';
+    csLoadPool();
+  } catch (e) { showToast(e.message || 'Could not save the base URL.'); }
+  csBaseSave.disabled = false;
+});
+csBaseUrl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !csBaseUrl.hasAttribute('readonly')) csBaseSave.click();
+  if (e.key === 'Escape' && !csBaseUrl.hasAttribute('readonly')) {
+    csBaseUrl.value = csBaseOriginal; csBaseUrl.setAttribute('readonly', ''); csBaseSave.style.display = 'none'; csBaseEdit.style.display = '';
+  }
+});
+
+csTokens.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('[data-act]');
+  if (!btn) return;
+  const row = btn.closest('.cs-token');
+  const id = row.getAttribute('data-id');
+  const act = btn.getAttribute('data-act');
+  const box = row.querySelector('[data-edit]');
+  if (act === 'edit') { box.style.display = box.style.display === 'none' ? '' : 'none'; return; }
+  if (act === 'cancel') { box.style.display = 'none'; return; }
+  btn.disabled = true;
+  try {
+    if (act === 'save') {
+      csApply(await postJSON('/api/wa/admin/tokens/' + encodeURIComponent(id), { label: box.querySelector('[data-f=label]').value, token: box.querySelector('[data-f=token]').value }));
+      showToast('Saved.');
+      csLoadPool();
+    } else if (act === 'toggle') {
+      const cur = csData.keys.find((k) => k.id === id);
+      csApply(await postJSON('/api/wa/admin/tokens/' + encodeURIComponent(id), { enabled: !(cur && cur.enabled) }));
+    } else if (act === 'delete') {
+      btn.disabled = false;
+      if (!(await askConfirm('Delete this token?', 'It will stop being used right away. This cannot be undone.'))) return;
+      btn.disabled = true;
+      csApply(await postJSON('/api/wa/admin/tokens/' + encodeURIComponent(id) + '/delete', {}));
+      showToast('Token deleted.');
+    }
+  } catch (e) { showToast(e.message || 'Could not do that.'); }
+  btn.disabled = false;
+});
+
+document.getElementById('csAddBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('csAddBtn');
+  const tokenInput = document.getElementById('csAddToken');
+  btn.disabled = true;
+  try {
+    csApply(await postJSON('/api/wa/admin/tokens', { label: document.getElementById('csAddLabel').value, token: tokenInput.value }));
+    tokenInput.value = '';
+    document.getElementById('csAddLabel').value = '';
+    showToast('Token added.');
+    csLoadPool();
+  } catch (e) { showToast(e.message || 'Could not add that token.'); }
+  btn.disabled = false;
+});
+document.getElementById('csPoolBtn').addEventListener('click', () => csLoadPool(document.getElementById('csPoolBtn')));
+document.getElementById('csClaimBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('csClaimBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="ad-spinner"></span> Claiming';
+  try {
+    const d = await postJSON('/api/wa/admin/claim', {});
+    const res = d.results || [];
+    const got = res.filter((r) => r.claimed).length, already = res.filter((r) => r.already).length, bad = res.filter((r) => r.error).length;
+    showToast(res.length ? got + ' claimed, ' + already + ' already done' + (bad ? ', ' + bad + ' problem' + (bad > 1 ? 's' : '') : '') + '.' : 'No tokens to claim for.');
+    csLoadPool();
+  } catch (e) { showToast(e.message || 'Could not claim.'); }
+  btn.disabled = false;
+  btn.textContent = 'Claim now';
+});
+document.getElementById('csHeader').addEventListener('click', () => {
+  const card = document.getElementById('csCard');
+  card.classList.toggle('open');
+  if (card.classList.contains('open') && !csLoaded) { csLoaded = true; csLoad().then(() => csLoadPool()); }
+});
+let csLoaded = false;
 
 document.getElementById('bonusGenerateBtn').addEventListener('click', () => {
   const btn = document.getElementById('bonusGenerateBtn');

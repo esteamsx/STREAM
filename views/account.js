@@ -2810,6 +2810,25 @@ function notifRender(list){
       viewBtn.addEventListener('click', () => { window.location.href = n.meta.postUrl; });
       top.appendChild(viewBtn);
     }
+    if (n.type === 'website_inspect' && n.meta) {
+      const viewBtn = document.createElement('button');
+      viewBtn.type = 'button';
+      viewBtn.className = 'notif-view-post-btn';
+      viewBtn.textContent = 'View';
+      viewBtn.addEventListener('click', () => {
+        const m = n.meta || {};
+        const dv = m.device || {};
+        document.getElementById('notifOverlay').classList.remove('show');
+        openDeviceDetails({
+          name: dv.name || dv.model || 'Unknown device', model: dv.model, type: dv.type, browser: dv.browser, os: dv.os, ip: dv.ip,
+          createdAt: n.createdAt, trusted: false,
+          user: m.username ? '@' + m.username + (m.name ? ' (' + m.name + ')' : '') : (m.uid ? 'Signed-in user' : 'Not signed in'),
+          reason: 'Tried to inspect the website with the API tester',
+          ban: m.expiresAt ? { state: 'banned', expiresAt: m.expiresAt } : null,
+        });
+      });
+      top.appendChild(viewBtn);
+    }
     if (n.type === 'fake_coins') {
       const viewBtn = document.createElement('button');
       viewBtn.type = 'button';
@@ -3715,6 +3734,7 @@ const DEV_ICONS = {
   chrome: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><path stroke-linecap="round" d="M12 8.6h8.2M9.05 13.7L4.9 6.5M14.95 13.7L10.8 20.9"/>',
   safari: '<circle cx="12" cy="12" r="9"/><path stroke-linejoin="round" d="M15.8 8.2l-2.2 5.4-5.4 2.2 2.2-5.4z"/>',
   browser: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path stroke-linecap="round" d="M3 9h18M7 6.5h.01M10 6.5h.01"/>',
+  user: '<circle cx="12" cy="8" r="3.6"/><path stroke-linecap="round" d="M4.5 20c.8-3.6 3.8-5.6 7.5-5.6s6.7 2 7.5 5.6"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M3 12h18M12 3c2.6 2.4 4 5.6 4 9s-1.4 6.6-4 9c-2.6-2.4-4-5.6-4-9s1.4-6.6 4-9z"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>',
   shield: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/>',
@@ -3790,6 +3810,8 @@ function openDeviceDetails(d){
     r.appendChild(tx);
     list.appendChild(r);
   }
+  if (d.user) row('user', 'Account', d.user);
+  if (d.reason) row('shield', 'Reason', d.reason);
   row('browser' === browserIcon ? 'browser' : browserIcon, 'Browser', d.browser);
   row(mobile ? 'phone' : 'desktop', 'System', d.os);
   row('globe', 'IP address', d.ip);
@@ -4325,7 +4347,7 @@ function paintThemes(){
     });
     grid.appendChild(tile);
   });
-  document.getElementById('themeNote').textContent = can ? 'Your theme is saved on this device.' : 'Verified members can unlock all themes.';
+  document.getElementById('themeNote').textContent = can ? 'Your theme is saved to your account.' : 'Verified members can unlock all themes.';
 }
 document.getElementById('themesFab').addEventListener('click', () => { paintThemes(); themesOverlay.classList.add('show'); });
 document.getElementById('themesCloseBtn').addEventListener('click', () => themesOverlay.classList.remove('show'));

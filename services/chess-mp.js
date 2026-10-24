@@ -93,7 +93,8 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   const rooms = new Map();      // room code -> game id
   const pinTries = new Map();   // "uid|code" -> { n, lockUntil }
   let onGameOver = null;
-  const STALE_MS = 65 * 1000;   // a page that stops sending its heartbeat this long is gone
+  const STALE_MS = 150 * 1000;  // a page that stops sending its heartbeat this long is gone
+  const PRESENCE_GRACE_MS = 25 * 1000;   // moving between pages drops the stream for a second: still show them as online
   const connectHooks = [];   // other games (Ludo) use the same stream, so they get told when a connection opens
 
   function emit(uid, event, data) {
@@ -105,8 +106,10 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   }
 
   const isOnline = (uid) => { const u = users.get(uid); return !!(u && u.conns.size); };
+  const presentUser = (u) => !!(u && (u.conns.size || (u.droppedAt && now() - u.droppedAt < PRESENCE_GRACE_MS)));
+  const isPresent = (uid) => presentUser(users.get(uid));
   const isBusy = (uid) => { const u = users.get(uid); return !!(u && u.gameId && games.get(u.gameId) && games.get(u.gameId).status === "active"); };
-  const presenceOf = (uid) => (!isOnline(uid) ? "offline" : isBusy(uid) ? "playing" : "available");
+  const presenceOf = (uid) => (!isPresent(uid) ? "offline" : isBusy(uid) ? "playing" : "available");
 
   function clocksNow(game, at = now()) {
     const c = { w: MOVE_MS, b: MOVE_MS };
@@ -216,6 +219,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     const wasOffline = u.conns.size === 0;
     u.conns.set(connId, sink);
     if (u.hb) u.hbAt = now();
+    u.droppedAt = 0;
     u.offlineSince = null;
     const game = u.gameId ? games.get(u.gameId) : null;
     const { incoming, outgoing } = challengesOf(uid);
@@ -255,6 +259,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     if (!u.conns.delete(connId)) return;   // already gone (the stream's own close handler can follow a forced close)
     if (u.conns.size) return;
     u.offlineSince = now();
+    u.droppedAt = now();
     cancelAllChallengesOf(uid, "cancelled");
     const game = u.gameId ? games.get(u.gameId) : null;
     if (game && game.status === "active") {
@@ -268,7 +273,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     const q = String(query || "").trim().toLowerCase();
     const out = [];
     for (const [uid, u] of users) {
-      if (uid === viewerUid || !u.conns.size || isGuestUid(uid)) continue;
+      if (uid === viewerUid || !presentUser(u) || isGuestUid(uid)) continue;
       const p = u.profile;
       if (q && !p.username.toLowerCase().includes(q) && !p.name.toLowerCase().includes(q)) continue;
       out.push({ ...p, status: isBusy(uid) ? "playing" : "available" });
@@ -287,7 +292,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     if (!toUid || toUid === fromUid) throw err("self");
     if (isGuestUid(toUid) || isGuestUid(fromUid)) throw err("offline");
     if (!["white", "black", "random"].includes(color)) color = "random";
-    if (!isOnline(toUid)) throw err("offline");
+    if (!isPresent(toUid)) throw err("offline");
     const from = users.get(fromUid);
     if (isBusy(fromUid)) throw err("busy");
     if (isBusy(toUid)) throw err("target_busy");
@@ -727,7 +732,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   }
 
   return {
-    touch, emit, onConnect: (fn) => { if (typeof fn === "function") connectHooks.push(fn); },
+    isPresent, touch, emit, onConnect: (fn) => { if (typeof fn === "function") connectHooks.push(fn); },
     profileOf: (uid) => { const u = users.get(uid); return u ? u.profile : null; },
     connect, disconnect, online, annotate, presenceOf, challenge, cancelChallenge, respond,
     move, resign, offerDraw, respondDraw, myGame, sweep, startDirect, isOnline, isBusy,

@@ -608,6 +608,17 @@ async function checkAndIncrementDailyLimit(key, limit) {
   return { allowed: true, count, limit };
 }
 
+async function releaseDailyLimit(key) {
+  try {
+    const today = currentUsageDay();
+    const docId = crypto.createHash("sha256").update(key).digest("hex");
+    const ref = db.collection("dailyLimits").doc(docId);
+    const snap = await ref.get();
+    const data = snap.exists ? snap.data() : null;
+    if (data && data.day === today && (data.count || 0) > 0) await ref.set({ count: data.count - 1, updatedAt: Date.now() }, { merge: true });
+  } catch { /* the quota is a convenience, never block a refund on it */ }
+}
+
 async function createApiKey(uid, label) {
   const rawKey = "estv_" + crypto.randomBytes(24).toString("hex");
   const keyHash = hashApiKey(rawKey);
@@ -3171,7 +3182,7 @@ async function adminBanUser(uid) {
   if (!profile) throw new Error("Account not found.");
   if (isAdminEmail(profile.email)) throw new Error("You can't ban the admin account.");
   await auth.updateUser(uid, { disabled: true });
-  await db.collection("users").doc(uid).update({ banned: true, bannedAt: Date.now() });
+  await db.collection("users").doc(uid).update({ banned: true, bannedAt: Date.now(), tempBanUntil: null, tempBanReason: null });
   await revokeAllSessions(uid);
 
   if (profile.email) {
@@ -3208,11 +3219,31 @@ async function adminBanUser(uid) {
   return adminUserView(uid, (await getUserProfile(uid)) || profile);
 }
 
+async function tempBanUser(uid, ms, reason) {
+  const profile = await getUserProfile(uid);
+  if (!profile || isAdminEmail(profile.email)) return false;
+  const now = Date.now();
+  await auth.updateUser(uid, { disabled: true }).catch(() => {});
+  await db.collection("users").doc(uid).update({ banned: true, bannedAt: now, tempBanUntil: now + ms, tempBanReason: String(reason || "") });
+  await revokeAllSessions(uid);
+  return true;
+}
+
+async function liftExpiredTempBans() {
+  const snap = await db.collection("users").where("tempBanUntil", "<=", Date.now()).limit(50).get();
+  for (const d of snap.docs) {
+    const data = d.data();
+    if (!data.banned) { await d.ref.update({ tempBanUntil: null, tempBanReason: null }).catch(() => {}); continue; }
+    await auth.updateUser(d.id, { disabled: false }).catch(() => {});
+    await d.ref.update({ banned: false, bannedAt: null, tempBanUntil: null, tempBanReason: null });
+  }
+}
+
 async function adminUnbanUser(uid) {
   const profile = await getUserProfile(uid);
   if (!profile) throw new Error("Account not found.");
   await auth.updateUser(uid, { disabled: false });
-  await db.collection("users").doc(uid).update({ banned: false, bannedAt: null });
+  await db.collection("users").doc(uid).update({ banned: false, bannedAt: null, tempBanUntil: null, tempBanReason: null });
   return adminUserView(uid, { ...profile, banned: false });
 }
 
@@ -4930,6 +4961,22 @@ function invalidateChannelReactCaches() {
   channelReactAdminCache = { at: 0, rows: null };
 }
 
+async function logChannelJob(uid, username, link, charged, extra = {}) {
+  try {
+    const now = Date.now();
+    const ref = await db.collection("channelReactLog").add({
+      uid, username: username || "", link, charged: charged || 0, createdAt: now, expiresAt: now,
+      status: "confirmed", lastResendAt: null, decidedAt: now, auto: true,
+      kind: extra.kind === "vote" ? "vote" : "react", sent: Number(extra.sent) || 0,
+      detail: String(extra.detail || "").slice(0, 120),
+    });
+    invalidateChannelReactCaches();
+    return ref.id;
+  } catch {
+    return null;
+  }
+}
+
 async function logChannelReactUse(uid, username, link, charged) {
   try {
     const ref = await db.collection("channelReactLog").add({
@@ -5758,6 +5805,10 @@ export {
   adminListWithdrawalRequests,
   adminConfirmWithdrawalPaid,
   logChannelReactUse,
+  logChannelJob,
+  releaseDailyLimit,
+  tempBanUser,
+  liftExpiredTempBans,
   getChannelReactHistory,
   adminListChannelReactLog,
   adminMarkChannelReactResent,

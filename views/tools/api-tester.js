@@ -49,7 +49,14 @@ export function renderApiTester(cfg) {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="btn-spinner"></span>Sending…';
         try {
-          await postTool('/api/tools/api-tester-gate', {});
+          try { await postTool('/api/tools/api-tester-gate', { url: urlInput.value.trim() }); }
+          catch (gateErr) {
+            showMsg(gateErr.message || 'Could not send that request.', false);
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Send Request';
+            resetAltcha();
+            return;
+          }
           var method = methodSelect.value;
           var opts = { method: method, headers: parseHeaders(headersInput.value) };
           if (method !== 'GET' && method !== 'HEAD' && bodyInput.value.trim()) opts.body = bodyInput.value;

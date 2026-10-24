@@ -173,14 +173,25 @@
     on("ludo_challenge_update", function (u) { removeCard(u.id); });
     if (!onLudo) on("ludo_game_start", function () { location.href = "/ludo"; });
     es.onerror = function () {
-      /* A closed stream (not logged in, too many tabs) is final; otherwise the
-         browser reconnects by itself, and we rebuild it if it gave up. */
-      if (es && es.readyState === 2) {
-        es = null;
-        if (opened && ++retries <= 5) retryTimer = setTimeout(connect, Math.min(30000, 2000 * Math.pow(2, retries)));
-      }
+      /* The browser reconnects by itself while the stream is still "connecting". When it gives up
+         (server restart, a busy moment, too many open tabs) we rebuild it, so a page that is open
+         always comes back online. The only final answer is "not signed in". */
+      if (!es || es.readyState !== 2) return;
+      es = null;
+      retryAfterClose();
     };
   }
+
+  function retryAfterClose() {
+    clearTimeout(retryTimer);
+    var wait = Math.min(60000, 2000 * Math.pow(2, Math.min(retries++, 5)));
+    retryTimer = setTimeout(function () {
+      fetch("/api/chess/hb", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{}" })
+        .then(function (r) { if (r.status === 401) return; connect(); })
+        .catch(function () { retryAfterClose(); });
+    }, wait);
+  }
+
 
   var hbTimer = null;
   function beat() {
@@ -189,7 +200,12 @@
     } catch (e) {}
     if (!hbTimer) hbTimer = setInterval(beat, 20000);
   }
-  document.addEventListener("visibilitychange", function () { if (!document.hidden && opened) beat(); });
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) return;
+    if (opened) beat();
+    if (!es && opened) { retries = 0; connect(); }
+  });
+  window.addEventListener("online", function () { if (!es && opened) { retries = 0; connect(); } });
 
   function start() { connect(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
