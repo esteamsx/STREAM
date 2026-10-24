@@ -67,6 +67,11 @@ export function renderSpeechTools(cfg) {
         try {
           await postTool('/api/tools/speech-gate', {});
         } catch (err) { showMsg(err.message, false); resetAltcha(); return; }
+        try {
+          var permissionGate = await import('/permission-gate.js');
+          var permissionStream = await permissionGate.requestMedia({ audio: true }, { kind: 'microphone', title: 'Speech-to-text needs your microphone', reason: 'ES TEAMS uses your microphone only to turn your speech into text. The browser will ask for access next.' });
+          permissionStream.getTracks().forEach(function(track){ track.stop(); });
+        } catch (err) { showMsg(err.message || 'Microphone access was not granted.', false); resetAltcha(); return; }
         recognition = new SpeechRec();
         recognition.continuous = true;
         recognition.interimResults = true;

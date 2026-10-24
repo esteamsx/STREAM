@@ -1,3 +1,5 @@
+import { requestMedia } from '/permission-gate.js';
+
 const CF_OVERLAY_ID = 'claimFaceOverlay';
 const CF_STYLE_ID = 'claimFaceStyles';
 const CF_CAPTURE_TIMEOUT_MS = 45000;
@@ -251,9 +253,9 @@ export function captureClaimFace() {
     (async () => {
       try {
         const modelsPromise = cfWarmUp();
-        stream = await navigator.mediaDevices.getUserMedia({
+        stream = await requestMedia({
           video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
-        });
+        }, { kind: 'camera', title: 'Face check needs your camera', reason: 'ES TEAMS uses your camera only for this secure Face ID check. The browser will ask for access next.' });
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         video.srcObject = stream;
         if (video.readyState < 2) {

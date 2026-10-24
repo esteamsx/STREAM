@@ -22,8 +22,8 @@
   async function enable() {
     if (!(await isSupported())) throw new Error("Push notifications are not supported on this browser.");
 
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") throw new Error("Notification permission was not granted.");
+    const { requestNotifications } = await import("/permission-gate.js");
+    const permission = await requestNotifications();
 
     const reg = await navigator.serviceWorker.register("/sw.js");
     await navigator.serviceWorker.ready;

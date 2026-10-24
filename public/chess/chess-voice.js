@@ -1,3 +1,4 @@
+import { requestMedia } from "/permission-gate.js";
 
 const CONNECT_TIMEOUT_MS = 12000;   // how long one attempt may take
 const DISCONNECT_GRACE_MS = 4000;   // short network blips are given time to recover
@@ -273,6 +274,7 @@ export function createVoice({ post, getIce, onChange }) {
   }
 
   function micError(e) {
+    if (e && e.name === "PermissionGateError" && e.message) return e.message;
     const name = (e && e.name) || "";
     if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") return "Microphone access is blocked. Allow the microphone for this site in your browser settings, then tap the mic again.";
     if (name === "NotFoundError" || name === "DevicesNotFoundError") return "No microphone was found on this device.";
@@ -284,10 +286,10 @@ export function createVoice({ post, getIce, onChange }) {
     if (typeof window !== "undefined" && window.isSecureContext === false) throw new Error("Voice needs a secure (https) connection.");
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("This browser cannot use the microphone here. Open the site in Chrome or Safari.");
     try {
-      return await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      return await requestMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }, { kind: "microphone", title: "Chess voice needs your microphone", reason: "Use your microphone to talk to the other player. Voice is sent between players and is not recorded by ES TEAMS." });
     } catch (e) {
       if (e && (e.name === "OverconstrainedError" || e.name === "ConstraintNotSatisfiedError" || e.name === "TypeError" || e.name === "AbortError")) {
-        try { return await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e2) { throw new Error(micError(e2)); }
+        try { return await requestMedia({ audio: true }, { kind: "microphone", title: "Chess voice needs your microphone", reason: "Use your microphone to talk to the other player. Voice is sent between players and is not recorded by ES TEAMS." }); } catch (e2) { throw new Error(micError(e2)); }
       }
       throw new Error(micError(e));
     }

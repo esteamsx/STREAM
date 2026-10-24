@@ -4894,7 +4894,8 @@ async function startVoiceRecording(){
     return;
   }
   try {
-    scRecordStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const { requestMedia } = await import('/permission-gate.js');
+    scRecordStream = await requestMedia({ audio: true }, { kind: 'microphone', title: 'Voice notes need your microphone', reason: 'ES TEAMS uses your microphone only while you record a voice note. Nothing starts until you choose to continue.' });
   } catch (err) {
     showToast('Microphone access was denied.');
     return;
