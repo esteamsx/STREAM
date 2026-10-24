@@ -44,8 +44,6 @@ export function registerChannelRoutes(router, deps) {
       if (adminUid) await addNotification(adminUid, "channel_service_alert", message, { link: "/admin" });
     } catch { /* an alert must never break a request */ }
   }
-  ch.startDailyClaim((bad) => alertOwner("Channel service: the daily claim failed for " + bad.length + " token(s). A token may have been revoked."));
-
   const looksLikeEmoji = (e) => typeof e === "string" && e.length > 0 && e.length <= 16 && /\p{Extended_Pictographic}/u.test(e);
   const readAmount = (v) => {
     if (v === undefined || v === null || v === "") return undefined;
@@ -161,7 +159,7 @@ export function registerChannelRoutes(router, deps) {
   const adminWrite = [requireAuth, requireAdmin, requireSiteOrigin, adminLimiter];
   const wrap = (fn) => async (req, res) => {
     try { res.set("Cache-Control", "no-store").json({ ok: true, ...(await fn(req)) }); }
-    catch (e) { res.status(e.status || 500).json({ ok: false, error: e.status ? e.message : "Could not do that." }); }
+    catch (e) { res.status(e.status || 500).json({ ok: false, error: e.message || "Could not do that." }); }
   };
   router.get("/api/wa/admin/settings", ...adminRead, wrap(async () => ({ settings: await ch.adminSettings() })));
   router.post("/api/wa/admin/base-url", ...adminWrite, wrap(async (req) => ({ settings: await ch.adminSetBaseUrl(req.body && req.body.baseUrl) })));

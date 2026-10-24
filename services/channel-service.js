@@ -13,7 +13,9 @@ const SETTINGS_TTL_MS = 15 * 1000;
 const WINDOW_MS = 10 * 1000;     // provider limit: 5 requests / 10 s / account
 const MAX_IN_WINDOW = 4;         // stay one under the limit
 const STATUS_TTL = 30 * 1000;    // how long a cached /account answer is trusted
-const TOKEN_RE = /^ehk_[A-Za-z0-9]{20,}$/;
+// Provider keys have used more than one prefix over time. Validate the value
+// as an API key instead of rejecting newer provider-issued prefixes.
+const TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._~-]{7,511}$/;
 const PREVIEW_TTL = 60 * 60 * 1000;
 const MAX_HTML = 600000;
 const MAX_IMG = 2000000;
@@ -77,7 +79,7 @@ function cleanBaseUrl(raw) {
 const maskToken = (t) => String(t).slice(0, 4) + "..." + String(t).slice(-4);
 const cleanToken = (raw) => {
   const t = String(raw || "").trim();
-  if (!TOKEN_RE.test(t)) throw httpError("That token does not look right. It should start with ehk_.");
+  if (!TOKEN_RE.test(t)) throw httpError("That token is not valid. Use the complete provider API token.");
   return t;
 };
 const cleanLabel = (raw, fallback) => String(raw || "").replace(/[\r\n\t]+/g, " ").trim().slice(0, 40) || fallback;
@@ -241,10 +243,10 @@ async function run(kind, path, payload, { paid = true } = {}) {
       }
       if (r.status === 503) return { ok: false, code: "UNAVAILABLE", message: "The service is busy. Nothing was charged, try again shortly." };
       if (r.status === 400 || r.status === 422) return { ok: false, code: "REQUEST", message: clean((r.data && r.data.error) || "Invalid request") };
-      return { ok: false, code: "UNAVAILABLE", message: "The service could not do that right now. Nothing was charged." };
+      return { ok: false, code: "UNAVAILABLE", message: clean((r.data && (r.data.error || r.data.message)) || `Provider returned HTTP ${r.status}. Nothing was charged.`) };
     } catch (e) {
       console.error(`[channel-service] ${acc.label} ${path}:`, clean(e.message));
-      return { ok: false, code: "UNAVAILABLE", message: "The service did not answer. Nothing was charged." };
+      return { ok: false, code: "UNAVAILABLE", message: `The provider did not answer: ${clean(e.message)} Nothing was charged.` };
     }
   }
   if (sawNoCoins && !sawLimit) return { ok: false, code: "NO_COINS", message: "The service is out of capacity right now. Please try again later." };
@@ -331,31 +333,6 @@ export async function isReady() {
   } catch { return false; }
 }
 
-/* Claims on every token just after 00:00 UTC, retries at 06:00, 12:00 and 18:00, and once shortly after
-   the server starts, so a redeploy at midnight never loses the day. Claiming twice is harmless. */
-export function startDailyClaim(onProblem) {
-  const run = async (reason) => {
-    try {
-      const out = await claimAll();
-      console.log(`[channel-service] daily claim (${reason}) done for ${out.length} account(s)`);
-      const bad = out.filter((r) => r.error);
-      if (bad.length && typeof onProblem === "function") onProblem(bad);
-    } catch (e) { console.error("[channel-service] daily claim failed:", clean(e && e.message)); }
-  };
-  let lastSlot = "";
-  const timer = setInterval(() => {
-    const now = new Date(), h = now.getUTCHours(), m = now.getUTCMinutes();
-    if (![0, 6, 12, 18].includes(h) || (h === 0 && m < 5)) return;
-    const slot = `${now.toISOString().slice(0, 10)}-${h}`;
-    if (slot === lastSlot) return;
-    lastSlot = slot;
-    run(`slot ${h}:00 UTC`);
-  }, 60 * 1000);
-  const first = setTimeout(() => run("startup"), 30 * 1000);
-  if (timer.unref) timer.unref();
-  if (first.unref) first.unref();
-}
-
 /* ------------------------------------------------------------------ channel preview (name and picture) */
 const decodeHtml = (s) => s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d)).trim();
 function metaTag(html, prop) {
@@ -371,16 +348,18 @@ export async function getChannelPreview(channelId) {
   const hit = previewCache.get(channelId);
   if (hit && Date.now() - hit.at < PREVIEW_TTL) return hit.data;
   let data = { channelId, name: "", description: "", imageUrl: "" };
+  let fetched = false;
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 10000);
     const res = await fetch(`https://whatsapp.com/channel/${channelId}`, { headers: { "User-Agent": PREVIEW_UA, "Accept-Language": "en" }, redirect: "follow", signal: ctrl.signal });
     const html = (await res.text()).slice(0, MAX_HTML);
     clearTimeout(t);
-    const img = metaTag(html, "og:image");
+    fetched = true;
+    const img = metaTag(html, "og:image") || metaTag(html, "twitter:image");
     data = { channelId, name: metaTag(html, "og:title").replace(/\s*\|\s*WhatsApp.*$/i, "").slice(0, 100), description: metaTag(html, "og:description").slice(0, 200), imageUrl: imageHostOk(img) ? img : "" };
   } catch { /* an empty preview is fine: the page shows its default picture */ }
-  previewCache.set(channelId, { at: Date.now(), data });
+  if (fetched) previewCache.set(channelId, { at: Date.now(), data });
   if (previewCache.size > 500) previewCache.delete(previewCache.keys().next().value);
   return data;
 }

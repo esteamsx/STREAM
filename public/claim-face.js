@@ -160,6 +160,14 @@ function cfEnsureStyles() {
   transition:opacity .2s ease,transform .2s ease}
 @keyframes cfBob{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-6px) scale(1.04)}}
 #${CF_OVERLAY_ID}.cf-live .cf-coin{opacity:0;transform:scale(.7)}
+#${CF_OVERLAY_ID} .cf-ring{position:absolute;inset:18%;width:64%;height:64%;margin:auto;overflow:visible;
+  fill:none;stroke:#F4B733;stroke-width:1.8;opacity:0;transform:rotate(-90deg);transform-origin:50% 50%;
+  transition:opacity .2s ease,transform .35s ease}
+#${CF_OVERLAY_ID} .cf-ring-track{stroke:rgba(244,183,51,.18);stroke-width:1.2}
+#${CF_OVERLAY_ID} .cf-ring-active{stroke-dasharray:8 5;animation:cfRoll .9s linear infinite}
+@keyframes cfRoll{to{transform:rotate(360deg)}}
+#${CF_OVERLAY_ID}.cf-live .cf-ring{opacity:1}
+#${CF_OVERLAY_ID}.cf-done .cf-ring{opacity:0;transform:rotate(90deg) scale(.72)}
 #${CF_OVERLAY_ID} .cf-result{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   opacity:0;transform:scale(.6);transition:opacity .25s ease,transform .25s cubic-bezier(.34,1.56,.64,1)}
 #${CF_OVERLAY_ID} .cf-result svg{width:64px;height:64px}
@@ -195,6 +203,7 @@ export function captureClaimFace() {
       '<div class="cf-veil"></div>' +
       '<div class="cf-sweep"></div>' +
       '<div class="cf-coin">&#8358;</div>' +
+      '<svg class="cf-ring" viewBox="0 0 100 100" aria-hidden="true"><circle class="cf-ring-track" cx="50" cy="50" r="42"></circle><circle class="cf-ring-active" cx="50" cy="50" r="42"></circle></svg>' +
       '<div class="cf-result cf-check"><svg viewBox="0 0 24 24" fill="none" stroke="#F4B733" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg></div>' +
       '<div class="cf-result cf-cross"><svg viewBox="0 0 24 24" fill="none" stroke="#FF3B5C" stroke-width="2.6"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg></div>' +
     '</div>' +

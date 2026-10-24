@@ -522,6 +522,7 @@ body:has(.ad-overlay.show){overflow:hidden}
 .cs-btn.ghost{background:var(--card);border:1px solid var(--border-strong);color:var(--text)}
 .cs-btn:disabled{opacity:.55}
 .cs-token{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--card);margin-bottom:8px}
+.cs-token-scroll{height:292px;overflow-y:auto;padding-right:4px;scrollbar-width:thin}
 .cs-token-head{display:flex;align-items:center;gap:8px}
 .cs-token-name{font-family:var(--font-display);font-weight:700;font-size:.84rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cs-chip{font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:999px;background:rgba(61,220,132,.14);color:#3DDC84}
@@ -943,10 +944,10 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
       </div>
       <div class="cs-box">
         <div class="cs-label"><span>Tokens</span><span id="csTokenCount"></span></div>
-        <div id="csTokens"><div class="ad-empty">Loading...</div></div>
+        <div class="cs-token-scroll" id="csTokens"><div class="ad-empty">Loading...</div></div>
         <div class="cs-edit" id="csAddForm">
           <input type="text" class="cs-input" id="csAddLabel" placeholder="Name (optional)" maxlength="40" autocomplete="off">
-          <input type="password" class="cs-input" id="csAddToken" placeholder="Paste a token (ehk_...)" autocomplete="new-password" spellcheck="false">
+          <input type="password" class="cs-input" id="csAddToken" placeholder="Paste the provider API token" autocomplete="new-password" spellcheck="false">
           <div class="cs-row"><button type="button" class="cs-btn" id="csAddBtn">Add token</button><button type="button" class="cs-btn ghost" id="csPoolBtn">Refresh pool</button><button type="button" class="cs-btn ghost" id="csClaimBtn">Claim now</button></div>
         </div>
         <div class="cs-note" id="csEncNote"></div>
