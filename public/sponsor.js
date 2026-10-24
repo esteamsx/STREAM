@@ -2,16 +2,31 @@
   if (window.top !== window.self || window.__pnLoaded) return;
   window.__pnLoaded = true;
 
-  var QUIET_KEY = "pn_quiet_until";
+  var QUIET_KEY_PREFIX = "pn_quiet_until:";
   var QUIET_MS = 3 * 60 * 1000;
   var FIRST_DELAY_MS = 1500;
   var ROTATE_MS = 30000;
   var MAX_ROTATIONS = 8;
   var SEEN_AFTER_MS = 1000;
+  var quietStorageKey = QUIET_KEY_PREFIX + "guest";
 
-  try {
-    if (Number(sessionStorage.getItem(QUIET_KEY)) > Date.now()) return;
-  } catch (e) {}
+  function quietUntil() {
+    try { return Number(localStorage.getItem(quietStorageKey)) || 0; } catch (e) { return 0; }
+  }
+
+  function setQuietUntil(value) {
+    try { localStorage.setItem(quietStorageKey, String(value)); } catch (e) {}
+  }
+
+  function resolveAccountStorage(done) {
+    fetch("/api/profile", { credentials: "same-origin", cache: "no-store" })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (profile) {
+        if (profile && profile.uid) quietStorageKey = QUIET_KEY_PREFIX + encodeURIComponent(String(profile.uid));
+      })
+      .catch(function () {})
+      .then(done);
+  }
 
   var css = [
     ".pn-card{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:80;width:min(340px,calc(100vw - 92px));display:flex;gap:12px;align-items:stretch;padding:10px;border-radius:14px;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),var(--card2,#1B1B27);color:var(--text,#F3F3FA);border:1px solid var(--border-strong,rgba(255,255,255,.16));box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);font-family:var(--font-body,Inter,-apple-system,sans-serif);transform:translateY(12px);opacity:0;transition:transform .24s cubic-bezier(.22,1,.36,1),opacity .24s ease}",
@@ -100,9 +115,7 @@
   function dismiss() {
     stopped = true;
     if (timer) clearInterval(timer);
-    try {
-      sessionStorage.setItem(QUIET_KEY, String(Date.now() + QUIET_MS));
-    } catch (e) {}
+    setQuietUntil(Date.now() + QUIET_MS);
     teardown();
   }
 
@@ -196,8 +209,11 @@
     if (card) card.style.display = document.fullscreenElement ? "none" : "";
   });
 
-  setTimeout(function () {
-    load();
-    timer = setInterval(tick, ROTATE_MS);
-  }, FIRST_DELAY_MS);
+  resolveAccountStorage(function () {
+    if (quietUntil() > Date.now()) return;
+    setTimeout(function () {
+      load();
+      timer = setInterval(tick, ROTATE_MS);
+    }, FIRST_DELAY_MS);
+  });
 })();
