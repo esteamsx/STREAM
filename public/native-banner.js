@@ -27,10 +27,10 @@
   for (var i = 0; i < BLOCKED.length; i++) if (BLOCKED[i].test(path)) return;
 
   var SLOTS = [
-    { test: /^\/$/, anchors: [["#hmAside", "beforeend"], ["#hmTabs", "afterend"]] },   // home: sidebar on desktop, under the feed tabs on phones
-    { test: /^\/tools\/[^/]+$/, anchors: [[".usage-note", "afterend"]] },               // tool pages, not the /tools index
-    { test: /^\/channel-react$/, anchors: [[".cr-wrap", "beforeend"]] },
-    { test: /^\/developers$/, anchors: [[".wrap", "beforeend"]] }
+    { test: /^\/$/, anchors: [["#hmFeed", "afterend"], ["#hmTabs", "afterend"]] },                         // home: after the feed, centered in the main column
+    { test: /^\/tools\/[^/]+$/, anchors: [[".tool-card", "afterend"]] },                                    // tool pages, not the /tools index
+    { test: /^\/channel-react$/, anchors: [["#crHistoryCard", "afterend"], [".cr-wrap", "beforeend"]] },  // between the main flow and guidance
+    { test: /^\/developers$/, anchors: [[".tile-list .tile:first-child", "afterend"], [".wrap", "beforeend"]] }
   ];
 
   function findSpot() {
@@ -50,7 +50,7 @@
     var st = document.createElement("style");
     st.id = "es-native-style";
     st.textContent = [
-      ".es-native{position:relative;box-sizing:border-box;max-width:100%;clear:both;margin:16px 0;padding:12px 14px 14px;overflow:hidden;border-radius:14px;",
+      ".es-native{position:relative;box-sizing:border-box;width:min(100%,640px);max-width:100%;clear:both;margin:28px auto;padding:12px 14px 14px;overflow:hidden;border-radius:14px;",
       "border:1px solid var(--border-strong,rgba(255,255,255,.13));",
       "background:linear-gradient(155deg,rgba(124,92,255,.12),rgba(0,224,255,.05) 55%,rgba(255,255,255,.03)),rgba(15,15,22,.5);",
       "-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}",
