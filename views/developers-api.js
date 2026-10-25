@@ -1,4 +1,4 @@
-import { siteHeadFor } from "../config/site.js";
+import { siteHeadFor, ASSET_VERSION } from "../config/site.js";
 import { musicPlayerStyle, musicPlayerHtml, musicPlayerScript } from "./music-player.js";
 
 const FEATURES = [
@@ -636,7 +636,7 @@ ${siteHeadFor("developersApi")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
-<script nonce="__CSP_NONCE__" src="/pay-method.js?v=1"></script>
+<script nonce="__CSP_NONCE__" src="/pay-method.js?v=${ASSET_VERSION}"></script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

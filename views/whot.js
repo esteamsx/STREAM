@@ -1,4 +1,4 @@
-import { siteHeadFor } from "../config/site.js";
+import { siteHeadFor, ASSET_VERSION } from "../config/site.js";
 
 export function renderWhot(cfg) {
   return `<!DOCTYPE html>
@@ -53,7 +53,7 @@ button{cursor:pointer}
 
 </style>
 <link rel="stylesheet" href="/chess/chess.css">
-<link rel="stylesheet" href="/whot/whot.css">
+<link rel="stylesheet" href="/whot/whot.css?v=${ASSET_VERSION}">
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 </head>
 <body>
@@ -90,7 +90,7 @@ button{cursor:pointer}
   </section>
 </main>
 
-<script nonce="__CSP_NONCE__" type="module" src="/whot/whot-page.js"></script>
+<script nonce="__CSP_NONCE__" type="module" src="/whot/whot-page.js?v=${ASSET_VERSION}"></script>
 </body>
 </html>`;
 }

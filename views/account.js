@@ -1,4 +1,4 @@
-import { siteHeadFor } from "../config/site.js";
+import { siteHeadFor, ASSET_VERSION } from "../config/site.js";
 import { VERIFICATION_PRICE_NGN, NGN_PER_USD } from "../services/paystack.js";
 
 export function renderAccount(cfg) {
@@ -19,7 +19,7 @@ ${siteHeadFor("account")}
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
 <script nonce="__CSP_NONCE__" async defer src="https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js" type="module"></script>
 <script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
-<script nonce="__CSP_NONCE__" src="/pay-method.js?v=1"></script>
+<script nonce="__CSP_NONCE__" src="/pay-method.js?v=${ASSET_VERSION}"></script>
 <style>
 ${cfg.protectionCSS || ""}
 :root{

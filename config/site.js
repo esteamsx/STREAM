@@ -397,6 +397,8 @@ const SKELETON_CSS = `<style>
 }
 </style>`;
 
+export const ASSET_VERSION = Date.now().toString("36");
+
 export function siteHead({ title, description, path = "/", image = "/og.png", type = "website" } = {}) {
   const origin = siteOrigin();
   const url = origin + (path.startsWith("/") ? path : `/${path}`);

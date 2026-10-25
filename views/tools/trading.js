@@ -1,4 +1,4 @@
-import { siteHeadFor } from "../../config/site.js";
+import { siteHeadFor, ASSET_VERSION } from "../../config/site.js";
 
 export function renderTrading(cfg) {
   return `<!DOCTYPE html>
@@ -13,7 +13,7 @@ ${siteHeadFor("trading")}
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <script nonce="__CSP_NONCE__" src="https://s3.tradingview.com/tv.js"></script>
 <script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
-<script nonce="__CSP_NONCE__" src="/pay-method.js?v=1"></script>
+<script nonce="__CSP_NONCE__" src="/pay-method.js?v=${ASSET_VERSION}"></script>
 <title>Trading - ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -1,4 +1,4 @@
-import { siteHeadFor } from "../config/site.js";
+import { siteHeadFor, ASSET_VERSION } from "../config/site.js";
 import { musicPlayerStyle, musicPlayerHtml, musicPlayerScript } from "./music-player.js";
 
 export function renderDevelopersLiveTv(cfg) {
@@ -17,7 +17,7 @@ ${siteHeadFor("developersLiveTv")}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
-<script nonce="__CSP_NONCE__" src="/pay-method.js?v=1"></script>
+<script nonce="__CSP_NONCE__" src="/pay-method.js?v=${ASSET_VERSION}"></script>
 <style>
 ${cfg.protectionCSS || ""}
 :root{
