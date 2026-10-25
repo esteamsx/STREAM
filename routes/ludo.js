@@ -3,7 +3,7 @@ import { createLudoHub } from "../services/ludo-mp.js";
 
 /* Ludo API. Presence and the event stream are shared with chess (/api/chess/stream), so a
    signed-in player is online for Ludo on every page. Guests get their own stream below. */
-export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub, hub = createLudoHub({ chess: chessHub }) }) {
+export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub, hub = createLudoHub({ chess: chessHub }) }) {
   const photoFor = (uid, p) => {
     if (!p || p.showProfilePhoto === false || !p.photoURL) return null;
     const url = String(p.photoURL);
@@ -18,6 +18,7 @@ export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, Sim
   const readLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware();
   const challengeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
   const moveLimiter = new SimpleRateLimiter(40, 10 * 1000, (req) => req.uid).middleware();
+  const rewardLimiter = new SimpleRateLimiter(8, 10 * 60 * 1000, (req) => req.uid, "Slow down a little.").middleware();
 
   const guests = new Map();   // guestUid -> { secret, name, token, createdAt }
   const links = new Map();    // token -> guest game link
@@ -125,6 +126,18 @@ export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, Sim
   };
   gameRoutes("/api/ludo", (req) => req.uid, [requireAuth, requireSiteOrigin, moveLimiter]);
   gameRoutes("/api/ludo/guest", (req) => req.guest.uid, [requireSiteOrigin, guestMoveLimiter, requireGuest]);
+
+  router.post("/api/ludo/game/:id/reward", requireAuth, requireSiteOrigin, rewardLimiter, async (req, res) => {
+    const proof = hub.rewardableWin(req.uid, req.params.id);
+    if (!proof) return res.set("Cache-Control", "no-store").json({ rewarded: false, coins: 0 });
+    try {
+      const paid = await creditCompetitiveGameWin(req.uid, "ludo", proof.gameId, proof.participantUids);
+      res.set("Cache-Control", "no-store").json({ ...paid, message: paid.rewarded ? "+1 coin for your Ludo win!" : "This match is not eligible for another coin reward." });
+    } catch (e) {
+      console.error("[ludo] reward", e && e.message);
+      res.status(e.status || 500).set("Cache-Control", "no-store").json({ error: e.message || "Could not credit this reward." });
+    }
+  });
 
   router.get("/api/ludo/ice", requireAuth, voiceLimiter, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: chessHub.iceServers ? chessHub.iceServers() : [] }));
   router.get("/api/ludo/guest/ice", voiceLimiter, requireGuest, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: chessHub.iceServers ? chessHub.iceServers() : [] }));

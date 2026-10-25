@@ -50,6 +50,7 @@ const POPUNDER_SKIP_PATHS = [
   "/chess",
   "/ludo",
   "/whot",
+  "/snakes",
   "/login",
   "/verify",
   "/reset",

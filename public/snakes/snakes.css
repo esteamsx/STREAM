@@ -1,0 +1,87 @@
+/* Snakes and Ladders. Everything else (menu, buttons, lobby, room, voice) comes from /chess/chess.css so the games feel the same. */
+.sx-sw{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:7px;vertical-align:-1px;border:1px solid rgba(255,255,255,.55);flex-shrink:0}
+
+/* ---- the players along the top ---- */
+.sx-players{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:0 auto 12px;max-width:560px}
+.sx-pl{display:flex;align-items:center;gap:9px;padding:6px 12px 6px 7px;border-radius:16px;border:2px solid transparent;background:var(--card);box-shadow:inset 0 0 0 1px var(--border);transition:border-color .25s,box-shadow .25s,transform .25s}
+.sx-pl .cx-av{width:34px;height:34px;font-size:.9rem}
+.sx-pl.live{border-color:var(--pc);box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 28%,transparent);transform:translateY(-1px)}
+.sx-pl.gone{opacity:.42}
+.sx-pin{min-width:0;display:flex;flex-direction:column}
+.sx-pin .cx-nm{max-width:112px;font-size:.82rem}
+.sx-pin .cx-nm svg{width:13px;height:13px}
+.sx-pin span{font-size:.68rem;color:var(--muted);white-space:nowrap}
+.sx-pt{font-family:var(--font-mono);font-size:.78rem;font-weight:600;color:var(--text);min-width:26px;text-align:right}
+.sx-pt.low{color:var(--red)}
+
+/* ---- the board: transparent glass, like the chess and Ludo boards ---- */
+.sx-boardwrap{position:relative;width:min(94vw,560px,max(330px,calc((100vh - 330px) * .86)));margin:0 auto;border-radius:20px;padding:8px;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02));-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),0 14px 40px rgba(0,0,0,.28)}
+.sx-board{--c1:rgba(255,255,255,.07);--c2:rgba(255,255,255,.015);--num:rgba(255,255,255,.55);--grid:rgba(255,255,255,.1);display:block;width:100%;border-radius:14px;overflow:hidden}
+.sx-board[data-board="forest"]{--c1:rgba(18,196,139,.3);--c2:rgba(18,196,139,.08);--num:rgba(220,255,240,.75);--grid:rgba(18,196,139,.25)}
+.sx-board[data-board="ocean"]{--c1:rgba(59,130,255,.32);--c2:rgba(59,130,255,.08);--num:rgba(220,235,255,.75);--grid:rgba(59,130,255,.25)}
+.sx-board[data-board="sunset"]{--c1:rgba(255,150,80,.32);--c2:rgba(255,90,90,.08);--num:rgba(255,235,215,.78);--grid:rgba(255,150,80,.25)}
+.sx-board[data-board="midnight"]{--c1:rgba(70,80,140,.55);--c2:rgba(10,12,24,.55);--num:rgba(200,205,240,.7);--grid:rgba(120,130,200,.2)}
+.sx-board svg{display:block;width:100%;height:auto}
+.sx-cell{stroke:var(--grid);stroke-width:.02}
+.sx-n{fill:var(--num);font-family:var(--font-mono);font-size:.26px;font-weight:600}
+.sx-start{fill:var(--num);font-size:.24px;font-weight:700;letter-spacing:.14em}
+.sx-spot{fill:none;stroke:var(--grid);stroke-width:.04;stroke-dasharray:.12 .1}
+.sx-rail{stroke:#E1A24A;stroke-width:.075;stroke-linecap:round;fill:none}
+.sx-rung{stroke:#C98A3B;stroke-width:.06;stroke-linecap:round}
+.sx-body{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.sx-stripe{fill:none;stroke:rgba(255,255,255,.55);stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:.07 .2}
+.sx-eye{fill:#fff}
+.sx-pupil{fill:#101020}
+.sx-tok{transform-box:fill-box;transition:transform .13s linear}
+.sx-tok.slide{transition:transform .75s cubic-bezier(.5,0,.3,1)}
+.sx-tok circle.base{stroke:#fff;stroke-width:.05}
+.sx-tok circle.shine{fill:rgba(255,255,255,.55)}
+.sx-tok.live circle.base{animation:sxPulse 1.1s ease-in-out infinite}
+.sx-tok.hop{animation:sxHop .13s ease-out}
+@keyframes sxPulse{0%,100%{stroke-width:.05}50%{stroke-width:.13}}
+@keyframes sxHop{0%{filter:brightness(1)}50%{filter:brightness(1.5)}100%{filter:brightness(1)}}
+
+/* ---- the die ---- */
+.sx-dicewrap{display:flex;flex-direction:column;align-items:center;gap:8px;margin:14px 0 4px;min-height:98px}
+.sx-dice{--dc:#00E0FF;width:78px;height:78px;border-radius:21px;border:2.5px solid var(--dc);background:var(--card);color:var(--dc);display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 8px 24px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);transition:transform .2s var(--ease),box-shadow .3s,opacity .3s}
+.sx-dice:disabled{cursor:default;opacity:1}
+.sx-dice.waiting{opacity:.88}
+.sx-dice.ready{cursor:pointer;animation:sxReady 1.25s ease-in-out infinite}
+.sx-dice.ready:active{transform:scale(.92)}
+.sx-dice.rolling{animation:sxShake .24s linear infinite}
+.sx-dice-ico svg{width:34px;height:34px;opacity:.75}
+.sx-hint{font-size:.74rem;color:var(--muted);font-weight:600;min-height:1em}
+@keyframes sxReady{0%,100%{box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 0 color-mix(in srgb,var(--dc) 55%,transparent)}50%{box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 11px color-mix(in srgb,var(--dc) 0%,transparent)}}
+@keyframes sxShake{0%{transform:rotate(0) scale(1)}25%{transform:rotate(-14deg) scale(1.06)}50%{transform:rotate(10deg) scale(1)}75%{transform:rotate(-8deg) scale(1.06)}100%{transform:rotate(0) scale(1)}}
+.sx-face{display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);width:100%;height:100%;padding:13px}
+.sx-face i{width:11px;height:11px;margin:auto;border-radius:50%;background:transparent}
+.sx-face i.on{background:var(--dc)}
+
+/* ---- status, log, controls ---- */
+.cx-status{border-left:3px solid var(--sc,var(--accent));padding-left:10px}
+.sx-logbox{margin-top:8px;display:flex;flex-direction:column;gap:1px}
+.sx-log{font-size:.78rem;color:var(--muted)}
+.sx-log:first-child{color:var(--text);font-weight:600}
+.cx-controls{display:flex;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+
+/* ---- results ---- */
+.sx-results{display:flex;flex-direction:column;gap:6px;margin:12px 0 4px;text-align:left}
+.sx-res{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:12px;background:var(--card2);border-left:3px solid var(--pc,var(--border))}
+.sx-res.win{box-shadow:inset 0 0 0 1px var(--green)}
+.sx-res .grow{flex:1;min-width:0}
+.sx-res small{display:block;color:var(--muted);font-size:.7rem}
+.sx-res b.pts{font-family:var(--font-mono);font-size:.85rem}
+
+/* ---- the table for 3 and 4 player games ---- */
+.sx-tbl{margin:4px 0 14px}
+.sx-seats{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.sx-seat{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--pc,var(--border))}
+.sx-seat .grow{flex:1;min-width:0}
+.sx-seat small{display:block;color:var(--muted);font-size:.72rem;margin-top:1px}
+.sx-seat.empty{opacity:.55;border-left-color:var(--border);border-style:dashed}
+.sx-seat.wait{opacity:.8}
+.sx-sizes{margin-top:6px}
+.sx-sizes .cx-chips{justify-content:center}
+.cx-chip.locked{opacity:.5}
+@media (max-width:420px){.sx-pin .cx-nm{max-width:80px}.sx-boardwrap{padding:5px;border-radius:16px}}
+@media (prefers-reduced-motion:reduce){.sx-dice.ready,.sx-dice.rolling,.sx-tok.live circle.base{animation:none}.sx-tok,.sx-tok.slide{transition:none}}

@@ -10,6 +10,7 @@
   var onChess = /^\/chess(\/|$)/.test(location.pathname);
   var onLudo = /^\/ludo(\/|$)/.test(location.pathname);
   var onWhot = /^\/whot(\/|$)/.test(location.pathname);
+  var onSnakes = /^\/snakes(\/|$)/.test(location.pathname);
   if (!window.EventSource) return;
 
   var es = null;
@@ -104,7 +105,7 @@
     if (document.querySelector('.cxp-card[data-id="' + c.id + '"]')) return;
     if (c.expiresAt && c.expiresAt - (Date.now() + offset) <= 0) return;
     injectCss();
-    var game = c.game === "ludo" ? "ludo" : c.game === "whot" ? "whot" : "chess";
+    var game = c.game === "ludo" ? "ludo" : c.game === "whot" ? "whot" : c.game === "snakes" ? "snakes" : "chess";
     var from = c.from || {};
     var nm = from.name || from.username || "Someone";
     var letter = nm.trim().charAt(0).toUpperCase() || "?";
@@ -114,7 +115,7 @@
     card.setAttribute("role", "alertdialog");
     card.innerHTML =
       '<div class="cxp-row"><div class="cxp-av">' + (from.photo ? "" : esc(letter)) + '</div>' +
-      '<div class="cxp-txt"><b>' + esc(nm) + '</b><span>' + (game === "whot" ? "challenged you to Whot" + (c.size > 2 ? " | " + esc(c.size) + " players" : "") : game === "ludo" ? "challenged you to Ludo" + (c.size > 2 ? " | " + esc(c.size) + " players" : "") : "challenged you to chess | " + esc(c.minutes) + " min") + '</span></div></div>' +
+      '<div class="cxp-txt"><b>' + esc(nm) + '</b><span>' + (game === "snakes" ? "challenged you to Snakes and Ladders" + (c.size > 2 ? " | " + esc(c.size) + " players" : "") : game === "whot" ? "challenged you to Whot" + (c.size > 2 ? " | " + esc(c.size) + " players" : "") : game === "ludo" ? "challenged you to Ludo" + (c.size > 2 ? " | " + esc(c.size) + " players" : "") : "challenged you to chess | " + esc(c.minutes) + " min") + '</span></div></div>' +
       '<div class="cxp-acts"><button type="button" class="cxp-btn" data-act="no">Decline</button>' +
       '<button type="button" class="cxp-btn go" data-act="yes">Accept</button></div>';
     if (from.photo) {
@@ -181,6 +182,14 @@
     on("whot_challenge", function (c) { if (onWhot) return; c.game = "whot"; ping(); incoming.push(c); showCard(c); });
     on("whot_challenge_update", function (u) { removeCard(u.id); });
     if (!onWhot) on("whot_game_start", function () { location.href = "/whot"; });
+    on("snakes_hello", function (d) {
+      if (onSnakes) return;
+      (d.incoming || []).forEach(function (c) { c.game = "snakes"; incoming.push(c); showCard(c); });
+      if (d.game && d.game.status === "active") location.href = "/snakes";
+    });
+    on("snakes_challenge", function (c) { if (onSnakes) return; c.game = "snakes"; ping(); incoming.push(c); showCard(c); });
+    on("snakes_challenge_update", function (u) { removeCard(u.id); });
+    if (!onSnakes) on("snakes_game_start", function () { location.href = "/snakes"; });
     es.onerror = function () {
       /* The browser reconnects by itself while the stream is still "connecting". When it gives up
          (server restart, a busy moment, too many open tabs) we rebuild it, so a page that is open

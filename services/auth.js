@@ -4427,6 +4427,53 @@ async function creditChessBotWin(uid, token) {
   return { coins: 1, balance };
 }
 
+const GAME_COIN_REWARD_DAILY_MAX = 3;
+const GAME_COIN_REWARD_WINDOW_MS = 24 * 60 * 60 * 1000;
+async function creditCompetitiveGameWin(uid, gameType, gameId, participantUids) {
+  const type = String(gameType || "");
+  const id = String(gameId || "");
+  const participants = [...new Set((Array.isArray(participantUids) ? participantUids : []).map((v) => String(v || "")))].sort();
+  if (!uid || !["ludo", "snakes_ladders"].includes(type) || !/^[A-Za-z0-9_-]{1,100}$/.test(id)
+    || participants.length < 2 || !participants.includes(uid) || participants.some((v) => !v || v.startsWith("guest_"))) {
+    throw Object.assign(new Error("This game is not eligible for a coin reward."), { status: 400 });
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const rewardId = crypto.createHash("sha256").update(`${type}:${id}`).digest("hex");
+  const rewardRef = db.collection("coinGameRewards").doc(rewardId);
+  const pairId = crypto.createHash("sha256").update(`v1:${participants.join("|")}`).digest("hex");
+  const pairRef = db.collection("coinGameRewardPairs").doc(pairId);
+  let result = { rewarded: false, coins: 0, balance: 0 };
+  await db.runTransaction(async (tx) => {
+    const [userSnap, rewardSnap, pairSnap] = await Promise.all([tx.get(userRef), tx.get(rewardRef), tx.get(pairRef)]);
+    if (!userSnap.exists) throw Object.assign(new Error("Account not found."), { status: 404 });
+    const data = userSnap.data();
+    result = { rewarded: false, coins: 0, balance: data.coinBalance || 0 };
+    if (rewardSnap.exists) return;
+    if (coinLedgerMismatch(data)) throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409 });
+    assertCoinsAllowed(data);
+
+    const now = Date.now();
+    const priorPair = pairSnap.exists ? pairSnap.data() : null;
+    if (priorPair && now - (priorPair.at || 0) < GAME_COIN_REWARD_WINDOW_MS) return;
+    const win = data.gameCoinRewardWindow && now - (data.gameCoinRewardWindow.since || 0) < GAME_COIN_REWARD_WINDOW_MS
+      ? data.gameCoinRewardWindow : { since: now, count: 0 };
+    if (win.count >= GAME_COIN_REWARD_DAILY_MAX) return;
+
+    const ledger = appendCoinLedger(tx, userRef, data, 1, `${type}_win`, { gameId: id });
+    tx.update(userRef, {
+      coinBalance: admin.firestore.FieldValue.increment(1),
+      gameCoinRewardWindow: { since: win.since, count: win.count + 1 },
+      ...ledger,
+    });
+    tx.set(rewardRef, { uid, type, gameId: id, participants, at: now });
+    tx.set(pairRef, { participants, type, gameId: id, at: now });
+    result = { rewarded: true, coins: 1, balance: (data.coinBalance || 0) + 1 };
+  });
+  if (result.rewarded) invalidateUserProfileCache(uid);
+  return result;
+}
+
 async function recordChessReview(uid, review) {
   const profile = await getUserProfile(uid).catch(() => null);
   const username = (profile && profile.username) || "";
@@ -5773,6 +5820,7 @@ export {
   adminGiftCoins,
   followAllUsers,
   creditChessBotWin,
+  creditCompetitiveGameWin,
   recordChessReview,
   listChessReviews,
   isCoinRestricted,

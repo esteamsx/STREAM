@@ -185,6 +185,7 @@ export function createLudoHub({ chess, now = () => Date.now(), randomHex = (n) =
     for (const e of entries) profiles[e.uid] = profileOf(e.uid);
     const game = {
       id, status: "active", seq: 0, createdAt: now(), endedAt: null, result: null, profiles,
+      manualMoveCount: 0, manualMovesByUid: Object.fromEntries(entries.map((e) => [e.uid, 0])),
       players: entries.map((e) => ({ uid: e.uid, color: e.color, key: randomHex(12), timeouts: 0, offlineSince: null, out: false })),
       state: newState(entries.map((e) => e.color)), deadline: 0,
       room: { code: newRoomCode(), host: hostUid || entries[0].uid, open: false, pin: null, max: 5 },
@@ -377,9 +378,14 @@ export function createLudoHub({ chess, now = () => Date.now(), randomHex = (n) =
     setDeadline(game);
     broadcast(game, { type: "roll", color, value: res.value, skipped: res.skipped });
   }
-  function doMove(game, token) {
+  function doMove(game, token, automated = false) {
+    const mover = game.players.find((p) => p.color === colorOfTurn(game.state));
     const mv = applyMove(game.state, token);
     if (!mv) throw err("bad_move");
+    if (!automated) {
+      game.manualMoveCount += 1;
+      if (mover) game.manualMovesByUid[mover.uid] = (game.manualMovesByUid[mover.uid] || 0) + 1;
+    }
     setDeadline(game);
     broadcast(game, { type: "move", move: mv });
     if (game.state.winner != null) finish(game, game.state.winner, "home");
@@ -401,6 +407,16 @@ export function createLudoHub({ chess, now = () => Date.now(), randomHex = (n) =
     me.timeouts = 0;
     doMove(game, Number(token));
     return { ok: true };
+  }
+  function rewardableWin(uid, gameId) {
+    const game = games.get(String(gameId));
+    if (!game || game.status !== "over" || !game.result || game.result.reason !== "home") return null;
+    if (game.state.winner !== game.result.winner || game.manualMoveCount < 12 || game.endedAt - game.createdAt < 3 * 60 * 1000) return null;
+    if (game.players.length < 2 || game.players.some((p) => p.out || isGuestUid(p.uid))) return null;
+    const winner = game.players.find((p) => p.color === game.result.winner);
+    if (!winner || winner.uid !== uid) return null;
+    if (!game.players.some((p) => p.uid !== uid && (game.manualMovesByUid[p.uid] || 0) >= 3)) return null;
+    return { gameId: game.id, participantUids: game.players.map((p) => p.uid) };
   }
   function resign(uid, gameId, key) {
     const { game, me } = loadGame(uid, gameId, key);
@@ -572,13 +588,13 @@ export function createLudoHub({ chess, now = () => Date.now(), randomHex = (n) =
       if (p.timeouts >= MAX_TIMEOUTS) { eliminate(game, p, "timeout"); continue; }
       try {
         if (!game.state.roll) doRoll(game, color);
-        if (game.status === "active" && colorOfTurn(game.state) === color && game.state.roll) doMove(game, chooseToken(game.state, "medium"));
+        if (game.status === "active" && colorOfTurn(game.state) === color && game.state.roll) doMove(game, chooseToken(game.state, "medium"), true);
       } catch { setDeadline(game); }
     }
   }
 
   return {
-    challenge, cancelChallenge, respond, startDirect, roll, move, resign, syncState, sweep, hello,
+    challenge, cancelChallenge, respond, startDirect, roll, move, resign, syncState, rewardableWin, sweep, hello,
     createTable, startTableNow, leaveTable, myTable,
     getRoom, setRoom, spectate, leaveSpectate, voiceJoin, voiceSignal,
     isBusy, isOnline, activeGameOf,

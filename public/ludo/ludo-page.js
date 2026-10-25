@@ -849,6 +849,14 @@ function finishGame(winner, reason, view, players) {
     h("h2", { text: g.spectator ? (w ? playerLabel(g, w) : COLOR_NAMES[COLORS[winner]]) + " won" : won ? "You won!" : (w ? playerLabel(g, w) : COLOR_NAMES[COLORS[winner]]) + " won" }),
     h("p", { class: "cx-hint", style: "margin-top:8px", text: why }),
   ]);
+  if (won && g.mode === "online" && !g.spectator && !GUEST_TOKEN) {
+    api("/api/ludo/game/" + encodeURIComponent(g.id) + "/reward", {}).then((reward) => {
+      if (!reward.rewarded) return;
+      const box = m.el.querySelector(".cx-modal");
+      const row = box && box.querySelector(".row");
+      if (box && row) box.insertBefore(h("p", { class: "cx-hint", style: "margin-top:8px", text: reward.message || "+1 coin for your Ludo win!" }), row);
+    }).catch(() => { /* reward eligibility and account status are decided by the server */ });
+  }
   const row = h("div", { class: "row" });
   if (g.mode === "bot") {
     row.appendChild(h("button", { type: "button", class: "cx-btn ghost", onclick: () => { m.close(); leaveGame(); } }, ["Menu"]));

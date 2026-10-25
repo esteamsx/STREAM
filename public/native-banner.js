@@ -20,7 +20,7 @@
   var path = String(location.pathname || "/").toLowerCase().replace(/\/+$/, "") || "/";
 
   var BLOCKED = [
-    /^\/chess(\/|$)/, /^\/ludo(\/|$)/, /^\/whot(\/|$)/,
+    /^\/chess(\/|$)/, /^\/ludo(\/|$)/, /^\/whot(\/|$)/, /^\/snakes(\/|$)/,
     /^\/login(\/|$)/, /^\/verify(\/|$)/, /^\/reset(\/|$)/,
     /^\/account(\/|$)/, /^\/pay\//, /^\/promote(\/|$)/, /^\/admin(\/|$)/
   ];

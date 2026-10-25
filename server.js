@@ -15,6 +15,7 @@ import { renderGiveaway } from "./views/giveaway.js";
 import { renderChess } from "./views/chess.js";
 import { renderLudo } from "./views/ludo.js";
 import { renderWhot } from "./views/whot.js";
+import { renderSnakes } from "./views/snakes.js";
 import { renderHome } from "./views/home.js";
 import { renderLiveTv } from "./views/live-tv.js";
 import { renderProfile } from "./views/profile.js";
@@ -266,6 +267,7 @@ import {
   adminGiftCoins,
   followAllUsers,
   creditChessBotWin,
+  creditCompetitiveGameWin,
   recordChessReview,
   listChessReviews,
   invalidateUserProfileCache,
@@ -347,6 +349,7 @@ import { createGiveawayRouter } from "./routes/giveaway.js";
 import { registerChessRoutes } from "./routes/chess.js";
 import { registerLudoRoutes } from "./routes/ludo.js";
 import { registerWhotRoutes } from "./routes/whot.js";
+import { registerSnakesRoutes } from "./routes/snakes.js";
 import { registerChannelRoutes } from "./routes/channel-tools.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
@@ -729,11 +732,14 @@ const chessRouter = express.Router();
 const chessHub = registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview });
 app.use(chessRouter);
 const ludoRouter = express.Router();
-registerLudoRoutes(ludoRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
+registerLudoRoutes(ludoRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub });
 app.use(ludoRouter);
 const whotRouter = express.Router();
 registerWhotRoutes(whotRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
 app.use(whotRouter);
+const snakesRouter = express.Router();
+registerSnakesRoutes(snakesRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, searchUsersByUsername, creditCompetitiveGameWin, chessHub });
+app.use(snakesRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
 app.use(devicesRouter);
@@ -846,6 +852,7 @@ const cachedGiveawayHtml = renderGiveaway(authPageConfig);
 const cachedChessHtml = renderChess(authPageConfig);
 const cachedLudoHtml = renderLudo(authPageConfig);
 const cachedWhotHtml = renderWhot(authPageConfig);
+const cachedSnakesHtml = renderSnakes(authPageConfig);
 const cachedAccountGuestHtml = wrapWithGuestBlur(cachedAccountHtml, "/account");
 const cachedProfileHtml = renderProfile(authPageConfig);
 const cachedAdminHtml = renderAdmin(authPageConfig);
@@ -1093,6 +1100,9 @@ app.get("/ludo", scrapeGate, requireUser, (req, res) => {
 
 app.get("/whot", scrapeGate, requireUser, (req, res) => {
   res.send(cachedWhotHtml);
+});
+app.get("/snakes", scrapeGate, requireUser, (req, res) => {
+  res.send(cachedSnakesHtml);
 });
 const WHOT_GUEST_PREVIEW = {
   title: "Join my Whot game | ES TEAMS TV",

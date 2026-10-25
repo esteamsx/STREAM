@@ -669,6 +669,7 @@ const ES_ICON_BELL = '<path stroke-linecap="round" stroke-linejoin="round" d="M1
 const ES_ICON_MOON = '<path stroke-linecap="round" stroke-linejoin="round" d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
 const ES_ICON_LUDO = '<rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.1" fill="currentColor"/><circle cx="15" cy="15" r="1.1" fill="currentColor"/><circle cx="15" cy="9" r="1.1" fill="currentColor"/><circle cx="9" cy="15" r="1.1" fill="currentColor"/>';
 const ES_ICON_WHOT = '<rect x="5" y="3.5" width="14" height="17" rx="2.6"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.2l1.2 2.6 2.8.3-2.1 1.9.6 2.8L12 14.3l-2.5 1.5.6-2.8-2.1-1.9 2.8-.3z"/>';
+const ES_ICON_SNAKES = '<path stroke-linecap="round" stroke-linejoin="round" d="M5 20c-2.2 0-2.2-3.4 0-3.4h8c2.4 0 2.4-4.2 0-4.2H9c-2.4 0-2.4-4.2 0-4.2h6.2"/><circle cx="17.6" cy="8.1" r="2.2"/><path stroke-linecap="round" d="M19.8 8.1h1.7"/>';
 const ES_ICON_CHESS = '<circle cx="12" cy="6.5" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 10.5h4.4M10.4 10.5c0 3-2 4-2.6 7h8.4c-.6-3-2.6-4-2.6-7M6 20.5h12"/>';
 const ES_ICON_SHIELD = '<path stroke-linecap="round" stroke-linejoin="round" d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/>';
 const ES_ICON_LOGOUT = '<path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>';
@@ -1017,6 +1018,7 @@ function esBuildMenu() {
   list.appendChild(item({ href: "/chess", label: "Chess", icon: ES_ICON_CHESS }));
   list.appendChild(item({ href: "/ludo", label: "Ludo", icon: ES_ICON_LUDO }));
   list.appendChild(item({ href: "/whot", label: "Whot", icon: ES_ICON_WHOT }));
+  list.appendChild(item({ href: "/snakes", label: "Snakes and Ladders", icon: ES_ICON_SNAKES }));
 
   section("Build");
   list.appendChild(link("/deploy-bot"));
