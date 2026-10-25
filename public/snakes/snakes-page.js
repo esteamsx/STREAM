@@ -1211,7 +1211,6 @@ function renderOnlinePanel(card) {
     card.appendChild(h("div", { class: "cx-empty", id: "cxOffline", text: state.conn === "unavailable" ? "Online play is not available right now. You can still play the computer." : "" }, state.conn === "unavailable" ? [] : [h("span", { class: "cx-roll" }), " Connecting"]));
     return;
   }
-  if (!GUEST_TOKEN) card.appendChild(guestLinkBox());
   if (state.incoming.length) {
     card.appendChild(h("div", { class: "cx-h", text: "Requests for you" }));
     for (const r of state.incoming) card.appendChild(requestRow(r));
@@ -1237,6 +1236,7 @@ function renderOnlinePanel(card) {
   card.appendChild(h("div", { class: "cx-players", id: "cxPlayers" }));
   paintLobbyPlayers();
   card.appendChild(watchBox());
+  if (!GUEST_TOKEN) card.appendChild(guestLinkBox());
 }
 
 async function loadPlayers() {
