@@ -33,12 +33,13 @@
     { test: /^\/developers$/, anchors: [[".tile-list .tile:first-child", "afterend"], [".wrap", "beforeend"]] }
   ];
 
+  function homePosts() { return document.querySelectorAll("#hmFeed .feed-post, #hmFeed .pf-post"); }
   function homeThirdPost() {
-    var posts = document.querySelectorAll("#hmFeed .feed-post, #hmFeed .pf-post");
+    var posts = homePosts();
     return posts.length >= 3 ? posts[2] : null;
   }
 
-  var homePostObserver = null;
+  var homePostObserver = null, homeFallbackTimer = null;
   function waitForHomePosts() {
     if (path !== "/" || homePostObserver || typeof MutationObserver !== "function") return;
     homePostObserver = new MutationObserver(function () {
@@ -48,12 +49,24 @@
       place();
     });
     homePostObserver.observe(document.documentElement, { childList: true, subtree: true });
+    homeFallbackTimer = setTimeout(function () {
+      if (homePostObserver) homePostObserver.disconnect();
+      homePostObserver = null;
+      homeFallbackTimer = null;
+      place(true);
+    }, 5000);
   }
 
-  function findSpot() {
+  function findSpot(allowHomeFallback) {
     if (path === "/") {
       var post = homeThirdPost();
-      return post ? { el: post, where: "afterend" } : null;
+      if (post) return { el: post, where: "afterend" };
+      if (allowHomeFallback) {
+        var posts = homePosts();
+        var lastPost = posts.length ? posts[posts.length - 1] : document.querySelector("#hmFeed");
+        return lastPost ? { el: lastPost, where: "afterend" } : null;
+      }
+      return null;
     }
     for (var s = 0; s < SLOTS.length; s++) {
       if (!SLOTS[s].test.test(path)) continue;
@@ -85,11 +98,13 @@
     document.head.appendChild(st);
   }
 
-  function place() {
+  function place(allowHomeFallback) {
     if (document.getElementById(CONTAINER_ID)) return;                                             // already on the page
     if (document.querySelector('script[data-es-native-banner], script[src*="' + KEY + '"]')) return; // script already added
-    var spot = findSpot();
+    var spot = findSpot(allowHomeFallback);
     if (!spot) { waitForHomePosts(); return; }
+    if (homePostObserver) { homePostObserver.disconnect(); homePostObserver = null; }
+    if (homeFallbackTimer) { clearTimeout(homeFallbackTimer); homeFallbackTimer = null; }
     addStyle();
 
     var card = document.createElement("div");
