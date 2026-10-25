@@ -27,13 +27,34 @@
   for (var i = 0; i < BLOCKED.length; i++) if (BLOCKED[i].test(path)) return;
 
   var SLOTS = [
-    { test: /^\/$/, anchors: [["#hmFeed", "afterend"], ["#hmTabs", "afterend"]] },                         // home: after the feed, centered in the main column
+    { test: /^\/$/, anchors: [] },                                                                          // home is positioned after the third rendered post
     { test: /^\/tools\/[^/]+$/, anchors: [[".tool-card", "afterend"]] },                                    // tool pages, not the /tools index
     { test: /^\/channel-react$/, anchors: [["#crHistoryCard", "afterend"], [".cr-wrap", "beforeend"]] },  // between the main flow and guidance
     { test: /^\/developers$/, anchors: [[".tile-list .tile:first-child", "afterend"], [".wrap", "beforeend"]] }
   ];
 
+  function homeThirdPost() {
+    var posts = document.querySelectorAll("#hmFeed .feed-post, #hmFeed .pf-post");
+    return posts.length >= 3 ? posts[2] : null;
+  }
+
+  var homePostObserver = null;
+  function waitForHomePosts() {
+    if (path !== "/" || homePostObserver || typeof MutationObserver !== "function") return;
+    homePostObserver = new MutationObserver(function () {
+      if (!homeThirdPost()) return;
+      homePostObserver.disconnect();
+      homePostObserver = null;
+      place();
+    });
+    homePostObserver.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
   function findSpot() {
+    if (path === "/") {
+      var post = homeThirdPost();
+      return post ? { el: post, where: "afterend" } : null;
+    }
     for (var s = 0; s < SLOTS.length; s++) {
       if (!SLOTS[s].test.test(path)) continue;
       for (var a = 0; a < SLOTS[s].anchors.length; a++) {
@@ -68,7 +89,7 @@
     if (document.getElementById(CONTAINER_ID)) return;                                             // already on the page
     if (document.querySelector('script[data-es-native-banner], script[src*="' + KEY + '"]')) return; // script already added
     var spot = findSpot();
-    if (!spot) return;
+    if (!spot) { waitForHomePosts(); return; }
     addStyle();
 
     var card = document.createElement("div");
