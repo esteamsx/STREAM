@@ -270,6 +270,7 @@ function beginGame(g, opts = {}) {
   state.game = g;
   g.recent = [g.view.top];
   $("cxMenu").hidden = true;
+  if ($("cxGuest")) $("cxGuest").hidden = true;
   $("cxGame").hidden = false;
   const back = $("cxBack");
   if (back) back.setAttribute("href", "/");
@@ -498,6 +499,7 @@ function leaveGame() {
   state.game = null;
   $("cxGame").hidden = true;
   $("cxVoiceDock").hidden = true;
+  if (GUEST_TOKEN) { showGuestEnded(); return; }
   $("cxMenu").hidden = false;
   renderMenu();
 }
@@ -1169,7 +1171,7 @@ async function resync() {
     paintAll();
   } catch (e) { if (e.code === "no_game" || e.code === "bad_key") { state.game = null; leaveGameUi(); } }
 }
-function leaveGameUi() { voice.stop(); $("cxGame").hidden = true; $("cxVoiceDock").hidden = true; $("cxMenu").hidden = false; renderMenu(); }
+function leaveGameUi() { if (GUEST_TOKEN) { showGuestEnded(); return; } voice.stop(); $("cxGame").hidden = true; $("cxVoiceDock").hidden = true; $("cxMenu").hidden = false; renderMenu(); }
 
 /* ------------------------------------------------------------------ lobby (same layout as chess and Ludo) */
 function renderMenu() {
@@ -1226,12 +1228,132 @@ function tablePanel() {
 }
 
 function guestLinkUrl(token) { return location.origin + "/whot/guest/" + token; }
-async function createGuestLink(btn) { busy(btn, true); try { const d = await api("/api/whot/guest/links", {}); state.links = [d.link].concat(state.links || []); renderMenu(); await shareGuestLink(guestLinkUrl(d.link.token), true); } catch (e) { busy(btn, false); toast(e.message); } }
-async function shareGuestLink(url, fresh) { if (navigator.share) { try { await navigator.share({ title: "Play Whot", text: "Play Whot with me as a guest.", url }); return; } catch (e) { if (e && e.name === "AbortError") return; } } try { await navigator.clipboard.writeText(url); toast(fresh ? "Game link created and copied." : "Link copied."); } catch { window.prompt("Copy this game link", url); } }
-async function loadGuestLinks() { try { const d = await api("/api/whot/guest/links"); state.links = d.links || []; } catch {} }
-function guestBox() { const box = h("div", { class: "cx-guestbox", id: "cxGuestBox" }); box.appendChild(h("div", { class: "cx-h", text: "Play with a guest" })); box.appendChild(h("button", { type: "button", class: "cx-btn", id: "cxMakeLink", onclick: (e) => createGuestLink(e.currentTarget) }, ["Create game link"])); box.appendChild(h("p", { class: "cx-hint", text: "Make a link for someone without an account. They can join your two-player Whot game from any browser." })); if (state.links && state.links.length) { box.appendChild(h("div", { class: "cx-h", text: "Your active links" })); for (const l of state.links) { const row = h("div", { class: "cx-linkrow" }), share = h("button", { type: "button", class: "cx-vbtn sm", "aria-label": "Share game link" }), cancel = h("button", { type: "button", class: "cx-vbtn sm", "aria-label": "Cancel game link", text: "×" }); share.innerHTML = VI.share; share.addEventListener("click", () => shareGuestLink(guestLinkUrl(l.token), false)); cancel.addEventListener("click", async () => { try { await api("/api/whot/guest/links/" + encodeURIComponent(l.token) + "/cancel", {}); state.links = state.links.filter((x) => x.token !== l.token); renderMenu(); } catch (e) { toast(e.message); } }); row.appendChild(h("div", { class: "grow" }, [h("b", { text: "Guest Whot game" }), h("span", { class: "cx-sub", text: l.status === "playing" ? "Guest is playing" : "Waiting for a guest" })])); row.appendChild(share); row.appendChild(cancel); box.appendChild(row); } } return box; }
-async function loadGuestInfo() { try { state.guest.info = await api("/api/whot/guest/info/" + encodeURIComponent(GUEST_TOKEN)); } catch (e) { state.guest.info = { status: "error", error: e.message }; } }
-function renderGuest() { const root = $("cxMenu"); root.textContent = ""; const info = state.guest && state.guest.info, card = h("div", { class: "cx-card" }); root.appendChild(card); if (!info) { card.appendChild(h("div", { class: "cx-loading" }, [h("span", { class: "cx-roll" }), "Opening game link"])); return; } if (["finished", "ended", "expired", "error"].includes(info.status)) { card.appendChild(h("h2", { text: info.status === "finished" ? "Game finished" : "Game link unavailable" })); card.appendChild(h("p", { class: "cx-hint", text: info.error || "This guest game link has ended or expired." })); return; } if (state.guest.joined) { card.appendChild(h("h2", { text: "Waiting for the host" })); card.appendChild(h("p", { class: "cx-hint", text: state.guestWait || "Your game will open as soon as the host is ready." })); return; } card.appendChild(h("h2", { text: ((info.host && info.host.name) || "Someone") + " invited you to play Whot" })); card.appendChild(h("p", { class: "cx-hint", text: "Choose a display name to join as a guest. No account is required." })); const name = h("input", { class: "cx-field", id: "wxGuestName", maxlength: "20", placeholder: "Your name", autocomplete: "nickname", value: state.guest.name || "" }), join = h("button", { type: "button", class: "cx-btn", id: "wxGuestJoin" }, ["Play as guest"]); join.addEventListener("click", async () => { const n = name.value.trim(); if (n.length < 2) return toast("Enter a name (at least 2 letters)."); busy(join, true); try { await api("/api/whot/guest/join/" + encodeURIComponent(GUEST_TOKEN), { name: n }); state.guest.name = n; state.guest.joined = true; state.guest.info.you = true; state.guest.info.status = "playing"; renderGuest(); connect(); } catch (e) { busy(join, false); toast(e.message); } }); card.appendChild(name); card.appendChild(join); }
+function leftText(ms) {
+  const m = Math.max(0, Math.ceil(ms / 60000));
+  if (m >= 120) return Math.round(m / 60) + " hours left";
+  if (m >= 60) return "1 hour left";
+  return m + " min left";
+}
+async function shareLink(url, fresh) {
+  const text = "Play Whot with me. No account needed.";
+  try { if (navigator.share) { await navigator.share({ title: "Whot", text, url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(url); toast(fresh ? "Game link created and copied." : "Link copied."); }
+  catch { window.prompt("Copy this link", url); }
+}
+function guestBox() {
+  const box = h("div", { class: "cx-guestbox", id: "cxGuestBox" });
+  box.appendChild(h("div", { class: "cx-h", text: "Play with a guest" }));
+  box.appendChild(h("button", { type: "button", class: "cx-btn", id: "cxMakeLink", onclick: (e) => createLink(e.currentTarget) }, ["Create game link"]));
+  box.appendChild(learnMore([
+    "Make a link for someone who does not have an account. They can play you straight away.",
+    "A guest game is for two players. Pick a card within 30 seconds and keep playing until someone goes out.",
+    "A link nobody plays on stops working after 24 hours, and it stops working when the game ends.",
+  ]));
+  if (state.links && state.links.length) {
+    box.appendChild(h("div", { class: "cx-h", text: "Your active links" }));
+    for (const l of state.links) {
+      const url = guestLinkUrl(l.token), playing = l.status === "playing";
+      box.appendChild(h("div", { class: "cx-linkrow", "data-link": l.token }, [
+        h("div", { class: "grow" }, [h("b", { text: "Guest game" }), h("span", { class: "cx-sub", text: playing ? "A guest is playing" : "Waiting for a guest | " + leftText(l.expiresAt - serverNow()) })]),
+        h("div", { class: "acts" }, playing ? [] : [
+          (() => { const sb = h("button", { type: "button", class: "cx-vbtn sm on", "data-copy": l.token, "aria-label": "Share game link", onclick: () => shareLink(url, false) }); sb.innerHTML = VI.share; return sb; })(),
+          h("button", { type: "button", class: "cx-btn ghost sm", "data-cancel": l.token, onclick: (e) => cancelLink(l, e.currentTarget) }, ["End"]),
+        ]),
+      ]));
+    }
+  }
+  return box;
+}
+async function loadLinks() {
+  if (state.conn !== "online") return;
+  try {
+    const d = await api("/api/whot/guest/links");
+    state.links = d.links || [];
+    if (state.tab === "online" && $("cxMenu") && !$("cxMenu").hidden && !(document.activeElement && document.activeElement.matches("input"))) renderMenu();
+  } catch { /* the list just stays as it was */ }
+}
+async function createLink(btn) {
+  busy(btn, true);
+  try {
+    const d = await api("/api/whot/guest/links", {});
+    state.links = [d.link].concat(state.links || []);
+    renderMenu();
+    shareLink(guestLinkUrl(d.link.token), true);
+  } catch (e) { busy(btn, false); toast(e.message); }
+}
+async function cancelLink(l, btn) {
+  busy(btn, true);
+  try { await api("/api/whot/guest/links/" + encodeURIComponent(l.token) + "/cancel", {}); state.links = (state.links || []).filter((x) => x.token !== l.token); renderMenu(); }
+  catch (e) { busy(btn, false); toast(e.message); }
+}
+function endedCard(title, text) {
+  const btn = h("button", { type: "button", class: "cx-btn", id: "cxCreateGame", onclick: (e) => { busy(e.currentTarget, true); location.href = "/whot"; } }, ["CREATE GAME"]);
+  return h("div", { class: "cx-card cx-ended", id: "cxEnded" }, [html("div", "ic", ICON.users), h("h1", { text: title }), h("p", { text }), btn]);
+}
+function showGuestEnded() {
+  if (!GUEST_TOKEN) return;
+  const fin = state.game && state.game.over ? state.game.result : null;
+  if (state.game) { state.game.token++; state.game = null; }
+  voice.stop();
+  $("cxVoiceDock").hidden = true;
+  $("cxGame").hidden = true;
+  state.guest.info = fin ? { status: "finished", result: fin } : { status: "ended" };
+  renderGuest();
+}
+async function refreshGuestInfo() {
+  try { state.guest.info = await api("/api/whot/guest/info/" + encodeURIComponent(GUEST_TOKEN)); }
+  catch (e) { state.guest.info = { status: "error", error: e.message }; }
+  renderGuest();
+}
+function renderGuest() {
+  if (!GUEST_TOKEN) return;
+  const root = $("cxGuest");
+  if (!root) return;
+  if (state.game) { root.hidden = true; return; }
+  const keepName = $("cxGuestName") ? $("cxGuestName").value : state.guest.name;
+  root.hidden = false;
+  root.textContent = "";
+  const info = state.guest.info;
+  const card = (kids) => root.appendChild(h("div", { class: "cx-card", style: "text-align:center" }, kids));
+  if (!info) { card([h("div", { class: "cx-loading", id: "cxGuestLoading" }, [h("span", { class: "cx-roll" }), "Opening game link"])]); return; }
+  if (info.status === "finished") { card([h("h2", { text: "Game Finished" }), h("p", { class: "cx-hint", style: "margin-top:8px", text: "The Whot game is over. This link expires 5 minutes after the game ends." }), h("button", { type: "button", class: "cx-btn", onclick: () => { location.href = "/whot"; } }, ["CREATE GAME"])]); return; }
+  if (info.status === "ended" || info.status === "expired") { root.appendChild(endedCard("Game Link Expired", "This game link is no longer active. Create your own game to play with friends.")); return; }
+  if (info.status === "error") { card([h("h2", { text: "Could not open the game" }), h("p", { class: "cx-hint", style: "margin-top:8px", text: info.error || "Check your connection and try again." }), h("button", { type: "button", class: "cx-btn", onclick: (e) => { busy(e.currentTarget, true); refreshGuestInfo(); } }, ["Try again"])]); return; }
+  if (info.status === "playing" && !info.you) { root.appendChild(endedCard("This link is already in use", "Someone is already playing on this link. Create your own game to play.")); return; }
+  const host = info.host || {};
+  const hostLine = h("div", { class: "cx-hostline" }, [avatar({ name: host.name || host.username, photo: host.photo })]);
+  if (state.guest.joined) {
+    const waiting = state.conn === "unavailable"
+      ? [h("p", { class: "cx-hint", text: "Could not connect. Check your internet and try again." }), h("button", { type: "button", class: "cx-btn", onclick: () => { retries = 0; connect(); } }, ["Reconnect"])]
+      : state.guestWait
+        ? [h("p", { class: "cx-hint", text: state.guestWait }), h("button", { type: "button", class: "cx-btn", onclick: async (e) => { const btn = e.currentTarget; busy(btn, true); try { await api("/api/whot/guest/start", {}); state.guestWait = null; renderGuest(); } catch (err) { busy(btn, false); toast(err.message); } } }, ["Try again"])]
+        : [h("div", { class: "cx-loading" }, [h("span", { class: "cx-roll" }), "Starting your game"] )];
+    card([hostLine, h("h2", { text: "Playing " + (host.name || host.username || "the host") }), ...waiting]);
+    return;
+  }
+  const input = h("input", { class: "cx-field", id: "cxGuestName", type: "text", maxlength: "20", placeholder: "Your name", autocomplete: "off", value: keepName || "" });
+  card([hostLine, h("h2", { text: (host.name || host.username || "Someone") + " invited you to play Whot" }), h("p", { class: "cx-hint", style: "margin-top:8px", text: "No account needed. Pick a name and join." }), input, h("button", { type: "button", class: "cx-btn", id: "cxGuestJoin", onclick: (e) => joinGuest(e.currentTarget, input) }, ["Join game"])]);
+}
+async function joinGuest(btn, input) {
+  const name = input.value.trim();
+  if (name.length < 2) { toast("Enter a name (at least 2 letters)."); return; }
+  busy(btn, true);
+  try {
+    await api("/api/whot/guest/join/" + encodeURIComponent(GUEST_TOKEN), { name });
+    save("guestname", name); state.guest.name = name; state.guest.joined = true; state.guestWait = null; state.guest.info.you = true; state.guest.info.status = "playing";
+    renderGuest(); retries = 0; connect();
+  } catch (e) { busy(btn, false); toast(e.message); if (e.code === "ended" || e.code === "playing" || e.code === "expired") refreshGuestInfo(); }
+}
+async function initGuest() {
+  $("cxMenu").hidden = true;
+  $("cxGuest").hidden = false;
+  const back = $("cxBack"); if (back) back.setAttribute("href", "/whot");
+  const cog = $("cxCog"); if (cog) cog.style.display = "none";
+  renderGuest();
+  await loadGuestInfo();
+  if (state.guest.info.you && state.guest.info.status === "playing") { state.guest.joined = true; retries = 0; connect(); }
+  renderGuest();
+}
 function renderOnlinePanel(card) {
   if (state.conn !== "online") {
     card.appendChild(h("div", { class: "cx-empty", id: "cxOffline", text: state.conn === "unavailable" ? "Online play is not available right now. You can still play the computer." : "" }, state.conn === "unavailable" ? [] : [h("span", { class: "cx-roll" }), " Connecting"]));
@@ -1263,7 +1385,7 @@ function renderOnlinePanel(card) {
   paintLobbyPlayers();
   card.appendChild(watchBox());
   card.appendChild(guestBox());
-  if (state.links === null) loadGuestLinks().then(() => { if (state.tab === "online" && $("cxMenu") && !$("cxMenu").hidden) renderMenu(); });
+  if (state.links === null) loadLinks();
 }
 
 async function loadPlayers() {
@@ -1350,7 +1472,7 @@ async function respondChallenge(r, accept) {
 }
 
 function renderLobby() {
-  if (GUEST_TOKEN && !state.game) { renderGuest(); return; }
+  if (GUEST_TOKEN) { if (!state.game) renderGuest(); return; }
   if ($("cxMenu") && !$("cxMenu").hidden) {
     const a = document.activeElement;
     const focused = a && (a.id === "cxSearch" || a.id === "cxWatchCode" || a.id === "cxWatchPin") ? a : null;
@@ -1406,7 +1528,7 @@ function init() {
   window.addEventListener("beforeunload", (e) => { const g = state.game; if (g && g.mode === "online" && !g.over && !g.spectator) { e.preventDefault(); e.returnValue = ""; } });
   const watch = new URLSearchParams(location.search).get("watch");
   if (watch) { state.tab = "online"; state.watchCode = String(watch).toUpperCase().slice(0, 6); }
-  if (GUEST_TOKEN) { loadGuestInfo().then(() => { renderGuest(); if (state.guest.info && state.guest.info.you) { state.guest.joined = true; connect(); } }); } else { if (!restoreBotGame()) renderMenu(); loadMe(); connect(); }
+  if (GUEST_TOKEN) { initGuest(); } else { if (!restoreBotGame()) renderMenu(); loadMe(); connect(); }
 }
 init();
 window.__whot = { state };

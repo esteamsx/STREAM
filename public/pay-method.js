@@ -52,8 +52,8 @@
       overlay.innerHTML =
         '<div class="es-pay-sheet" role="dialog" aria-label="Choose payment method">' +
           '<div class="es-pay-title">Choose payment method</div>' +
-          '<div class="es-pay-amount"><b>' + fmtNgn(ngn) + '</b> &middot; ' + fmtUsd(ngn) + ' <span>($1 = ' + fmtNgn(RATE) + ')</span></div>' +
-          '<button type="button" class="es-pay-btn apple" data-m="apple_pay"' + (apple ? '' : ' disabled') + '>' + APPLE_SVG + 'Pay ' + fmtUsd(ngn) + ' with Apple Pay</button>' +
+          '<div class="es-pay-amount"><b>' + fmtNgn(ngn) + '</b></div>' +
+          '<button type="button" class="es-pay-btn apple" data-m="apple_pay"' + (apple ? '' : ' disabled') + '>' + APPLE_SVG + 'Pay ' + fmtNgn(ngn) + ' with Apple Pay</button>' +
           (apple ? '' : '<div class="es-pay-note">Apple Pay works on Apple devices with Safari.</div>') +
           '<button type="button" class="es-pay-btn paystack" data-m="paystack">' + CARD_SVG + 'Pay ' + fmtNgn(ngn) + ' with Paystack</button>' +
           '<button type="button" class="es-pay-cancel" data-m="">Cancel</button>' +
