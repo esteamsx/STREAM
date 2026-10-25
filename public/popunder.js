@@ -13,7 +13,7 @@
   var AD_SRC = "https://afders.org/1/0fb9b1347c7022280dbd97f2b0e5032f";
 
   var BLOCKED = [
-    /^\/chess(\/|$)/, /^\/ludo(\/|$)/, /^\/whot(\/|$)/, /^\/snakes(\/|$)/,
+    /^\/chess(\/|$)/, /^\/ludo(\/|$)/, /^\/whot(\/|$)/, /^\/snakes(\/|$)/, /^\/tictactoe(\/|$)/,
     /^\/login(\/|$)/, /^\/verify(\/|$)/, /^\/reset(\/|$)/,
     /^\/account(\/|$)/, /^\/pay\//, /^\/promote(\/|$)/, /^\/admin(\/|$)/
   ];

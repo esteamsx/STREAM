@@ -6,6 +6,7 @@ const games = [
   { name: "Ludo", file: "public/ludo/ludo-page.js", event: "ludo" },
   { name: "Snakes & Ladders", file: "public/snakes/snakes-page.js", event: "snakes" },
   { name: "Whot", file: "public/whot/whot-page.js", event: "whot" },
+  { name: "Tic-Tac-Toe", file: "public/tictactoe/ttt-page.js", event: "ttt" },
 ];
 
 for (const game of games) {
@@ -26,7 +27,7 @@ for (const game of games) {
     assert.match(gameHello[0], /if \(GUEST_TOKEN\) playGameStartPing\(d\.game\.id\)/);
 
     assert.match(source, new RegExp(`on\\("${game.event}_challenge", \\(c\\) => \\{ playPing\\(\\);`));
-    assert.match(source, new RegExp(`on\\("${game.event}_game_start", \\(v\\) => \\{ playGameStartPing\\(v\.id\\);`));
+    assert.match(source, new RegExp(`on\\("${game.event}_game_start", \\(v\\) => \\{[^}]*playGameStartPing\\(v\\.id\\);`));
     assert.match(source, /if \(GUEST_TOKEN\) guestConnectionSounded = false;/);
   });
 

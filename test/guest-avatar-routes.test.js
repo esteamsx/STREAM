@@ -4,11 +4,13 @@ import { EventEmitter } from "node:events";
 import { registerLudoRoutes } from "../routes/ludo.js";
 import { registerSnakesRoutes } from "../routes/snakes.js";
 import { registerWhotRoutes } from "../routes/whot.js";
+import { registerTttRoutes } from "../routes/tictactoe.js";
 
 const REGISTER = {
   ludo: registerLudoRoutes,
   snakes: registerSnakesRoutes,
   whot: registerWhotRoutes,
+  tictactoe: registerTttRoutes,
 };
 
 function makeResponse() {
@@ -84,7 +86,7 @@ function setup(slug, initialProfile) {
   return { request, setProfile: (value) => { profile = value; } };
 }
 
-for (const slug of ["ludo", "snakes", "whot"]) {
+for (const slug of ["ludo", "snakes", "whot", "tictactoe"]) {
   test(`${slug} guest invitation serves the inviter's profile image and respects photo privacy`, async () => {
     const expectedBytes = Buffer.from("profile-image-bytes");
     const { request, setProfile } = setup(slug, {

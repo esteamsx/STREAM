@@ -16,6 +16,7 @@ import { renderChess } from "./views/chess.js";
 import { renderLudo } from "./views/ludo.js";
 import { renderWhot } from "./views/whot.js";
 import { renderSnakes } from "./views/snakes.js";
+import { renderTtt } from "./views/tictactoe.js";
 import { renderHome } from "./views/home.js";
 import { renderLiveTv } from "./views/live-tv.js";
 import { renderProfile } from "./views/profile.js";
@@ -350,6 +351,7 @@ import { registerChessRoutes } from "./routes/chess.js";
 import { registerLudoRoutes } from "./routes/ludo.js";
 import { registerWhotRoutes } from "./routes/whot.js";
 import { registerSnakesRoutes } from "./routes/snakes.js";
+import { registerTttRoutes } from "./routes/tictactoe.js";
 import { registerChannelRoutes } from "./routes/channel-tools.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
@@ -680,7 +682,7 @@ app.use(express.json({
   type: ["application/json", "application/csp-report"],
   verify: (req, res, buf) => { req.rawBody = buf; },
 }));
-const ID_ROUTE_PREFIXES = ["/api/chess", "/api/status", "/api/admin", "/api/posts", "/api/users", "/api/notifications", "/api/rewards", "/api/support", "/api/coin-gifts", "/api/follow", "/api/comments"];
+const ID_ROUTE_PREFIXES = ["/api/chess", "/api/tictactoe", "/api/status", "/api/admin", "/api/posts", "/api/users", "/api/notifications", "/api/rewards", "/api/support", "/api/coin-gifts", "/api/follow", "/api/comments"];
 app.use((req, res, next) => {
   const path = String(req.originalUrl || "").split("?")[0];
   if (ID_ROUTE_PREFIXES.some((p) => path.startsWith(p)) && /%2f|%5c|%00|%2e%2e/i.test(path)) {
@@ -740,6 +742,9 @@ app.use(whotRouter);
 const snakesRouter = express.Router();
 registerSnakesRoutes(snakesRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub });
 app.use(snakesRouter);
+const tttRouter = express.Router();
+registerTttRoutes(tttRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
+app.use(tttRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
 app.use(devicesRouter);
@@ -853,6 +858,7 @@ const cachedChessHtml = renderChess(authPageConfig);
 const cachedLudoHtml = renderLudo(authPageConfig);
 const cachedWhotHtml = renderWhot(authPageConfig);
 const cachedSnakesHtml = renderSnakes(authPageConfig);
+const cachedTttHtml = renderTtt(authPageConfig);
 const cachedAccountGuestHtml = wrapWithGuestBlur(cachedAccountHtml, "/account");
 const cachedProfileHtml = renderProfile(authPageConfig);
 const cachedAdminHtml = renderAdmin(authPageConfig);
@@ -1104,6 +1110,23 @@ app.get("/whot", scrapeGate, requireUser, (req, res) => {
 app.get("/snakes", scrapeGate, requireUser, (req, res) => {
   res.send(cachedSnakesHtml);
 });
+app.get("/tictactoe", scrapeGate, requireUser, (req, res) => {
+  res.send(cachedTttHtml);
+});
+const TTT_GUEST_PREVIEW = {
+  title: "Join my Tic-Tac-Toe game | ES TEAMS TV",
+  description: "You have been invited to play Tic-Tac-Toe. No account needed, just pick a name and play.",
+};
+app.get(
+  "/tictactoe/guest/:token",
+  (req, res, next) => {
+    const path = "/tictactoe/guest/" + String(req.params.token || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    res.locals.previewTags = siteHead({ ...TTT_GUEST_PREVIEW, path });
+    next();
+  },
+  scrapeGate,
+  (req, res) => { res.send(cachedTttHtml); }
+);
 const SNAKES_GUEST_PREVIEW = {
   title: "Join my Snakes and Ladders game | ES TEAMS TV",
   description: "You have been invited to play Snakes and Ladders. No account needed, just pick a name and play.",

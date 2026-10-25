@@ -33,6 +33,7 @@ const PRESENCE_SKIP_PATHS = [
   "/reset",
   "/chess/guest",
   "/ludo/guest",
+  "/tictactoe/guest",
 ];
 
 const SOCIAL_SKIP_PATHS = [
@@ -51,6 +52,7 @@ const POPUNDER_SKIP_PATHS = [
   "/ludo",
   "/whot",
   "/snakes",
+  "/tictactoe",
   "/login",
   "/verify",
   "/reset",

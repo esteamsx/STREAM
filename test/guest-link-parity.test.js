@@ -51,6 +51,20 @@ for (const game of [
     initCall: /await refreshGuestInfo\(\)/,
     entryPoint: /if \(GUEST_TOKEN\) \{ initGuest\(\); \} else \{/,
   },
+  {
+    name: "Tic-Tac-Toe",
+    slug: "tictactoe",
+    file: "../public/tictactoe/ttt-page.js",
+    shareFunction: "shareTttLink",
+    panel: ["card.appendChild(watchBox());", "card.appendChild(guestLinkBox());"],
+    heading: "invited you to play Tic-Tac-Toe",
+    joinId: "cxGuestJoin",
+    view: "../views/tictactoe.js",
+    guestPath: "/tictactoe/guest/:token",
+    initCall: /await refreshGuestInfo\(\)/,
+    entryPoint: /if \(GUEST_TOKEN\) \{ initGuest\(\); return; \}/,
+    photoAssertion: /img\.src = p\.photo/,
+  },
 ]) {
   const source = read(game.file);
 
@@ -96,8 +110,11 @@ for (const game of [
     assert.ok(source.includes(game.heading));
     assert.match(source, /id: "cxGuestName"[\s\S]*placeholder: "Your name"/);
     assert.match(source, new RegExp(`id: "${game.joinId}"[\\s\\S]*\\["Join game"\\]`));
-    assert.match(source, /function photoSrc\(url\)/);
-    assert.match(source, /img\.src = photoSrc\(p\.photo\)/);
+    if (game.photoAssertion) assert.match(source, game.photoAssertion);
+    else {
+      assert.match(source, /function photoSrc\(url\)/);
+      assert.match(source, /img\.src = photoSrc\(p\.photo\)/);
+    }
     assert.match(source, game.entryPoint);
     const initGuest = source.match(/async function initGuest\(\) \{[\s\S]*?\n\}/);
     assert.ok(initGuest, "guest initialization exists");
