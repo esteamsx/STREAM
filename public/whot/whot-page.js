@@ -5,8 +5,10 @@ import {
 import { sound } from "/chess/chess-sound.js";
 import { createVoice } from "/ludo/ludo-voice.js";
 
-const BASE = "/api/whot";
-const STREAM = "/api/chess/stream";
+const GUEST_MATCH = /^\/whot\/guest\/([A-Za-z0-9_-]{6,40})\/?$/.exec(location.pathname);
+const GUEST_TOKEN = GUEST_MATCH ? GUEST_MATCH[1] : "";
+const BASE = GUEST_TOKEN ? "/api/whot/guest" : "/api/whot";
+const STREAM = GUEST_TOKEN ? "/api/whot/guest/stream" : "/api/chess/stream";
 const SAVE_KEY = "wx_savedgame";
 const SEAT_HEX = { red: "#FF3B5C", green: "#12C48B", yellow: "#FFC93C", blue: "#3B82FF" };
 const SHAPE_COLOR = { circle: "#FF3B5C", triangle: "#12C48B", cross: "#3B82FF", square: "#E8A100", star: "#9B5CFF" };
@@ -70,7 +72,7 @@ const state = {
   size: [2, 3, 4].includes(Number(store("size"))) ? Number(store("size")) : 2,
   me: null, conn: "connecting", resuming: false,
   players: [], incoming: [], outgoing: [], table: null, search: "", offset: 0, loadingPlayers: false,
-  game: null, watchCode: "", watchNeedsPin: false,
+  game: null, links: null, guest: GUEST_TOKEN ? { token: GUEST_TOKEN, info: null, name: store("guestname", "") } : null, guestWait: null, watchCode: "", watchNeedsPin: false,
 };
 const serverNow = () => Date.now() + state.offset;
 
@@ -248,7 +250,7 @@ const myProfile = () => ({ seat: 0, color: SEAT_COLORS[0], name: (state.me && (s
 
 function newGame(o) {
   return Object.assign({ mode: "bot", id: null, key: null, you: 0, players: [], view: null, deadline: 0, seq: 0, room: null, spectator: false, over: false, result: null,
-    queue: [], playing: false, acting: false, log: [], token: 0, level: "medium", st: null, callArmed: false, recent: [], pendingOver: null, roomCode: "" }, o);
+    queue: [], playing: false, acting: false, actionLockUntil: 0, log: [], token: 0, level: "medium", st: null, callArmed: false, recent: [], pendingOver: null, roomCode: "" }, o);
 }
 function startBotGame() {
   const old = state.game;
@@ -383,7 +385,7 @@ function paintHand(fresh) {
     const ok = myTurn && playable(g.view, cardOf(id));
     const el = cardEl(id, ok ? "can" : myTurn ? "dim" : "");
     if (fresh && fresh.has(id)) el.classList.add("fresh");
-    el.addEventListener("click", () => onCardClick(id));
+    el.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); onCardClick(id); }, { once: true });
     box.appendChild(el);
   }
 }
@@ -565,8 +567,9 @@ async function doPlay(id, shape) {
 
 async function onDraw() {
   const g = state.game;
-  if (!g || g.over || g.spectator || g.acting || g.playing || g.queue.length) return;
+  if (!g || g.over || g.spectator || g.acting || g.playing || g.queue.length || Date.now() < (g.actionLockUntil || 0)) return;
   if (!isMyTurn(g)) { toast("It is not your turn."); return; }
+  g.actionLockUntil = Date.now() + 750;
   g.acting = true;
   try {
     if (g.mode === "bot") {
@@ -1054,6 +1057,7 @@ function connect() {
   const on = (name, fn) => es.addEventListener(name, (e) => { let d = null; try { d = JSON.parse(e.data); } catch { return; } fn(d); });
   on("ping", () => {});
   on("hello", (d) => { retries = 0; state.me = d.me || state.me; state.resuming = false; applyTheme(); setConn("online"); if (state.game) { paintPlayers(); if (state.game.mode === "online") startVoiceFor(state.game); } });
+  on("whot_guest_wait", (d) => { state.guestWait = d.message; renderGuest(); });
   on("whot_hello", (d) => {
     state.offset = (d.serverTime || Date.now()) - Date.now();
     state.incoming = d.incoming || [];
@@ -1221,6 +1225,13 @@ function tablePanel() {
   return box;
 }
 
+function guestLinkUrl(token) { return location.origin + "/whot/guest/" + token; }
+async function createGuestLink(btn) { busy(btn, true); try { const d = await api("/api/whot/guest/links", {}); state.links = [d.link].concat(state.links || []); renderMenu(); await shareGuestLink(guestLinkUrl(d.link.token), true); } catch (e) { busy(btn, false); toast(e.message); } }
+async function shareGuestLink(url, fresh) { if (navigator.share) { try { await navigator.share({ title: "Play Whot", text: "Play Whot with me as a guest.", url }); return; } catch (e) { if (e && e.name === "AbortError") return; } } try { await navigator.clipboard.writeText(url); toast(fresh ? "Game link created and copied." : "Link copied."); } catch { window.prompt("Copy this game link", url); } }
+async function loadGuestLinks() { try { const d = await api("/api/whot/guest/links"); state.links = d.links || []; } catch {} }
+function guestBox() { const box = h("div", { class: "cx-guestbox", id: "cxGuestBox" }); box.appendChild(h("div", { class: "cx-h", text: "Play with a guest" })); box.appendChild(h("button", { type: "button", class: "cx-btn", id: "cxMakeLink", onclick: (e) => createGuestLink(e.currentTarget) }, ["Create game link"])); box.appendChild(h("p", { class: "cx-hint", text: "Make a link for someone without an account. They can join your two-player Whot game from any browser." })); if (state.links && state.links.length) { box.appendChild(h("div", { class: "cx-h", text: "Your active links" })); for (const l of state.links) { const row = h("div", { class: "cx-linkrow" }), share = h("button", { type: "button", class: "cx-vbtn sm", "aria-label": "Share game link" }), cancel = h("button", { type: "button", class: "cx-vbtn sm", "aria-label": "Cancel game link", text: "×" }); share.innerHTML = VI.share; share.addEventListener("click", () => shareGuestLink(guestLinkUrl(l.token), false)); cancel.addEventListener("click", async () => { try { await api("/api/whot/guest/links/" + encodeURIComponent(l.token) + "/cancel", {}); state.links = state.links.filter((x) => x.token !== l.token); renderMenu(); } catch (e) { toast(e.message); } }); row.appendChild(h("div", { class: "grow" }, [h("b", { text: "Guest Whot game" }), h("span", { class: "cx-sub", text: l.status === "playing" ? "Guest is playing" : "Waiting for a guest" })])); row.appendChild(share); row.appendChild(cancel); box.appendChild(row); } } return box; }
+async function loadGuestInfo() { try { state.guest.info = await api("/api/whot/guest/info/" + encodeURIComponent(GUEST_TOKEN)); } catch (e) { state.guest.info = { status: "error", error: e.message }; } }
+function renderGuest() { const root = $("cxMenu"); root.textContent = ""; const info = state.guest && state.guest.info, card = h("div", { class: "cx-card" }); root.appendChild(card); if (!info) { card.appendChild(h("div", { class: "cx-loading" }, [h("span", { class: "cx-roll" }), "Opening game link"])); return; } if (["finished", "ended", "expired", "error"].includes(info.status)) { card.appendChild(h("h2", { text: info.status === "finished" ? "Game finished" : "Game link unavailable" })); card.appendChild(h("p", { class: "cx-hint", text: info.error || "This guest game link has ended or expired." })); return; } if (state.guest.joined) { card.appendChild(h("h2", { text: "Waiting for the host" })); card.appendChild(h("p", { class: "cx-hint", text: state.guestWait || "Your game will open as soon as the host is ready." })); return; } card.appendChild(h("h2", { text: ((info.host && info.host.name) || "Someone") + " invited you to play Whot" })); card.appendChild(h("p", { class: "cx-hint", text: "Choose a display name to join as a guest. No account is required." })); const name = h("input", { class: "cx-field", id: "wxGuestName", maxlength: "20", placeholder: "Your name", autocomplete: "nickname", value: state.guest.name || "" }), join = h("button", { type: "button", class: "cx-btn", id: "wxGuestJoin" }, ["Play as guest"]); join.addEventListener("click", async () => { const n = name.value.trim(); if (n.length < 2) return toast("Enter a name (at least 2 letters)."); busy(join, true); try { await api("/api/whot/guest/join/" + encodeURIComponent(GUEST_TOKEN), { name: n }); state.guest.name = n; state.guest.joined = true; state.guest.info.you = true; state.guest.info.status = "playing"; renderGuest(); connect(); } catch (e) { busy(join, false); toast(e.message); } }); card.appendChild(name); card.appendChild(join); }
 function renderOnlinePanel(card) {
   if (state.conn !== "online") {
     card.appendChild(h("div", { class: "cx-empty", id: "cxOffline", text: state.conn === "unavailable" ? "Online play is not available right now. You can still play the computer." : "" }, state.conn === "unavailable" ? [] : [h("span", { class: "cx-roll" }), " Connecting"]));
@@ -1251,6 +1262,8 @@ function renderOnlinePanel(card) {
   card.appendChild(h("div", { class: "cx-players", id: "cxPlayers" }));
   paintLobbyPlayers();
   card.appendChild(watchBox());
+  card.appendChild(guestBox());
+  if (state.links === null) loadGuestLinks().then(() => { if (state.tab === "online" && $("cxMenu") && !$("cxMenu").hidden) renderMenu(); });
 }
 
 async function loadPlayers() {
@@ -1337,6 +1350,7 @@ async function respondChallenge(r, accept) {
 }
 
 function renderLobby() {
+  if (GUEST_TOKEN && !state.game) { renderGuest(); return; }
   if ($("cxMenu") && !$("cxMenu").hidden) {
     const a = document.activeElement;
     const focused = a && (a.id === "cxSearch" || a.id === "cxWatchCode" || a.id === "cxWatchPin") ? a : null;
@@ -1392,9 +1406,7 @@ function init() {
   window.addEventListener("beforeunload", (e) => { const g = state.game; if (g && g.mode === "online" && !g.over && !g.spectator) { e.preventDefault(); e.returnValue = ""; } });
   const watch = new URLSearchParams(location.search).get("watch");
   if (watch) { state.tab = "online"; state.watchCode = String(watch).toUpperCase().slice(0, 6); }
-  if (!restoreBotGame()) renderMenu();
-  loadMe();
-  connect();
+  if (GUEST_TOKEN) { loadGuestInfo().then(() => { renderGuest(); if (state.guest.info && state.guest.info.you) { state.guest.joined = true; connect(); } }); } else { if (!restoreBotGame()) renderMenu(); loadMe(); connect(); }
 }
 init();
 window.__whot = { state };

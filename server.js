@@ -731,7 +731,7 @@ const ludoRouter = express.Router();
 registerLudoRoutes(ludoRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
 app.use(ludoRouter);
 const whotRouter = express.Router();
-registerWhotRoutes(whotRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, searchUsersByUsername, chessHub });
+registerWhotRoutes(whotRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
 app.use(whotRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
@@ -1093,7 +1093,22 @@ app.get("/ludo", scrapeGate, requireUser, (req, res) => {
 app.get("/whot", scrapeGate, requireUser, (req, res) => {
   res.send(cachedWhotHtml);
 });
-
+const WHOT_GUEST_PREVIEW = {
+  title: "Join my Whot game | ES TEAMS TV",
+  description: "You have been invited to play Whot. No account needed, just pick a name and play.",
+};
+app.get(
+  "/whot/guest/:token",
+  (req, res, next) => {
+    const path = "/whot/guest/" + String(req.params.token || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    res.locals.previewTags = siteHead({ ...WHOT_GUEST_PREVIEW, path });
+    next();
+  },
+  scrapeGate,
+  (req, res) => {
+    res.send(cachedWhotHtml);
+  }
+);
 const LUDO_GUEST_PREVIEW = {
   title: "Join my Ludo game | ES TEAMS TV",
   description: "You have been invited to play Ludo. No account needed, just pick a name and play.",
