@@ -1182,7 +1182,7 @@ function renderMenu() {
   root.appendChild(h("div", { class: "cx-hero" }, [h("h1", { text: "Whot" }), h("p", { text: "Get rid of your cards first. Play the computer, or play 2 to 4 people who are online." })]));
   root.appendChild(h("div", { class: "cx-tabs" }, [
     h("button", { class: "cx-tab" + (state.tab === "computer" ? " on" : ""), id: "tabComputer", type: "button", onclick: () => { state.tab = "computer"; renderMenu(); } }, [html("span", "", ICON.cpu).firstChild, "Computer"]),
-    h("button", { class: "cx-tab" + (state.tab === "online" ? " on" : ""), id: "tabOnline", type: "button", onclick: () => { state.tab = "online"; renderMenu(); loadPlayers(); } }, [html("span", "", ICON.users).firstChild, "Online", pending ? h("span", { class: "badge", text: String(pending) }) : null]),
+    h("button", { class: "cx-tab" + (state.tab === "online" ? " on" : ""), id: "tabOnline", type: "button", onclick: () => { state.tab = "online"; renderMenu(); loadPlayers(); loadLinks(); } }, [html("span", "", ICON.users).firstChild, "Online", pending ? h("span", { class: "badge", text: String(pending) }) : null]),
   ]));
   const card = h("div", { class: "cx-card", id: "cxPanel" });
   root.appendChild(card);
@@ -1383,8 +1383,8 @@ function renderOnlinePanel(card) {
   card.appendChild(wrap);
   card.appendChild(h("div", { class: "cx-players", id: "cxPlayers" }));
   paintLobbyPlayers();
-  card.appendChild(watchBox());
   card.appendChild(guestBox());
+  card.appendChild(watchBox());
   if (state.links === null) loadLinks();
 }
 
