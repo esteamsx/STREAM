@@ -447,7 +447,7 @@ function paintHand(fresh) {
     const ok = myTurn && playable(g.view, cardOf(id));
     const el = cardEl(id, ok ? "can" : myTurn ? "dim" : "");
     if (fresh && fresh.has(id)) el.classList.add("fresh");
-    el.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); onCardClick(id); }, { once: true });
+    el.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); onCardClick(id); });
     box.appendChild(el);
   }
 }
