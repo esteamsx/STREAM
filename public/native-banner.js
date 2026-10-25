@@ -27,47 +27,13 @@
   for (var i = 0; i < BLOCKED.length; i++) if (BLOCKED[i].test(path)) return;
 
   var SLOTS = [
-    { test: /^\/$/, anchors: [] },                                                                          // home is positioned after the third rendered post
+    { test: /^\/$/, anchors: [["#hmFeed", "afterend"], ["#hmTabs", "afterend"]] },                         // home: after the feed, centered in the main column
     { test: /^\/tools\/[^/]+$/, anchors: [[".tool-card", "afterend"]] },                                    // tool pages, not the /tools index
     { test: /^\/channel-react$/, anchors: [["#crHistoryCard", "afterend"], [".cr-wrap", "beforeend"]] },  // between the main flow and guidance
     { test: /^\/developers$/, anchors: [[".tile-list .tile:first-child", "afterend"], [".wrap", "beforeend"]] }
   ];
 
-  function homePosts() { return document.querySelectorAll("#hmFeed .feed-post, #hmFeed .pf-post"); }
-  function homeThirdPost() {
-    var posts = homePosts();
-    return posts.length >= 3 ? posts[2] : null;
-  }
-
-  var homePostObserver = null, homeFallbackTimer = null;
-  function waitForHomePosts() {
-    if (path !== "/" || homePostObserver || typeof MutationObserver !== "function") return;
-    homePostObserver = new MutationObserver(function () {
-      if (!homeThirdPost()) return;
-      homePostObserver.disconnect();
-      homePostObserver = null;
-      place();
-    });
-    homePostObserver.observe(document.documentElement, { childList: true, subtree: true });
-    homeFallbackTimer = setTimeout(function () {
-      if (homePostObserver) homePostObserver.disconnect();
-      homePostObserver = null;
-      homeFallbackTimer = null;
-      place(true);
-    }, 5000);
-  }
-
-  function findSpot(allowHomeFallback) {
-    if (path === "/") {
-      var post = homeThirdPost();
-      if (post) return { el: post, where: "afterend" };
-      if (allowHomeFallback) {
-        var posts = homePosts();
-        var lastPost = posts.length ? posts[posts.length - 1] : document.querySelector("#hmFeed");
-        return lastPost ? { el: lastPost, where: "afterend" } : null;
-      }
-      return null;
-    }
+  function findSpot() {
     for (var s = 0; s < SLOTS.length; s++) {
       if (!SLOTS[s].test.test(path)) continue;
       for (var a = 0; a < SLOTS[s].anchors.length; a++) {
@@ -98,13 +64,11 @@
     document.head.appendChild(st);
   }
 
-  function place(allowHomeFallback) {
+  function place() {
     if (document.getElementById(CONTAINER_ID)) return;                                             // already on the page
     if (document.querySelector('script[data-es-native-banner], script[src*="' + KEY + '"]')) return; // script already added
-    var spot = findSpot(allowHomeFallback);
-    if (!spot) { waitForHomePosts(); return; }
-    if (homePostObserver) { homePostObserver.disconnect(); homePostObserver = null; }
-    if (homeFallbackTimer) { clearTimeout(homeFallbackTimer); homeFallbackTimer = null; }
+    var spot = findSpot();
+    if (!spot) return;
     addStyle();
 
     var card = document.createElement("div");
