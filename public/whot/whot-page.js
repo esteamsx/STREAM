@@ -58,13 +58,18 @@ function pickLabel(n) { return "Pick " + numberWord(n); }
 function whotVoicePhrase(ev) {
   if (!ev) return "";
   if (ev.type === "call") return "Last card";
-  if (ev.type === "draw") return pickLabel(ev.cards ? ev.cards.length : ev.count || 1);
+  if (ev.type === "draw") {
+    const count = ev.cards ? ev.cards.length : ev.count || 1;
+    return count > 1 ? pickLabel(count) : "";
+  }
   if (ev.type !== "play") return "";
-  if (ev.effect === "pick") return pickLabel(ev.pick);
-  if (ev.effect === "market") return "General market";
-  if (ev.effect === "skip") return "Go bombing";
-  if (ev.effect === "hold") return "Hold On";
-  if (ev.effect === "whot") return "Whot";
+  const card = ev.card == null ? null : cardOf(ev.card);
+  if (!card) return "";
+  if (card.n === 1) return "Hold On";
+  if (card.n === 2 || card.n === 5) return pickLabel(ev.pick || (card.n === 2 ? 2 : 3));
+  if (card.n === 8) return "Go bombing";
+  if (card.n === 14) return "General market";
+  if (card.n === 20) return "Whot";
   return "";
 }
 
