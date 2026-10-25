@@ -18,11 +18,6 @@
   var previewImg = $("hmPreviewImg");
   var verifyBanner = $("hmVerifyBanner");
   var verifyBannerClose = $("hmVerifyBannerClose");
-  var VERIFY_BANNER_KEY = "es_verify_banner_v1";
-  var VERIFY_BANNER_WINDOW = 7 * 24 * 60 * 60 * 1000;
-  var VERIFY_BANNER_MAX = 4;
-  var VERIFY_BANNER_COOLDOWN = 24 * 60 * 60 * 1000;
-
   var state = { me: null, profile: null, tab: "discover", before: null, loading: false, token: 0, image: null, posting: false, people: [], peopleLoaded: false };
 
   function h(tag, props, kids) {
@@ -71,41 +66,20 @@
     return window.EsUI && window.EsUI.setBusy ? window.EsUI.setBusy(btn) : null;
   }
 
-  function verifyBannerStorageKey(profile) {
-    return VERIFY_BANNER_KEY + ":" + encodeURIComponent(String(profile && profile.uid || "unknown"));
-  }
-
-  function readVerifyBannerState(profile) {
-    var now = Date.now();
-    var data = { shownAt: [], dismissedUntil: 0 };
-    try { data = JSON.parse(localStorage.getItem(verifyBannerStorageKey(profile)) || "null") || data; } catch (e) {}
-    data.shownAt = Array.isArray(data.shownAt) ? data.shownAt.filter(function (ts) { return Number(ts) > now - VERIFY_BANNER_WINDOW; }) : [];
-    data.dismissedUntil = Number(data.dismissedUntil) || 0;
-    return data;
-  }
-
-  function saveVerifyBannerState(profile, data) {
-    try { localStorage.setItem(verifyBannerStorageKey(profile), JSON.stringify(data)); } catch (e) {}
-  }
-
   function showVerifyBanner(profile) {
     if (!verifyBanner || !profile || !profile.uid || profile.verified || profile.isAdmin) return;
-    var now = Date.now();
-    var data = readVerifyBannerState(profile);
-    saveVerifyBannerState(profile, data);
-    if (data.shownAt.length >= VERIFY_BANNER_MAX || data.dismissedUntil > now) return;
-    data.shownAt.push(now);
-    saveVerifyBannerState(profile, data);
-    verifyBanner.classList.add("show");
+    api("/api/verify-banner-state", { action: "shown" }).then(function (result) {
+      if (result && result.show) verifyBanner.classList.add("show");
+    }).catch(function () {
+      verifyBanner.classList.add("show");
+    });
   }
 
   if (verifyBannerClose) {
     verifyBannerClose.addEventListener("click", function () {
       verifyBanner.classList.remove("show");
       if (!state.profile || !state.profile.uid) return;
-      var data = readVerifyBannerState(state.profile);
-      data.dismissedUntil = Date.now() + VERIFY_BANNER_COOLDOWN;
-      saveVerifyBannerState(state.profile, data);
+      api("/api/verify-banner-state", { action: "dismissed" }).catch(function () {});
     });
   }
 

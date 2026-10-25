@@ -3568,6 +3568,41 @@ app.get("/api/profile", requireAuth, async (req, res) => {
   }
 });
 
+const VERIFY_BANNER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const VERIFY_BANNER_MAX_DISPLAYS = 4;
+const VERIFY_BANNER_DISMISS_MS = 24 * 60 * 60 * 1000;
+function normalizeVerifyBannerState(raw, now = Date.now()) {
+  const value = raw && typeof raw === "object" ? raw : {};
+  return {
+    shownAt: Array.isArray(value.shownAt)
+      ? value.shownAt.map(Number).filter((ts) => Number.isFinite(ts) && ts > now - VERIFY_BANNER_WINDOW_MS)
+      : [],
+    dismissedUntil: Number.isFinite(Number(value.dismissedUntil)) ? Number(value.dismissedUntil) : 0,
+  };
+}
+app.post("/api/verify-banner-state", requireAuth, async (req, res) => {
+  try {
+    const action = String(req.body?.action || "");
+    if (action !== "shown" && action !== "dismissed") return res.status(400).json({ error: "Invalid banner action." });
+    const profile = await getUserProfile(req.uid);
+    if (!profile) return res.status(404).json({ error: "Profile not found." });
+    if (isVerificationActive(profile) || isAdminEmail(profile.email)) return res.json({ show: false, state: normalizeVerifyBannerState(null) });
+    const now = Date.now();
+    const state = normalizeVerifyBannerState(profile.verifyBannerState, now);
+    if (action === "shown") {
+      if (state.shownAt.length >= VERIFY_BANNER_MAX_DISPLAYS || state.dismissedUntil > now) return res.json({ show: false, state });
+      state.shownAt.push(now);
+    } else {
+      state.dismissedUntil = now + VERIFY_BANNER_DISMISS_MS;
+    }
+    await updateUserProfile(req.uid, { verifyBannerState: state });
+    res.json({ show: action === "shown", state });
+  } catch (err) {
+    console.error("[/api/verify-banner-state] failed:", err);
+    res.status(500).json({ error: "Could not update banner state." });
+  }
+});
+
 app.get("/api/ads/eligibility", async (req, res) => {
   res.set("Cache-Control", "no-store");
   try {
