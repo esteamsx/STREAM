@@ -72,6 +72,8 @@ button{cursor:pointer}
 <main class="cx-wrap">
   <section id="cxMenu" class="cx-menu"></section>
 
+  <section id="cxGuest" class="cx-menu" hidden></section>
+
   <section id="cxGame" class="cx-game" hidden>
     <div class="cx-boardcol">
       <div id="cxTop"></div>

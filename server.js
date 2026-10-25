@@ -738,7 +738,7 @@ const whotRouter = express.Router();
 registerWhotRoutes(whotRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
 app.use(whotRouter);
 const snakesRouter = express.Router();
-registerSnakesRoutes(snakesRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, searchUsersByUsername, creditCompetitiveGameWin, chessHub });
+registerSnakesRoutes(snakesRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub });
 app.use(snakesRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
@@ -1104,6 +1104,20 @@ app.get("/whot", scrapeGate, requireUser, (req, res) => {
 app.get("/snakes", scrapeGate, requireUser, (req, res) => {
   res.send(cachedSnakesHtml);
 });
+const SNAKES_GUEST_PREVIEW = {
+  title: "Join my Snakes and Ladders game | ES TEAMS TV",
+  description: "You have been invited to play Snakes and Ladders. No account needed, just pick a name and play.",
+};
+app.get(
+  "/snakes/guest/:token",
+  (req, res, next) => {
+    const path = "/snakes/guest/" + String(req.params.token || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    res.locals.previewTags = siteHead({ ...SNAKES_GUEST_PREVIEW, path });
+    next();
+  },
+  scrapeGate,
+  (req, res) => { res.send(cachedSnakesHtml); }
+);
 const WHOT_GUEST_PREVIEW = {
   title: "Join my Whot game | ES TEAMS TV",
   description: "You have been invited to play Whot. No account needed, just pick a name and play.",

@@ -2,8 +2,10 @@ import { SEAT_COLORS, SEAT_NAMES, SIZE, LADDERS, SNAKES, newState, roll as engin
 import { sound } from "/chess/chess-sound.js";
 import { createVoice } from "/ludo/ludo-voice.js";
 
-const BASE = "/api/snakes";
-const STREAM = "/api/chess/stream";
+const GUEST_MATCH = /^\/snakes\/guest\/([A-Za-z0-9_-]{6,40})\/?$/.exec(location.pathname);
+const GUEST_TOKEN = GUEST_MATCH ? GUEST_MATCH[1] : null;
+const BASE = GUEST_TOKEN ? "/api/snakes/guest" : "/api/snakes";
+const STREAM = GUEST_TOKEN ? "/api/snakes/guest/stream" : "/api/chess/stream";
 const SAVE_KEY = "sx_savedgame";
 const SEAT_HEX = { red: "#FF3B5C", green: "#12C48B", yellow: "#FFC93C", blue: "#3B82FF" };
 const SNAKE_COLORS = ["#FF3B5C", "#12C48B", "#B070FF", "#FFC93C", "#3B82FF"];
@@ -45,11 +47,14 @@ function save(key, value) { try { localStorage.setItem("sx_" + key, String(value
 
 const state = {
   tab: "computer",
+  level: ["easy", "medium", "hard"].includes(store("level")) ? store("level") : "medium",
   opponents: [1, 2, 3].includes(Number(store("opps"))) ? Number(store("opps")) : 1,
   size: [2, 3, 4].includes(Number(store("size"))) ? Number(store("size")) : 2,
   me: null, conn: "connecting", resuming: false,
   players: [], incoming: [], outgoing: [], table: null, search: "", offset: 0, loadingPlayers: false,
-  game: null, watchCode: "", watchNeedsPin: false,
+  game: null, links: null, watchCode: "", watchNeedsPin: false,
+  guest: GUEST_TOKEN ? { token: GUEST_TOKEN, info: null, name: store("guestname", ""), joined: false } : null,
+  guestWait: null,
 };
 const serverNow = () => Date.now() + state.offset;
 
@@ -282,7 +287,7 @@ function startBotGame() {
   const seats = [0, 1, 2, 3].slice(0, state.opponents + 1);
   const st = newState(seats);
   const players = seats.map((s) => (s === 0 ? myProfile() : botProfile(s)));
-  const g = newGame({ mode: "bot", you: 0, players, st, token: (old ? old.token : 0) + 1 });
+  const g = newGame({ mode: "bot", you: 0, players, st, level: state.level, token: (old ? old.token : 0) + 1 });
   g.view = viewOf(st);
   document.querySelectorAll(".cx-ov").forEach((x) => x.remove());
   beginGame(g, {});
@@ -295,7 +300,8 @@ function beginGame(g, opts = {}) {
   $("cxMenu").hidden = true;
   $("cxGame").hidden = false;
   const back = $("cxBack");
-  if (back) back.setAttribute("href", "/");
+  if (back) back.setAttribute("href", GUEST_TOKEN ? "/snakes" : "/");
+  if (GUEST_TOKEN && $("cxGuest")) $("cxGuest").hidden = true;
   $("cxBoard").innerHTML = boardSvg();
   applyTheme();
   paintAll();
@@ -476,6 +482,7 @@ function leaveGame() {
   state.game = null;
   $("cxGame").hidden = true;
   $("cxVoiceDock").hidden = true;
+  if (GUEST_TOKEN) { showGuestEnded(); return; }
   $("cxMenu").hidden = false;
   renderMenu();
 }
@@ -538,7 +545,8 @@ async function botStep() {
       const seat = seatOfTurn(g.st);
       if (seat === g.you) break;
       if (document.hidden) break;
-      await sleep(700 + Math.floor(Math.random() * 500));
+      const pace = g.level === "easy" ? [1150, 650] : g.level === "hard" ? [350, 350] : [700, 500];
+      await sleep(pace[0] + Math.floor(Math.random() * pace[1]));
       if (state.game !== g || g.token !== token || g.over || document.hidden) break;
       if (g.queue.length || g.playing || seatOfTurn(g.st) !== seat) continue;
       const ev = engineRoll(g.st, seat, rollValue());
@@ -552,7 +560,7 @@ async function botStep() {
 
 function saveGame() {
   const g = state.game;
-  try { if (g && g.mode === "bot" && !g.over) localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, st: g.st, players: g.players, log: g.log, you: g.you })); } catch { /* private mode or full */ }
+  try { if (g && g.mode === "bot" && !g.over) localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, st: g.st, players: g.players, log: g.log, you: g.you, level: g.level })); } catch { /* private mode or full */ }
 }
 function clearSaved() { try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ } }
 function restoreBotGame() {
@@ -561,7 +569,7 @@ function restoreBotGame() {
     if (!raw) return false;
     const d = JSON.parse(raw);
     if (!d || d.v !== 1 || !d.st || d.st.winner != null || !Array.isArray(d.players)) { clearSaved(); return false; }
-    const g = newGame({ mode: "bot", you: d.you || 0, players: d.players, st: d.st, log: d.log || [] });
+    const g = newGame({ mode: "bot", you: d.you || 0, players: d.players, st: d.st, log: d.log || [], level: ["easy", "medium", "hard"].includes(d.level) ? d.level : state.level });
     g.view = viewOf(d.st);
     beginGame(g, { resume: true });
     return true;
@@ -673,7 +681,7 @@ function finishGame(winner, reason, view, players, result) {
     ]));
   }
   const m = modal([h("h2", { text: title }), h("p", { class: "cx-hint", style: "margin-top:8px", text: why }), list]);
-  if (won && g.mode === "online" && !g.spectator) {
+  if (won && g.mode === "online" && !g.spectator && !GUEST_TOKEN) {
     api(BASE + "/game/" + encodeURIComponent(g.id) + "/reward", {}).then((reward) => {
       if (!reward.rewarded) return;
       const box = m.el.querySelector(".cx-modal");
@@ -688,7 +696,7 @@ function finishGame(winner, reason, view, players, result) {
   } else {
     row.appendChild(h("button", { type: "button", class: "cx-btn ghost", onclick: () => { m.close(); if (g.spectator) stopWatching(); else leaveGame(); } }, ["Menu"]));
     const opp = g.players.find((p) => p.seat !== g.you);
-    if (!g.spectator && g.players.length === 2 && opp) {
+    if (!g.spectator && !GUEST_TOKEN && g.players.length === 2 && opp && !opp.guest) {
       row.appendChild(h("button", { type: "button", class: "cx-btn", id: "sxRematch", onclick: async (e) => {
         const btn = e.currentTarget; busy(btn, true);
         try { await api(BASE + "/challenge", { toUid: opp.uid, size: 2 }); toast("Rematch request sent."); m.close(); leaveGame(); } catch (err) { busy(btn, false); toast(err.message); }
@@ -707,7 +715,7 @@ function renderMenu() {
   root.appendChild(h("div", { class: "cx-hero" }, [h("h1", { text: "Snakes and Ladders" }), h("p", { text: "Race to square 100. Play the computer, or play 2 to 4 people who are online." })]));
   root.appendChild(h("div", { class: "cx-tabs" }, [
     h("button", { class: "cx-tab" + (state.tab === "computer" ? " on" : ""), id: "tabComputer", type: "button", onclick: () => { state.tab = "computer"; renderMenu(); } }, [html("span", "", ICON.cpu).firstChild, "Computer"]),
-    h("button", { class: "cx-tab" + (state.tab === "online" ? " on" : ""), id: "tabOnline", type: "button", onclick: () => { state.tab = "online"; renderMenu(); loadPlayers(); } }, [html("span", "", ICON.users).firstChild, "Online", pending ? h("span", { class: "badge", text: String(pending) }) : null]),
+    h("button", { class: "cx-tab" + (state.tab === "online" ? " on" : ""), id: "tabOnline", type: "button", onclick: () => { state.tab = "online"; renderMenu(); loadPlayers(); loadLinks(); } }, [html("span", "", ICON.users).firstChild, "Online", pending ? h("span", { class: "badge", text: String(pending) }) : null]),
   ]));
   const card = h("div", { class: "cx-card", id: "cxPanel" });
   root.appendChild(card);
@@ -715,12 +723,22 @@ function renderMenu() {
 }
 
 function renderComputerPanel(card) {
+  const levels = [
+    { id: "easy", name: "Easy", note: "Takes its time. The die stays fair.", mark: "1" },
+    { id: "medium", name: "Medium", note: "A steady pace. The die stays fair.", mark: "2" },
+    { id: "hard", name: "Hard", note: "Quicker turns. The die stays fair.", mark: "3" },
+  ];
+  card.appendChild(h("div", { class: "cx-h", text: "Difficulty" }));
+  card.appendChild(h("div", { class: "cx-levels" }, levels.map((l) => h("button", {
+    type: "button", class: "cx-level" + (state.level === l.id ? " on" : ""), "data-level": l.id,
+    onclick: () => { state.level = l.id; save("level", l.id); renderMenu(); },
+  }, [h("div", { class: "lv " + l.id, text: l.mark }), h("div", {}, [h("b", { text: l.name }), h("span", { text: l.note })])]))));
   card.appendChild(h("div", { class: "cx-h", text: "Computer players" }));
   card.appendChild(h("div", { class: "cx-chips" }, [[1, "1 player"], [2, "2 players"], [3, "3 players"]].map(([n, label]) => h("button", {
     type: "button", class: "cx-chip" + (state.opponents === n ? " on" : ""), "data-opps": n, onclick: () => { state.opponents = n; save("opps", n); renderMenu(); },
   }, [label]))));
   card.appendChild(h("button", { type: "button", class: "cx-btn", id: "cxStartBot", onclick: (e) => { busy(e.currentTarget, true); setTimeout(startBotGame, 180); } }, ["Start game"]));
-  card.appendChild(learnMore(RULES.concat(["The game is all luck: the computer only rolls the die, so there is no difficulty to choose.", "A game in progress is saved on this device, so you can leave and come back to it."])));
+  card.appendChild(learnMore(RULES.concat(["Snakes and Ladders is a game of luck. Difficulty changes how quickly the computer takes its turns; it does not change the fair die rolls.", "A game in progress is saved on this device, so you can leave and come back to it."])));
 }
 
 /* ------------------------------------------------------------------ voice and rooms (same as chess and Ludo) */
@@ -979,16 +997,19 @@ function setConn(c) {
   const tx = $("cxConnText");
   if (tx) tx.textContent = c === "online" ? "Online" : c === "connecting" ? "Connecting" : c === "unavailable" ? "Unavailable" : "Reconnecting";
   renderLobby();
+  if (GUEST_TOKEN) renderGuest();
 }
 
 function connect() {
+  if (GUEST_TOKEN && !state.guest.joined) return;
   clearTimeout(retryTimer);
   if (es) { es.close(); es = null; }
   setConn("connecting");
   es = new EventSource(STREAM);
   const on = (name, fn) => es.addEventListener(name, (e) => { let d = null; try { d = JSON.parse(e.data); } catch { return; } fn(d); });
   on("ping", () => {});
-  on("hello", (d) => { retries = 0; state.me = d.me || state.me; state.resuming = false; applyTheme(); setConn("online"); if (state.game) { paintPlayers(); if (state.game.mode === "online") startVoiceFor(state.game); } });
+  on("snakes_guest_wait", (d) => { state.guestWait = d.message || "Waiting for the host."; renderGuest(); });
+  on("hello", (d) => { retries = 0; state.me = d.me || state.me; state.resuming = false; applyTheme(); setConn("online"); if (state.game) { paintPlayers(); if (state.game.mode === "online") startVoiceFor(state.game); } if (!GUEST_TOKEN && state.tab === "online") { loadPlayers(); loadLinks(); } });
   on("snakes_hello", (d) => {
     state.offset = (d.serverTime || Date.now()) - Date.now();
     state.incoming = d.incoming || [];
@@ -1099,7 +1120,11 @@ async function resync() {
     paintAll();
   } catch (e) { if (e.code === "no_game" || e.code === "bad_key") { state.game = null; leaveGameUi(); } }
 }
-function leaveGameUi() { voice.stop(); $("cxGame").hidden = true; $("cxVoiceDock").hidden = true; $("cxMenu").hidden = false; renderMenu(); }
+function leaveGameUi() {
+  voice.stop(); $("cxGame").hidden = true; $("cxVoiceDock").hidden = true;
+  if (GUEST_TOKEN) { showGuestEnded(); return; }
+  $("cxMenu").hidden = false; renderMenu();
+}
 
 function tablePanel() {
   const t = state.table;
@@ -1125,11 +1150,68 @@ function tablePanel() {
   return box;
 }
 
+function snakesGuestLinkUrl(token) { return location.origin + "/snakes/guest/" + token; }
+async function shareSnakesLink(url, fresh) {
+  try { if (navigator.share) { await navigator.share({ title: "Snakes and Ladders", text: "Play Snakes and Ladders with me. No account needed.", url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(url); toast(fresh ? "Game link created and copied." : "Link copied."); }
+  catch { window.prompt("Copy this link", url); }
+}
+function guestLinkBox() {
+  const box = h("div", { class: "cx-guestbox", id: "sxGuestLinks" });
+  box.appendChild(h("div", { class: "cx-h", text: "Play with a guest" }));
+  box.appendChild(h("div", { class: "cx-sub", style: "margin:10px 0 8px", text: "Create a private one-use link for someone without an account." }));
+  box.appendChild(h("button", { type: "button", class: "cx-btn", id: "sxMakeLink", onclick: (e) => createSnakesLink(e.currentTarget) }, ["Create game link"]));
+  if (state.links && state.links.length) {
+    box.appendChild(h("div", { class: "cx-h", text: "Your active links" }));
+    for (const l of state.links) {
+      const url = snakesGuestLinkUrl(l.token), playing = l.status === "playing";
+      const actions = h("div", { class: "acts" });
+      if (!playing) {
+        const share = h("button", { type: "button", class: "cx-vbtn sm on", "aria-label": "Share game link", onclick: () => shareSnakesLink(url) });
+        share.innerHTML = VI.share;
+        actions.appendChild(share);
+        actions.appendChild(h("button", { type: "button", class: "cx-btn ghost sm", onclick: (e) => cancelSnakesLink(l, e.currentTarget) }, ["End"]));
+      }
+      box.appendChild(h("div", { class: "cx-linkrow", "data-link": l.token }, [
+        h("div", { class: "grow" }, [h("b", { text: "Guest game" }), h("span", { class: "cx-sub", text: playing ? "A guest is playing" : "Waiting for a guest" })]), actions,
+      ]));
+    }
+  }
+  box.appendChild(learnMore(["The guest opens your link, enters a name, and plays you directly. No account is needed.", "Each link is for one guest, works for up to 24 hours if unused, and expires shortly after the game ends."]));
+  return box;
+}
+async function loadLinks() {
+  if (GUEST_TOKEN || state.conn !== "online") return;
+  try {
+    const d = await api("/api/snakes/guest/links");
+    state.links = d.links || [];
+    if (state.tab === "online" && $("cxMenu") && !$("cxMenu").hidden) renderMenu();
+  } catch { /* keep existing links visible */ }
+}
+async function createSnakesLink(btn) {
+  busy(btn, true);
+  try {
+    const d = await api("/api/snakes/guest/links", {});
+    state.links = [d.link].concat(state.links || []);
+    renderMenu();
+    shareSnakesLink(snakesGuestLinkUrl(d.link.token), true);
+  } catch (e) { busy(btn, false); toast(e.message); }
+}
+async function cancelSnakesLink(link, btn) {
+  busy(btn, true);
+  try {
+    await api("/api/snakes/guest/links/" + encodeURIComponent(link.token) + "/cancel", {});
+    state.links = (state.links || []).filter((x) => x.token !== link.token);
+    renderMenu();
+  } catch (e) { busy(btn, false); toast(e.message); }
+}
+
 function renderOnlinePanel(card) {
   if (state.conn !== "online") {
     card.appendChild(h("div", { class: "cx-empty", id: "cxOffline", text: state.conn === "unavailable" ? "Online play is not available right now. You can still play the computer." : "" }, state.conn === "unavailable" ? [] : [h("span", { class: "cx-roll" }), " Connecting"]));
     return;
   }
+  if (!GUEST_TOKEN) card.appendChild(guestLinkBox());
   if (state.incoming.length) {
     card.appendChild(h("div", { class: "cx-h", text: "Requests for you" }));
     for (const r of state.incoming) card.appendChild(requestRow(r));
@@ -1260,7 +1342,83 @@ setInterval(() => {
     if (r && span) span.textContent = "wants to play Snakes and Ladders | " + (r.size > 2 ? r.size + " players | " : "") + Math.max(0, Math.round((r.expiresAt - now) / 1000)) + "s";
   });
 }, 1000);
-setInterval(() => { if (!document.hidden && state.tab === "online" && !$("cxMenu").hidden) loadPlayers(); }, 12000);
+setInterval(() => { if (!document.hidden && state.tab === "online" && !$("cxMenu").hidden) { loadPlayers(); loadLinks(); } }, 12000);
+
+/* ------------------------------------------------------------------ guest links */
+function guestEndedCard(title, text) {
+  return h("div", { class: "cx-card cx-ended", style: "text-align:center" }, [h("h1", { text: title }), h("p", { text }), h("a", { class: "cx-btn", href: "/snakes" }, ["Create game"])]);
+}
+function showGuestEnded() {
+  if (!GUEST_TOKEN || !state.guest) return;
+  if (state.game) { state.game.token++; state.game = null; }
+  voice.stop();
+  if (es) { es.close(); es = null; }
+  $("cxVoiceDock").hidden = true; $("cxGame").hidden = true;
+  state.guest.joined = false; state.guestWait = null;
+  state.guest.info = null;
+  renderGuest();
+  refreshGuestInfo();
+}
+async function refreshGuestInfo() {
+  try { state.guest.info = await api("/api/snakes/guest/info/" + encodeURIComponent(GUEST_TOKEN)); }
+  catch (e) { state.guest.info = { status: "error", error: e.message }; }
+  renderGuest();
+}
+function renderGuest() {
+  if (!GUEST_TOKEN) return;
+  const root = $("cxGuest");
+  if (!root) return;
+  if (state.game) { root.hidden = true; return; }
+  const keepName = $("cxGuestName") ? $("cxGuestName").value : state.guest.name;
+  root.hidden = false; root.textContent = "";
+  const info = state.guest.info;
+  const card = (kids) => root.appendChild(h("div", { class: "cx-card", style: "text-align:center" }, kids));
+  if (!info) { card([h("div", { class: "cx-loading" }, [h("span", { class: "cx-roll" }), "Opening game link"])]); return; }
+  if (info.status === "finished") {
+    const winner = info.result && info.result.winner;
+    root.appendChild(guestEndedCard("Game finished", (winner == null ? "The game is over." : SEAT_NAMES[SEAT_COLORS[winner]] + " won the game.") + " This link will expire shortly."));
+    return;
+  }
+  if (info.status === "ended" || info.status === "expired") { root.appendChild(guestEndedCard("Game link expired", "This invitation is no longer active. Ask your friend for a new link.")); return; }
+  if (info.status === "error") { card([h("h2", { text: "Could not open the game" }), h("p", { class: "cx-hint", text: info.error || "Check your connection and try again." }), h("button", { type: "button", class: "cx-btn", onclick: refreshGuestInfo }, ["Try again"])]); return; }
+  if (info.status === "playing" && !info.you) { root.appendChild(guestEndedCard("This link is already in use", "Someone else has joined this one-use invitation.")); return; }
+  const host = info.host || {};
+  const hostLine = h("div", { class: "cx-hostline" }, [avatar({ name: host.name || host.username, photo: host.photo })]);
+  if (state.guest.joined) {
+    const waiting = state.conn === "unavailable"
+      ? [h("p", { class: "cx-hint", text: "Could not connect. Check your internet and try again." }), h("button", { type: "button", class: "cx-btn", onclick: () => { retries = 0; connect(); } }, ["Reconnect"])]
+      : state.guestWait
+        ? [h("p", { class: "cx-hint", text: state.guestWait }), h("button", { type: "button", class: "cx-btn", onclick: async (e) => { busy(e.currentTarget, true); try { await api("/api/snakes/guest/start", {}); } catch (err) { toast(err.message); } busy(e.currentTarget, false); } }, ["Try again"])]
+        : [h("div", { class: "cx-loading" }, [h("span", { class: "cx-roll" }), "Starting your game"])];
+    card([hostLine, h("h2", { text: "Playing " + (host.name || host.username || "the host") }), ...waiting]);
+    return;
+  }
+  const input = h("input", { class: "cx-field", id: "cxGuestName", type: "text", maxlength: "20", placeholder: "Your name", autocomplete: "off", value: keepName || "" });
+  card([hostLine, h("h2", { text: (host.name || host.username || "Someone") + " invited you to play Snakes and Ladders" }), h("p", { class: "cx-hint", style: "margin-top:8px", text: "No account needed. Pick a name and join." }), input,
+    h("button", { type: "button", class: "cx-btn", id: "sxGuestJoin", onclick: (e) => joinSnakesGuest(e.currentTarget, input) }, ["Play as guest"])]);
+}
+async function joinSnakesGuest(btn, input) {
+  const name = input.value.trim();
+  if (name.length < 2) { toast("Enter a name (at least 2 letters)."); return; }
+  busy(btn, true);
+  try {
+    await api("/api/snakes/guest/join/" + encodeURIComponent(GUEST_TOKEN), { name });
+    save("guestname", name); state.guest.name = name; state.guest.joined = true;
+    state.guest.info.you = true; state.guest.info.status = "playing";
+    renderGuest(); retries = 0; connect();
+  } catch (e) {
+    busy(btn, false); toast(e.message);
+    if (["ended", "playing", "expired"].includes(e.code)) refreshGuestInfo();
+  }
+}
+async function initGuest() {
+  $("cxMenu").hidden = true;
+  const back = $("cxBack"); if (back) back.setAttribute("href", "/snakes");
+  const cog = $("cxCog"); if (cog) cog.style.display = "none";
+  renderGuest();
+  await refreshGuestInfo();
+  if (state.guest.info.you && state.guest.info.status === "playing") { state.guest.joined = true; retries = 0; connect(); }
+}
 
 /* ------------------------------------------------------------------ start up */
 function wireSound() {
@@ -1274,6 +1432,7 @@ function wireSound() {
 }
 
 async function loadMe() {
+  if (GUEST_TOKEN) return;
   try { const d = await api("/api/chess/me"); if (!state.me) { state.me = d.me; applyTheme(); if (state.game) paintPlayers(); } } catch { /* the stream also tells us */ }
 }
 
@@ -1296,6 +1455,7 @@ function init() {
   window.addEventListener("beforeunload", (e) => { const g = state.game; if (g && g.mode === "online" && !g.over && !g.spectator) { e.preventDefault(); e.returnValue = ""; } });
   const watch = new URLSearchParams(location.search).get("watch");
   if (watch) { state.tab = "online"; state.watchCode = String(watch).toUpperCase().slice(0, 6); }
+  if (GUEST_TOKEN) { initGuest(); return; }
   if (!restoreBotGame()) renderMenu();
   loadMe();
   connect();
