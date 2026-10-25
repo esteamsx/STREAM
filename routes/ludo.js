@@ -195,8 +195,11 @@ export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, Sim
       try {
         const host = await getUserProfile(l.hostUid);
         if (host) {
-          const hasPhoto = host.showProfilePhoto !== false && /^data:image\//.test(String(host.photoURL || ""));
-          out.host = { name: [host.firstName, host.lastName].filter(Boolean).join(" ") || host.username || "", username: host.username || "", photo: hasPhoto ? `/api/ludo/guest/avatar/${encodeURIComponent(l.token)}` : null };
+          const profilePhoto = photoFor(l.hostUid, host);
+          const photo = profilePhoto && profilePhoto.startsWith("/api/chess/avatar/")
+            ? `/api/ludo/guest/avatar/${encodeURIComponent(l.token)}`
+            : profilePhoto;
+          out.host = { name: [host.firstName, host.lastName].filter(Boolean).join(" ") || host.username || "", username: host.username || "", photo };
         }
       } catch { /* the page still works without the host details */ }
     }

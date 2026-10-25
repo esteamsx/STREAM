@@ -168,6 +168,11 @@ function toast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.style.display = "none"; }, 2800);
 }
+function photoSrc(url) {
+  if (!url) return null;
+  if (GUEST_TOKEN && url.startsWith("/api/chess/avatar/")) return "/api/whot/guest/avatar/" + encodeURIComponent(GUEST_TOKEN);
+  return url;
+}
 function avatar(p, status) {
   const letter = ((p && (p.name || p.username)) || "?").trim().charAt(0).toUpperCase() || "?";
   const box = h("div", { class: "cx-av" });
@@ -175,7 +180,7 @@ function avatar(p, status) {
   else if (p && p.photo) {
     const img = h("img", { alt: "", referrerpolicy: "no-referrer" });
     img.addEventListener("error", () => { img.remove(); box.insertBefore(document.createTextNode(letter), box.firstChild); });
-    img.src = p.photo;
+    img.src = photoSrc(p.photo);
     box.appendChild(img);
   } else box.appendChild(document.createTextNode(letter));
   if (status) box.appendChild(h("i", { class: "st " + status }));

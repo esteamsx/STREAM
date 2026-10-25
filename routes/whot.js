@@ -103,7 +103,38 @@ export function registerWhotRoutes(router, { requireAuth, requireSiteOrigin, Sim
   });
   router.get("/api/whot/guest/links", requireAuth, readLimiter, (req, res) => res.json({ links: [...links.values()].filter((l) => l.hostUid === req.uid && ["open", "playing"].includes(linkStatus(l))).sort((a, b) => b.createdAt - a.createdAt).map(linkView) }));
   router.post("/api/whot/guest/links/:token/cancel", requireAuth, requireSiteOrigin, challengeLimiter, (req, res) => { const l = links.get(String(req.params.token)); if (!l || l.hostUid !== req.uid) return res.status(404).json({ error: "That link was not found." }); if (l.status === "open") { l.status = "ended"; l.endedAt = Date.now(); } res.json({ ok: true }); });
-  router.get("/api/whot/guest/info/:token", guestIpLimiter, async (req, res) => { const l = links.get(String(req.params.token || "")); if (!l) return res.json({ status: "ended" }); const status = linkStatus(l), me = readGuest(req), out = { status, expiresAt: l.expiresAt, you: !!(me && l.guestUid === me.uid) }; if (status === "finished") out.result = l.result; if (status === "open" || (status === "playing" && out.you)) { try { const h = await getUserProfile(l.hostUid); if (h) out.host = { name: [h.firstName, h.lastName].filter(Boolean).join(" ") || h.username || "", username: h.username || "" }; } catch {} } res.set("Cache-Control", "no-store").json(out); });
+  function sendPhoto(res, p) {
+    const m = p && p.showProfilePhoto !== false && /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(String(p.photoURL || ""));
+    if (!m) return res.status(404).end();
+    res.set({ "Content-Type": m[1], "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" });
+    res.send(Buffer.from(m[2], "base64"));
+  }
+  router.get("/api/whot/guest/info/:token", guestIpLimiter, async (req, res) => {
+    const l = links.get(String(req.params.token || ""));
+    if (!l) return res.set("Cache-Control", "no-store").json({ status: "ended" });
+    const status = linkStatus(l), me = readGuest(req), out = { status, expiresAt: l.expiresAt, you: !!(me && l.guestUid === me.uid) };
+    if (status === "finished") out.result = l.result;
+    if (status === "open" || (status === "playing" && out.you)) {
+      try {
+        const host = await getUserProfile(l.hostUid);
+        if (host) {
+          const profilePhoto = photoFor(l.hostUid, host);
+          const photo = profilePhoto && profilePhoto.startsWith("/api/chess/avatar/")
+            ? `/api/whot/guest/avatar/${encodeURIComponent(l.token)}`
+            : profilePhoto;
+          out.host = { name: [host.firstName, host.lastName].filter(Boolean).join(" ") || host.username || "", username: host.username || "", photo };
+        }
+      } catch { /* the game remains available without host details */ }
+    }
+    res.set("Cache-Control", "no-store").json(out);
+  });
+  router.get("/api/whot/guest/avatar/:token", guestIpLimiter, async (req, res) => {
+    try {
+      const l = links.get(String(req.params.token || ""));
+      if (!l) return res.status(404).end();
+      return sendPhoto(res, await getUserProfile(l.hostUid));
+    } catch { return res.status(404).end(); }
+  });
   router.post("/api/whot/guest/join/:token", requireSiteOrigin, guestJoinLimiter, (req, res) => { const l = links.get(String(req.params.token || "")), status = l && linkStatus(l), existing = readGuest(req); if (!l) return res.status(404).json({ error: "This game session has ended.", code: "ended" }); if (existing && l.guestUid === existing.uid && status === "playing") return res.json({ ok: true }); if (status !== "open") return res.status(409).json({ error: status === "playing" ? "Someone is already playing on this link." : "This game session has ended.", code: status }); const name = String((req.body || {}).name || "").replace(/[^\p{L}\p{N} _.-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 20); if (name.length < 2) return res.status(400).json({ error: "Enter a name (at least 2 letters)." }); if (!hub.isOnline(l.hostUid)) return res.status(409).json({ error: "The host is not online right now. Try again in a moment.", code: "host_offline" }); if (hub.isBusy(l.hostUid)) return res.status(409).json({ error: "The host is in another game right now. Try again in a moment.", code: "host_busy" }); const uid = "guest_" + crypto.randomBytes(8).toString("hex"), secret = crypto.randomBytes(18).toString("hex"); guests.set(uid, { secret, name, token: l.token, createdAt: Date.now() }); l.guestUid = uid; l.status = "playing"; const secure = req.secure || String(req.get("x-forwarded-proto") || "").split(",")[0].trim() === "https"; res.cookie(GUEST_COOKIE, uid + "." + secret, { httpOnly: true, sameSite: "lax", secure, maxAge: 12 * 60 * 60 * 1000, path: "/api/whot/guest" }); res.json({ ok: true }); });
   function startGuestGame(g) { const l = links.get(g.token); if (!l || l.guestUid !== g.uid || l.status === "ended" || hub.activeGameOf(g.uid)) return; l.gameId = hub.startDirect(l.hostUid, g.uid); }
   router.get("/api/whot/guest/stream", guestIpLimiter, requireGuest, (req, res) => { const g = req.guest, l = links.get(g.token); if (!l || l.status === "ended") return res.status(410).json({ error: "This game session has ended.", code: "ended" }); res.status(200).set({ "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" }); if (res.flushHeaders) res.flushHeaders(); res.write("retry: 3000\n\n"); const sink = { send: (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`) }, profile = { uid: g.uid, username: g.name, name: g.name, photo: null, verified: false, guest: true }, connId = chessHub.connect(g.uid, profile, sink); try { if (!l.gameId) startGuestGame(g); } catch (e) { sink.send("whot_guest_wait", { message: e.message || "Waiting for the host." }); } const ping = setInterval(() => { try { sink.send("ping", { t: Date.now() }); } catch {} }, 8000); const done = () => { clearInterval(ping); chessHub.disconnect(g.uid, connId); }; req.on("close", done); res.on("close", done); });

@@ -96,6 +96,8 @@ for (const game of [
     assert.ok(source.includes(game.heading));
     assert.match(source, /id: "cxGuestName"[\s\S]*placeholder: "Your name"/);
     assert.match(source, new RegExp(`id: "${game.joinId}"[\\s\\S]*\\["Join game"\\]`));
+    assert.match(source, /function photoSrc\(url\)/);
+    assert.match(source, /img\.src = photoSrc\(p\.photo\)/);
     assert.match(source, game.entryPoint);
     const initGuest = source.match(/async function initGuest\(\) \{[\s\S]*?\n\}/);
     assert.ok(initGuest, "guest initialization exists");
