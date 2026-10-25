@@ -1118,7 +1118,15 @@ function setConn(c) {
   renderLobby();
 }
 
+let guestConnectionSounded = false;
 function playPing() { try { sound.ping(); } catch { /* sound is optional */ } }
+function playGameStartPing(gameId) {
+  if (GUEST_TOKEN) {
+    if (!gameId || guestConnectionSounded) return;
+    guestConnectionSounded = true;
+  }
+  playPing();
+}
 
 function connect() {
   clearTimeout(retryTimer);
@@ -1127,7 +1135,7 @@ function connect() {
   es = new EventSource(STREAM);
   const on = (name, fn) => es.addEventListener(name, (e) => { let d = null; try { d = JSON.parse(e.data); } catch { return; } fn(d); });
   on("ping", () => {});
-  on("hello", (d) => { const reconnecting = state.conn !== "online"; retries = 0; state.me = d.me || state.me; state.resuming = false; applyTheme(); if (reconnecting) playPing(); setConn("online"); if (state.game) { paintPlayers(); if (state.game.mode === "online") startVoiceFor(state.game); } });
+  on("hello", (d) => { retries = 0; state.me = d.me || state.me; state.resuming = false; applyTheme(); setConn("online"); if (state.game) { paintPlayers(); if (state.game.mode === "online") startVoiceFor(state.game); } });
   on("whot_guest_wait", (d) => { state.guestWait = d.message; renderGuest(); });
   on("whot_hello", (d) => {
     state.offset = (d.serverTime || Date.now()) - Date.now();
@@ -1135,7 +1143,7 @@ function connect() {
     state.outgoing = d.outgoing || [];
     state.table = d.table || null;
     state.resuming = false;
-    if (d.game && d.game.status === "active") startOnlineGame(d.game, { resume: true });
+    if (d.game && d.game.status === "active") { if (GUEST_TOKEN) playGameStartPing(d.game.id); startOnlineGame(d.game, { resume: true }); }
     else if (d.spectate) startSpectate(d.spectate, state.watchCode);
     else if (state.game && state.game.mode === "online" && !state.game.over) resync();
     renderLobby();
@@ -1160,7 +1168,7 @@ function connect() {
     }
     renderLobby();
   });
-  on("whot_game_start", (v) => { playPing(); state.table = null; startOnlineGame(v, {}); });
+  on("whot_game_start", (v) => { playGameStartPing(v.id); state.table = null; startOnlineGame(v, {}); });
   on("whot_state", (v) => {
     const g = state.game;
     if (!g || g.mode !== "online" || g.id !== v.gameId) return;
@@ -1202,6 +1210,7 @@ function connect() {
   on("whot_voice_signal", (d) => { const g = state.game; if (g && g.id === d.gameId) voice.onSignal(d); });
   es.onerror = () => {
     if (!es) return;
+    if (GUEST_TOKEN) guestConnectionSounded = false;
     if (es.readyState === EventSource.CLOSED) {
       es = null;
       if (++retries > 6) { setConn("unavailable"); return; }
