@@ -89,6 +89,12 @@ export const PAGES = {
     description: "Play chess against the computer or challenge someone who is online.",
     auth: "required",
   },
+  whot: {
+    path: "/whot",
+    title: `Whot | ${SITE.name}`,
+    description: "Play the Whot card game against the computer or with up to 4 people who are online.",
+    auth: "required",
+  },
   giveaway: {
     path: "/giveaway",
     title: `Giveaway | ${SITE.name}`,

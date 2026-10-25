@@ -14,6 +14,7 @@ import { renderPromote } from "./views/promote.js";
 import { renderGiveaway } from "./views/giveaway.js";
 import { renderChess } from "./views/chess.js";
 import { renderLudo } from "./views/ludo.js";
+import { renderWhot } from "./views/whot.js";
 import { renderHome } from "./views/home.js";
 import { renderLiveTv } from "./views/live-tv.js";
 import { renderProfile } from "./views/profile.js";
@@ -345,6 +346,7 @@ import { visitorSupportRouter } from "./routes/visitor-support.js";
 import { createGiveawayRouter } from "./routes/giveaway.js";
 import { registerChessRoutes } from "./routes/chess.js";
 import { registerLudoRoutes } from "./routes/ludo.js";
+import { registerWhotRoutes } from "./routes/whot.js";
 import { registerChannelRoutes } from "./routes/channel-tools.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
@@ -728,6 +730,9 @@ app.use(chessRouter);
 const ludoRouter = express.Router();
 registerLudoRoutes(ludoRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
 app.use(ludoRouter);
+const whotRouter = express.Router();
+registerWhotRoutes(whotRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, searchUsersByUsername, chessHub });
+app.use(whotRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
 app.use(devicesRouter);
@@ -839,6 +844,7 @@ const cachedPromoHtml = renderPromote(authPageConfig);
 const cachedGiveawayHtml = renderGiveaway(authPageConfig);
 const cachedChessHtml = renderChess(authPageConfig);
 const cachedLudoHtml = renderLudo(authPageConfig);
+const cachedWhotHtml = renderWhot(authPageConfig);
 const cachedAccountGuestHtml = wrapWithGuestBlur(cachedAccountHtml, "/account");
 const cachedProfileHtml = renderProfile(authPageConfig);
 const cachedAdminHtml = renderAdmin(authPageConfig);
@@ -1082,6 +1088,10 @@ app.get(
 
 app.get("/ludo", scrapeGate, requireUser, (req, res) => {
   res.send(cachedLudoHtml);
+});
+
+app.get("/whot", scrapeGate, requireUser, (req, res) => {
+  res.send(cachedWhotHtml);
 });
 
 const LUDO_GUEST_PREVIEW = {

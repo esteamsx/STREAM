@@ -1,0 +1,116 @@
+/* Whot. Everything else (menu, cards, buttons, lobby, room, voice) comes from /chess/chess.css so the games feel the same. */
+.wx-sw{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:7px;vertical-align:-1px;border:1px solid rgba(255,255,255,.55);flex-shrink:0}
+.cx-chip{display:inline-flex;align-items:center}
+.cx-chip[data-size]::before{display:none}
+
+/* ---- the players along the top ---- */
+.wx-players{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:0 auto 12px;max-width:560px}
+.wx-pl{display:flex;align-items:center;gap:9px;padding:6px 12px 6px 7px;border-radius:16px;border:2px solid transparent;background:var(--card);box-shadow:inset 0 0 0 1px var(--border);transition:border-color .25s,box-shadow .25s,transform .25s;position:relative}
+.wx-pl .cx-av{width:34px;height:34px;font-size:.9rem}
+.wx-pl.live{border-color:var(--pc);box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 28%,transparent);transform:translateY(-1px)}
+.wx-pl.gone{opacity:.42}
+.wx-pin{min-width:0;display:flex;flex-direction:column}
+.wx-pin b{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
+.wx-pin .cx-nm{max-width:112px;font-size:.82rem}
+.wx-pin .cx-nm svg{width:13px;height:13px}
+.wx-pin span{font-size:.68rem;color:var(--muted);white-space:nowrap}
+.wx-pin span.last{color:var(--red);font-weight:700}
+.wx-pt{font-family:var(--font-mono);font-size:.78rem;font-weight:600;color:var(--text);min-width:26px;text-align:right}
+.wx-pt.low{color:var(--red)}
+
+/* ---- the table: transparent glass, like the chess and Ludo boards ---- */
+.wx-tablewrap{position:relative;width:min(94vw,560px);margin:0 auto;border-radius:22px;background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02));-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),0 14px 40px rgba(0,0,0,.28)}
+.wx-table{--wx-felt:transparent;display:flex;align-items:center;justify-content:center;gap:clamp(14px,5vw,30px);padding:clamp(16px,4vw,26px) 14px;min-height:190px;border-radius:22px;background:var(--wx-felt);--cw:clamp(64px,19vw,96px)}
+.wx-table[data-table="emerald"]{--wx-felt:radial-gradient(circle at 50% 40%,rgba(18,196,139,.38),rgba(8,80,58,.55))}
+.wx-table[data-table="royal"]{--wx-felt:radial-gradient(circle at 50% 40%,rgba(124,92,255,.42),rgba(40,26,100,.6))}
+.wx-table[data-table="sunset"]{--wx-felt:radial-gradient(circle at 50% 40%,rgba(255,150,80,.4),rgba(120,40,40,.55))}
+.wx-table[data-table="midnight"]{--wx-felt:radial-gradient(circle at 50% 40%,rgba(60,70,120,.55),rgba(10,12,24,.8))}
+.wx-slot{display:flex;flex-direction:column;align-items:center;gap:8px;position:relative}
+.wx-slot small{font-size:.7rem;color:var(--muted);font-weight:600}
+.wx-market{background:none;border:none;padding:0;position:relative;display:block}
+.wx-market:disabled{cursor:default}
+.wx-market.can{cursor:pointer;animation:wxReady 1.4s ease-in-out infinite}
+.wx-market.can:active{transform:scale(.95)}
+.wx-count{position:absolute;right:-8px;top:-8px;min-width:24px;height:24px;border-radius:12px;padding:0 6px;background:var(--accent);color:#04141a;font-size:.72rem;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.wx-want{display:flex;align-items:center;gap:8px;padding:5px 11px;border-radius:999px;border:1px solid var(--border-strong);background:var(--card);font-size:.72rem;font-weight:700}
+.wx-want svg{width:18px;height:18px}
+.wx-pending{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);padding:4px 12px;border-radius:999px;background:var(--red);color:#fff;font-size:.74rem;font-weight:800;white-space:nowrap;box-shadow:0 4px 14px rgba(255,59,92,.4)}
+.wx-pile{position:relative;width:var(--cw);aspect-ratio:5/7}
+.wx-pile .wx-card{position:absolute;inset:0;width:100%}
+.wx-pile .wx-card.under{transform:rotate(var(--rot,-5deg)) translate(var(--tx,-4px),2px);opacity:.75}
+.wx-pile .wx-card.drop{animation:wxDrop .32s var(--ease)}
+@keyframes wxDrop{0%{transform:scale(1.18) rotate(-6deg);opacity:.2}100%{transform:none;opacity:1}}
+@keyframes wxReady{0%,100%{filter:drop-shadow(0 0 0 rgba(0,224,255,0))}50%{filter:drop-shadow(0 0 10px rgba(0,224,255,.7))}}
+
+/* ---- the cards ---- */
+.wx-card{--sc:#FF3B5C;position:relative;flex:0 0 auto;width:var(--cw,64px);aspect-ratio:5/7;border-radius:calc(var(--cw,64px) * .12);background:linear-gradient(160deg,#ffffff,#f1eee6);color:#17171f;border:1.5px solid rgba(20,20,30,.16);box-shadow:0 5px 14px rgba(0,0,0,.3);font-family:var(--font-display);user-select:none;-webkit-user-select:none;overflow:hidden;font-size:calc(var(--cw,64px) * .25)}
+.wx-card .n{position:absolute;font-weight:800;line-height:1;color:var(--sc)}
+.wx-card .n.tl{left:9%;top:6%}
+.wx-card .n.br{right:9%;bottom:6%;transform:rotate(180deg)}
+.wx-card svg{position:absolute;fill:var(--sc);stroke:none}
+.wx-card svg.sm{left:9%;top:31%;width:19%;height:auto}
+.wx-card svg.smb{right:9%;bottom:31%;width:19%;height:auto;transform:rotate(180deg)}
+.wx-card svg.big{left:50%;top:50%;width:46%;height:auto;transform:translate(-50%,-50%)}
+.wx-card[data-shape="star"] svg,.wx-card[data-shape="triangle"] svg{stroke:none}
+.wx-card.whot{background:linear-gradient(160deg,#1c1c2b,#0d0d16);border-color:rgba(255,255,255,.25);color:#fff}
+.wx-card.whot .n{color:#fff}
+.wx-card.whot .w{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-weight:800;letter-spacing:.04em;font-size:.82em;background:linear-gradient(90deg,#FF3B5C,#FFC93C,#12C48B,#3B82FF,#B070FF);-webkit-background-clip:text;background-clip:text;color:transparent}
+.wx-card.back{background:linear-gradient(145deg,#25345e,#171f3a);border-color:rgba(255,255,255,.28);display:flex;align-items:center;justify-content:center}
+.wx-card.back::before{content:"";position:absolute;inset:7%;border-radius:calc(var(--cw,64px) * .08);border:1.5px solid rgba(255,255,255,.35);background:repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0 6px,transparent 6px 12px)}
+.wx-card.back::after{content:"W";position:relative;font-weight:800;font-size:1.5em;color:rgba(255,255,255,.85)}
+.wx-table[data-backs="flat"] .wx-card.back,.wx-hand[data-backs="flat"] .wx-card.back{background:#2c3a66}
+
+/* ---- your hand ---- */
+.wx-hand{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:14px auto 4px;max-width:560px;min-height:calc(var(--cw,70px) * 1.4);--cw:clamp(44px,calc((100vw - 56px) / 6.3),80px)}
+.wx-hand[data-size="m"]{--cw:clamp(40px,calc((100vw - 56px) / 8.2),68px);gap:6px}
+.wx-hand[data-size="s"]{--cw:clamp(36px,calc((100vw - 56px) / 10.2),58px);gap:5px}
+.wx-hand .wx-card{cursor:default;transition:transform .16s var(--ease),opacity .2s,box-shadow .2s}
+.wx-hand .wx-card.dim{opacity:.42;filter:saturate(.6)}
+.wx-hand.mine .wx-card.can{cursor:pointer;transform:translateY(-7px);box-shadow:0 0 0 2.5px var(--accent),0 10px 22px rgba(0,0,0,.4)}
+.wx-hand.mine .wx-card.can:hover{transform:translateY(-12px)}
+.wx-hand.mine .wx-card.can:active{transform:translateY(-4px) scale(.97)}
+.wx-hand.spec{display:none}
+.wx-hand .wx-card.fresh{animation:wxDrop .32s var(--ease)}
+
+/* ---- status, log, controls ---- */
+.cx-status{border-left:3px solid var(--sc,var(--accent));padding-left:10px}
+.wx-logbox{margin-top:8px;display:flex;flex-direction:column;gap:1px}
+.wx-log{font-size:.78rem;color:var(--muted)}
+.wx-log:first-child{color:var(--text);font-weight:600}
+.cx-controls{display:flex;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+.wx-actions{display:flex;gap:10px;justify-content:center;margin:12px auto 0;flex-wrap:wrap}
+.wx-last{border:2px solid var(--red);background:transparent;color:var(--red);border-radius:12px;padding:10px 16px;font-weight:800;font-size:.85rem}
+.wx-last.on{background:var(--red);color:#fff}
+.wx-last.pulse{animation:wxPulse 1s ease-in-out infinite}
+@keyframes wxPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,59,92,.55)}50%{box-shadow:0 0 0 9px rgba(255,59,92,0)}}
+
+/* ---- shape picker for a Whot card ---- */
+.wx-shapes{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px 0 4px}
+.wx-shapebtn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;border-radius:14px;border:1px solid var(--border-strong);background:var(--card);font-size:.68rem;font-weight:700}
+.wx-shapebtn svg{width:30px;height:30px}
+.wx-shapebtn:active{transform:scale(.95)}
+@media (max-width:380px){.wx-shapes{grid-template-columns:repeat(3,1fr)}}
+
+/* ---- results ---- */
+.wx-results{display:flex;flex-direction:column;gap:6px;margin:12px 0 4px;text-align:left}
+.wx-res{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:12px;background:var(--card2);border-left:3px solid var(--pc,var(--border))}
+.wx-res.win{box-shadow:inset 0 0 0 1px var(--green)}
+.wx-res .grow{flex:1;min-width:0}
+.wx-res small{display:block;color:var(--muted);font-size:.7rem}
+.wx-res b.pts{font-family:var(--font-mono);font-size:.85rem}
+.wx-collect{text-align:center;font-weight:700;margin-top:6px;color:var(--green)}
+
+/* ---- the table for 3 and 4 player games ---- */
+.wx-tbl{margin:4px 0 14px}
+.wx-seats{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.wx-seat{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--pc,var(--border))}
+.wx-seat .grow{flex:1;min-width:0}
+.wx-seat small{display:block;color:var(--muted);font-size:.72rem;margin-top:1px}
+.wx-seat.empty{opacity:.55;border-left-color:var(--border);border-style:dashed}
+.wx-seat.wait{opacity:.8}
+.wx-sizes{margin-top:6px}
+.wx-sizes .cx-chips{justify-content:center}
+
+.cx-chip.locked{opacity:.5}
+@media (max-width:420px){.wx-pin b{max-width:78px}.wx-pin .cx-nm{max-width:80px}.wx-table{gap:14px}}
+@media (prefers-reduced-motion:reduce){.wx-market.can,.wx-last.pulse,.wx-pile .wx-card.drop,.wx-hand .wx-card.fresh{animation:none}.wx-hand .wx-card{transition:none}}
