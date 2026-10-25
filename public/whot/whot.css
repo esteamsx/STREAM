@@ -112,5 +112,7 @@
 .wx-sizes .cx-chips{justify-content:center}
 
 .cx-chip.locked{opacity:.5}
+.wx-voice-callout{display:block!important;color:var(--accent);font-weight:800;animation:wxVoice .28s var(--ease)}
+@keyframes wxVoice{0%{opacity:0;transform:translateY(5px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}
 @media (max-width:420px){.wx-pin b{max-width:78px}.wx-pin .cx-nm{max-width:80px}.wx-table{gap:14px}}
 @media (prefers-reduced-motion:reduce){.wx-market.can,.wx-last.pulse,.wx-pile .wx-card.drop,.wx-hand .wx-card.fresh{animation:none}.wx-hand .wx-card{transition:none}}

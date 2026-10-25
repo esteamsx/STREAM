@@ -40,6 +40,61 @@ const CARD_BACKS = [
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let lastWhotSoundAt = 0;
+
+function whotSound(name) {
+  const now = Date.now();
+  if (now - lastWhotSoundAt < 420) return;
+  lastWhotSoundAt = now;
+  sound[name]();
+}
+
+function numberWord(n) {
+  return ({ 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight" })[Number(n)] || String(n);
+}
+
+function pickLabel(n) { return "Pick " + numberWord(n); }
+
+function whotVoicePhrase(ev) {
+  if (!ev) return "";
+  if (ev.type === "call") return "Last card";
+  if (ev.type === "draw") return pickLabel(ev.cards ? ev.cards.length : ev.count || 1);
+  if (ev.type !== "play") return "";
+  if (ev.effect === "pick") return pickLabel(ev.pick);
+  if (ev.effect === "market") return "General market";
+  if (ev.effect === "skip") return "Go bombing";
+  if (ev.effect === "hold") return "Check up";
+  if (ev.effect === "whot") return "Whot";
+  return "";
+}
+
+function announceWhot(g, ev) {
+  const phrase = whotVoicePhrase(ev);
+  if (!phrase) return;
+  const key = [ev.type, ev.seat, ev.card, ev.effect, ev.pick, ev.count, ev.cards && ev.cards.length, ev.shape].join(":");
+  if (g.lastVoiceKey === key) return;
+  g.lastVoiceKey = key;
+  const note = $("cxNote");
+  if (note) {
+    note.textContent = phrase;
+    note.hidden = false;
+    note.classList.remove("wx-voice-callout");
+    void note.offsetWidth;
+    note.classList.add("wx-voice-callout");
+    clearTimeout(g.voiceTimer);
+    g.voiceTimer = setTimeout(() => { if (state.game === g) note.hidden = true; }, 1800);
+  }
+  if (sound.isOn() && "speechSynthesis" in window && "SpeechSynthesisUtterance" in window) {
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(phrase);
+      utterance.rate = 0.94;
+      utterance.pitch = 1;
+      utterance.volume = 0.9;
+      window.speechSynthesis.speak(utterance);
+    } catch { /* speech is optional */ }
+  }
+}
 const reduceMotion = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function h(tag, attrs, kids) {
@@ -368,7 +423,7 @@ function paintTable() {
     slot.appendChild(html("div", "wx-want", shapeSvg(v.shape, "", SHAPE_COLOR[v.shape]) + "<span>Wants " + SHAPE_NAMES[v.shape] + "</span>"));
   } else slot.appendChild(h("small", { text: "Played" }));
   root.appendChild(slot);
-  if (v.pending && !g.over) root.appendChild(h("div", { class: "wx-pending", id: "wxPending", text: "Pick " + v.pending.count + " or answer with a " + v.pending.n }));
+  if (v.pending && !g.over) root.appendChild(h("div", { class: "wx-pending", id: "wxPending", text: pickLabel(v.pending.count) }));
   applyTheme();
 }
 
@@ -419,7 +474,7 @@ function paintStatus() {
   else if ((v.out || []).includes(g.you)) text = "You left this game";
   else if (isMyTurn(g)) {
     color = g.you;
-    text = v.pending ? "Pick " + v.pending.count + " cards, or answer with a " + v.pending.n + "." : "Your turn. Play a card, or pick from the market.";
+    text = v.pending ? pickLabel(v.pending.count) : "Your turn. Play a card, or pick from the market.";
     if (!v.pending && !v.hand.some((id) => playable(v, cardOf(id)))) text = "No card fits. Pick one from the market.";
   } else if (v.turn != null) { color = v.turn; text = seatName(g, v.turn) + " is playing..."; }
   el.textContent = text;
@@ -541,7 +596,7 @@ async function onCardClick(id) {
   if (!g || g.over || g.spectator || g.acting || g.playing || g.queue.length) return;
   if (!isMyTurn(g)) { if (g.view.turn != null) toast("It is not your turn."); return; }
   const card = cardOf(id);
-  if (!playable(g.view, card)) { toast(g.view.pending ? "Answer with a " + g.view.pending.n + " or pick the cards." : "That card does not match the shape or number."); return; }
+  if (!playable(g.view, card)) { toast(g.view.pending ? pickLabel(g.view.pending.count) : "That card does not match the shape or number."); return; }
   let shape;
   if (card.shape === "whot") { shape = await pickShape(); if (!shape) return; }
   doPlay(id, shape);
@@ -594,7 +649,7 @@ async function doCall() {
   if (!g || g.over || g.spectator) return;
   try {
     if (g.mode === "bot") {
-      if (callLast(g.st, g.you)) { g.view = viewOf(g.st, g.you); addLog(g, "You call Last card"); sound.ping(); paintAll(); saveGame(); }
+      if (callLast(g.st, g.you)) { g.view = viewOf(g.st, g.you); addLog(g, "You call Last card"); whotSound("ping"); paintAll(); saveGame(); }
     } else await api(BASE + "/game/" + encodeURIComponent(g.id) + "/call", { key: g.key });
   } catch (e) { toast(e.message); }
 }
@@ -719,7 +774,7 @@ function applyView(g, p) {
 }
 async function showEvent(g, p) {
   const ev = p.event;
-  if (ev && ev.type === "play") { sound.move(); await flyPlay(g, ev); }
+  if (ev && ev.type === "play") { whotSound("move"); await flyPlay(g, ev); }
   const before = new Set(g.view.hand || []);
   applyView(g, p);
   if (g.callArmed && !(g.view.turn === g.you && g.view.hand.length === 2)) g.callArmed = false;
@@ -728,10 +783,11 @@ async function showEvent(g, p) {
   if (!ev) return;
   addLog(g, describe(g, ev));
   paintLog();
-  if (ev.type === "play" && (ev.effect === "pick" || ev.effect === "market")) sound.capture();
-  else if (ev.type === "play" && (ev.effect === "skip" || ev.effect === "hold" || ev.effect === "whot")) sound.check();
-  else if (ev.type === "call" || (ev.penalty && ev.penalty.seat === g.you)) sound.ping();
-  else if (ev.type === "draw") sound.move();
+  announceWhot(g, ev);
+  if (ev.type === "play" && (ev.effect === "pick" || ev.effect === "market")) whotSound("capture");
+  else if (ev.type === "play" && (ev.effect === "skip" || ev.effect === "hold" || ev.effect === "whot")) whotSound("check");
+  else if (ev.type === "call" || (ev.penalty && ev.penalty.seat === g.you)) whotSound("ping");
+  else if (ev.type === "draw") whotSound("move");
   if (ev.type === "out" && ev.seat === g.you && g.mode === "online") {
     setTimeout(() => { if (state.game === g && !g.over) { toast("You left the game."); leaveGame(); } }, 900);
   }

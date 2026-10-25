@@ -1571,7 +1571,7 @@ function renderGuest() {
     h("h2", { text: (host.name || host.username || "Someone") + " invited you to play Ludo" }),
     h("p", { class: "cx-hint", style: "margin-top:8px", text: "No account needed. Pick a name and join." }),
     input,
-    h("button", { type: "button", class: "cx-btn", id: "cxGuestJoin", onclick: (e) => joinGuest(e.currentTarget, input) }, ["Join game"]),
+    h("button", { type: "button", class: "cx-btn", id: "cxGuestJoin", onclick: (e) => joinGuest(e.currentTarget, input) }, ["Play as guest"]),
   ]);
 }
 async function joinGuest(btn, input) {
