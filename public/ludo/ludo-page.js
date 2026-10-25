@@ -1328,8 +1328,8 @@ function renderOnlinePanel(card) {
   card.appendChild(wrap);
   card.appendChild(h("div", { class: "cx-players", id: "cxPlayers" }));
   paintLobbyPlayers();
-  card.appendChild(guestBox());
   card.appendChild(watchBox());
+  card.appendChild(guestBox());
 }
 
 async function loadPlayers() {
