@@ -1158,7 +1158,10 @@ function leftText(ms) {
   return m + " min left";
 }
 async function shareSnakesLink(url, fresh) {
-  try { if (navigator.share) { await navigator.share({ title: "Snakes and Ladders", text: "Play Snakes and Ladders with me. No account needed.", url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+  if (navigator.share && !fresh) {
+    try { await navigator.share({ title: "Snakes and Ladders", text: "Play Snakes and Ladders with me. No account needed.", url }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
   try { await navigator.clipboard.writeText(url); toast(fresh ? "Game link created and copied." : "Link copied."); }
   catch { window.prompt("Copy this link", url); }
 }
@@ -1401,7 +1404,7 @@ function renderGuest() {
   }
   const input = h("input", { class: "cx-field", id: "cxGuestName", type: "text", maxlength: "20", placeholder: "Your name", autocomplete: "off", value: keepName || "" });
   card([hostLine, h("h2", { text: (host.name || host.username || "Someone") + " invited you to play Snakes and Ladders" }), h("p", { class: "cx-hint", style: "margin-top:8px", text: "No account needed. Pick a name and join." }), input,
-    h("button", { type: "button", class: "cx-btn", id: "sxGuestJoin", onclick: (e) => joinSnakesGuest(e.currentTarget, input) }, ["Play as guest"])]);
+    h("button", { type: "button", class: "cx-btn", id: "sxGuestJoin", onclick: (e) => joinSnakesGuest(e.currentTarget, input) }, ["Join game"])]);
 }
 async function joinSnakesGuest(btn, input) {
   const name = input.value.trim();

@@ -1466,7 +1466,10 @@ function leftText(ms) {
 }
 async function shareLink(url, fresh) {
   const text = "Play Ludo with me. No account needed.";
-  try { if (navigator.share) { await navigator.share({ title: "Ludo", text, url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+  if (navigator.share && !fresh) {
+    try { await navigator.share({ title: "Ludo", text, url }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
   try { await navigator.clipboard.writeText(url); toast(fresh ? "Game link created and copied." : "Link copied."); }
   catch { window.prompt("Copy this link", url); }
 }
@@ -1579,7 +1582,7 @@ function renderGuest() {
     h("h2", { text: (host.name || host.username || "Someone") + " invited you to play Ludo" }),
     h("p", { class: "cx-hint", style: "margin-top:8px", text: "No account needed. Pick a name and join." }),
     input,
-    h("button", { type: "button", class: "cx-btn", id: "cxGuestJoin", onclick: (e) => joinGuest(e.currentTarget, input) }, ["Play as guest"]),
+    h("button", { type: "button", class: "cx-btn", id: "cxGuestJoin", onclick: (e) => joinGuest(e.currentTarget, input) }, ["Join game"]),
   ]);
 }
 async function joinGuest(btn, input) {
