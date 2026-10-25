@@ -476,7 +476,8 @@ app.use(
     redirect: false,
     dotfiles: "ignore",
     setHeaders: (res, filePath) => {
-      if (REVALIDATE_ALWAYS_FILES.has(path.basename(filePath))) {
+      const ext = path.extname(filePath).toLowerCase();
+      if (REVALIDATE_ALWAYS_FILES.has(path.basename(filePath)) || ext === ".js" || ext === ".css") {
         res.setHeader("Cache-Control", "no-cache");
       }
     },
