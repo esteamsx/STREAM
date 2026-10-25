@@ -63,7 +63,7 @@ function whotVoicePhrase(ev) {
   if (ev.effect === "pick") return pickLabel(ev.pick);
   if (ev.effect === "market") return "General market";
   if (ev.effect === "skip") return "Go bombing";
-  if (ev.effect === "hold") return "Check up";
+  if (ev.effect === "hold") return "Hold On";
   if (ev.effect === "whot") return "Whot";
   return "";
 }
@@ -803,7 +803,7 @@ function finishGame(winner, reason, view, players, result) {
   if (players) g.players = players;
   const points = (result && result.points) || {};
   const collect = (result && result.collect) || 0;
-  try { if (winner === g.you) sound.win(); else if (winner == null) sound.draw(); } catch { /* optional */ }
+  try { if (winner === g.you) sound.win(); else if (winner == null) sound.draw(); else if (!g.spectator) sound.lose(); } catch { /* optional */ }
   if (g.mode === "bot") clearSaved();
   paintAll();
   const won = winner != null && winner === g.you;

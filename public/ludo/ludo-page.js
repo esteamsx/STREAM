@@ -836,7 +836,7 @@ function finishGame(winner, reason, view, players) {
   g.result = { winner, reason };
   if (view) g.view = view;
   if (players) g.players = players;
-  try { if (winner === g.you) sound.win(); } catch { /* optional */ }
+  try { if (winner === g.you) sound.win(); else if (winner != null && !g.spectator) sound.lose(); } catch { /* optional */ }
   if (g.mode === "bot") clearSaved();
   paintAll();
   const won = winner === g.you;
