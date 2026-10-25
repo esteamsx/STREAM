@@ -1151,6 +1151,12 @@ function tablePanel() {
 }
 
 function snakesGuestLinkUrl(token) { return location.origin + "/snakes/guest/" + token; }
+function leftText(ms) {
+  const m = Math.max(0, Math.ceil(ms / 60000));
+  if (m >= 120) return Math.round(m / 60) + " hours left";
+  if (m >= 60) return "1 hour left";
+  return m + " min left";
+}
 async function shareSnakesLink(url, fresh) {
   try { if (navigator.share) { await navigator.share({ title: "Snakes and Ladders", text: "Play Snakes and Ladders with me. No account needed.", url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
   try { await navigator.clipboard.writeText(url); toast(fresh ? "Game link created and copied." : "Link copied."); }
@@ -1173,7 +1179,7 @@ function guestLinkBox() {
         actions.appendChild(h("button", { type: "button", class: "cx-btn ghost sm", onclick: (e) => cancelSnakesLink(l, e.currentTarget) }, ["End"]));
       }
       box.appendChild(h("div", { class: "cx-linkrow", "data-link": l.token }, [
-        h("div", { class: "grow" }, [h("b", { text: "Guest game" }), h("span", { class: "cx-sub", text: playing ? "A guest is playing" : "Waiting for a guest" })]), actions,
+        h("div", { class: "grow" }, [h("b", { text: "Guest game" }), h("span", { class: "cx-sub", text: playing ? "A guest is playing" : "Waiting for a guest | " + leftText(l.expiresAt - serverNow()) })]), actions,
       ]));
     }
   }

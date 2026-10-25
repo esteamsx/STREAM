@@ -97,6 +97,7 @@ test("Snakes guest link is single-use and starts a real two-player online game",
   assert.equal(created.res.statusCode, 200);
   const token = created.res.body.link.token;
   assert.match(token, /^[A-Za-z0-9_-]{6,40}$/);
+  assert.equal(created.res.body.link.expiresAt - created.res.body.link.createdAt, 24 * 60 * 60 * 1000);
 
   const info = await request("GET", "/api/snakes/guest/info/" + token);
   assert.equal(info.res.body.status, "open");
@@ -135,4 +136,14 @@ test("Snakes guest links cannot be joined while the host is offline", async () =
   const join = await request("POST", "/api/snakes/guest/join/" + token, { body: { name: "Guest Player" } });
   assert.equal(join.res.statusCode, 409);
   assert.equal(join.res.body.code, "host_offline");
+
+  const actualNow = Date.now;
+  try {
+    Date.now = () => actualNow() + 24 * 60 * 60 * 1000 + 1;
+    const info = await request("GET", "/api/snakes/guest/info/" + token);
+    assert.equal(info.res.body.status, "expired");
+    const expiredJoin = await request("POST", "/api/snakes/guest/join/" + token, { body: { name: "Guest Player" } });
+    assert.equal(expiredJoin.res.statusCode, 409);
+    assert.equal(expiredJoin.res.body.code, "expired");
+  } finally { Date.now = actualNow; }
 });
