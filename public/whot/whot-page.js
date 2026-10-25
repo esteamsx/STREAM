@@ -1118,6 +1118,8 @@ function setConn(c) {
   renderLobby();
 }
 
+function playPing() { try { sound.ping(); } catch { /* sound is optional */ } }
+
 function connect() {
   clearTimeout(retryTimer);
   if (es) { es.close(); es = null; }
@@ -1125,7 +1127,7 @@ function connect() {
   es = new EventSource(STREAM);
   const on = (name, fn) => es.addEventListener(name, (e) => { let d = null; try { d = JSON.parse(e.data); } catch { return; } fn(d); });
   on("ping", () => {});
-  on("hello", (d) => { retries = 0; state.me = d.me || state.me; state.resuming = false; applyTheme(); setConn("online"); if (state.game) { paintPlayers(); if (state.game.mode === "online") startVoiceFor(state.game); } });
+  on("hello", (d) => { const reconnecting = state.conn !== "online"; retries = 0; state.me = d.me || state.me; state.resuming = false; applyTheme(); if (reconnecting) playPing(); setConn("online"); if (state.game) { paintPlayers(); if (state.game.mode === "online") startVoiceFor(state.game); } });
   on("whot_guest_wait", (d) => { state.guestWait = d.message; renderGuest(); });
   on("whot_hello", (d) => {
     state.offset = (d.serverTime || Date.now()) - Date.now();
@@ -1138,7 +1140,7 @@ function connect() {
     else if (state.game && state.game.mode === "online" && !state.game.over) resync();
     renderLobby();
   });
-  on("whot_challenge", (c) => { state.incoming = state.incoming.filter((x) => x.id !== c.id).concat(c); renderLobby(); });
+  on("whot_challenge", (c) => { playPing(); state.incoming = state.incoming.filter((x) => x.id !== c.id).concat(c); renderLobby(); });
   on("whot_challenge_sent", (c) => { state.outgoing = state.outgoing.filter((x) => x.id !== c.id).concat(c); renderLobby(); });
   on("whot_challenge_update", (u) => {
     const was = state.outgoing.find((x) => x.id === u.id);
@@ -1158,7 +1160,7 @@ function connect() {
     }
     renderLobby();
   });
-  on("whot_game_start", (v) => { state.table = null; startOnlineGame(v, {}); });
+  on("whot_game_start", (v) => { playPing(); state.table = null; startOnlineGame(v, {}); });
   on("whot_state", (v) => {
     const g = state.game;
     if (!g || g.mode !== "online" || g.id !== v.gameId) return;

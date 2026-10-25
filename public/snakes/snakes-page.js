@@ -663,7 +663,7 @@ function finishGame(winner, reason, view, players, result) {
   if (view) g.view = view;
   if (players) g.players = players;
   const pos = (result && result.pos) || g.view.pos || {};
-  try { if (winner === g.you) sound.win(); else if (winner == null) sound.draw(); } catch { /* optional */ }
+  try { if (winner === g.you) sound.win(); else if (winner == null) sound.draw(); else if (!g.spectator) sound.lose(); } catch { /* optional */ }
   if (g.mode === "bot") clearSaved();
   paintAll();
   const won = winner != null && winner === g.you;
@@ -1005,6 +1005,8 @@ function setConn(c) {
   if (GUEST_TOKEN) renderGuest();
 }
 
+function playPing() { try { sound.ping(); } catch { /* sound is optional */ } }
+
 function connect() {
   if (GUEST_TOKEN && !state.guest.joined) return;
   clearTimeout(retryTimer);
@@ -1014,7 +1016,7 @@ function connect() {
   const on = (name, fn) => es.addEventListener(name, (e) => { let d = null; try { d = JSON.parse(e.data); } catch { return; } fn(d); });
   on("ping", () => {});
   on("snakes_guest_wait", (d) => { state.guestWait = d.message || "Waiting for the host."; renderGuest(); });
-  on("hello", (d) => { retries = 0; state.me = d.me || state.me; state.resuming = false; applyTheme(); setConn("online"); if (state.game) { paintPlayers(); if (state.game.mode === "online") startVoiceFor(state.game); } if (!GUEST_TOKEN && state.tab === "online") { loadPlayers(); loadLinks(); } });
+  on("hello", (d) => { const reconnecting = state.conn !== "online"; retries = 0; state.me = d.me || state.me; state.resuming = false; applyTheme(); if (reconnecting) playPing(); setConn("online"); if (state.game) { paintPlayers(); if (state.game.mode === "online") startVoiceFor(state.game); } if (!GUEST_TOKEN && state.tab === "online") { loadPlayers(); loadLinks(); } });
   on("snakes_hello", (d) => {
     state.offset = (d.serverTime || Date.now()) - Date.now();
     state.incoming = d.incoming || [];
@@ -1026,7 +1028,7 @@ function connect() {
     else if (state.game && state.game.mode === "online" && !state.game.over) resync();
     renderLobby();
   });
-  on("snakes_challenge", (c) => { state.incoming = state.incoming.filter((x) => x.id !== c.id).concat(c); renderLobby(); });
+  on("snakes_challenge", (c) => { playPing(); state.incoming = state.incoming.filter((x) => x.id !== c.id).concat(c); renderLobby(); });
   on("snakes_challenge_sent", (c) => { state.outgoing = state.outgoing.filter((x) => x.id !== c.id).concat(c); renderLobby(); });
   on("snakes_challenge_update", (u) => {
     const was = state.outgoing.find((x) => x.id === u.id);
@@ -1046,7 +1048,7 @@ function connect() {
     }
     renderLobby();
   });
-  on("snakes_game_start", (v) => { state.table = null; startOnlineGame(v, {}); });
+  on("snakes_game_start", (v) => { playPing(); state.table = null; startOnlineGame(v, {}); });
   on("snakes_state", (v) => {
     const g = state.game;
     if (!g || g.mode !== "online" || g.id !== v.gameId) return;
