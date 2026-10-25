@@ -1298,7 +1298,10 @@ function leftText(ms) {
 }
 async function shareLink(url, fresh) {
   const text = "Play Whot with me. No account needed.";
-  try { if (navigator.share) { await navigator.share({ title: "Whot", text, url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+  if (navigator.share && !fresh) {
+    try { await navigator.share({ title: "Whot", text, url }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
   try { await navigator.clipboard.writeText(url); toast(fresh ? "Game link created and copied." : "Link copied."); }
   catch { window.prompt("Copy this link", url); }
 }
@@ -1412,7 +1415,7 @@ async function initGuest() {
   const back = $("cxBack"); if (back) back.setAttribute("href", "/whot");
   const cog = $("cxCog"); if (cog) cog.style.display = "none";
   renderGuest();
-  await loadGuestInfo();
+  await refreshGuestInfo();
   if (state.guest.info.you && state.guest.info.status === "playing") { state.guest.joined = true; retries = 0; connect(); }
   renderGuest();
 }
@@ -1445,8 +1448,8 @@ function renderOnlinePanel(card) {
   card.appendChild(wrap);
   card.appendChild(h("div", { class: "cx-players", id: "cxPlayers" }));
   paintLobbyPlayers();
-  card.appendChild(guestBox());
   card.appendChild(watchBox());
+  card.appendChild(guestBox());
   if (state.links === null) loadLinks();
 }
 

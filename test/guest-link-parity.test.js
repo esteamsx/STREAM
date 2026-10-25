@@ -14,25 +14,42 @@ function loadShareFunction(source, name) {
 for (const game of [
   {
     name: "Ludo",
+    slug: "ludo",
     file: "../public/ludo/ludo-page.js",
     shareFunction: "shareLink",
-    panel: ["card.appendChild(watchBox());", "card.appendChild(guestBox());"],
+    panel: null,
     heading: "invited you to play Ludo",
     joinId: "cxGuestJoin",
     view: "../views/ludo.js",
-    route: "../server.js",
     guestPath: "/ludo/guest/:token",
+    initCall: /await api\("\/api\/ludo\/guest\/info\//,
+    entryPoint: /if \(GUEST_TOKEN\) \{ initGuest\(\); return; \}/,
   },
   {
     name: "Snakes and Ladders",
+    slug: "snakes",
     file: "../public/snakes/snakes-page.js",
     shareFunction: "shareSnakesLink",
     panel: ["card.appendChild(watchBox());", "card.appendChild(guestLinkBox());"],
     heading: "invited you to play Snakes and Ladders",
     joinId: "sxGuestJoin",
     view: "../views/snakes.js",
-    route: "../server.js",
     guestPath: "/snakes/guest/:token",
+    initCall: /await refreshGuestInfo\(\)/,
+    entryPoint: /if \(GUEST_TOKEN\) \{ initGuest\(\); return; \}/,
+  },
+  {
+    name: "Whot",
+    slug: "whot",
+    file: "../public/whot/whot-page.js",
+    shareFunction: "shareLink",
+    panel: ["card.appendChild(watchBox());", "card.appendChild(guestBox());"],
+    heading: "invited you to play Whot",
+    joinId: "cxGuestJoin",
+    view: "../views/whot.js",
+    guestPath: "/whot/guest/:token",
+    initCall: /await refreshGuestInfo\(\)/,
+    entryPoint: /if \(GUEST_TOKEN\) \{ initGuest\(\); \} else \{/,
   },
 ]) {
   const source = read(game.file);
@@ -70,22 +87,27 @@ for (const game of [
     assert.deepEqual(calls.copy, []);
   });
 
-  test(`${game.name} invite route renders a named-host guest prompt and Join game action`, () => {
+  test(`${game.name} public invite resolves to a name prompt and Join game action`, () => {
     const view = read(game.view);
-    const server = read(game.route);
+    const server = read("../server.js");
     assert.match(view, /id="cxGuest" class="cx-menu" hidden/);
     assert.ok(server.includes(`"${game.guestPath}"`), "public invitation route is registered");
-    assert.match(source, /const GUEST_MATCH = \/\^\\\//);
+    assert.ok(source.includes(`const GUEST_MATCH = /^\\/${game.slug}\\/guest\\/`), "guest token is parsed from the invite URL");
     assert.ok(source.includes(game.heading));
     assert.match(source, /id: "cxGuestName"[\s\S]*placeholder: "Your name"/);
     assert.match(source, new RegExp(`id: "${game.joinId}"[\\s\\S]*\\["Join game"\\]`));
-    assert.match(source, /if \(GUEST_TOKEN\) \{ initGuest\(\); return; \}/);
+    assert.match(source, game.entryPoint);
+    const initGuest = source.match(/async function initGuest\(\) \{[\s\S]*?\n\}/);
+    assert.ok(initGuest, "guest initialization exists");
+    assert.match(initGuest[0], game.initCall, "guest initialization loads invitation info");
   });
 
-  test(`${game.name} Watch a game section stays above Play with a guest`, () => {
-    const start = source.indexOf("function renderOnlinePanel");
-    const watch = source.indexOf(game.panel[0], start);
-    const guest = source.indexOf(game.panel[1], start);
-    assert.ok(watch >= 0 && guest > watch);
-  });
+  if (game.panel) {
+    test(`${game.name} Watch a game stays above Play with a guest`, () => {
+      const start = source.indexOf("function renderOnlinePanel");
+      const watch = source.indexOf(game.panel[0], start);
+      const guest = source.indexOf(game.panel[1], start);
+      assert.ok(watch >= 0 && guest > watch);
+    });
+  }
 }
