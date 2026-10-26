@@ -1,4 +1,4 @@
-import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, MovieError } from "../services/moviebox.js";
+import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, getStreams, MovieError } from "../services/moviebox.js";
 
 /* Movies API for the /movies page. Everything needs a signed-in account, and the data comes from the Moviebox-API
    through services/moviebox.js (see that file for the one setting it needs: MOVIEBOX_API_URL). */
@@ -21,4 +21,5 @@ export function registerMovieRoutes(router, { requireAuth, SimpleRateLimiter }) 
   router.get("/api/movies/search", requireAuth, limiter, (req, res) => send(res, () => getSearch(req.query.q, req.query.page)));
   router.get("/api/movies/suggest", requireAuth, limiter, (req, res) => send(res, () => getSuggest(req.query.q)));
   router.get("/api/movies/detail/:slug", requireAuth, limiter, (req, res) => send(res, () => getDetail(String(req.params.slug))));
+  router.get("/api/movies/streams/:subjectId", requireAuth, limiter, (req, res) => send(res, () => getStreams(String(req.params.subjectId), String(req.query.slug || ""), req.query.se, req.query.ep)));
 }

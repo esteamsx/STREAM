@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, normalizeItem, normalizeDetail, apiBase, resetCache, MovieError } from "../services/moviebox.js";
+import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, getStreams, normalizeItem, normalizeDetail, apiBase, resetCache, MovieError } from "../services/moviebox.js";
 import { registerMovieRoutes } from "../routes/movies.js";
 import { injectPromoSlot } from "../middleware/promo-slot.js";
 
@@ -40,6 +40,7 @@ const server = http.createServer((req, res) => {
   }
   if (u.pathname === "/search") return send(200, { query: u.searchParams.get("q"), page: 1, total: 3, items: many(70, 3) });
   if (u.pathname === "/search/suggest") return send(200, { suggestions: [...Array.from({ length: 10 }, (_, i) => ({ title: "Match " + i, slug: "match-" + i + "-xx", subject_id: "9" + i })), { title: "Bad", slug: "../etc/passwd" }] });
+  if (u.pathname === "/api/stream/6207982430134357800") return send(200, { has_resource: true, sources: [{ resolution: "1080p", format: "MP4", url: "https://cdn.example.test/breaking-bad.mp4", size: "2414667149", duration: 2880 }, { resolution: "720p", format: "MP4", url: "http://insecure.example.test/bad.mp4" }, { resolution: "HLS", format: "m3u8", url: "https://cdn.example.test/bad.m3u8" }] });
   if (u.pathname.startsWith("/detail/")) { const slug = decodeURIComponent(u.pathname.slice(8)); return slug === "missing-one" ? send(404, { detail: "nope" }) : slug === "empty-one" ? send(200, { data: {} }) : send(200, DETAIL); }
   send(404, {});
 });
@@ -174,6 +175,15 @@ test("detail rejects odd links before anything is called, and passes real errors
   await assert.rejects(getDetail("empty-one"), (e) => e.status === 404);
 });
 
+test("streams expose only explicit HTTPS MP4 sources and reject unsafe references", async () => {
+  reset();
+  const streams = await getStreams("6207982430134357800", "breaking-bad-ej6Bp0MCAo7");
+  assert.equal(streams.hasResource, true);
+  assert.deepEqual(streams.sources.map((x) => [x.resolution, x.format, x.url, x.size]), [["1080p", "MP4", "https://cdn.example.test/breaking-bad.mp4", 2414667149]]);
+  await assert.rejects(getStreams("../../x", "breaking-bad-ej6Bp0MCAo7"), (e) => e.status === 400);
+  await assert.rejects(getStreams("6207982430134357800", "../x"), (e) => e.status === 400);
+});
+
 test("a broken or unreachable API becomes a clean 502", async () => {
   reset(); state.fail["/search"] = { status: 200, body: "<html>nope</html>" };
   await assert.rejects(getSearch("q"), (e) => e.status === 502 && e.code === "upstream");
@@ -217,6 +227,8 @@ test("the routes hand the right data and status codes to the page", async () => 
   assert.equal((await call("/api/movies/search", { query: {} })).status, 400);
   assert.equal((await call("/api/movies/suggest", { query: { q: "ma" } })).body.suggestions.length, 8);
   assert.equal((await call("/api/movies/detail/:slug", { params: { slug: "breaking-bad-ej6Bp0MCAo7" } })).body.title, "Breaking Bad");
+  const streams = await call("/api/movies/streams/:subjectId", { params: { subjectId: "6207982430134357800" }, query: { slug: "breaking-bad-ej6Bp0MCAo7" } });
+  assert.equal(streams.status, 200); assert.equal(streams.body.sources.length, 1);
   assert.equal((await call("/api/movies/detail/:slug", { params: { slug: "missing-one" } })).status, 404);
   assert.equal((await call("/api/movies/detail/:slug", { params: { slug: "../../x" } })).status, 400);
   delete process.env.MOVIEBOX_API_URL; resetCache();

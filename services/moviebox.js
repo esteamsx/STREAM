@@ -15,10 +15,11 @@ const MAX_BODY_CHARS = 2_500_000;
 const MAX_CACHE_ENTRIES = 300;
 const STALE_OK_MS = 60 * 60 * 1000;      // if the API is down, a result up to an hour old is better than an empty page
 
-const TTL = { home: 10 * 60 * 1000, catalog: 10 * 60 * 1000, search: 3 * 60 * 1000, suggest: 2 * 60 * 1000, detail: 30 * 60 * 1000 };
+const TTL = { home: 10 * 60 * 1000, catalog: 10 * 60 * 1000, search: 3 * 60 * 1000, suggest: 2 * 60 * 1000, detail: 30 * 60 * 1000, streams: 5 * 60 * 1000 };
 export const CATALOGS = { movies: { path: "/movies", title: "Movies" }, "tv-series": { path: "/tv-series", title: "TV Series" }, animation: { path: "/animation", title: "Animation" } };
 export const SORTS = ["RECOMMEND", "NEWEST", "RATING"];
 const SLUG_RE = /^[A-Za-z0-9._~-]{2,160}$/;
+const SUBJECT_ID_RE = /^[A-Za-z0-9_-]{2,64}$/;
 
 export class MovieError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
@@ -227,6 +228,31 @@ export function getSuggest(q) {
       if (out.length >= 8) break;
     }
     return { suggestions: out };
+  });
+}
+
+
+/* Stream sources are fetched only when the API exposes them explicitly. The page never invents a
+   download URL and only receives validated HTTPS source links from the server. */
+export function getStreams(subjectId, slug, season = 1, episode = 1) {
+  subjectId = String(subjectId || "");
+  slug = String(slug || "");
+  if (!SUBJECT_ID_RE.test(subjectId) || !SLUG_RE.test(slug)) return Promise.reject(new MovieError(400, "bad_request", "That title has no valid stream reference."));
+  const se = Math.min(99, Math.max(1, Math.floor(Number(season)) || 1));
+  const ep = Math.min(999, Math.max(1, Math.floor(Number(episode)) || 1));
+  return cached(`streams:${subjectId}:${slug}:${se}:${ep}`, TTL.streams, async () => {
+    const r = await upstream(`/api/stream/${encodeURIComponent(subjectId)}`, { detail_path: slug, se, ep });
+    const sources = Array.isArray(r && r.sources) ? r.sources : [];
+    return {
+      subjectId, season: se, episode: ep, hasResource: !!(r && r.has_resource),
+      sources: sources.map((x) => ({
+        resolution: str(x && x.resolution, 20) || null,
+        format: str(x && x.format, 20) || null,
+        url: httpsUrl(x && x.url),
+        size: Number.isFinite(Number(x && x.size)) && Number(x.size) > 0 ? Number(x.size) : null,
+        duration: Number.isFinite(Number(x && x.duration)) && Number(x.duration) > 0 ? Number(x.duration) : null,
+      })).filter((x) => x.url && /mp4/i.test(x.format || "")),
+    };
   });
 }
 
