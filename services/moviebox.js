@@ -37,24 +37,66 @@ export function apiBase() {
 }
 export const isConfigured = () => !!apiBase();
 
+function retryDelay(res) {
+  const raw = res && res.headers && res.headers.get("retry-after");
+  const seconds = raw && /^\d+(?:\.\d+)?$/.test(raw) ? Number(raw) : 0.35;
+  return Math.min(2500, Math.max(100, seconds * 1000));
+}
+function pause(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
 async function upstream(path, params = {}) {
   const base = apiBase();
   if (!base) throw new MovieError(503, "not_configured", "The movie service is not connected yet.");
   const url = new URL(base + path);
   for (const [k, v] of Object.entries(params)) if (v != null && v !== "") url.searchParams.set(k, String(v));
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { headers: { accept: "application/json" }, signal: controller.signal });
-    if (res.status === 404) throw new MovieError(404, "not_found", "That title could not be found.");
-    if (!res.ok) throw new MovieError(502, "upstream", "The movie service had a problem (" + res.status + ").");
-    const text = await res.text();
-    if (text.length > MAX_BODY_CHARS) throw new MovieError(502, "upstream", "The movie service sent too much data.");
-    try { return JSON.parse(text); } catch { throw new MovieError(502, "upstream", "The movie service sent something unreadable."); }
-  } catch (e) {
-    if (e instanceof MovieError) throw e;
-    throw new MovieError(502, "upstream", e && e.name === "AbortError" ? "The movie service took too long to answer." : "Could not reach the movie service.");
-  } finally { clearTimeout(timer); }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { headers: { accept: "application/json" }, signal: controller.signal });
+      if (res.status === 429) {
+        if (attempt === 0) { await pause(retryDelay(res)); continue; }
+        throw new MovieError(429, "rate_limited", "The movie service is rate-limited. Please wait a moment and try again.");
+      }
+      if (res.status === 404) throw new MovieError(404, "not_found", "That title could not be found.");
+      if (!res.ok) throw new MovieError(502, "upstream", "The movie service had a problem (" + res.status + ").");
+      const text = await res.text();
+      if (text.length > MAX_BODY_CHARS) throw new MovieError(502, "upstream", "The movie service sent too much data.");
+      try { return JSON.parse(text); } catch { throw new MovieError(502, "upstream", "The movie service sent something unreadable."); }
+    } catch (e) {
+      if (e instanceof MovieError) throw e;
+      throw new MovieError(502, "upstream", e && e.name === "AbortError" ? "The movie service took too long to answer." : "Could not reach the movie service.");
+    } finally { clearTimeout(timer); }
+  }
+  throw new MovieError(429, "rate_limited", "The movie service is rate-limited. Please wait a moment and try again.");
+}
+
+export async function proxyStream(subjectId, slug, season = 1, episode = 1, resolution = "360") {
+  subjectId = String(subjectId || ""); slug = String(slug || ""); resolution = String(resolution || "").replace(/p$/i, "");
+  if (!SUBJECT_ID_RE.test(subjectId) || !SLUG_RE.test(slug) || !/^(?:360|480|720|1080)$/.test(resolution)) {
+    throw new MovieError(400, "bad_request", "That download request is not valid.");
+  }
+  const base = apiBase();
+  if (!base) throw new MovieError(503, "not_configured", "The movie service is not connected yet.");
+  const url = new URL(base + "/api/stream/" + encodeURIComponent(subjectId) + "/proxy");
+  url.searchParams.set("detail_path", slug);
+  url.searchParams.set("se", String(Math.min(99, Math.max(1, Math.floor(Number(season)) || 1))));
+  url.searchParams.set("ep", String(Math.min(999, Math.max(1, Math.floor(Number(episode)) || 1))));
+  url.searchParams.set("res", resolution);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, { headers: { accept: "video/mp4" }, signal: controller.signal });
+      if (response.status === 429) { if (attempt === 0) { await pause(retryDelay(response)); continue; } throw new MovieError(429, "rate_limited", "The download service is busy. Please wait a moment and try again."); }
+      if (!response.ok) throw new MovieError(502, "upstream", "The download service returned an error (" + response.status + ").");
+      return response;
+    } catch (e) {
+      if (e instanceof MovieError) throw e;
+      throw new MovieError(502, "upstream", e && e.name === "AbortError" ? "The download service took too long to answer." : "Could not reach the download service.");
+    } finally { clearTimeout(timer); }
+  }
+  throw new MovieError(429, "rate_limited", "The download service is busy. Please wait a moment and try again.");
 }
 
 /* ------------------------------------------------------------------ cache (with "stale if the API is down") */
@@ -88,6 +130,15 @@ function httpsUrl(u) {
   try { const x = new URL(u.trim()); return x.protocol === "https:" ? x.href : null; } catch { return null; }
 }
 const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0 && n <= 10 ? Math.round(n * 10) / 10 : null; };
+function bytesOf(v) {
+  if (typeof v === "number" && Number.isFinite(v) && v > 0) return v <= 100 * 1024 * 1024 * 1024 ? Math.round(v) : null;
+  const m = String(v == null ? "" : v).trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*(B|KB|MB|GB|TB)?$/i);
+  if (!m) return null;
+  const n = Number(m[1]), unit = (m[2] || "B").toUpperCase();
+  const mult = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[unit];
+  const bytes = n * mult;
+  return Number.isFinite(bytes) && bytes > 0 && bytes <= 100 * 1024 * 1024 * 1024 ? Math.round(bytes) : null;
+}
 const yearOf = (v) => { const m = String(v == null ? "" : v).match(/(19|20)\d{2}/); return m ? m[0] : null; };
 
 /* one movie or series, from a banner row, a subject row, a catalog or a search result */
@@ -233,7 +284,7 @@ export function getSuggest(q) {
 
 
 /* Stream sources are fetched only when the API exposes them explicitly. The page never invents a
-   download URL and only receives validated HTTPS source links from the server. */
+   download URL; actual downloads are served through the authenticated server-side proxy. */
 export function getStreams(subjectId, slug, season = 1, episode = 1) {
   subjectId = String(subjectId || "");
   slug = String(slug || "");
@@ -249,7 +300,7 @@ export function getStreams(subjectId, slug, season = 1, episode = 1) {
         resolution: str(x && x.resolution, 20) || null,
         format: str(x && x.format, 20) || null,
         url: httpsUrl(x && x.url),
-        size: Number.isFinite(Number(x && x.size)) && Number(x.size) > 0 ? Number(x.size) : null,
+        size: bytesOf(x && x.size),
         duration: Number.isFinite(Number(x && x.duration)) && Number(x.duration) > 0 ? Number(x.duration) : null,
       })).filter((x) => x.url && /mp4/i.test(x.format || "")),
     };

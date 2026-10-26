@@ -748,7 +748,7 @@ const tttRouter = express.Router();
 registerTttRoutes(tttRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
 app.use(tttRouter);
 const moviesRouter = express.Router();
-registerMovieRoutes(moviesRouter, { requireAuth, SimpleRateLimiter });
+registerMovieRoutes(moviesRouter, { requireAuth, SimpleRateLimiter, getUserProfile, isVerificationActive, isAdminEmail });
 app.use(moviesRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);

@@ -108,8 +108,6 @@
     items.forEach(function (item, i) {
       var bg = el("div", { class: "mv-slide-bg" });
       if (item.poster) bg.style.backgroundImage = 'url("' + item.poster.replace(/"/g, "%22") + '")';
-      var posterBox = el("div", { class: "mv-slide-poster" });
-      if (item.poster) posterBox.appendChild(el("img", { src: item.poster, alt: "", referrerpolicy: "no-referrer", decoding: "async" }));
       var meta = el("div", { class: "mv-slide-meta" });
       if (item.rating) meta.appendChild(el("span", { class: "mv-star", text: "\u2605 " + item.rating.toFixed(1) }));
       if (item.year) meta.appendChild(el("span", { text: item.year }));
@@ -119,7 +117,7 @@
         meta,
         item.slug ? el("a", { class: "mv-btn", href: detailUrl(item.slug), onclick: function (e) { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); go(detailUrl(item.slug)); } }, ["View details"]) : null,
       ]);
-      var s = el("div", { class: "mv-slide" + (i === 0 ? " on" : ""), "aria-hidden": i === 0 ? "false" : "true" }, [bg, el("div", { class: "mv-slide-body" }, [posterBox, info])]);
+      var s = el("div", { class: "mv-slide" + (i === 0 ? " on" : ""), "aria-hidden": i === 0 ? "false" : "true" }, [bg, el("div", { class: "mv-slide-body" }, [info])]);
       slides.push(s); box.appendChild(s);
     });
     function goTo(n) {
@@ -236,26 +234,58 @@
   }
   function formatBytes(n) {
     if (!n || !Number.isFinite(Number(n))) return "";
-    var units = ["B", "MB", "GB"]; var i = 0; var v = Number(n);
+    var units = ["B", "KB", "MB", "GB", "TB"]; var i = 0; var v = Number(n);
     while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
     return (i === 0 ? Math.round(v) : v.toFixed(v >= 10 ? 0 : 1)) + " " + units[i];
   }
-  function loadStreams(d, section) {
-    if (!d.id || !d.slug) return;
-    api("/streams/" + encodeURIComponent(d.id) + "?slug=" + encodeURIComponent(d.slug)).then(function (stream) {
-      var sources = (stream.sources || []).filter(function (x) { return x && x.url && /^https:\/\//i.test(x.url); });
-      if (!sources.length) return;
-      section.hidden = false;
-      section.textContent = "";
-      section.appendChild(el("h3", { text: d.kind === "tv" ? "Download episode" : "Download" }));
-      section.appendChild(el("p", { class: "mv-download-note", text: d.kind === "tv" ? "Available source: Season " + stream.season + ", Episode " + stream.episode : "Available source from the movie service." }));
-      var actions = el("div", { class: "mv-download-actions" });
-      sources.forEach(function (source) {
-        var label = [source.resolution, source.format, formatBytes(source.size)].filter(Boolean).join(" \u00b7 ") || "Download";
-        actions.appendChild(el("a", { class: "mv-btn mv-download-btn", href: source.url, target: "_blank", rel: "noopener noreferrer", download: "" }, [svg('<path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/>', 16), label]));
-      });
-      section.appendChild(actions);
-    }).catch(function () { /* A missing source means no download control is shown. */ });
+  function accountForPremium() { window.location.href = "/account#verify"; }
+  function showDownloadPopup(d, sources, season, episode) {
+    var old = document.getElementById("mvDownloadPopup"); if (old) old.remove();
+    var overlay = el("div", { class: "mv-download-popup", id: "mvDownloadPopup", role: "dialog", "aria-modal": "true", "aria-label": "Download options" });
+    var card = el("div", { class: "mv-download-card" });
+    var close = function () { overlay.remove(); };
+    card.appendChild(el("div", { class: "mv-download-head" }, [el("div", { class: "mv-download-title", text: "Download " + d.title }), el("button", { type: "button", class: "mv-download-close", "aria-label": "Close", onclick: close }, "\u00d7") ]));
+    card.appendChild(el("p", { class: "mv-download-sub", text: d.kind === "tv" ? "Season " + season + ", Episode " + episode : "Choose a resolution and format." }));
+    var list = el("div", { class: "mv-download-list" });
+    (sources || []).forEach(function (source) {
+      var locked = source.premium && !source.available;
+      var label = [source.resolution, source.format, formatBytes(source.size)].filter(Boolean).join(" \u00b7 ") || "Download";
+      var row = el("button", { type: "button", class: "mv-download-option" + (locked ? " locked" : ""), disabled: false, onclick: locked ? accountForPremium : function () { window.location.href = source.downloadUrl; } }, [el("span", { class: "mv-download-option-main" }, [el("b", { text: label }), el("small", { text: locked ? "Premium only" : (source.resolution === "360p" ? "Free mobile quality" : "Ready to download") })]), el("span", { class: "mv-download-option-mark", text: locked ? "Premium" : "Download" })]);
+      list.appendChild(row);
+    });
+    if (!list.children.length) list.appendChild(el("p", { class: "mv-download-empty", text: "No supported download source is available for this selection." }));
+    card.appendChild(list);
+    overlay.appendChild(card); document.body.appendChild(overlay);
+    overlay.addEventListener("click", function (e) { if (e.target === overlay) close(); });
+  }
+  function paintDownloadSection(d, section) {
+    section.textContent = "";
+    var controls = el("div", { class: "mv-download-controls" });
+    var seasonSelect, episodeSelect, button;
+    function addOptions(select, values) { values.forEach(function (v) { select.appendChild(el("option", { value: v, text: String(v) })); }); }
+    if (d.kind === "tv" && d.seasons && d.seasons.length) {
+      seasonSelect = el("select", { class: "mv-download-select", "aria-label": "Season" });
+      seasonSelect.appendChild(el("option", { value: "", text: "Choose season" }));
+      addOptions(seasonSelect, d.seasons.map(function (s) { return s.season; }));
+      episodeSelect = el("select", { class: "mv-download-select", "aria-label": "Episode" });
+      function fillEpisodes() { var season = d.seasons.find(function (x) { return String(x.season) === seasonSelect.value; }); episodeSelect.textContent = ""; episodeSelect.appendChild(el("option", { value: "", text: "Choose episode" })); if (!season) return; for (var i = 1; i <= season.episodes; i++) episodeSelect.appendChild(el("option", { value: i, text: "Episode " + i })); }
+      fillEpisodes();
+      controls.appendChild(el("label", { class: "mv-download-field" }, [el("span", { text: "Season" }), seasonSelect]));
+      controls.appendChild(el("label", { class: "mv-download-field" }, [el("span", { text: "Episode" }), episodeSelect]));
+    }
+    button = el("button", { type: "button", class: "mv-btn mv-download-open", disabled: d.kind === "tv", text: d.kind === "tv" ? "Select season and episode" : "Download" });
+    controls.appendChild(button); section.appendChild(el("h3", { text: "Download" })); section.appendChild(controls);
+    var currentSources = [];
+    function loadSources() {
+      var se = seasonSelect ? seasonSelect.value : 1, ep = episodeSelect ? episodeSelect.value : 1;
+      if (seasonSelect && (!se || !ep)) { button.disabled = true; button.textContent = "Select season and episode"; return; }
+      button.disabled = true; button.textContent = "Checking sources...";
+      api("/streams/" + encodeURIComponent(d.id) + "?slug=" + encodeURIComponent(d.slug) + "&se=" + se + "&ep=" + ep).then(function (stream) {
+        currentSources = stream.sources || []; button.disabled = false; button.textContent = "Download"; button.onclick = function () { showDownloadPopup(d, currentSources, se, ep); };
+      }).catch(function (e) { button.disabled = true; button.textContent = e && e.code === "rate_limited" ? "Try again shortly" : "No downloads available"; });
+    }
+    if (seasonSelect) { seasonSelect.addEventListener("change", function () { fillEpisodes(); loadSources(); }); episodeSelect.addEventListener("change", loadSources); }
+    else loadSources();
   }
   function paintDetail(d) {
     show("detail");
@@ -272,7 +302,7 @@
     if (d.country) chips.appendChild(el("span", { class: "mv-chip", text: d.country }));
     var genres = el("div", { class: "mv-chips" }, (d.genres || []).map(function (g) { return el("span", { class: "mv-chip", text: g }); }));
     var top = el("div", { class: "mv-detail-top" }, [posterBox, el("div", { class: "mv-detail-head" }, [el("h1", { class: "mv-detail-title", text: d.title }), chips, genres])]);
-    var downloads = el("div", { class: "mv-section mv-download-section", hidden: true });
+    var downloads = el("div", { class: "mv-section mv-download-section" });
     var inner = el("div", { class: "mv-detail-inner" }, [back, top, downloads]);
     if (d.description) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Overview" }), el("p", { class: "mv-about", text: d.description })]));
     if (d.seasons && d.seasons.length) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Seasons" }), el("div", { class: "mv-seasons" }, d.seasons.map(function (s) { return el("div", { class: "mv-season" }, [el("b", { text: "Season " + s.season }), el("span", { text: s.episodes + (s.episodes === 1 ? " episode" : " episodes") })]); }))]));
@@ -287,7 +317,7 @@
     if (bgUrl) bg.style.backgroundImage = 'url("' + bgUrl.replace(/"/g, "%22") + '")';
     wrap.appendChild(bg); wrap.appendChild(inner);
     els.detail.appendChild(wrap);
-    loadStreams(d, downloads);
+    paintDownloadSection(d, downloads);
   }
 
   /* ---------------------------------------------------------------- moving around (real URLs, so Back and refresh work) */
