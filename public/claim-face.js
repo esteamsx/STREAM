@@ -158,12 +158,6 @@ function cfEnsureStyles() {
 #${CF_OVERLAY_ID}.cf-live .cf-sweep{opacity:1}
 @keyframes cfSweep{from{top:4px}to{top:calc(100% - 7px)}}
 #${CF_OVERLAY_ID}.cf-done .cf-sweep,#${CF_OVERLAY_ID}.cf-failed .cf-sweep{display:none}
-#${CF_OVERLAY_ID} .cf-coin{position:absolute;inset:0;margin:auto;width:64px;height:64px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;color:rgba(120,78,4,.9);
-  background:linear-gradient(150deg,#FFE9A6,#F4B733 45%,#C98A12);
-  box-shadow:0 0 26px rgba(244,183,51,.5);
-  transition:opacity .2s ease,transform .2s ease}
-#${CF_OVERLAY_ID}.cf-live .cf-coin{opacity:0;transform:scale(.7)}
 #${CF_OVERLAY_ID} .cf-result{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   opacity:0;transform:scale(.6);transition:opacity .25s ease,transform .25s cubic-bezier(.34,1.56,.64,1)}
 #${CF_OVERLAY_ID} .cf-result svg{width:64px;height:64px}
@@ -199,7 +193,6 @@ export function captureClaimFace() {
       '<video class="cf-video" autoplay playsinline muted></video>' +
       '<div class="cf-veil"></div>' +
       '<div class="cf-sweep"></div>' +
-      '<div class="cf-coin">&#8358;</div>' +
       '<div class="cf-result cf-check"><svg viewBox="0 0 24 24" fill="none" stroke="#F4B733" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg></div>' +
       '<div class="cf-result cf-cross"><svg viewBox="0 0 24 24" fill="none" stroke="#FF3B5C" stroke-width="2.6"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg></div>' +
     '</div>' +

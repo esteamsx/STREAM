@@ -4705,8 +4705,8 @@ function wireMessageRowGestures(container){
 }
 
 async function loadClaimFaceModule(){
-  try { return await import('/claim-face.js'); }
-  catch (e) { return await import('/claim-face.js?r=' + Date.now()); }
+  try { return await import('/claim-face.js?v=${ASSET_VERSION}'); }
+  catch (e) { return await import('/claim-face.js?v=${ASSET_VERSION}&r=' + Date.now()); }
 }
 let supportChatLastSig = '';
 async function loadSupportChatMessages(isInitial){
@@ -5530,7 +5530,7 @@ document.getElementById('rwDailyClaimBtn').addEventListener('click', async () =>
     enabled = true;
   }
   setClaimState(enabled ? 'ready' : 'nofaceid');
-  if (enabled) import('/claim-face.js').then((m) => m.preloadClaimFaceModels()).catch(() => {});
+  if (enabled) import('/claim-face.js?v=${ASSET_VERSION}').then((m) => m.preloadClaimFaceModels()).catch(() => {});
 });
 
 async function ensureClaimPaid(){
