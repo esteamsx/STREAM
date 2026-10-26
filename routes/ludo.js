@@ -3,7 +3,7 @@ import { createLudoHub } from "../services/ludo-mp.js";
 
 /* Ludo API. Presence and the event stream are shared with chess (/api/chess/stream), so a
    signed-in player is online for Ludo on every page. Guests get their own stream below. */
-export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub, hub = createLudoHub({ chess: chessHub }) }) {
+export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub, isAdminEmail, hub = createLudoHub({ chess: chessHub }) }) {
   const photoFor = (uid, p) => {
     if (!p || p.showProfilePhoto === false || !p.photoURL) return null;
     const url = String(p.photoURL);
@@ -143,7 +143,7 @@ export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, Sim
   router.get("/api/ludo/guest/ice", voiceLimiter, requireGuest, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: chessHub.iceServers ? chessHub.iceServers() : [] }));
   router.post("/api/ludo/spectate", requireAuth, requireSiteOrigin, specLimiter, (req, res) => {
     const b = req.body || {};
-    act(res, () => hub.spectate(req.uid, b.code, b.pin));
+    act(res, () => (isAdminEmail && isAdminEmail(req.userProfile?.email) ? hub.adminSpectate(req.uid, b.code) : hub.spectate(req.uid, b.code, b.pin)));
   });
   router.post("/api/ludo/spectate/leave", requireAuth, requireSiteOrigin, specLimiter, (req, res) => act(res, () => hub.leaveSpectate(req.uid)));
 

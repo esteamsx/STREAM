@@ -176,6 +176,12 @@ input{font-family:inherit}
 @keyframes adSpin{to{transform:rotate(360deg)}}
 
 .ad-empty,.ad-hint{font-size:.8rem;color:var(--muted);text-align:center;padding:18px 8px}
+.ad-match-list{display:flex;flex-direction:column;gap:8px}
+.ad-match-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:rgba(255,255,255,.045);border:1px solid var(--border)}
+.ad-match-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.8rem;font-weight:700;color:#04141a}
+.ad-match-info{min-width:0;flex:1}.ad-match-game{font-size:.72rem;color:var(--accent);font-weight:800;letter-spacing:.05em;text-transform:uppercase}.ad-match-host{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ad-match-user{font-size:.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ad-match-code{font-family:var(--font-display);font-size:.86rem;font-weight:800;letter-spacing:.12em;color:var(--text);background:var(--dark3);border:1px solid var(--border-strong);padding:7px 8px;border-radius:8px;white-space:nowrap}
+.ad-match-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}.ad-match-btn{border:1px solid var(--border-strong);background:transparent;color:var(--accent);border-radius:8px;padding:7px 8px;font:700 .68rem var(--font-body);white-space:nowrap}.ad-match-btn:hover{border-color:var(--accent);background:rgba(0,224,255,.08)}.ad-match-btn.copy{color:var(--text)}
 .ad-loadmore{
   width:100%;padding:10px;border-radius:10px;border:1px solid var(--border-strong);background:transparent;
   color:var(--accent);font-size:.8rem;font-weight:700;margin-top:10px;
@@ -796,6 +802,18 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
         <button type="button" class="ad-modal-btn primary" id="pushSendBtn" style="width:100%">Send to all users</button>
       </div>
     </div>
+  </div>
+
+  <div class="ad-card open accent-purple" id="matchesCard">
+    <div class="ad-card-header" style="cursor:default">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 8h10M7 12h4M7 16h7"/></svg>
+      <div class="ad-card-header-title">Ongoing Matches</div>
+      <div class="ad-card-count" id="matchesCount">0</div>
+    </div>
+    <div class="ad-card-body" style="max-height:none"><div class="ad-card-body-inner">
+      <div style="font-size:.74rem;color:var(--muted);line-height:1.5;margin-bottom:10px">Live room codes across the five multiplayer games. Admin spectating bypasses player room restrictions.</div>
+      <div class="ad-match-list" id="matchesList"><div class="ad-empty">Loading ongoing matches...</div></div>
+    </div></div>
   </div>
 
   <div class="ad-section-label">Finance &amp; Rewards</div>
@@ -3861,6 +3879,39 @@ function escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function renderMatches(matches) {
+  const list = document.getElementById('matchesList');
+  const count = document.getElementById('matchesCount');
+  count.textContent = String(matches.length);
+  if (!matches.length) { list.innerHTML = '<div class="ad-empty">No active matches right now.</div>'; return; }
+  list.innerHTML = matches.map((m) => {
+    const host = m.host || {};
+    const name = host.name || host.username || 'Player';
+    const avatar = host.photo ? ' style="background-image:url(\'' + escHtml(host.photo) + '\')"' : '';
+    return '<div class="ad-match-row">' +
+      '<div class="ad-match-avatar"' + avatar + '>' + (host.photo ? '' : escHtml(name.slice(0, 1).toUpperCase())) + '</div>' +
+      '<div class="ad-match-info"><div class="ad-match-game">' + escHtml(m.gameName) + '</div>' +
+      '<div class="ad-match-host">' + escHtml(name) + '</div>' +
+      '<div class="ad-match-user">@' + escHtml(host.username || 'user') + '</div></div>' +
+      '<div class="ad-match-code">' + escHtml(m.code) + '</div>' +
+      '<div class="ad-match-actions"><button type="button" class="ad-match-btn copy" data-copy-code="' + escHtml(m.code) + '">Copy</button>' +
+      '<a class="ad-match-btn" href="/' + encodeURIComponent(m.game) + '?watch=' + encodeURIComponent(m.code) + '">Spectate</a></div></div>';
+  }).join('');
+}
+
+async function loadMatches() {
+  try { const data = await getJSON('/api/admin/matches'); renderMatches(data.matches || []); }
+  catch (err) { document.getElementById('matchesList').innerHTML = '<div class="ad-empty">' + escHtml(err.message || 'Could not load matches.') + '</div>'; }
+}
+
+document.getElementById('matchesList').addEventListener('click', async (event) => {
+  const btn = event.target.closest('[data-copy-code]');
+  if (!btn) return;
+  const code = btn.getAttribute('data-copy-code') || '';
+  try { await navigator.clipboard.writeText(code); showToast('Room code copied.'); }
+  catch { window.prompt('Room code', code); }
+});
+
 function drawAnalyticsChart(canvas, points, range) {
   const dpr = window.devicePixelRatio || 1;
   const cssWidth = canvas.parentElement.clientWidth - 16;
@@ -3972,6 +4023,8 @@ loadBotsUsers();
 loadTemplateStatus();
 loadStorage();
 loadDbUsage();
+loadMatches();
+setInterval(loadMatches, 5000);
 
 })();
 </script>

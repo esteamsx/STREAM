@@ -629,10 +629,19 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     return { ...roomState(game), isHost: true };
   }
 
-  function spectate(uid, rawCode, pin) {
-    if (isGuestUid(uid)) throw err("spec_guest");
+  function activeMatches() {
+    return [...games.values()]
+      .filter((game) => game.status === "active")
+      .map((game) => ({
+        id: game.id, code: game.room.code, hostUid: game.room.host,
+        host: profileOf(game, game.players[game.room.host === game.players.w ? "w" : "b"]),
+      }));
+  }
+
+  function spectate(uid, rawCode, pin, admin = false) {
+    if (!admin && isGuestUid(uid)) throw err("spec_guest");
     const u = users.get(uid);
-    if (!u || !u.conns.size) throw err("not_connected");
+    if (!admin && (!u || !u.conns.size)) throw err("not_connected");
     const code = String(rawCode || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     const tryKey = uid + "|" + code;
     const tries = pinTries.get(tryKey) || { n: 0, lockUntil: 0 };
@@ -640,10 +649,10 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     const game = games.get(rooms.get(code));
     if (!game) throw err("no_room");
     if (game.status !== "active") throw err("spec_over");
-    if (colorOf(game, uid)) throw err("spec_busy");
-    if (!game.room.open) throw err("room_closed");
-    if (isBusy(uid)) throw err("spec_busy");
-    if (game.room.pin) {
+    if (!admin && colorOf(game, uid)) throw err("spec_busy");
+    if (!admin && !game.room.open) throw err("room_closed");
+    if (!admin && isBusy(uid)) throw err("spec_busy");
+    if (!admin && game.room.pin) {
       if (pin === undefined || pin === null || pin === "") throw err("pin_required");
       const a = Buffer.from(String(pin)), b = Buffer.from(game.room.pin);
       if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
@@ -654,7 +663,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       }
     }
     pinTries.delete(tryKey);
-    if (!game.spectators.has(uid) && game.spectators.size >= game.room.max) throw err("room_full");
+    if (!admin && !game.spectators.has(uid) && game.spectators.size >= game.room.max) throw err("room_full");
     if (u.watching && u.watching !== game.id) { const old = games.get(u.watching); if (old) dropSpectator(old, uid, "left"); }
     game.spectators.set(uid, { joinedAt: now() });
     u.watching = game.id;
@@ -736,7 +745,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     profileOf: (uid) => { const u = users.get(uid); return u ? u.profile : null; },
     connect, disconnect, online, annotate, presenceOf, challenge, cancelChallenge, respond,
     move, resign, offerDraw, respondDraw, myGame, sweep, startDirect, isOnline, isBusy,
-    getRoom, setRoom, spectate, leaveSpectate, voiceJoin, voiceSignal, ack, syncState,
+    getRoom, setRoom, spectate, adminSpectate: (uid, code) => spectate(uid, code, undefined, true), activeMatches, leaveSpectate, voiceJoin, voiceSignal, ack, syncState,
     setOnGameOver: (fn) => { onGameOver = typeof fn === "function" ? fn : null; },
     gameIdOf: (uid) => { const u = users.get(uid); return u && u.gameId ? u.gameId : null; },
     connectionCount: (uid) => (users.get(uid) ? users.get(uid).conns.size : 0),
