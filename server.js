@@ -4785,14 +4785,14 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 discoverLockablePages(app, LOCKABLE_PAGES);
-await Promise.all([chessHub, ludoHub, snakesHub, whotHub, tttHub].map((hub) => hub.restore ? hub.restore() : Promise.resolve()));
+const restoreLiveGames = Promise.all([chessHub, ludoHub, snakesHub, whotHub, tttHub].map((hub) => hub.restore ? hub.restore() : Promise.resolve()));
 const server = app.listen(PORT, function () {
   console.log("ES TEAMS TV running on port " + PORT);
   initFakeCoins({ addNotification, getAdminUid, invalidateUserProfileCache, isAdminEmail });
   initInspectGuard({ addNotification, getAdminUid, getUserProfile, isAdminEmail, sendPushToUid, tempBanUser, liftExpiredTempBans });
   startFakeCoinSchedule();
 });
-
+restoreLiveGames.then(() => console.log("Live multiplayer games restored from Firestore.")).catch((err) => console.error("Live multiplayer game restore failed:", err));
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
 server.requestTimeout = 120000;
