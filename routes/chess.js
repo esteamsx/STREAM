@@ -5,7 +5,7 @@ import { replayBotGame, analyzeBotGame } from "../services/chess-anticheat.js";
 
 const MAX_TABS = 10;
 
-export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview, persistence = null, hub = createChessHub({ adjudicate: adjudicatePosition, persistence }) }) {
+export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview, hub = createChessHub({ adjudicate: adjudicatePosition }) }) {
   const readLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware();
   const challengeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
   const moveLimiter = new SimpleRateLimiter(40, 10 * 1000, (req) => req.uid).middleware();

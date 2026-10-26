@@ -1,6 +1,5 @@
 import crypto from "crypto";
 import { Chess } from "../public/chess/chess-engine.js";
-import { withoutTransientGameState } from "./game-persistence.js";
 
 
 export const TIME_OPTIONS = [3, 5, 10, 15, 30];     // kept only so older callers keep working
@@ -76,7 +75,7 @@ const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const err = (code) => new HubError(code, MESSAGES[code]);
 
-export function createChessHub({ now = () => Date.now(), randomHex = (n) => crypto.randomBytes(n).toString("hex"), randomBit = () => crypto.randomInt(2), adjudicate = null, persistence = null } = {}) {
+export function createChessHub({ now = () => Date.now(), randomHex = (n) => crypto.randomBytes(n).toString("hex"), randomBit = () => crypto.randomInt(2), adjudicate = null } = {}) {
   const users = new Map();       // uid -> { profile, conns: Map(connId -> sink), gameId, offlineSince, lastChallengeAt }
   const challenges = new Map();  // id -> challenge
   const games = new Map();       // id -> game
@@ -388,7 +387,6 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     games.set(game.id, game);
     users.get(fromUid).gameId = game.id;
     users.get(toUid).gameId = game.id;
-    persist(game);
     return game;
   }
 
@@ -425,7 +423,6 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     emit(game.players.b, "game_over", payload);
     emitSpectators(game, "game_over", payload);
     if (onGameOver) { try { onGameOver(game); } catch { /* never block the game */ } }
-    persist(game);
   }
 
   function move(uid, gameId, key, mv) {
@@ -467,7 +464,6 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     const res = game.chess.result();
     if (res.over) finish(game, res.winner, res.reason);
     else if (!isOnline(moverUid(game))) pauseClock(game);   // the next player is away: their clock waits for them
-    persist(game);
     return { ok: true };
   }
 
@@ -511,7 +507,6 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       emit(game.players.b, "timer", payload);
       emitSpectators(game, "timer", payload);
     }
-    persist(game);
     return { ok: true };
   }
 
@@ -568,26 +563,6 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   }
 
   const profileOf = (game, uid) => { const u = users.get(uid); return publicProfile(u ? u.profile : (game.profiles[uid] || { uid })); };
-  const persist = (game) => {
-    if (!persistence) return;
-    const { chess, ...plain } = game;
-    persistence.save(withoutTransientGameState(plain, { chessFen: chess.fen() })).catch((e) => console.error("[chess] game persistence", e && e.message));
-  };
-  async function restore() {
-    if (!persistence) return;
-    try {
-      for (const raw of await persistence.load()) {
-        if (!raw || !raw.id || !raw.room || !raw.chessFen || !raw.players) continue;
-        const game = { ...raw, chess: new Chess(raw.chessFen), spectators: new Map() };
-        delete game.chessFen;
-        games.set(game.id, game); rooms.set(game.room.code, game.id);
-        for (const color of ["w", "b"]) {
-          const uid = game.players[color];
-          users.set(uid, { profile: game.profiles[uid] || { uid }, conns: new Map(), gameId: game.id, offlineSince: now(), lastChallengeAt: 0 });
-        }
-      }
-    } catch (e) { console.error("[chess] game restore", e && e.message); }
-  }
 
   function spectatorView(game) {
     return {
@@ -651,7 +626,6 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     if (!game.room.open) for (const uid2 of [...game.spectators.keys()]) dropSpectator(game, uid2, "closed");
     else while (game.spectators.size > game.room.max) dropSpectator(game, [...game.spectators.keys()].pop(), "full");
     broadcastRoom(game);
-    persist(game);
     return { ...roomState(game), isHost: true };
   }
 
@@ -694,7 +668,6 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
     game.spectators.set(uid, { joinedAt: now() });
     u.watching = game.id;
     broadcastRoom(game);
-    persist(game);
     return { view: spectatorView(game) };
   }
 
@@ -756,7 +729,6 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
         for (const sUid of [...game.spectators.keys()]) dropSpectator(game, sUid, "ended");
         rooms.delete(game.room.code);
         games.delete(game.id);
-        if (persistence) persistence.remove(game.id).catch(() => {});
       }
       for (const sUid of [...game.spectators.keys()]) {
         const su = users.get(sUid);
@@ -769,8 +741,6 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
   }
 
   return {
-    restore,
-    flush: () => persistence ? persistence.flush() : Promise.resolve(),
     isPresent, touch, emit, onConnect: (fn) => { if (typeof fn === "function") connectHooks.push(fn); },
     profileOf: (uid) => { const u = users.get(uid); return u ? u.profile : null; },
     connect, disconnect, online, annotate, presenceOf, challenge, cancelChallenge, respond,

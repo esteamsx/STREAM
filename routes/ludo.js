@@ -3,7 +3,7 @@ import { createLudoHub } from "../services/ludo-mp.js";
 
 /* Ludo API. Presence and the event stream are shared with chess (/api/chess/stream), so a
    signed-in player is online for Ludo on every page. Guests get their own stream below. */
-export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub, isAdminEmail, persistence = null, hub = createLudoHub({ chess: chessHub, persistence }) }) {
+export function registerLudoRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub, isAdminEmail, hub = createLudoHub({ chess: chessHub }) }) {
   const photoFor = (uid, p) => {
     if (!p || p.showProfilePhoto === false || !p.photoURL) return null;
     const url = String(p.photoURL);

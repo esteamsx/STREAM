@@ -3,7 +3,7 @@ import { createSnakesHub } from "../services/snakes-mp.js";
 
 /* Snakes and Ladders API. Presence and the event stream are shared with chess (/api/chess/stream), so a signed-in
    player is online for Snakes and Ladders on every page. Guest links are single-use and guests get a scoped session. */
-export function registerSnakesRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub, persistence = null, hub = createSnakesHub({ chess: chessHub, persistence }) }) {
+export function registerSnakesRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub, hub = createSnakesHub({ chess: chessHub }) }) {
   const photoFor = (uid, p) => {
     if (!p || p.showProfilePhoto === false || !p.photoURL) return null;
     const url = String(p.photoURL);
