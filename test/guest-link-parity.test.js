@@ -121,6 +121,17 @@ for (const game of [
     assert.match(initGuest[0], game.initCall, "guest initialization loads invitation info");
   });
 
+  test(`${game.name} expired guest CTA uses the Chess arrow-out icon without underline`, () => {
+    const ended = source.match(/function (?:endedCard|guestEndedCard)\(title, text\) \{[\s\S]*?\n\}/);
+    assert.ok(ended, "expired/finished guest card exists");
+    assert.match(source, /const GUEST_CREATE_GAME_ICON = '[^']*M10 14L21 3[^']*';/);
+    assert.match(ended[0], /style: "text-decoration:none"/);
+    assert.match(ended[0], /btn\.innerHTML = 'CREATE GAME <span class="ico" aria-hidden="true">' \+ GUEST_CREATE_GAME_ICON/);
+    assert.match(ended[0], new RegExp(`location\\.href = "/${game.slug}"`));
+    assert.doesNotMatch(ended[0], /h\("a"/);
+    if (game.slug === "whot") assert.match(source, /info\.status === "finished"\) \{ root\.appendChild\(endedCard\(/);
+  });
+
   if (game.panel) {
     test(`${game.name} Watch a game stays above Play with a guest`, () => {
       const start = source.indexOf("function renderOnlinePanel");

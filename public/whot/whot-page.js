@@ -1367,8 +1367,10 @@ async function cancelLink(l, btn) {
   try { await api("/api/whot/guest/links/" + encodeURIComponent(l.token) + "/cancel", {}); state.links = (state.links || []).filter((x) => x.token !== l.token); renderMenu(); }
   catch (e) { busy(btn, false); toast(e.message); }
 }
+const GUEST_CREATE_GAME_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>';
 function endedCard(title, text) {
-  const btn = h("button", { type: "button", class: "cx-btn", id: "cxCreateGame", onclick: (e) => { busy(e.currentTarget, true); location.href = "/whot"; } }, ["CREATE GAME"]);
+  const btn = h("button", { type: "button", class: "cx-btn", id: "cxCreateGame", style: "text-decoration:none", onclick: (e) => { busy(e.currentTarget, true); location.href = "/whot"; } });
+  btn.innerHTML = 'CREATE GAME <span class="ico" aria-hidden="true">' + GUEST_CREATE_GAME_ICON + "</span>";
   return h("div", { class: "cx-card cx-ended", id: "cxEnded" }, [html("div", "ic", ICON.users), h("h1", { text: title }), h("p", { text }), btn]);
 }
 function showGuestEnded() {
@@ -1397,7 +1399,7 @@ function renderGuest() {
   const info = state.guest.info;
   const card = (kids) => root.appendChild(h("div", { class: "cx-card", style: "text-align:center" }, kids));
   if (!info) { card([h("div", { class: "cx-loading", id: "cxGuestLoading" }, [h("span", { class: "cx-roll" }), "Opening game link"])]); return; }
-  if (info.status === "finished") { card([h("h2", { text: "Game Finished" }), h("p", { class: "cx-hint", style: "margin-top:8px", text: "The Whot game is over. This link expires 5 minutes after the game ends." }), h("button", { type: "button", class: "cx-btn", onclick: () => { location.href = "/whot"; } }, ["CREATE GAME"])]); return; }
+  if (info.status === "finished") { root.appendChild(endedCard("Game Finished", "The Whot game is over. This link expires 5 minutes after the game ends.")); return; }
   if (info.status === "ended" || info.status === "expired") { root.appendChild(endedCard("Game Link Expired", "This game link is no longer active. Create your own game to play with friends.")); return; }
   if (info.status === "error") { card([h("h2", { text: "Could not open the game" }), h("p", { class: "cx-hint", style: "margin-top:8px", text: info.error || "Check your connection and try again." }), h("button", { type: "button", class: "cx-btn", onclick: (e) => { busy(e.currentTarget, true); refreshGuestInfo(); } }, ["Try again"])]); return; }
   if (info.status === "playing" && !info.you) { root.appendChild(endedCard("This link is already in use", "Someone is already playing on this link. Create your own game to play.")); return; }

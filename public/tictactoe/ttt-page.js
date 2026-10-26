@@ -1182,8 +1182,8 @@ async function loadPlayers() {
 
 const GUEST_CREATE_GAME_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>';
 function guestEndedCard(title, text) {
-  const btn = h("button", { type: "button", class: "cx-btn", id: "cxCreateGame", onclick: (e) => { busy(e.currentTarget, true); location.href = "/tictactoe"; } });
-  btn.innerHTML = 'CREATE GAME <span class="ico">' + GUEST_CREATE_GAME_ICON + "</span>";
+  const btn = h("button", { type: "button", class: "cx-btn", id: "cxCreateGame", style: "text-decoration:none", onclick: (e) => { busy(e.currentTarget, true); location.href = "/tictactoe"; } });
+  btn.innerHTML = 'CREATE GAME <span class="ico" aria-hidden="true">' + GUEST_CREATE_GAME_ICON + "</span>";
   return h("div", { class: "cx-card cx-ended", style: "text-align:center" }, [
     h("h1", { text: title }), h("p", { text }), btn,
   ]);

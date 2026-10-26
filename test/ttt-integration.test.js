@@ -136,7 +136,8 @@ test("expired Tic-Tac-Toe guest links offer CREATE GAME with the external-link i
   };
   vm.runInNewContext(`${icon[0]}\n${ended[0]}\nthis.icon = GUEST_CREATE_GAME_ICON; this.card = guestEndedCard("Game Link Expired", "Expired.");`, context);
   const button = context.card.kids[2];
-  assert.equal(button.innerHTML, 'CREATE GAME <span class="ico">' + context.icon + "</span>");
+  assert.equal(button.attrs.style, "text-decoration:none");
+  assert.equal(button.innerHTML, 'CREATE GAME <span class="ico" aria-hidden="true">' + context.icon + "</span>");
   button.attrs.onclick({ currentTarget: button });
   assert.equal(calls.busy, 1);
   assert.equal(calls.href, "/tictactoe");
