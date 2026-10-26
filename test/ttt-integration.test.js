@@ -12,6 +12,7 @@ const presence = read("public/chess-presence.js");
 const promo = read("middleware/promo-slot.js");
 const nativeBanner = read("public/native-banner.js");
 const popunder = read("public/popunder.js");
+const sponsor = read("public/sponsor.js");
 const routes = read("routes/tictactoe.js");
 const hub = read("services/ttt-mp.js");
 const client = read("public/tictactoe/ttt-page.js");
@@ -55,6 +56,7 @@ test("Tic-Tac-Toe is registered after the existing games without replacing share
   assert.match(server, /import \{ registerTttRoutes \} from "\.\/routes\/tictactoe\.js"/);
   assert.match(server, /registerTttRoutes\(tttRouter, \{ requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub \}\)/);
   assert.match(server, /import \{ renderTtt \} from "\.\/views\/tictactoe\.js"/);
+  assert.match(server, /"ttt-page\.js", "ttt\.css"/);
   assert.match(server, /app\.get\("\/tictactoe", scrapeGate, requireUser/);
   assert.match(server, /"\/tictactoe\/guest\/:token"/);
   assert.match(server, /creditCompetitiveGameWin, chessHub/);
@@ -73,10 +75,16 @@ test("Tic-Tac-Toe menu item follows Whot and Snakes, and cross-page challenges r
   assert.match(routes, /router\.post\("\/api\/tictactoe\/challenge\/:id\/respond"/);
 });
 
-test("Tic-Tac-Toe keeps existing native-banner behavior and the shared game-page popunder exclusion", () => {
+test("Tic-Tac-Toe guest and active sessions suppress ads without changing native-banner routing", () => {
   assert.match(promo, /"\/snakes",\s*"\/tictactoe"/);
+  assert.match(promo, /const SKIP_PATHS = \[[\s\S]*?"\/tictactoe\/guest"[\s\S]*?\];/);
+  assert.match(promo, /const SOCIAL_SKIP_PATHS = \[[\s\S]*?"\/tictactoe"[\s\S]*?\];/);
   assert.doesNotMatch(nativeBanner, /tictactoe/);
   assert.match(popunder, /\^\\\/tictactoe\(\\\/\|\$\)/);
+  assert.match(client, /setTttGameAdState\(true\)/);
+  assert.match(client, /setTttGameAdState\(false\)/);
+  assert.match(sponsor, /es-game-session-change/);
+  assert.match(sponsor, /tttGameActive\(\)/);
 });
 
 test("online Tic-Tac-Toe is authenticated, server-authoritative, two-player, and reconnect-safe", () => {

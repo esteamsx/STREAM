@@ -3,6 +3,7 @@ const SKIP_PATHS = [
   "/embed/",
   "/.well-known/",
   "/s/",
+  "/tictactoe/guest",
   "/promote",
   "/login",
   "/verify",
@@ -41,6 +42,7 @@ const SOCIAL_SKIP_PATHS = [
   "/embed/",
   "/.well-known/",
   "/s/",
+  "/tictactoe",
 ];
 
 const POPUNDER_SKIP_PATHS = [

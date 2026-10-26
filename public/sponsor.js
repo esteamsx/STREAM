@@ -60,6 +60,10 @@
   var timer = null;
   var stopped = false;
 
+  function tttGameActive() {
+    return !!(document.body && document.body.classList.contains("tx-game-active"));
+  }
+
   function el(tag, className, text) {
     var node = document.createElement(tag);
     if (className) node.className = className;
@@ -120,6 +124,7 @@
   }
 
   function render(ad) {
+    if (tttGameActive()) { teardown(); return; }
     teardown();
     current = ad;
     lastId = ad.id;
@@ -174,13 +179,14 @@
   }
 
   function load() {
-    if (stopped) return;
+    if (stopped || tttGameActive()) { if (tttGameActive()) teardown(); return; }
     fetch("/api/sp/next?last=" + encodeURIComponent(lastId), { credentials: "same-origin", cache: "no-store" })
       .then(function (res) {
         return res.ok ? res.json() : null;
       })
       .then(function (data) {
         if (stopped) return;
+        if (tttGameActive()) { teardown(); return; }
         if (!data || !data.ad) {
           teardown();
           return;
@@ -191,7 +197,7 @@
   }
 
   function tick() {
-    if (stopped || document.visibilityState !== "visible") return;
+    if (stopped || tttGameActive() || document.visibilityState !== "visible") return;
     rotations += 1;
     if (rotations > MAX_ROTATIONS) {
       clearInterval(timer);
@@ -207,6 +213,11 @@
 
   document.addEventListener("fullscreenchange", function () {
     if (card) card.style.display = document.fullscreenElement ? "none" : "";
+  });
+
+  window.addEventListener("es-game-session-change", function () {
+    if (tttGameActive()) teardown();
+    else if (!stopped) load();
   });
 
   resolveAccountStorage(function () {

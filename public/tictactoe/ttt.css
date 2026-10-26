@@ -1,5 +1,8 @@
 /* Tic-Tac-Toe. Everything else (menu, buttons, lobby, room, voice) comes from /chess/chess.css so the games feel the same. */
 
+/* Sponsor cards are paused by the shared ad client for active matches; this prevents a visible flash during startup. */
+.tx-game-active .pn-card{display:none!important}
+
 /* ---- the two players ---- */
 .tx-players{display:flex;gap:10px;justify-content:center;margin:0 auto 14px;max-width:560px}
 .tx-pl{flex:1 1 0;min-width:0;max-width:272px;display:flex;align-items:center;gap:9px;padding:7px 12px 7px 8px;border-radius:16px;border:2px solid transparent;background:var(--card);box-shadow:inset 0 0 0 1px var(--border);transition:border-color .25s,box-shadow .25s,transform .25s}

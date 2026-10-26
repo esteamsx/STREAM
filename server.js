@@ -471,7 +471,7 @@ app.get("/outbound-ip", async (req, res) => {
   }
 });
 
-const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js", "incognito-guard.js", "visitor-support.js", "chess-page.js", "chess-engine.js", "chess-bot.js", "chess-worker.js", "chess-pieces.js", "chess-sound.js", "chess-voice.js", "chess.css"]);
+const REVALIDATE_ALWAYS_FILES = new Set(["interactive.js", "face-scan.js", "claim-face.js", "sponsor.js", "promote.js", "pay-method.js", "admin-ads.js", "select-overlay.js", "site-ui.js", "post-ui.js", "home.js", "status-ui.js", "devtools-guard.js", "incognito-guard.js", "visitor-support.js", "chess-page.js", "chess-engine.js", "chess-bot.js", "chess-worker.js", "chess-pieces.js", "chess-sound.js", "chess-voice.js", "chess.css", "ttt-page.js", "ttt.css"]);
 
 app.use(
   express.static(path.join(__dirname, "public"), {

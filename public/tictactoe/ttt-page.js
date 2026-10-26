@@ -224,8 +224,14 @@ function buildBoard() {
   root.querySelectorAll(".tx-cell").forEach((b) => b.addEventListener("click", () => onCell(Number(b.getAttribute("data-i")))));
 }
 
+function setTttGameAdState(active) {
+  document.body.classList.toggle("tx-game-active", !!active);
+  window.dispatchEvent(new Event("es-game-session-change"));
+}
+
 function beginGame(g, opts = {}) {
   voice.stop();
+  setTttGameAdState(true);
   state.game = g;
   g.painted = Array(9).fill(null);
   $("cxMenu").hidden = true;
@@ -443,6 +449,7 @@ function leaveGame() {
   if (g) clearTimeout(g.finishTimer);
   if (g && g.mode === "bot") { g.token++; clearSaved(); }
   voice.stop();
+  setTttGameAdState(false);
   state.game = null;
   $("cxGame").hidden = true;
   $("cxVoiceDock").hidden = true;
