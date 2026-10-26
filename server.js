@@ -394,7 +394,6 @@ import {
 import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
 import { canonicalPath, pageGuards } from "./middleware/navigation.js";
 import { WEB_MANIFEST, siteHead, siteHeadFor, siteOrigin } from "./config/site.js";
-import { GAME_GUEST_PREVIEWS, gameGuestPath, retargetGameGuestHead } from "./services/game-guest-preview.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -1069,25 +1068,35 @@ app.get("/chess", scrapeGate, requireUser, (req, res) => {
   res.send(cachedChessHtml);
 });
 
-function gameGuestPreviewMiddleware(game) {
-  const preview = GAME_GUEST_PREVIEWS[game];
-  return (req, res, next) => {
-    const path = gameGuestPath(game, req.params.token);
-    const tags = siteHead({ ...preview, path });
-    res.locals.previewTags = retargetGameGuestHead(tags, game, req.params.token, siteOrigin());
-    next();
-  };
+const GUEST_PREVIEW = {
+  title: "Join my chess game | ES TEAMS TV",
+  description: "You have been invited to play chess. No account needed, just pick a name and play.",
+};
+function guestPreviewPath(req) {
+  return "/chess/guest/" + String(req.params.token || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
 }
-function sendGameGuestPage(game, token, html) {
-  return retargetGameGuestHead(html, game, token, siteOrigin());
+function retargetGuestHead(html, req) {
+  const url = siteOrigin() + guestPreviewPath(req);
+  const esc = (v) => String(v).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  return html
+    .replace(/<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${esc(url)}">`)
+    .replace(/<meta property="og:url" content="[^"]*">/, `<meta property="og:url" content="${esc(url)}">`)
+    .replace(/<meta property="og:title" content="[^"]*">/, `<meta property="og:title" content="${esc(GUEST_PREVIEW.title)}">`)
+    .replace(/<meta name="twitter:title" content="[^"]*">/, `<meta name="twitter:title" content="${esc(GUEST_PREVIEW.title)}">`)
+    .replace(/<meta property="og:description" content="[^"]*">/, `<meta property="og:description" content="${esc(GUEST_PREVIEW.description)}">`)
+    .replace(/<meta name="twitter:description" content="[^"]*">/, `<meta name="twitter:description" content="${esc(GUEST_PREVIEW.description)}">`)
+    .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${esc(GUEST_PREVIEW.description)}">`);
 }
 
 app.get(
   "/chess/guest/:token",
-  gameGuestPreviewMiddleware("chess"),
+  (req, res, next) => {
+    res.locals.previewTags = siteHead({ ...GUEST_PREVIEW, path: guestPreviewPath(req) });
+    next();
+  },
   scrapeGate,
   (req, res) => {
-    res.send(sendGameGuestPage("chess", req.params.token, cachedChessHtml));
+    res.send(retargetGuestHead(cachedChessHtml, req));
   }
 );
 
@@ -1104,32 +1113,64 @@ app.get("/snakes", scrapeGate, requireUser, (req, res) => {
 app.get("/tictactoe", scrapeGate, requireUser, (req, res) => {
   res.send(cachedTttHtml);
 });
+const TTT_GUEST_PREVIEW = {
+  title: "Join my Tic-Tac-Toe game | ES TEAMS TV",
+  description: "You have been invited to play Tic-Tac-Toe. No account needed, just pick a name and play.",
+};
 app.get(
   "/tictactoe/guest/:token",
-  gameGuestPreviewMiddleware("tictactoe"),
+  (req, res, next) => {
+    const path = "/tictactoe/guest/" + String(req.params.token || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    res.locals.previewTags = siteHead({ ...TTT_GUEST_PREVIEW, path });
+    next();
+  },
   scrapeGate,
-  (req, res) => { res.send(sendGameGuestPage("tictactoe", req.params.token, cachedTttHtml)); }
+  (req, res) => { res.send(cachedTttHtml); }
 );
+const SNAKES_GUEST_PREVIEW = {
+  title: "Join my Snakes and Ladders game | ES TEAMS TV",
+  description: "You have been invited to play Snakes and Ladders. No account needed, just pick a name and play.",
+};
 app.get(
   "/snakes/guest/:token",
-  gameGuestPreviewMiddleware("snakes"),
+  (req, res, next) => {
+    const path = "/snakes/guest/" + String(req.params.token || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    res.locals.previewTags = siteHead({ ...SNAKES_GUEST_PREVIEW, path });
+    next();
+  },
   scrapeGate,
-  (req, res) => { res.send(sendGameGuestPage("snakes", req.params.token, cachedSnakesHtml)); }
+  (req, res) => { res.send(cachedSnakesHtml); }
 );
+const WHOT_GUEST_PREVIEW = {
+  title: "Join my Whot game | ES TEAMS TV",
+  description: "You have been invited to play Whot. No account needed, just pick a name and play.",
+};
 app.get(
   "/whot/guest/:token",
-  gameGuestPreviewMiddleware("whot"),
+  (req, res, next) => {
+    const path = "/whot/guest/" + String(req.params.token || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    res.locals.previewTags = siteHead({ ...WHOT_GUEST_PREVIEW, path });
+    next();
+  },
   scrapeGate,
   (req, res) => {
-    res.send(sendGameGuestPage("whot", req.params.token, cachedWhotHtml));
+    res.send(cachedWhotHtml);
   }
 );
+const LUDO_GUEST_PREVIEW = {
+  title: "Join my Ludo game | ES TEAMS TV",
+  description: "You have been invited to play Ludo. No account needed, just pick a name and play.",
+};
 app.get(
   "/ludo/guest/:token",
-  gameGuestPreviewMiddleware("ludo"),
+  (req, res, next) => {
+    const path = "/ludo/guest/" + String(req.params.token || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    res.locals.previewTags = siteHead({ ...LUDO_GUEST_PREVIEW, path });
+    next();
+  },
   scrapeGate,
   (req, res) => {
-    res.send(sendGameGuestPage("ludo", req.params.token, cachedLudoHtml));
+    res.send(cachedLudoHtml);
   }
 );
 
