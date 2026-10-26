@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import vm from "node:vm";
 import { registerTttRoutes } from "../routes/tictactoe.js";
 import { renderTtt } from "../views/tictactoe.js";
 
@@ -118,4 +119,25 @@ test("Tic-Tac-Toe reuses common themes, Chess sound, shared voice, and result/ch
   assert.match(client, /sound\.win\(\)/);
   assert.match(client, /sound\.draw\(\)/);
   assert.match(client, /sound\.move\(\)/);
+});
+
+test("expired Tic-Tac-Toe guest links offer CREATE GAME with the external-link icon", () => {
+  const icon = client.match(/const GUEST_CREATE_GAME_ICON = '[^']+';/);
+  const ended = client.match(/function guestEndedCard\(title, text\) \{[\s\S]*?\n\}/);
+  assert.ok(icon, "the Chess-style external-link icon is defined");
+  assert.ok(ended, "the guest ended/expired card exists");
+  assert.doesNotMatch(ended[0], /GO TO ES TEAMS TV/);
+
+  const calls = { busy: 0, href: "" };
+  const context = {
+    h(tag, attrs, kids) { return { tag, attrs, kids, innerHTML: "" }; },
+    busy() { calls.busy++; },
+    location: { set href(value) { calls.href = value; }, get href() { return calls.href; } },
+  };
+  vm.runInNewContext(`${icon[0]}\n${ended[0]}\nthis.icon = GUEST_CREATE_GAME_ICON; this.card = guestEndedCard("Game Link Expired", "Expired.");`, context);
+  const button = context.card.kids[2];
+  assert.equal(button.innerHTML, 'CREATE GAME <span class="ico">' + context.icon + "</span>");
+  button.attrs.onclick({ currentTarget: button });
+  assert.equal(calls.busy, 1);
+  assert.equal(calls.href, "/tictactoe");
 });
