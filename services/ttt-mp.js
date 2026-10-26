@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { withoutTransientGameState } from "./game-persistence.js";
 import { newState, move as engineMove, resign as engineResign, chooseMove, viewOf, seatOfTurn, MARKS } from "../public/tictactoe/ttt-engine.js";
 
 /* Online Tic-Tac-Toe for exactly 2 players. Like Ludo, Whot and Tic-Tac-Toe it shares the chess stream for presence
@@ -61,7 +62,7 @@ const MESSAGES = {
 };
 const err = (code) => new HubError(code, MESSAGES[code]);
 
-export function createTttHub({ chess, now = () => Date.now(), randomHex = (n) => crypto.randomBytes(n).toString("hex"), randomInt = (n) => crypto.randomInt(n) } = {}) {
+export function createTttHub({ chess, now = () => Date.now(), randomHex = (n) => crypto.randomBytes(n).toString("hex"), randomInt = (n) => crypto.randomInt(n), persistence = null } = {}) {
   const challenges = new Map();   // id -> challenge (a request to a player)
   const games = new Map();        // id -> game
   const byUid = new Map();        // uid -> active game id
@@ -82,6 +83,21 @@ export function createTttHub({ chess, now = () => Date.now(), randomHex = (n) =>
   const profileOf = (uid, game) => chess.profileOf(uid) || (game && game.profiles && game.profiles[uid]) || fallbackProfile(uid);
   const playerOf = (game, uid) => game.players.find((p) => p.uid === uid) || null;
   const livePlayers = (game) => game.players.filter((p) => !p.out);
+  const persist = (game) => {
+    if (persistence) persistence.save(withoutTransientGameState(game)).catch((e) => console.error(`[ttt] game persistence`, e && e.message));
+  };
+  async function restore() {
+    if (!persistence) return;
+    try {
+      for (const raw of await persistence.load()) {
+        if (!raw || !raw.id || !raw.room || !raw.state || !Array.isArray(raw.players)) continue;
+        const game = { ...raw, spectators: new Map(), offSpec: new Map() };
+        games.set(game.id, game); rooms.set(game.room.code, game.id);
+        for (const player of game.players) byUid.set(player.uid, game.id);
+      }
+    } catch (e) { console.error(`[ttt] game restore`, e && e.message); }
+  }
+
   const rng = (n) => randomInt(n);
 
   /* ---- views ---- */
@@ -126,6 +142,7 @@ export function createTttHub({ chess, now = () => Date.now(), randomHex = (n) =>
     toAll(game, "ttt_state", (uid) => {
       return { gameId: game.id, event: ev, ...viewFor(game, uid) };
     });
+    persist(game);
   }
   function dropSpectator(game, uid, reason) {
     if (!game.spectators.delete(uid)) return;
@@ -171,6 +188,7 @@ export function createTttHub({ chess, now = () => Date.now(), randomHex = (n) =>
     for (const p of game.players) if (byUid.get(p.uid) === game.id) byUid.delete(p.uid);
     toAll(game, "ttt_over", (uid) => ({ gameId: game.id, ...viewFor(game, uid) }));
     if (onGameOver) { try { onGameOver(game); } catch { /* never break the game */ } }
+    persist(game);
   }
 
   /* a player leaves (resigned, missed turns, gone for too long): the other player wins */
@@ -208,6 +226,7 @@ export function createTttHub({ chess, now = () => Date.now(), randomHex = (n) =>
     games.set(id, game);
     rooms.set(game.room.code, id);
     for (const e of entries) byUid.set(e.uid, id);
+    persist(game);
     return game;
   }
   function startGame(entries, hostUid) {
@@ -353,6 +372,7 @@ export function createTttHub({ chess, now = () => Date.now(), randomHex = (n) =>
     if (!game.room.open) for (const u of [...game.spectators.keys()]) dropSpectator(game, u, "closed");
     else while (game.spectators.size > game.room.max) dropSpectator(game, [...game.spectators.keys()].pop(), "full");
     broadcastRoom(game);
+    persist(game);
     return { ...roomState(game), isHost: true };
   }
   function activeMatches() {
@@ -393,6 +413,7 @@ export function createTttHub({ chess, now = () => Date.now(), randomHex = (n) =>
     game.spectators.set(uid, { joinedAt: now() });
     watching.set(uid, game.id);
     broadcastRoom(game);
+    persist(game);
     return { view: spectatorView(game), code };
   }
   function leaveSpectate(uid) {
@@ -471,6 +492,7 @@ export function createTttHub({ chess, now = () => Date.now(), randomHex = (n) =>
           for (const u of [...game.spectators.keys()]) dropSpectator(game, u, "ended");
           rooms.delete(game.room.code);
           games.delete(id);
+          if (persistence) persistence.remove(id).catch(() => {});
         }
         continue;
       }
@@ -507,7 +529,7 @@ export function createTttHub({ chess, now = () => Date.now(), randomHex = (n) =>
   }
 
   return {
-    challenge, cancelChallenge, respond, startDirect, move, resign, syncState, sweep, hello,
+    restore, flush: () => persistence ? persistence.flush() : Promise.resolve(), challenge, cancelChallenge, respond, startDirect, move, resign, syncState, sweep, hello,
     getRoom, setRoom, spectate, adminSpectate: (uid, code) => spectate(uid, code, undefined, true), activeMatches, leaveSpectate, voiceJoin, voiceSignal,
     isBusy, isOnline, activeGameOf,
     setOnGameOver: (fn) => { onGameOver = typeof fn === "function" ? fn : null; },

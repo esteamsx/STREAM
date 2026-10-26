@@ -3,7 +3,7 @@ import { createWhotHub } from "../services/whot-mp.js";
 
 /* Whot API. Presence and the event stream are shared with chess (/api/chess/stream), so a signed-in
    player is online for Whot on every page. Guest links use a short-lived guest cookie flow. */
-export function registerWhotRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, searchUsersByUsername, getUserProfile, chessHub, isAdminEmail, hub = createWhotHub({ chess: chessHub }) }) {
+export function registerWhotRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, searchUsersByUsername, getUserProfile, chessHub, isAdminEmail, persistence = null, hub = createWhotHub({ chess: chessHub, persistence }) }) {
   const photoFor = (uid, p) => {
     if (!p || p.showProfilePhoto === false || !p.photoURL) return null;
     const url = String(p.photoURL);

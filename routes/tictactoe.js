@@ -3,7 +3,7 @@ import { createTttHub } from "../services/ttt-mp.js";
 
 /* Tic-Tac-Toe API. Presence and the event stream are shared with chess (/api/chess/stream), so a signed-in
    player is online for Tic-Tac-Toe on every page. Guests join through one-use, scoped invitation links. */
-export function registerTttRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub, hub = createTttHub({ chess: chessHub }) }) {
+export function registerTttRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub, persistence = chessHub.tttPersistence || null, hub = createTttHub({ chess: chessHub, persistence }) }) {
   const photoFor = (uid, p) => {
     if (!p || p.showProfilePhoto === false || !p.photoURL) return null;
     const url = String(p.photoURL);
