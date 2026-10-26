@@ -394,7 +394,7 @@ import {
 import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
 import { canonicalPath, pageGuards } from "./middleware/navigation.js";
 import { WEB_MANIFEST, siteHead, siteHeadFor, siteOrigin } from "./config/site.js";
-import { GAME_GUEST_PREVIEWS, gameGuestManifest, gameGuestPath, retargetGameGuestHead } from "./services/game-guest-preview.js";
+import { GAME_GUEST_PREVIEWS, gameGuestPath, retargetGameGuestHead } from "./services/game-guest-preview.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -1019,14 +1019,6 @@ app.get(["/apple-touch-icon-precomposed.png"], (req, res) => res.redirect(301, "
 app.get("/site.webmanifest", (req, res) => {
   res.set("Cache-Control", "public, max-age=86400");
   res.type("application/manifest+json").send(JSON.stringify(WEB_MANIFEST));
-});
-app.get("/game-previews/:game/manifest.webmanifest", (req, res) => {
-  try {
-    res.set("Cache-Control", "public, max-age=86400");
-    res.type("application/manifest+json").send(JSON.stringify(gameGuestManifest(req.params.game)));
-  } catch {
-    res.sendStatus(404);
-  }
 });
 app.get("/.well-known/appspecific/com.chrome.devtools.json", (req, res) => res.status(204).end());
 

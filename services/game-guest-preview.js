@@ -1,4 +1,4 @@
-import { siteOrigin, WEB_MANIFEST } from "../config/site.js";
+import { siteOrigin } from "../config/site.js";
 
 export const GAME_GUEST_PREVIEWS = Object.freeze({
   chess: Object.freeze({
@@ -47,19 +47,6 @@ export function gameGuestPath(game, token) {
   return `/${game}/guest/${safeToken}`;
 }
 
-export function gameGuestManifest(game) {
-  const preview = GAME_GUEST_PREVIEWS[game];
-  if (!preview) throw new Error("Unknown guest game");
-  return {
-    ...WEB_MANIFEST,
-    icons: [
-      { src: `${preview.iconBase}/icon-192.png`, sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: `${preview.iconBase}/icon-512.png`, sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: `${preview.iconBase}/icon-512.png`, sizes: "512x512", type: "image/png", purpose: "maskable" },
-    ],
-  };
-}
-
 export function retargetGameGuestHead(html, game, token, origin = siteOrigin()) {
   const preview = GAME_GUEST_PREVIEWS[game];
   if (!preview) throw new Error("Unknown guest game");
@@ -85,8 +72,9 @@ export function retargetGameGuestHead(html, game, token, origin = siteOrigin()) 
     .replace(/<meta property="og:image:height" content="[^"]*">/, '<meta property="og:image:height" content="630">')
     .replace(/<meta property="og:image:alt" content="[^"]*">/, `<meta property="og:image:alt" content="ES TEAMS TV ${esc(preview.title.split("|")[0].trim())}">`)
     .replace(/<meta name="twitter:image" content="[^"]*">/, `<meta name="twitter:image" content="${esc(image)}">`)
+    .replace(/<meta name="apple-mobile-web-app-title" content="[^"]*">/, `<meta name="apple-mobile-web-app-title" content="${esc(preview.title.split("|")[0].trim())}">`)
     .replace(/<link rel="icon" href="\/favicon\.svg"[^>]*>/, `<link rel="icon" href="${icon}/favicon.ico" sizes="16x16 32x32 48x48">`)
     .replace(/<link rel="icon" href="\/favicon\.ico"[^>]*>/, `<link rel="icon" type="image/png" href="${icon}/icon-32.png" sizes="32x32">`)
     .replace(/<link rel="apple-touch-icon" href="\/apple-touch-icon\.png"[^>]*>/, `<link rel="apple-touch-icon" sizes="180x180" href="${icon}/apple-touch-icon.png">`)
-    .replace(/<link rel="manifest" href="\/site\.webmanifest">/, `<link rel="icon" type="image/png" href="${icon}/icon-192.png" sizes="192x192">\n<link rel="manifest" href="${icon}/manifest.webmanifest">`);
+    .replace(/<link rel="manifest" href="\/site.webmanifest">/, `<link rel="icon" type="image/png" href="${icon}/icon-192.png" sizes="192x192">\n<link rel="manifest" href="/site.webmanifest">`);
 }

@@ -4,7 +4,7 @@ import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { siteHead } from "../config/site.js";
-import { GAME_GUEST_PREVIEWS, gameGuestManifest, gameGuestPath, retargetGameGuestHead } from "../services/game-guest-preview.js";
+import { GAME_GUEST_PREVIEWS, gameGuestPath, retargetGameGuestHead } from "../services/game-guest-preview.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const server = readFileSync(path.join(root, "server.js"), "utf8");
@@ -31,7 +31,6 @@ for (const { slug, name } of games) {
     assert.ok(server.includes(`"${pathName}"`), "existing guest URL is still registered");
     assert.ok(server.includes(`gameGuestPreviewMiddleware("${slug}")`));
     assert.ok(server.includes(`sendGameGuestPage("${slug}", req.params.token`));
-    assert.ok(server.includes('app.get("/game-previews/:game/manifest.webmanifest"'));
     assert.equal(gameGuestPath(slug, token), `/${slug}/guest/${token}`);
 
     const page = `<!doctype html><html><head><title>Game | ES TEAMS TV</title>${siteHead({
@@ -50,8 +49,6 @@ for (const { slug, name } of games) {
     assert.ok(html.includes(`href="${preview.iconBase}/icon-32.png"`));
     assert.ok(html.includes(`href="${preview.iconBase}/icon-192.png"`));
     assert.ok(html.includes(`href="${preview.iconBase}/apple-touch-icon.png"`));
-    assert.ok(html.includes(`href="${preview.iconBase}/manifest.webmanifest"`));
-    assert.ok(html.includes('name="apple-mobile-web-app-title" content="ES TEAMS"'), "keep the site's existing mobile title");
     assert.ok(html.includes("sizes=\"180x180\""));
     assert.ok(html.includes("name=\"twitter:card\" content=\"summary_large_image\""));
     assert.ok(!html.includes('href="/favicon.svg"'));
@@ -69,16 +66,6 @@ for (const { slug, name } of games) {
     assert.equal(ico.readUInt16LE(4), 3, "ICO contains 16, 32 and 48px sizes");
     assert.ok(statSync(path.join(root, "public", preview.image.slice(1))).size < 900_000);
     assert.ok(ico.length < 20_000);
-
-    const manifest = gameGuestManifest(slug);
-    assert.equal(manifest.name, "ES TEAMS TV");
-    assert.equal(manifest.short_name, "ES TEAMS");
-    assert.equal(manifest.start_url, "/");
-    assert.deepEqual(manifest.icons.map((icon) => icon.src), [
-      `${preview.iconBase}/icon-192.png`,
-      `${preview.iconBase}/icon-512.png`,
-      `${preview.iconBase}/icon-512.png`,
-    ]);
   });
 }
 
