@@ -13,6 +13,7 @@ const SKIP_PATHS = [
 
 const NAV_PATHS = [
   "/live",
+  "/movies",
   "/profile",
   "/u/",
   "/account",

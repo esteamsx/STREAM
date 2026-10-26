@@ -4,6 +4,7 @@ const ICONS = {
   home: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/>',
   live: '<rect x="2" y="4" width="20" height="14" rx="2.5"/><path stroke-linecap="round" d="M8 21h8"/><path d="M10.5 8.5l4 2.5-4 2.5z" fill="currentColor" stroke="none"/>',
   profile: '<path stroke-linecap="round" stroke-linejoin="round" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  movies: '<rect x="3" y="3" width="18" height="18" rx="2.2"/><path stroke-linecap="round" d="M7 3v18M17 3v18M3 12h18M3 7h4M3 17h4M17 17h4M17 7h4"/>',
   football: '<circle cx="12" cy="12" r="9"/><path stroke-linejoin="round" d="M12 8l3.5 2.5-1.3 4h-4.4l-1.3-4z"/><path stroke-linecap="round" d="M12 3v5M20.5 9.5L15.5 10.5M17.5 19l-3.3-4.5M6.5 19l3.3-4.5M3.5 9.5l5 1"/>',
   tools: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>',
   promote: '<path d="m3 11 18-5v12L3 14v-3z" stroke-linejoin="round"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" stroke-linecap="round"/>',
@@ -27,6 +28,7 @@ function icon(name, size) {
 const SIDE_LINKS = [
   { href: "/", label: "Home", icon: "home", active: true },
   { href: "/live", label: "Live TV", icon: "live" },
+  { href: "/movies", label: "Movies", icon: "movies" },
   { href: "/profile", label: "Profile", icon: "profile" },
   { href: "/football", label: "Football", icon: "football" },
   { href: "/tools", label: "Tools", icon: "tools" },

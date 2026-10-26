@@ -17,6 +17,7 @@ import { renderLudo } from "./views/ludo.js";
 import { renderWhot } from "./views/whot.js";
 import { renderSnakes } from "./views/snakes.js";
 import { renderTtt } from "./views/tictactoe.js";
+import { renderMovies } from "./views/movies.js";
 import { renderHome } from "./views/home.js";
 import { renderLiveTv } from "./views/live-tv.js";
 import { renderProfile } from "./views/profile.js";
@@ -352,6 +353,7 @@ import { registerLudoRoutes } from "./routes/ludo.js";
 import { registerWhotRoutes } from "./routes/whot.js";
 import { registerSnakesRoutes } from "./routes/snakes.js";
 import { registerTttRoutes } from "./routes/tictactoe.js";
+import { registerMovieRoutes } from "./routes/movies.js";
 import { registerChannelRoutes } from "./routes/channel-tools.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
@@ -745,6 +747,9 @@ app.use(snakesRouter);
 const tttRouter = express.Router();
 registerTttRoutes(tttRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
 app.use(tttRouter);
+const moviesRouter = express.Router();
+registerMovieRoutes(moviesRouter, { requireAuth, SimpleRateLimiter });
+app.use(moviesRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
 app.use(devicesRouter);
@@ -1034,6 +1039,13 @@ app.get("/", scrapeGate, requireUser, (req, res) => {
 app.get("/live", scrapeGate, requireUser, (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.send(renderLiveTv({ liveTV, categoryIcon, DOMAIN_LOCK_SCRIPT, siteHeadFor }));
+});
+
+let moviesHtmlCache = null;
+app.get(["/movies", "/movies/title/:slug"], scrapeGate, requireUser, (req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  if (!moviesHtmlCache) moviesHtmlCache = renderMovies({ DOMAIN_LOCK_SCRIPT, siteHeadFor });
+  res.send(moviesHtmlCache);
 });
 
 app.get("/football", scrapeGate, (req, res, next) => {

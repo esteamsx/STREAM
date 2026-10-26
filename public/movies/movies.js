@@ -1,0 +1,358 @@
+/* Movies page. Talks only to this site's /api/movies/* (never to the movie API directly).
+   Everything the API sends is added to the page as plain text, never as HTML. */
+(function () {
+  "use strict";
+  var API = "/api/movies";
+  var SORTS = [["RECOMMEND", "Recommended"], ["NEWEST", "Newest"], ["RATING", "Top rated"]];
+  var TITLES = { movies: "Movies", "tv-series": "TV Series", animation: "Animation" };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var els = { home: $("mvHome"), grid: $("mvGrid"), detail: $("mvDetail"), state: $("mvState"), tabs: $("mvTabs"), nav: $("mvNav"), form: $("mvSearchForm"), input: $("mvSearchInput"), clear: $("mvSearchClear"), suggest: $("mvSuggest"), toggle: $("mvSearchToggle") };
+
+  var homeData = null;       // kept so going back to For You is instant
+  var token = 0;             // each screen load gets a number so a slow answer can never paint over a newer screen
+  var heroTimer = null;
+  var inApp = false;         // true once we have moved around inside the page (so Back can use history)
+
+  /* ---------------------------------------------------------------- small helpers */
+  function el(tag, attrs, kids) {
+    var n = document.createElement(tag);
+    if (attrs) for (var k in attrs) {
+      var v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === "class") n.className = v;
+      else if (k === "text") n.textContent = v;
+      else if (k.indexOf("on") === 0) n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v === true ? "" : v);
+    }
+    (kids || []).forEach(function (c) { if (c != null && c !== false) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+    return n;
+  }
+  function svg(markup, size) {
+    var s = el("span", { "aria-hidden": "true" });
+    s.innerHTML = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + markup + "</svg>"; // fixed icon markup only
+    return s.firstChild;
+  }
+  var ICON = {
+    left: '<path d="M15 18l-6-6 6-6"/>', right: '<path d="M9 18l6-6-6-6"/>',
+    film: '<rect x="3" y="3" width="18" height="18" rx="2.2"/><path d="M7 3v18M17 3v18M3 12h18M3 7h4M3 17h4M17 17h4M17 7h4"/>',
+    warn: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/>',
+  };
+  function api(path) {
+    return fetch(API + path, { credentials: "same-origin", headers: { Accept: "application/json" } }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) { var e = new Error(data.error || "Something went wrong."); e.code = data.code || "server"; e.status = res.status; throw e; }
+        return data;
+      });
+    });
+  }
+  function detailUrl(slug) { return "/movies/title/" + encodeURIComponent(slug); }
+  function setTitle(t) { document.title = (t ? t + " | " : "") + "Movies | ES TEAMS TV"; }
+
+  /* ---------------------------------------------------------------- what is on screen */
+  function show(which) {
+    ["home", "grid", "detail"].forEach(function (k) { els[k].hidden = k !== which; });
+    els.state.hidden = which !== "state";
+    if (which !== "home") stopHero();
+  }
+  function setTab(tab) {
+    Array.prototype.forEach.call(els.tabs.querySelectorAll(".mv-tab"), function (b) { b.classList.toggle("on", b.getAttribute("data-tab") === tab); });
+    els.tabs.hidden = tab === "detail";
+  }
+  function showState(kind, retry) {
+    show("state");
+    els.state.textContent = "";
+    var title, text, icon = ICON.warn;
+    if (kind === "not_configured") { title = "Movies are not connected yet"; text = "The movie service has not been set up on this server yet. Once the site owner connects it, movies and series will show up here."; icon = ICON.film; }
+    else if (kind === "not_found") { title = "Title not found"; text = "We could not find that movie or series. It may have been removed."; }
+    else { title = "Could not load movies"; text = "The movie service did not answer. Check your connection and try again."; }
+    els.state.appendChild(svg(icon, 44));
+    els.state.appendChild(el("h2", { text: title }));
+    els.state.appendChild(el("p", { text: text }));
+    if (kind === "not_found") els.state.appendChild(el("button", { type: "button", class: "mv-btn", id: "mvStateBack", onclick: function () { go("/movies"); } }, ["Back to movies"]));
+    else if (kind !== "not_configured") els.state.appendChild(el("button", { type: "button", class: "mv-btn", id: "mvRetry", onclick: retry }, ["Try again"]));
+  }
+  function failed(e, retry) { showState(e && e.code === "not_configured" ? "not_configured" : e && e.code === "not_found" ? "not_found" : "upstream", retry); }
+
+  /* ---------------------------------------------------------------- cards */
+  function card(item) {
+    var poster = el("div", { class: "mv-poster" });
+    var fallback = el("div", { class: "mv-noimg", text: item.title });
+    if (item.poster) {
+      var img = el("img", { alt: item.title, loading: "lazy", decoding: "async", referrerpolicy: "no-referrer" });
+      img.addEventListener("load", function () { poster.classList.add("loaded"); });
+      img.addEventListener("error", function () { poster.classList.add("broken"); });
+      img.src = item.poster;
+      poster.appendChild(img);
+    } else poster.classList.add("broken");
+    poster.appendChild(fallback);
+    if (item.badge) poster.appendChild(el("span", { class: "mv-badge", text: item.badge }));
+    if (item.rating) poster.appendChild(el("span", { class: "mv-rate", text: "\u2605 " + item.rating.toFixed(1) }));
+    var kids = [poster, el("div", { class: "mv-name", text: item.title })];
+    if (item.year) kids.push(el("div", { class: "mv-year", text: item.year }));
+    if (!item.slug) return el("div", { class: "mv-card", "aria-label": item.title }, kids);
+    var a = el("a", { class: "mv-card", href: detailUrl(item.slug), "aria-label": item.title }, kids);
+    a.addEventListener("click", function (e) {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+      e.preventDefault();
+      go(detailUrl(item.slug));
+    });
+    return a;
+  }
+
+  /* ---------------------------------------------------------------- the featured banner */
+  function stopHero() { if (heroTimer) { clearInterval(heroTimer); heroTimer = null; } }
+  function hero(items) {
+    var box = el("div", { class: "mv-hero", id: "mvHero", role: "region", "aria-roledescription": "carousel", "aria-label": "Featured" });
+    var slides = [], dots = [], at = 0;
+    items.forEach(function (item, i) {
+      var bg = el("div", { class: "mv-slide-bg" });
+      if (item.poster) bg.style.backgroundImage = 'url("' + item.poster.replace(/"/g, "%22") + '")';
+      var posterBox = el("div", { class: "mv-slide-poster" });
+      if (item.poster) posterBox.appendChild(el("img", { src: item.poster, alt: "", referrerpolicy: "no-referrer", decoding: "async" }));
+      var meta = el("div", { class: "mv-slide-meta" });
+      if (item.rating) meta.appendChild(el("span", { class: "mv-star", text: "\u2605 " + item.rating.toFixed(1) }));
+      if (item.year) meta.appendChild(el("span", { text: item.year }));
+      var info = el("div", { class: "mv-slide-info" }, [
+        el("span", { class: "mv-slide-kicker", text: item.badge || "Featured" }),
+        el("h2", { class: "mv-slide-title", text: item.title }),
+        meta,
+        item.slug ? el("a", { class: "mv-btn", href: detailUrl(item.slug), onclick: function (e) { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); go(detailUrl(item.slug)); } }, ["View details"]) : null,
+      ]);
+      var s = el("div", { class: "mv-slide" + (i === 0 ? " on" : ""), "aria-hidden": i === 0 ? "false" : "true" }, [bg, el("div", { class: "mv-slide-body" }, [posterBox, info])]);
+      slides.push(s); box.appendChild(s);
+    });
+    function goTo(n) {
+      at = (n + slides.length) % slides.length;
+      slides.forEach(function (s, i) { s.classList.toggle("on", i === at); s.setAttribute("aria-hidden", i === at ? "false" : "true"); });
+      dots.forEach(function (d, i) { d.classList.toggle("on", i === at); });
+    }
+    if (slides.length > 1) {
+      var dotBox = el("div", { class: "mv-dots" });
+      slides.forEach(function (_, i) { var d = el("button", { type: "button", class: "mv-dot" + (i === 0 ? " on" : ""), "aria-label": "Show featured title " + (i + 1), onclick: function () { goTo(i); restart(); } }); dots.push(d); dotBox.appendChild(d); });
+      box.appendChild(dotBox);
+      box.appendChild(el("button", { type: "button", class: "mv-arrow prev", "aria-label": "Previous", onclick: function () { goTo(at - 1); restart(); } }, [svg(ICON.left, 20)]));
+      box.appendChild(el("button", { type: "button", class: "mv-arrow next", "aria-label": "Next", onclick: function () { goTo(at + 1); restart(); } }, [svg(ICON.right, 20)]));
+      var paused = false;
+      var restart = function () { stopHero(); if (!paused && !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) heroTimer = setInterval(function () { if (!document.hidden) goTo(at + 1); }, 6500); };
+      box.addEventListener("mouseenter", function () { paused = true; stopHero(); });
+      box.addEventListener("mouseleave", function () { paused = false; restart(); });
+      var x0 = null;
+      box.addEventListener("touchstart", function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+      box.addEventListener("touchend", function (e) { if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 45) { goTo(at + (dx < 0 ? 1 : -1)); restart(); } }, { passive: true });
+      restart();
+    }
+    return box;
+  }
+
+  /* ---------------------------------------------------------------- rows */
+  function row(r) {
+    var scroller = el("div", { class: "mv-scroll" }, r.items.map(card));
+    var head = el("div", { class: "mv-row-head" }, [el("h2", { class: "mv-row-title", text: r.title })]);
+    if (r.kind) head.appendChild(el("button", { type: "button", class: "mv-all", "data-kind": r.kind, onclick: function () { go("/movies?cat=" + encodeURIComponent(r.kind)); } }, ["See all"]));
+    function scrollBy(dir) { scroller.scrollBy({ left: dir * Math.max(240, scroller.clientWidth * 0.8), behavior: "smooth" }); }
+    var wrap = el("div", { class: "mv-scroll-wrap" }, [
+      scroller,
+      el("button", { type: "button", class: "mv-rowbtn prev", "aria-label": "Scroll " + r.title + " back", onclick: function () { scrollBy(-1); } }, [svg(ICON.left, 18)]),
+      el("button", { type: "button", class: "mv-rowbtn next", "aria-label": "Scroll " + r.title + " forward", onclick: function () { scrollBy(1); } }, [svg(ICON.right, 18)]),
+    ]);
+    return el("section", { class: "mv-row", "data-row": r.title }, [head, wrap]);
+  }
+  function skeletonHome() {
+    els.home.textContent = "";
+    els.home.appendChild(el("div", { class: "mv-sk mv-sk-hero" }));
+    for (var i = 0; i < 2; i++) {
+      var cards = []; for (var j = 0; j < 8; j++) cards.push(el("div", { class: "mv-sk mv-sk-card" }));
+      els.home.appendChild(el("div", {}, [el("div", { class: "mv-sk mv-sk-title" }), el("div", { class: "mv-sk-row" }, cards)]));
+    }
+  }
+
+  /* ---------------------------------------------------------------- screens */
+  function loadHome() {
+    var t = ++token;
+    setTab("home"); setTitle("");
+    show("home");
+    if (homeData) return paintHome(homeData);
+    skeletonHome();
+    api("/home").then(function (d) { if (t !== token) return; homeData = d; paintHome(d); }, function (e) { if (t !== token) return; failed(e, loadHome); });
+  }
+  function paintHome(d) {
+    show("home");
+    els.home.textContent = "";
+    if (d.banner && d.banner.length) els.home.appendChild(hero(d.banner));
+    (d.rows || []).forEach(function (r) { els.home.appendChild(row(r)); });
+  }
+
+  /* a category ("Movies") or a search, shown as a grid that grows with Load more */
+  function loadGrid(opts) {
+    var t = ++token;
+    var g = { kind: opts.kind || null, q: opts.q || null, sort: opts.sort || "RECOMMEND", page: 1, items: [], hasMore: false, total: 0 };
+    setTab(g.kind || "none"); setTitle(g.q ? 'Search "' + g.q + '"' : TITLES[g.kind]);
+    show("grid");
+    els.grid.textContent = "";
+    var title = el("div", { class: "mv-gridtitle", text: g.q ? 'Results for "' + g.q + '"' : TITLES[g.kind] });
+    var head = el("div", { class: "mv-gridhead" }, [title]);
+    if (g.kind) {
+      var sorts = el("div", { class: "mv-sorts", role: "group", "aria-label": "Sort" });
+      SORTS.forEach(function (s) { sorts.appendChild(el("button", { type: "button", class: "mv-sort" + (g.sort === s[0] ? " on" : ""), "data-sort": s[0], onclick: function () { go("/movies?cat=" + g.kind + (s[0] === "RECOMMEND" ? "" : "&sort=" + s[0]), true); } }, [s[1]])); });
+      head.appendChild(sorts);
+    }
+    var grid = el("div", { class: "mv-grid", id: "mvGridItems" });
+    var more = el("div", { class: "mv-more" });
+    els.grid.appendChild(head); els.grid.appendChild(grid); els.grid.appendChild(more);
+    for (var i = 0; i < 12; i++) grid.appendChild(el("div", { class: "mv-sk", style: "aspect-ratio:2/3" }));
+
+    function fetchPage(first) {
+      var path = g.q ? "/search?q=" + encodeURIComponent(g.q) + "&page=" + g.page : "/catalog/" + g.kind + "?page=" + g.page + "&sort=" + g.sort;
+      api(path).then(function (d) {
+        if (t !== token) return;
+        if (first) grid.textContent = "";
+        g.items = g.items.concat(d.items || []); g.hasMore = !!d.hasMore; g.total = d.total || 0;
+        (d.items || []).forEach(function (it) { grid.appendChild(card(it)); });
+        if (g.total) title.appendChild(el("small", { text: g.total.toLocaleString() + " titles" }));
+        if (first && !g.items.length) { grid.appendChild(el("div", { class: "mv-empty", text: g.q ? 'No results for "' + g.q + '". Try a different title.' : "Nothing to show here yet." })); }
+        paintMore();
+      }, function (e) {
+        if (t !== token) return;
+        if (first) failed(e, function () { loadGrid(opts); });
+        else { more.textContent = ""; more.appendChild(el("button", { type: "button", class: "mv-btn ghost", onclick: function () { paintMore(); fetchPage(false); } }, ["Could not load. Try again"])); }
+      });
+    }
+    function paintMore() {
+      more.textContent = "";
+      if (!g.hasMore) return;
+      more.appendChild(el("button", { type: "button", class: "mv-btn ghost", id: "mvMore", onclick: function (e) { e.currentTarget.disabled = true; e.currentTarget.textContent = "Loading..."; g.page += 1; fetchPage(false); } }, ["Load more"]));
+    }
+    fetchPage(true);
+  }
+
+  function loadDetail(slug) {
+    var t = ++token;
+    setTab("detail"); setTitle("");
+    show("detail");
+    els.detail.textContent = "";
+    els.detail.appendChild(el("div", { class: "mv-sk", style: "min-height:420px;border-radius:22px" }));
+    api("/detail/" + encodeURIComponent(slug)).then(function (d) { if (t !== token) return; paintDetail(d); }, function (e) { if (t !== token) return; failed(e, function () { loadDetail(slug); }); });
+  }
+  function paintDetail(d) {
+    show("detail");
+    setTitle(d.title);
+    els.detail.textContent = "";
+    var back = el("button", { type: "button", class: "mv-back", id: "mvBack", onclick: function () { if (inApp) history.back(); else go("/movies"); } }, [svg(ICON.left, 16), "Back"]);
+    var posterBox = el("div", { class: "mv-detail-poster" });
+    if (d.poster) posterBox.appendChild(el("img", { src: d.poster, alt: d.title, referrerpolicy: "no-referrer", decoding: "async" }));
+    var chips = el("div", { class: "mv-chips" });
+    chips.appendChild(el("span", { class: "mv-chip kind", text: d.kind === "tv" ? "TV Series" : "Movie" }));
+    if (d.rating) chips.appendChild(el("span", { class: "mv-chip star", text: "\u2605 " + d.rating.toFixed(1) }));
+    if (d.year) chips.appendChild(el("span", { class: "mv-chip", text: d.year }));
+    if (d.minutes) chips.appendChild(el("span", { class: "mv-chip", text: d.minutes + " min" }));
+    if (d.country) chips.appendChild(el("span", { class: "mv-chip", text: d.country }));
+    var genres = el("div", { class: "mv-chips" }, (d.genres || []).map(function (g) { return el("span", { class: "mv-chip", text: g }); }));
+    var top = el("div", { class: "mv-detail-top" }, [posterBox, el("div", { class: "mv-detail-head" }, [el("h1", { class: "mv-detail-title", text: d.title }), chips, genres])]);
+    var inner = el("div", { class: "mv-detail-inner" }, [back, top]);
+    if (d.description) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Overview" }), el("p", { class: "mv-about", text: d.description })]));
+    if (d.seasons && d.seasons.length) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Seasons" }), el("div", { class: "mv-seasons" }, d.seasons.map(function (s) { return el("div", { class: "mv-season" }, [el("b", { text: "Season " + s.season }), el("span", { text: s.episodes + (s.episodes === 1 ? " episode" : " episodes") })]); }))]));
+    if (d.cast && d.cast.length) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Cast" }), el("div", { class: "mv-cast" }, d.cast.map(function (p) {
+      var photo = el("div", { class: "mv-person-photo" });
+      if (p.photo) { var im = el("img", { alt: "", referrerpolicy: "no-referrer", loading: "lazy" }); im.addEventListener("error", function () { im.remove(); photo.textContent = p.name.charAt(0); }); im.src = p.photo; photo.appendChild(im); } else photo.textContent = p.name.charAt(0);
+      return el("div", { class: "mv-person" }, [photo, el("b", { text: p.name }), p.role ? el("span", { text: p.role }) : null]);
+    }))]));
+    var wrap = el("div", { class: "mv-detail" }, []);
+    var bg = el("div", { class: "mv-detail-bg" });
+    var bgUrl = d.backdrop || d.poster;
+    if (bgUrl) bg.style.backgroundImage = 'url("' + bgUrl.replace(/"/g, "%22") + '")';
+    wrap.appendChild(bg); wrap.appendChild(inner);
+    els.detail.appendChild(wrap);
+  }
+
+  /* ---------------------------------------------------------------- moving around (real URLs, so Back and refresh work) */
+  function route() {
+    closeSuggest();
+    var path = location.pathname.replace(/\/+$/, "");
+    var params = new URLSearchParams(location.search);
+    var m = /^\/movies\/title\/([^/]+)$/.exec(path);
+    if (m) {
+      var slug; try { slug = decodeURIComponent(m[1]); } catch (e) { slug = ""; }
+      return slug ? loadDetail(slug) : showState("not_found");
+    }
+    var q = (params.get("q") || "").trim();
+    if (q) { els.input.value = q; els.clear.hidden = false; return loadGrid({ q: q.slice(0, 60) }); }
+    var cat = params.get("cat");
+    if (cat && Object.prototype.hasOwnProperty.call(TITLES, cat)) { var sort = params.get("sort"); return loadGrid({ kind: cat, sort: SORTS.some(function (s) { return s[0] === sort; }) ? sort : "RECOMMEND" }); }
+    els.input.value = ""; els.clear.hidden = true;
+    loadHome();
+  }
+  function go(url, replace) {
+    try { history.replaceState(Object.assign({}, history.state, { y: window.scrollY }), ""); } catch (e) { /* ignore */ }
+    if (replace) history.replaceState({ y: 0 }, "", url); else { history.pushState({ y: 0 }, "", url); inApp = true; }
+    route();
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener("popstate", function () {
+    route();
+    var y = history.state && history.state.y;
+    if (y) requestAnimationFrame(function () { window.scrollTo(0, y); });
+  });
+
+  /* ---------------------------------------------------------------- tabs and search */
+  els.tabs.addEventListener("click", function (e) {
+    var b = e.target.closest(".mv-tab");
+    if (!b) return;
+    var tab = b.getAttribute("data-tab");
+    go(tab === "home" ? "/movies" : "/movies?cat=" + tab);
+  });
+
+  function closeSuggest() { els.suggest.classList.remove("open"); els.suggest.textContent = ""; sugCur = -1; }
+  var sugTimer = null, sugToken = 0, sugCur = -1;
+  function runSearch() {
+    var q = els.input.value.trim();
+    if (!q) return;
+    closeSuggest();
+    els.input.blur();
+    els.nav.classList.remove("searching");
+    go("/movies?q=" + encodeURIComponent(q));
+  }
+  els.form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var cur = els.suggest.querySelectorAll("button")[sugCur];
+    if (cur && els.suggest.classList.contains("open")) { cur.click(); return; }
+    runSearch();
+  });
+  els.input.addEventListener("input", function () {
+    var q = els.input.value.trim();
+    els.clear.hidden = !els.input.value;
+    clearTimeout(sugTimer);
+    if (q.length < 2) { closeSuggest(); return; }
+    var n = ++sugToken;
+    sugTimer = setTimeout(function () {
+      api("/suggest?q=" + encodeURIComponent(q.slice(0, 60))).then(function (d) {
+        if (n !== sugToken || els.input.value.trim() !== q) return;
+        els.suggest.textContent = "";
+        sugCur = -1;
+        (d.suggestions || []).forEach(function (s) {
+          els.suggest.appendChild(el("button", { type: "button", role: "option", text: s.title, onclick: function () { closeSuggest(); els.input.blur(); els.nav.classList.remove("searching"); go(detailUrl(s.slug)); } }));
+        });
+        els.suggest.classList.toggle("open", els.suggest.children.length > 0);
+      }, closeSuggest);
+    }, 220);
+  });
+  els.input.addEventListener("keydown", function (e) {
+    var items = els.suggest.querySelectorAll("button");
+    if (e.key === "Escape") { closeSuggest(); return; }
+    if (!items.length || !els.suggest.classList.contains("open")) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      sugCur = (sugCur + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      items.forEach(function (b, i) { b.classList.toggle("cur", i === sugCur); });
+    }
+  });
+  els.clear.addEventListener("click", function () { els.input.value = ""; els.clear.hidden = true; closeSuggest(); els.input.focus(); });
+  document.addEventListener("click", function (e) { if (!els.form.contains(e.target) && e.target !== els.toggle && !els.toggle.contains(e.target)) closeSuggest(); });
+  els.toggle.addEventListener("click", function () {
+    var on = els.nav.classList.toggle("searching");
+    if (on) els.input.focus(); else closeSuggest();
+  });
+
+  try { history.replaceState({ y: 0 }, ""); } catch (e) { /* ignore */ }
+  route();
+})();

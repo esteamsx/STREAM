@@ -89,6 +89,12 @@ export const PAGES = {
     description: "Play chess against the computer or challenge someone who is online.",
     auth: "required",
   },
+  movies: {
+    path: "/movies",
+    title: `Movies | ${SITE.name}`,
+    description: "Browse trending movies and TV series, search titles and see the details.",
+    auth: "required",
+  },
   snakes: {
     path: "/snakes",
     title: `Snakes and Ladders | ${SITE.name}`,
