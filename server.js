@@ -732,19 +732,18 @@ app.use(rewardsRouter);
 app.use(createGiveawayRouter({ verifyCaptcha }));
 const chessRouter = express.Router();
 const chessHub = registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview });
-chessHub.isAdminEmail = isAdminEmail;
 app.use(chessRouter);
 const ludoRouter = express.Router();
-const ludoHub = registerLudoRoutes(ludoRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, isAdminEmail, chessHub });
+registerLudoRoutes(ludoRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub });
 app.use(ludoRouter);
 const whotRouter = express.Router();
-const whotHub = registerWhotRoutes(whotRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isAdminEmail, chessHub });
+registerWhotRoutes(whotRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
 app.use(whotRouter);
 const snakesRouter = express.Router();
-const snakesHub = registerSnakesRoutes(snakesRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub });
+registerSnakesRoutes(snakesRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub });
 app.use(snakesRouter);
 const tttRouter = express.Router();
-const tttHub = registerTttRoutes(tttRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
+registerTttRoutes(tttRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
 app.use(tttRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
@@ -1206,21 +1205,6 @@ async function requireAdmin(req, res, next) {
     res.status(403).json({ error: "Not authorized." });
   }
 }
-
-app.get("/api/admin/matches", requireAuth, requireAdmin, (req, res) => {
-  const games = [
-    ["chess", "Chess", chessHub], ["ludo", "Ludo", ludoHub],
-    ["snakes", "Snakes & Ladders", snakesHub], ["whot", "Whot", whotHub],
-    ["tictactoe", "Tic-Tac-Toe", tttHub],
-  ];
-  const matches = games.flatMap(([slug, name, hub]) => (hub.activeMatches ? hub.activeMatches() : []).map((match) => ({
-    ...match, game: slug, gameName: name, host: {
-      uid: match.host.uid, name: match.host.name || match.host.username || "Player",
-      username: match.host.username || "", photo: match.host.photo || null,
-    },
-  })));
-  res.set("Cache-Control", "no-store").json({ matches });
-});
 
 app.get("/api/admin/analytics", requireAuth, requireAdmin, async (req, res) => {
   try {

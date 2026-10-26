@@ -128,7 +128,7 @@ export function registerSnakesRoutes(router, { requireAuth, requireSiteOrigin, S
 
   router.get("/api/snakes/ice", requireAuth, voiceLimiter, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: chessHub.iceServers ? chessHub.iceServers() : [] }));
   router.get("/api/snakes/guest/ice", guestIpLimiter, requireGuest, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: chessHub.iceServers ? chessHub.iceServers() : [] }));
-  router.post("/api/snakes/spectate", requireAuth, requireSiteOrigin, specLimiter, (req, res) => act(res, () => (chessHub.isAdminEmail && chessHub.isAdminEmail(req.userProfile?.email) ? hub.adminSpectate(req.uid, (req.body || {}).code) : hub.spectate(req.uid, (req.body || {}).code, (req.body || {}).pin))));
+  router.post("/api/snakes/spectate", requireAuth, requireSiteOrigin, specLimiter, (req, res) => act(res, () => hub.spectate(req.uid, (req.body || {}).code, (req.body || {}).pin)));
   router.post("/api/snakes/spectate/leave", requireAuth, requireSiteOrigin, specLimiter, (req, res) => act(res, () => hub.leaveSpectate(req.uid)));
 
   router.post("/api/snakes/guest/links", requireAuth, requireSiteOrigin, challengeLimiter, (req, res) => {

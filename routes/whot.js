@@ -3,7 +3,7 @@ import { createWhotHub } from "../services/whot-mp.js";
 
 /* Whot API. Presence and the event stream are shared with chess (/api/chess/stream), so a signed-in
    player is online for Whot on every page. Guest links use a short-lived guest cookie flow. */
-export function registerWhotRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, searchUsersByUsername, getUserProfile, chessHub, isAdminEmail, hub = createWhotHub({ chess: chessHub }) }) {
+export function registerWhotRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, searchUsersByUsername, getUserProfile, chessHub, hub = createWhotHub({ chess: chessHub }) }) {
   const photoFor = (uid, p) => {
     if (!p || p.showProfilePhoto === false || !p.photoURL) return null;
     const url = String(p.photoURL);
@@ -92,7 +92,7 @@ export function registerWhotRoutes(router, { requireAuth, requireSiteOrigin, Sim
   router.get("/api/whot/guest/ice", guestIpLimiter, requireGuest, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: chessHub.iceServers ? chessHub.iceServers() : [] }));
   router.post("/api/whot/spectate", requireAuth, requireSiteOrigin, specLimiter, (req, res) => {
     const b = req.body || {};
-    act(res, () => (isAdminEmail && isAdminEmail(req.userProfile?.email) ? hub.adminSpectate(req.uid, b.code) : hub.spectate(req.uid, b.code, b.pin)));
+    act(res, () => hub.spectate(req.uid, b.code, b.pin));
   });
   router.post("/api/whot/spectate/leave", requireAuth, requireSiteOrigin, specLimiter, (req, res) => act(res, () => hub.leaveSpectate(req.uid)));
 

@@ -253,7 +253,7 @@ export function registerTttRoutes(router, { requireAuth, requireSiteOrigin, Simp
   router.get("/api/tictactoe/guest/ice", guestIpLimiter, requireGuest, (req, res) => res.set("Cache-Control", "no-store").json({ iceServers: chessHub.iceServers ? chessHub.iceServers() : [] }));
   router.post("/api/tictactoe/spectate", requireAuth, requireSiteOrigin, specLimiter, (req, res) => {
     const b = req.body || {};
-    act(res, () => (chessHub.isAdminEmail && chessHub.isAdminEmail(req.userProfile?.email) ? hub.adminSpectate(req.uid, b.code) : hub.spectate(req.uid, b.code, b.pin)));
+    act(res, () => hub.spectate(req.uid, b.code, b.pin));
   });
   router.post("/api/tictactoe/spectate/leave", requireAuth, requireSiteOrigin, specLimiter, (req, res) => act(res, () => hub.leaveSpectate(req.uid)));
 

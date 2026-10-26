@@ -303,7 +303,7 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
 
   router.post("/api/chess/spectate", requireAuth, requireSiteOrigin, specLimiter, (req, res) => {
     const b = req.body || {};
-    act(res, () => (isAdminEmail && isAdminEmail(req.userProfile?.email) ? hub.adminSpectate(req.uid, b.code) : hub.spectate(req.uid, b.code, b.pin)));
+    act(res, () => hub.spectate(req.uid, b.code, b.pin));
   });
   router.post("/api/chess/spectate/leave", requireAuth, requireSiteOrigin, specLimiter, (req, res) => {
     act(res, () => { hub.leaveSpectate(req.uid); return { ok: true }; });
