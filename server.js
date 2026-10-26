@@ -447,12 +447,14 @@ app.get("/api/security/my-ip", (req, res) => {
 
 const cspReportLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.ip).middleware();
 app.post("/api/security/csp-report", cspReportLimiter, (req, res) => {
-  const report = req.body?.["csp-report"] || req.body || {};
-  console.warn("[csp-report]", {
-    document: String(report.documentURI || report["document-uri"] || "").slice(0, 300),
-    violated: String(report.violatedDirective || report["violated-directive"] || "").slice(0, 160),
-    blocked: String(report.blockedURL || report["blocked-uri"] || "").slice(0, 300),
-  });
+  const raw = req.body || {};
+  const report = raw["csp-report"] || raw.body || raw || {};
+  const entry = {
+    document: String(report.documentURI || report.documentURL || report["document-uri"] || "").slice(0, 300),
+    violated: String(report.violatedDirective || report.effectiveDirective || report["violated-directive"] || "").slice(0, 160),
+    blocked: String(report.blockedURL || report.blockedURI || report["blocked-uri"] || "").slice(0, 300),
+  };
+  if (entry.document || entry.violated || entry.blocked) console.warn("[csp-report]", entry);
   res.status(204).end();
 });
 

@@ -244,7 +244,7 @@
     var overlay = el("div", { class: "mv-download-popup", id: "mvDownloadPopup", role: "dialog", "aria-modal": "true", "aria-label": "Download options" });
     var card = el("div", { class: "mv-download-card" });
     var close = function () { overlay.remove(); };
-    card.appendChild(el("div", { class: "mv-download-head" }, [el("div", { class: "mv-download-title", text: "Download " + d.title }), el("button", { type: "button", class: "mv-download-close", "aria-label": "Close", onclick: close }, "\u00d7") ]));
+    card.appendChild(el("div", { class: "mv-download-head" }, [el("div", { class: "mv-download-title", text: "Download " + d.title }), el("button", { type: "button", class: "mv-download-close", "aria-label": "Close", onclick: close }, ["\u00d7"]) ]));
     card.appendChild(el("p", { class: "mv-download-sub", text: d.kind === "tv" ? "Season " + season + ", Episode " + episode : "Choose a resolution and format." }));
     var list = el("div", { class: "mv-download-list" });
     (sources || []).forEach(function (source) {
@@ -268,21 +268,31 @@
       seasonSelect.appendChild(el("option", { value: "", text: "Choose season" }));
       addOptions(seasonSelect, d.seasons.map(function (s) { return s.season; }));
       episodeSelect = el("select", { class: "mv-download-select", "aria-label": "Episode" });
-      function fillEpisodes() { var season = d.seasons.find(function (x) { return String(x.season) === seasonSelect.value; }); episodeSelect.textContent = ""; episodeSelect.appendChild(el("option", { value: "", text: "Choose episode" })); if (!season) return; for (var i = 1; i <= season.episodes; i++) episodeSelect.appendChild(el("option", { value: i, text: "Episode " + i })); }
+      var fillEpisodes = function () { var season = d.seasons.find(function (x) { return String(x.season) === seasonSelect.value; }); episodeSelect.textContent = ""; episodeSelect.appendChild(el("option", { value: "", text: "Choose episode" })); if (!season) return; for (var i = 1; i <= season.episodes; i++) episodeSelect.appendChild(el("option", { value: i, text: "Episode " + i })); };
       fillEpisodes();
       controls.appendChild(el("label", { class: "mv-download-field" }, [el("span", { text: "Season" }), seasonSelect]));
       controls.appendChild(el("label", { class: "mv-download-field" }, [el("span", { text: "Episode" }), episodeSelect]));
     }
+    var sourceState = { sources: [], loading: false, error: false };
     button = el("button", { type: "button", class: "mv-btn mv-download-open", disabled: d.kind === "tv", text: d.kind === "tv" ? "Select season and episode" : "Download" });
     controls.appendChild(button); section.appendChild(el("h3", { text: "Download" })); section.appendChild(controls);
-    var currentSources = [];
+    button.addEventListener("click", function () {
+      if (sourceState.loading) return;
+      if (sourceState.sources.length) showDownloadPopup(d, sourceState.sources, seasonSelect ? seasonSelect.value : 1, episodeSelect ? episodeSelect.value : 1);
+      else loadSources();
+    });
     function loadSources() {
       var se = seasonSelect ? seasonSelect.value : 1, ep = episodeSelect ? episodeSelect.value : 1;
       if (seasonSelect && (!se || !ep)) { button.disabled = true; button.textContent = "Select season and episode"; return; }
+      sourceState.loading = true; sourceState.error = false; sourceState.sources = [];
       button.disabled = true; button.textContent = "Checking sources...";
       api("/streams/" + encodeURIComponent(d.id) + "?slug=" + encodeURIComponent(d.slug) + "&se=" + se + "&ep=" + ep).then(function (stream) {
-        currentSources = stream.sources || []; button.disabled = false; button.textContent = "Download"; button.onclick = function () { showDownloadPopup(d, currentSources, se, ep); };
-      }).catch(function (e) { button.disabled = true; button.textContent = e && e.code === "rate_limited" ? "Try again shortly" : "No downloads available"; });
+        sourceState.loading = false; sourceState.sources = Array.isArray(stream.sources) ? stream.sources : [];
+        button.disabled = false; button.textContent = sourceState.sources.length ? "Download" : "No downloads available";
+      }).catch(function (e) {
+        sourceState.loading = false; sourceState.error = true; button.disabled = false;
+        button.textContent = e && e.code === "rate_limited" ? "Try again shortly" : "Try again";
+      });
     }
     if (seasonSelect) { seasonSelect.addEventListener("change", function () { fillEpisodes(); loadSources(); }); episodeSelect.addEventListener("change", loadSources); }
     else loadSources();
