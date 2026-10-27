@@ -55,6 +55,13 @@ export function registerMovieRoutes(router, { requireAuth, SimpleRateLimiter, ge
       res.set("Content-Disposition", 'attachment; filename="es-teams-movie-' + resolution + 'p.mp4"');
       if (!response.body) return res.end();
       return Readable.fromWeb(response.body).pipe(res);
-    } catch (e) { return send(res, () => Promise.reject(e)); }
+    } catch (e) {
+      if (e instanceof MovieError) {
+        if (e.code === "rate_limited") return res.status(429).json({ error: "ES Teams TV is preparing your download. Please try again shortly.", code: "download_busy" });
+        if (e.code === "upstream" || e.code === "upstream_unavailable" || e.code === "not_configured") return res.status(e.code === "upstream_unavailable" ? 503 : 502).json({ error: "ES Teams TV could not prepare this download right now. Please try again shortly.", code: "download_unavailable" });
+        if (e.code === "bad_request") return res.status(400).json({ error: "That download selection is not available.", code: "download_unavailable" });
+      }
+      return res.status(502).json({ error: "ES Teams TV could not prepare this download right now. Please try again shortly.", code: "download_unavailable" });
+    }
   });
 }
