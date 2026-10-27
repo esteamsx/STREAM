@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, getStreams, normalizeItem, normalizeDetail, apiBase, resetCache, MovieError } from "../services/moviebox.js";
+import { Writable } from "node:stream";
+import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, getStreams, proxyStream, normalizeItem, normalizeDetail, apiBase, resetCache, MovieError } from "../services/moviebox.js";
 import { registerMovieRoutes } from "../routes/movies.js";
 import { injectPromoSlot } from "../middleware/promo-slot.js";
 
@@ -9,7 +10,7 @@ import { injectPromoSlot } from "../middleware/promo-slot.js";
 const img = (n) => "https://img.example.test/" + n + ".jpg";
 const mk = (n, extra = {}) => ({ name: "Title " + n, poster_url: img(n), slug: "title-" + n + "-abc" + n, subject_id: "100" + n, badge: null, rating: "7." + (n % 10), year: String(2000 + (n % 25)), ...extra });
 const many = (from, count) => Array.from({ length: count }, (_, i) => mk(from + i));
-const state = { calls: [], fail: {}, delay: 0 };
+const state = { calls: [], fail: {}, delay: 0, lastProxyRange: null };
 const HOME = () => ({
   status: "success",
   sections: [
@@ -40,13 +41,27 @@ const server = http.createServer((req, res) => {
   }
   if (u.pathname === "/search") return send(200, { query: u.searchParams.get("q"), page: 1, total: 3, items: many(70, 3) });
   if (u.pathname === "/search/suggest") return send(200, { suggestions: [...Array.from({ length: 10 }, (_, i) => ({ title: "Match " + i, slug: "match-" + i + "-xx", subject_id: "9" + i })), { title: "Bad", slug: "../etc/passwd" }] });
+  if (u.pathname === "/api/stream/6207982430134357800/proxy") {
+    const body = Buffer.from("000000206674797069736f6d", "hex");
+    const range = req.headers.range || "";
+    state.lastProxyRange = range || null;
+    const match = /^bytes=(\d+)-(\d*)$/i.exec(range);
+    if (match) {
+      const start = Number(match[1]), end = Math.min(Number(match[2] || body.length - 1), body.length - 1);
+      const partial = body.subarray(start, end + 1);
+      res.writeHead(206, { "Content-Type": "video/mp4", "Content-Length": partial.length, "Content-Range": `bytes ${start}-${end}/${body.length}`, "Accept-Ranges": "bytes" });
+      return res.end(partial);
+    }
+    res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": body.length, "Accept-Ranges": "bytes" });
+    return res.end(body);
+  }
   if (u.pathname === "/api/stream/6207982430134357800") return send(200, { has_resource: true, sources: [{ resolution: "1080p", format: "MP4", url: "https://cdn.example.test/breaking-bad.mp4", size: "2414667149", duration: 2880 }, { resolution: "720p", format: "MP4", url: "http://insecure.example.test/bad.mp4" }, { resolution: "HLS", format: "m3u8", url: "https://cdn.example.test/bad.m3u8" }] });
   if (u.pathname.startsWith("/detail/")) { const slug = decodeURIComponent(u.pathname.slice(8)); return slug === "missing-one" ? send(404, { detail: "nope" }) : slug === "empty-one" ? send(200, { data: {} }) : send(200, DETAIL); }
   send(404, {});
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const URL_BASE = "http://127.0.0.1:" + server.address().port;
-const reset = () => { resetCache(); state.calls = []; state.fail = {}; state.delay = 0; process.env.MOVIEBOX_API_URL = URL_BASE; };
+const reset = () => { resetCache(); state.calls = []; state.fail = {}; state.delay = 0; state.lastProxyRange = null; process.env.MOVIEBOX_API_URL = URL_BASE; };
 test.after(() => server.close());
 
 test("with no API address set, everything says so and nothing is called", async () => {
@@ -184,6 +199,20 @@ test("streams expose only explicit HTTPS MP4 sources and reject unsafe reference
   await assert.rejects(getStreams("6207982430134357800", "../x"), (e) => e.status === 400);
 });
 
+test("download proxy forwards safe byte ranges and preserves partial MP4 responses", async () => {
+  reset();
+  const response = await proxyStream("6207982430134357800", "breaking-bad-ej6Bp0MCAo7", 1, 1, "360", "bytes=0-7");
+  assert.equal(state.lastProxyRange, "bytes=0-7");
+  assert.equal(response.status, 206);
+  assert.equal(response.headers.get("content-range"), "bytes 0-7/12");
+  assert.equal((await response.arrayBuffer()).byteLength, 8);
+  await assert.rejects(
+    proxyStream("6207982430134357800", "breaking-bad-ej6Bp0MCAo7", 1, 1, "360", "bytes=0-7\r\nX-Injected: yes"),
+    (e) => e instanceof MovieError && e.status === 400
+  );
+  assert.equal(state.calls.filter((x) => x.includes("/proxy")).length, 1, "invalid ranges are rejected before making an API request");
+});
+
 test("a broken or unreachable API becomes a clean 502", async () => {
   reset(); state.fail["/search"] = { status: 200, body: "<html>nope</html>" };
   await assert.rejects(getSearch("q"), (e) => e.status === 502 && e.code === "upstream");
@@ -251,6 +280,75 @@ test("the shared bottom navigation script is added to the movies pages, like the
   assert.doesNotMatch(run("/chess") || "", /\/site-ui\.js/, "games keep their own full-screen layout");
 });
 
+test("signed-in free accounts can browse movie lists without gaining premium downloads", async () => {
+  reset();
+  const handlers = {};
+  const profile = { verified: false, email: "free@example.test" };
+  const requireAuth = (req, res, next) => next();
+  class Limiter { middleware() { return (req, res, next) => next(); } }
+  const router = { get: (path, ...fns) => { handlers[path] = fns; } };
+  registerMovieRoutes(router, {
+    requireAuth,
+    SimpleRateLimiter: Limiter,
+    getUserProfile: async () => profile,
+    isVerificationActive: (user) => !!user.verified,
+    isAdminEmail: () => false,
+  });
+  const call = async (path, { params = {}, query = {} } = {}) => {
+    assert.equal(handlers[path][0], requireAuth, "browsing remains sign-in protected");
+    const out = { status: 200, body: null, headers: {} };
+    const res = { set(k, v) { out.headers[k] = v; return res; }, status(c) { out.status = c; return res; }, json(b) { out.body = b; return res; } };
+    await handlers[path].at(-1)({ params, query, uid: "free-user", userProfile: profile }, res);
+    return out;
+  };
+  const home = await call("/api/movies/home");
+  assert.equal(home.status, 200);
+  assert.ok(home.body.rows.length > 0);
+  const catalog = await call("/api/movies/catalog/:kind", { params: { kind: "movies" } });
+  assert.equal(catalog.status, 200);
+  assert.ok(catalog.body.items.length > 0);
+  const streams = await call("/api/movies/streams/:subjectId", { params: { subjectId: "6207982430134357800" }, query: { slug: "breaking-bad-ej6Bp0MCAo7" } });
+  assert.equal(streams.status, 200);
+  assert.equal(streams.body.premium, false);
+  assert.equal(streams.body.sources[0].available, false, "non-360p sources remain locked for free accounts");
+});
+
+test("download route forwards Range and preserves HTTP 206 for a signed-in free 360p download", async () => {
+  reset();
+  const handlers = {};
+  const profile = { verified: false, email: "free@example.test" };
+  class Limiter { middleware() { return (req, res, next) => next(); } }
+  const router = { get: (path, ...fns) => { handlers[path] = fns; } };
+  registerMovieRoutes(router, {
+    requireAuth: (req, res, next) => next(),
+    SimpleRateLimiter: Limiter,
+    getUserProfile: async () => profile,
+    isVerificationActive: (user) => !!user.verified,
+    isAdminEmail: () => false,
+  });
+  const chunks = [];
+  const headers = {};
+  const res = new Writable({ write(chunk, encoding, callback) { chunks.push(Buffer.from(chunk)); callback(); } });
+  res.statusCode = 200;
+  res.status = (code) => { res.statusCode = code; return res; };
+  res.set = (key, value) => { headers[key.toLowerCase()] = value; return res; };
+  res.json = (body) => { res.body = body; res.end(); return res; };
+  const finished = new Promise((resolve, reject) => { res.once("finish", resolve); res.once("error", reject); });
+  await handlers["/api/movies/download/:subjectId"].at(-1)({
+    uid: "free-user",
+    userProfile: profile,
+    params: { subjectId: "6207982430134357800" },
+    query: { slug: "breaking-bad-ej6Bp0MCAo7", se: "1", ep: "1", res: "360" },
+    headers: { range: "bytes=0-7" },
+    get(name) { return this.headers[String(name).toLowerCase()]; },
+  }, res);
+  await finished;
+  assert.equal(state.lastProxyRange, "bytes=0-7");
+  assert.equal(res.statusCode, 206);
+  assert.equal(headers["content-range"], "bytes 0-7/12");
+  assert.equal(Buffer.concat(chunks).length, 8);
+});
+
 test("Movies is in the home page menu and in the shared More menu, and opens /movies", async () => {
   const { renderHome } = await import("../views/home.js");
   const html = renderHome({ DOMAIN_LOCK_SCRIPT: "", siteHeadFor: () => "" });
@@ -260,4 +358,15 @@ test("Movies is in the home page menu and in the shared More menu, and opens /mo
   const ui = fs.readFileSync(new URL("../public/site-ui.js", import.meta.url), "utf8");
   assert.match(ui, /href: "\/movies", label: "Movies"/, "shared More menu");
   assert.ok(!/id="esBottomNav"|bnav-item/.test(fs.readFileSync(new URL("../views/movies.js", import.meta.url), "utf8")), "the Movies page has no navigation bar of its own");
+});
+
+test("Movies uses the shared ES Teams favicon and branded social-preview thumbnail", async () => {
+  const { renderMovies } = await import("../views/movies.js");
+  const { siteHeadFor } = await import("../config/site.js");
+  const html = renderMovies({ DOMAIN_LOCK_SCRIPT: "", siteHeadFor });
+  assert.match(html, /<link rel="icon" href="\/favicon\.svg" type="image\/svg\+xml">/);
+  assert.match(html, /<link rel="icon" href="\/favicon\.ico" sizes="32x32">/);
+  assert.match(html, /<link rel="apple-touch-icon" href="\/apple-touch-icon\.png">/);
+  assert.match(html, /<meta property="og:image" content="[^"]*\/og\.png">/);
+  assert.match(html, /<meta name="twitter:image" content="[^"]*\/og\.png">/);
 });

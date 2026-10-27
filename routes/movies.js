@@ -1,8 +1,8 @@
 import { Readable } from "node:stream";
 import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, getStreams, proxyStream, MovieError } from "../services/moviebox.js";
 
-/* Movies API for the /movies page. Everything needs a signed-in account, and the data comes from the Moviebox-API
-   through services/moviebox.js (see that file for the one setting it needs: MOVIEBOX_API_URL). */
+/* Movies API for the /movies page. Browsing needs a signed-in account, but not verification; verification only gates
+   higher-resolution downloads below. Data comes from the Moviebox-API through services/moviebox.js. */
 export function registerMovieRoutes(router, { requireAuth, SimpleRateLimiter, getUserProfile, isVerificationActive, isAdminEmail }) {
   const limiter = new SimpleRateLimiter(90, 60 * 1000, (req) => req.uid || req.ip).middleware();
 
@@ -50,7 +50,8 @@ export function registerMovieRoutes(router, { requireAuth, SimpleRateLimiter, ge
       const premium = await premiumFor(req);
       const resolution = String(req.query.res || "").replace(/p$/i, "");
       if (!premium && resolution !== "360") return res.status(403).json({ error: "Higher resolutions require Premium.", code: "premium_required" });
-      const response = await proxyStream(String(req.params.subjectId), String(req.query.slug || ""), req.query.se, req.query.ep, resolution);
+      const response = await proxyStream(String(req.params.subjectId), String(req.query.slug || ""), req.query.se, req.query.ep, resolution, req.get("range"));
+      res.status(response.status);
       ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"].forEach((key) => { const value = response.headers.get(key); if (value) res.set(key, value); });
       res.set("Content-Disposition", 'attachment; filename="es-teams-movie-' + resolution + 'p.mp4"');
       if (!response.body) return res.end();

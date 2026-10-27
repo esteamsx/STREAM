@@ -10,7 +10,7 @@ export function renderMovies({ DOMAIN_LOCK_SCRIPT, siteHeadFor }) {
 ${DOMAIN_LOCK_SCRIPT || ""}
 <script nonce="__CSP_NONCE__">document.documentElement.setAttribute("data-theme", localStorage.getItem("theme")||"dark");</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-${siteHeadFor("movies")}
+${siteHeadFor("movies", { image: "/og.png" })}
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <title>Movies | ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">

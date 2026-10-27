@@ -14,6 +14,7 @@ const FETCH_TIMEOUT_MS = 12000;
 const MAX_BODY_CHARS = 2_500_000;
 const MAX_CACHE_ENTRIES = 300;
 const STALE_OK_MS = 60 * 60 * 1000;      // if the API is down, a result up to an hour old is better than an empty page
+const RANGE_RE = /^bytes=(?:\d+-\d*|-\d+)$/i;
 
 const TTL = { home: 10 * 60 * 1000, catalog: 10 * 60 * 1000, search: 3 * 60 * 1000, suggest: 2 * 60 * 1000, detail: 30 * 60 * 1000, streams: 5 * 60 * 1000 };
 export const CATALOGS = { movies: { path: "/movies", title: "Movies" }, "tv-series": { path: "/tv-series", title: "TV Series" }, animation: { path: "/animation", title: "Animation" } };
@@ -77,11 +78,13 @@ async function upstream(path, params = {}) {
   throw new MovieError(429, "rate_limited", "The movie service is rate-limited. Please wait a moment and try again.");
 }
 
-export async function proxyStream(subjectId, slug, season = 1, episode = 1, resolution = "360") {
+export async function proxyStream(subjectId, slug, season = 1, episode = 1, resolution = "360", rangeHeader = "") {
   subjectId = String(subjectId || ""); slug = String(slug || ""); resolution = String(resolution || "").replace(/p$/i, "");
   if (!SUBJECT_ID_RE.test(subjectId) || !SLUG_RE.test(slug) || !/^(?:360|480|720|1080)$/.test(resolution)) {
     throw new MovieError(400, "bad_request", "That download request is not valid.");
   }
+  const range = String(rangeHeader || "").trim();
+  if (range && (range.length > 128 || !RANGE_RE.test(range))) throw new MovieError(400, "bad_request", "That download range is not valid.");
   const base = apiBase();
   if (!base) throw new MovieError(503, "not_configured", "The movie service is not connected yet.");
   const url = new URL(base + "/api/stream/" + encodeURIComponent(subjectId) + "/proxy");
@@ -93,7 +96,9 @@ export async function proxyStream(subjectId, slug, season = 1, episode = 1, reso
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const response = await fetch(url, { headers: { accept: "video/mp4" }, signal: controller.signal });
+      const headers = { accept: "video/mp4" };
+      if (range) headers.range = range;
+      const response = await fetch(url, { headers, signal: controller.signal });
       if (response.status === 429) { if (attempt === 0) { await pause(retryDelay(response)); continue; } throw new MovieError(429, "rate_limited", "The download service is busy. Please wait a moment and try again."); }
       if (!response.ok) {
         const detail = await responseDetail(response);
