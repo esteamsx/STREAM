@@ -89,7 +89,14 @@ export async function proxyStream(subjectId, slug, season = 1, episode = 1, reso
     try {
       const response = await fetch(url, { headers: { accept: "video/mp4" }, signal: controller.signal });
       if (response.status === 429) { if (attempt === 0) { await pause(retryDelay(response)); continue; } throw new MovieError(429, "rate_limited", "The download service is busy. Please wait a moment and try again."); }
-      if (!response.ok) throw new MovieError(502, "upstream", "The download service returned an error (" + response.status + ").");
+      if (!response.ok) {
+        let detail = "";
+        try { detail = (await response.text()).slice(0, 500); } catch { /* keep the generic upstream error */ }
+        let message = "The download service returned an error (" + response.status + ").";
+        try { detail = String(JSON.parse(detail).detail || detail); } catch { /* plain-text upstream response */ }
+        if (/no\s+mp4\s+source/i.test(detail)) message = "No downloadable MP4 source is available for this resolution and episode.";
+        throw new MovieError(502, "upstream", message);
+      }
       return response;
     } catch (e) {
       if (e instanceof MovieError) throw e;
