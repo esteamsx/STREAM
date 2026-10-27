@@ -43,6 +43,12 @@ function retryDelay(res) {
   return Math.min(2500, Math.max(100, seconds * 1000));
 }
 function pause(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+async function responseDetail(response) {
+  try {
+    const raw = (await response.text()).slice(0, 500);
+    try { return String(JSON.parse(raw).detail || raw); } catch { return raw; }
+  } catch { return ""; }
+}
 
 async function upstream(path, params = {}) {
   const base = apiBase();
@@ -90,11 +96,16 @@ export async function proxyStream(subjectId, slug, season = 1, episode = 1, reso
       const response = await fetch(url, { headers: { accept: "video/mp4" }, signal: controller.signal });
       if (response.status === 429) { if (attempt === 0) { await pause(retryDelay(response)); continue; } throw new MovieError(429, "rate_limited", "The download service is busy. Please wait a moment and try again."); }
       if (!response.ok) {
-        let detail = "";
-        try { detail = (await response.text()).slice(0, 500); } catch { /* keep the generic upstream error */ }
+        const detail = await responseDetail(response);
+        const noSource = /no\s+mp4\s+source/i.test(detail);
+        const rejectedByCdn = /^upstream\s+stream\s+error:\s+4\d{2}$/i.test(detail);
+        const transient = [502, 503, 504].includes(response.status) && !noSource && !rejectedByCdn;
+        if (transient && attempt === 0) { await pause(retryDelay(response)); continue; }
         let message = "The download service returned an error (" + response.status + ").";
-        try { detail = String(JSON.parse(detail).detail || detail); } catch { /* plain-text upstream response */ }
-        if (/no\s+mp4\s+source/i.test(detail)) message = "No downloadable MP4 source is available for this resolution and episode.";
+        if (noSource) message = "No downloadable MP4 source is available for this resolution and episode.";
+        else if (/^upstream\s+stream\s+error:\s+\d{3}$/i.test(detail)) message = "The Moviebox CDN rejected the selected stream (" + detail.match(/\d{3}/)[0] + ").";
+        else if (/^selected\s+source\s+has\s+no\s+url$/i.test(detail)) message = "Moviebox returned a stream without a downloadable source.";
+        else if (transient) throw new MovieError(503, "upstream_unavailable", "The download service is temporarily unavailable. Please try again shortly.");
         throw new MovieError(502, "upstream", message);
       }
       return response;
