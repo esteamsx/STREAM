@@ -4707,8 +4707,8 @@ function wireMessageRowGestures(container){
 }
 
 async function loadClaimFaceModule(){
-  try { return await import('/claim-face.js?v=${ASSET_VERSION}'); }
-  catch (e) { return await import('/claim-face.js?v=${ASSET_VERSION}&r=' + Date.now()); }
+  try { return await import('/face-scan.js?v=${ASSET_VERSION}'); }
+  catch (e) { return await import('/face-scan.js?v=${ASSET_VERSION}&r=' + Date.now()); }
 }
 let supportChatLastSig = '';
 async function loadSupportChatMessages(isInitial){
@@ -5543,7 +5543,7 @@ document.getElementById('rwDailyClaimBtn').addEventListener('click', async () =>
     enabled = true;
   }
   setClaimState(enabled ? 'ready' : 'nofaceid');
-  if (enabled) import('/claim-face.js?v=${ASSET_VERSION}').then((m) => m.preloadClaimFaceModels()).catch(() => {});
+  if (enabled) import('/face-scan.js?v=${ASSET_VERSION}').then((m) => m.preloadFaceModels()).catch(() => {});
 });
 
 async function ensureClaimPaid(){
@@ -5606,7 +5606,7 @@ claimContinueBtn.addEventListener('click', async () => {
   let capture = null;
   try {
     claimModule = await loadClaimFaceModule();
-    capture = await claimModule.captureClaimFace();
+    capture = await claimModule.captureFaceDescriptor({ requireLiveness: true, showCamera: true, returnSamples: true });
   } catch (err) {
     claimContinueBtn.innerHTML = original;
     claimContinueBtn.disabled = !claimCaptchaPassed;
