@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { createApiAnalyticsMiddleware, getApiActivityPage, getApiAnalytics } from "../services/api-analytics.js";
 
+const increment = (amount) => ({ __increment: amount });
+
 class FakeSnapshot {
   constructor(id, value) {
     this.id = id;
@@ -16,7 +18,46 @@ class FakeSnapshot {
 
 class FakeDocument {
   constructor(db, collection, id) { this.db = db; this.collection = collection; this.id = id; }
-  async get() { return new FakeSnapshot(this.id, this.db.tables.get(this.collection)?.get(this.id)); }
+  async get() {
+    this.db.reads += 1;
+    return new FakeSnapshot(this.id, this.db.tables.get(this.collection)?.get(this.id));
+  }
+  async create(value) {
+    const table = this.db.table(this.collection);
+    if (table.has(this.id)) throw Object.assign(new Error("Already exists"), { code: "ALREADY_EXISTS" });
+    table.set(this.id, value);
+    this.db.writes += 1;
+  }
+}
+
+function mergeValue(previous, next) {
+  if (next && typeof next === "object" && Object.prototype.hasOwnProperty.call(next, "__increment")) {
+    return (Number(previous) || 0) + Number(next.__increment || 0);
+  }
+  if (next && typeof next === "object" && !Array.isArray(next)) {
+    const out = previous && typeof previous === "object" && !Array.isArray(previous) ? { ...previous } : {};
+    for (const [key, value] of Object.entries(next)) out[key] = mergeValue(out[key], value);
+    return out;
+  }
+  return next;
+}
+
+class FakeBatch {
+  constructor(db) { this.db = db; this.ops = []; }
+  create(ref, value) { this.ops.push({ type: "create", ref, value }); return this; }
+  set(ref, value) { this.ops.push({ type: "set", ref, value }); return this; }
+  async commit() {
+    for (const op of this.ops) {
+      if (op.type === "create" && this.db.table(op.ref.collection).has(op.ref.id)) {
+        throw Object.assign(new Error("Already exists"), { code: "ALREADY_EXISTS" });
+      }
+    }
+    for (const op of this.ops) {
+      const table = this.db.table(op.ref.collection);
+      table.set(op.ref.id, op.type === "create" ? op.value : mergeValue(table.get(op.ref.id), op.value));
+      this.db.writes += 1;
+    }
+  }
 }
 
 function fieldValue(record, field) {
@@ -62,6 +103,7 @@ class FakeQuery {
       if (index >= 0) docs = docs.slice(index + 1);
     }
     if (this.count != null) docs = docs.slice(0, this.count);
+    this.db.reads += docs.length;
     return { docs: docs.map(({ id, value }) => new FakeSnapshot(id, value)), empty: docs.length === 0, size: docs.length };
   }
 }
@@ -71,6 +113,12 @@ class FakeDb {
     this.tables = new Map();
     this.ledger = [];
     this.failCoinLedgerQueries = false;
+    this.reads = 0;
+    this.writes = 0;
+  }
+  table(name) {
+    if (!this.tables.has(name)) this.tables.set(name, new Map());
+    return this.tables.get(name);
   }
   collection(name) {
     return {
@@ -78,6 +126,7 @@ class FakeDb {
       where: (field, operator, value) => new FakeQuery(this, name).where(field, operator, value),
     };
   }
+  batch() { return new FakeBatch(this); }
   collectionGroup(name) { return new FakeQuery(this, name); }
   async runTransaction(callback) {
     const pending = [];
@@ -115,7 +164,7 @@ const flushWrites = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 test("tracks Developer and Live TV API requests once, including errors, without query secrets", async () => {
   const db = new FakeDb();
-  const middleware = createApiAnalyticsMiddleware(db, { now: () => NOW, randomShard: () => 2, onError: (err) => { throw err; } });
+  const middleware = createApiAnalyticsMiddleware(db, { now: () => NOW, randomShard: () => 2, increment, onError: (err) => { throw err; } });
   const dev = emitRequest(middleware, {
     path: "/api/v1/dev/dl/secret-token-value",
     route: "/api/v1/dev/dl/:token",
@@ -139,11 +188,28 @@ test("tracks Developer and Live TV API requests once, including errors, without 
   assert.equal(JSON.stringify(events).includes("secret-token-value"), false);
   assert.equal(db.tables.get("apiAnalyticsDaily").size, 2);
   assert.equal(db.tables.get("apiRequestErrors").size, 1);
+  assert.equal(db.reads, 0, "tracking request responses uses atomic writes and performs no Firestore reads");
+  assert.ok(db.tables.get("apiAnalyticsMeta").has("tracking"));
+});
+
+test("atomically increments same-endpoint counters without replacing earlier responses", async () => {
+  const db = new FakeDb();
+  const middleware = createApiAnalyticsMiddleware(db, { now: () => NOW, randomShard: () => 0, increment, onError: (err) => { throw err; } });
+  emitRequest(middleware, { path: "/api/v1/dev/quote", route: "/api/v1/dev/quote", status: 200 });
+  emitRequest(middleware, { path: "/api/v1/dev/quote", route: "/api/v1/dev/quote", status: 200 });
+  emitRequest(middleware, { path: "/api/v1/dev/quote", route: "/api/v1/dev/quote", status: 503 });
+  await flushWrites();
+  const date = new Date(NOW).toISOString().slice(0, 10);
+  const daily = db.tables.get("apiAnalyticsDaily").get(`${date}_developer_0`);
+  const endpoint = daily.endpointCounts["/api/v1/dev/quote"];
+  assert.deepEqual([daily.requests, daily.successful, daily.failed], [3, 2, 1]);
+  assert.deepEqual([endpoint.requests, endpoint.successful, endpoint.failed], [3, 2, 1]);
+  assert.equal(db.reads, 0);
 });
 
 test("aggregates requests and signed coin-ledger request-pack charges/refunds by API and period", async () => {
   const db = new FakeDb();
-  const middleware = createApiAnalyticsMiddleware(db, { now: () => NOW, randomShard: () => 0, onError: (err) => { throw err; } });
+  const middleware = createApiAnalyticsMiddleware(db, { now: () => NOW, randomShard: () => 0, increment, onError: (err) => { throw err; } });
   emitRequest(middleware, { path: "/api/v1/dev/quote", route: "/api/v1/dev/quote", status: 200 });
   emitRequest(middleware, { path: "/api/v1/stream/channel-a", route: "/api/v1/stream/:channel", status: 503 });
   await flushWrites();
@@ -177,7 +243,7 @@ test("aggregates requests and signed coin-ledger request-pack charges/refunds by
 
 test("keeps request analytics available when Firestore coin-ledger indexes are missing", async () => {
   const db = new FakeDb();
-  const middleware = createApiAnalyticsMiddleware(db, { now: () => NOW, randomShard: () => 0, onError: (err) => { throw err; } });
+  const middleware = createApiAnalyticsMiddleware(db, { now: () => NOW, randomShard: () => 0, increment, onError: (err) => { throw err; } });
   emitRequest(middleware, { path: "/api/v1/dev/quote", route: "/api/v1/dev/quote", status: 200 });
   await flushWrites();
   db.failCoinLedgerQueries = true;
@@ -206,7 +272,7 @@ test("recent activity uses bounded pages and opaque event cursors", async () => 
 
 test("captures a disconnected API request once without duplicating the finish event", async () => {
   const db = new FakeDb();
-  const middleware = createApiAnalyticsMiddleware(db, { now: () => NOW, randomShard: () => 1, onError: (err) => { throw err; } });
+  const middleware = createApiAnalyticsMiddleware(db, { now: () => NOW, randomShard: () => 1, increment, onError: (err) => { throw err; } });
   const req = { path: "/api/v1/dev/quote", method: "GET", route: { path: "/api/v1/dev/quote" } };
   const res = new EventEmitter();
   res.statusCode = 200;

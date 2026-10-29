@@ -1503,16 +1503,20 @@ async function loadFollowingFeed(){
   refreshFeedBadge(); 
 }
 
+let feedBadgeLastAttemptAt = 0;
+let feedBadgeRequest = null;
 async function refreshFeedBadge(){
   const badge = document.getElementById('feedFabBadge');
   if (!badge) return;
-  try {
-    const data = await getJSON('/api/feed/following/unseen-count');
+  if (feedBadgeRequest) return feedBadgeRequest;
+  if (Date.now() - feedBadgeLastAttemptAt < 120000) return;
+  feedBadgeLastAttemptAt = Date.now();
+  feedBadgeRequest = getJSON('/api/feed/following/unseen-count').then(data => {
     const count = data.count || 0;
     badge.textContent = count > 0 ? String(count) : '';
     badge.classList.toggle('show', count > 0);
-  } catch (err) {
-  }
+  }).catch(() => {}).finally(() => { feedBadgeRequest = null; });
+  return feedBadgeRequest;
 }
 
 function initFollowingFeedFab(){
@@ -1531,7 +1535,7 @@ function initFollowingFeedFab(){
     if (e.target.id === 'followingFeedOverlay') document.getElementById('followingFeedOverlay').classList.remove('show');
   });
   refreshFeedBadge();
-  setInterval(() => { if (!document.hidden) refreshFeedBadge(); }, 20000);
+  setInterval(() => { if (!document.hidden) refreshFeedBadge(); }, 120000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) refreshFeedBadge();
   });

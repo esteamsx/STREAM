@@ -14,6 +14,8 @@ import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEm
 import { appendCoinLedger, coinLedgerMismatch, verifyCoinLedgerChain } from "./coin-ledger.js";
 import { openDeviceSession, checkDeviceSession, touchDeviceSession, revokeDeviceSession, revokeAllDeviceSessions, TRUSTED_SESSION_TTL_MS } from "./device-sessions.js";
 import { createWeeklyActivityService } from "./weekly-activity.js";
+import { fetchVisibleFollowingPosts } from "./following-feed-queries.js";
+import { fetchCommunityMessagePage } from "./community-chat-queries.js";
 
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
@@ -219,9 +221,15 @@ async function checkPendingSignupCode(email, code) {
 
 const userProfileCache = new Map();
 const USER_PROFILE_CACHE_TTL_MS = 30 * 1000;
+const userProfileInflight = new Map();
 
 function invalidateUserProfileCache(uid) {
   userProfileCache.delete(uid);
+  const pending = userProfileInflight.get(uid);
+  if (pending) {
+    pending.invalidated = true;
+    userProfileInflight.delete(uid);
+  }
 }
 
 const USER_PROFILE_CACHE_MAX = 3000;
@@ -238,10 +246,18 @@ function rememberUserProfile(uid, data) {
 async function getUserProfile(uid, maxAgeMs = USER_PROFILE_CACHE_TTL_MS) {
   const cached = userProfileCache.get(uid);
   if (cached && Date.now() - cached.at < maxAgeMs) return cached.data;
-  const snap = await db.collection("users").doc(uid).get();
-  const data = snap.exists ? snap.data() : null;
-  rememberUserProfile(uid, data);
-  return data;
+  const existing = userProfileInflight.get(uid);
+  if (existing) return existing.promise;
+  const pending = { invalidated: false, promise: null };
+  pending.promise = db.collection("users").doc(uid).get().then((snap) => {
+    const data = snap.exists ? snap.data() : null;
+    if (!pending.invalidated) rememberUserProfile(uid, data);
+    return data;
+  }).finally(() => {
+    if (userProfileInflight.get(uid) === pending) userProfileInflight.delete(uid);
+  });
+  userProfileInflight.set(uid, pending);
+  return pending.promise;
 }
 
 async function loadUserDocsCached(uids, maxAgeMs = 60 * 1000) {
@@ -266,7 +282,7 @@ async function loadUserDocsCached(uids, maxAgeMs = 60 * 1000) {
 
 async function updateUserProfile(uid, data) {
   await db.collection("users").doc(uid).update(data);
-  userProfileCache.delete(uid);
+  invalidateUserProfileCache(uid);
 }
 
 function watchLaterMovieId(slug) {
@@ -391,6 +407,7 @@ async function updatePrivacySettings(uid, updates) {
   }
   if (Object.keys(data).length === 0) throw new Error("No valid privacy settings provided.");
   await db.collection("users").doc(uid).update(data);
+  invalidateUserProfileCache(uid);
   return data;
 }
 
@@ -1958,6 +1975,7 @@ const followCache = new Map();
 const followInflight = new Map();
 const FOLLOW_LIST_TTL_MS = 10 * 60 * 1000;   // follow and unfollow clear these lists, so they can live longer
 const followListCache = new Map();
+const followListInflight = new Map();
 
 function followCached(key, loader) {
   const hit = followCache.get(key);
@@ -1984,8 +2002,14 @@ function followCached(key, loader) {
 function invalidateFollowCache(...uids) {
   const list = uids.filter(Boolean);
   for (const uid of list) {
-    followListCache.delete(`followers:${uid}`);
-    followListCache.delete(`following:${uid}`);
+    for (const key of [`followers:${uid}`, `following:${uid}`]) {
+      followListCache.delete(key);
+      const pending = followListInflight.get(key);
+      if (pending) {
+        pending.invalidated = true;
+        followListInflight.delete(key);
+      }
+    }
     for (const k of [`following:${uid}`, `mutual:${uid}`]) {
       followCache.delete(k);
       followInflight.delete(k);
@@ -2767,10 +2791,20 @@ async function getFollowList(uid, type) {
   const key = `${type}:${uid}`;
   const hit = followListCache.get(key);
   if (hit && Date.now() - hit.at < FOLLOW_LIST_TTL_MS) return hit.users;
-  const users = await loadFollowList(uid, type);
-  if (followListCache.size >= 1000) followListCache.clear();
-  followListCache.set(key, { users, at: Date.now() });
-  return users;
+  const existing = followListInflight.get(key);
+  if (existing) return existing.promise;
+  const pending = { invalidated: false, promise: null };
+  pending.promise = loadFollowList(uid, type).then((users) => {
+    if (!pending.invalidated) {
+      if (followListCache.size >= 1000) followListCache.clear();
+      followListCache.set(key, { users, at: Date.now() });
+    }
+    return users;
+  }).finally(() => {
+    if (followListInflight.get(key) === pending) followListInflight.delete(key);
+  });
+  followListInflight.set(key, pending);
+  return pending.promise;
 }
 
 async function loadFollowList(uid, type) {
@@ -2814,26 +2848,10 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
     return [];
   }
 
-  const rawPosts = [];
-  for (let i = 0; i < followingUids.length; i += 30) {
-    const chunk = followingUids.slice(i, i + 30);
-    const snap = await db.collection("posts").where("uid", "in", chunk).limit(50).get();
-    snap.docs.forEach((d) => rawPosts.push({ id: d.id, ...d.data() }));
-  }
-  rawPosts.sort((a, b) => b.createdAt - a.createdAt);
-
-  const distinctAuthorUids = [...new Set(rawPosts.map((p) => p.uid))];
-  const mutualChecks = await Promise.all(distinctAuthorUids.map((a) => isFollowing(a, uid)));
-  const mutualSet = new Set(distinctAuthorUids.filter((_, i) => mutualChecks[i]));
-
-  const visible = rawPosts
-    .filter((p) => {
-      const vis = p.visibility || "everyone";
-      if (vis === "only_me") return false;
-      if (vis === "friends") return mutualSet.has(p.uid);
-      return true;
-    })
-    .slice(0, limit);
+  const visible = await fetchVisibleFollowingPosts(db, followingUids, uid, {
+    limit,
+    isFollowing: (authorUid, viewerUid) => isFollowing(authorUid, viewerUid),
+  });
 
   const authorUids = [...new Set(visible.map((p) => p.uid))];
   const authorsByUid = new Map();
@@ -3612,10 +3630,9 @@ async function sendCommunityMessage(uid, text, attachment, replyTo) {
   return { id: msgRef.id, ...messageDoc };
 }
 
-async function getCommunityMessages(uid, limit = COMMUNITY_CHAT_PAGE_SIZE) {
+async function getCommunityMessages(uid, { limit = COMMUNITY_CHAT_PAGE_SIZE, after = null } = {}) {
   await requireCommunityAccess(uid);
-  const snap = await db.collection("communityChat").orderBy("createdAt", "desc").limit(limit).get();
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).reverse();
+  return fetchCommunityMessagePage(db, admin.firestore.FieldPath.documentId(), { limit, after });
 }
 
 async function deleteCommunityMessage(uid, msgId) {

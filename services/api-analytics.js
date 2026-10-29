@@ -169,43 +169,55 @@ async function queryApiCoinIncome(db, api, startAt, endAt, coinByDate) {
   return coinsEarned;
 }
 
-async function persistApiEvent(db, event) {
+const trackingMetaWrites = new WeakMap();
+
+async function ensureTrackingStarted(db, at) {
+  const existing = trackingMetaWrites.get(db);
+  if (existing) return existing;
+  const pending = db.collection("apiAnalyticsMeta").doc("tracking").create({ trackingStartedAt: at }).catch((err) => {
+    const alreadyExists = err?.code === 6 || err?.code === "ALREADY_EXISTS" || err?.code === "already-exists" || /already exists/i.test(String(err?.message || ""));
+    if (!alreadyExists) throw err;
+  });
+  trackingMetaWrites.set(db, pending);
+  try {
+    await pending;
+  } catch (err) {
+    if (trackingMetaWrites.get(db) === pending) trackingMetaWrites.delete(db);
+    throw err;
+  }
+}
+
+async function persistApiEvent(db, event, increment) {
   const eventRef = db.collection("apiRequestEvents").doc(event.id);
   const aggregateRef = db.collection("apiAnalyticsDaily").doc(`${event.date}_${event.api}_${event.shard}`);
   const errorRef = event.failed ? db.collection("apiRequestErrors").doc(event.id) : null;
-  const metaRef = db.collection("apiAnalyticsMeta").doc("tracking");
-  await db.runTransaction(async (tx) => {
-    const [existing, aggregate, meta] = await Promise.all([
-      tx.get(eventRef),
-      tx.get(aggregateRef),
-      tx.get(metaRef),
-    ]);
-    if (existing.exists) return;
-    const previous = aggregate.exists ? aggregate.data() || {} : {};
-    const endpointCounts = { ...(previous.endpointCounts || {}) };
-    const endpoint = endpointCounts[event.endpoint] || { requests: 0, successful: 0, failed: 0 };
-    endpoint.requests += 1;
-    if (event.successful) endpoint.successful += 1;
-    if (event.failed) endpoint.failed += 1;
-    endpointCounts[event.endpoint] = endpoint;
-
-    tx.create(eventRef, event);
-    if (errorRef) tx.create(errorRef, event);
-    tx.set(aggregateRef, {
-      date: event.date,
-      api: event.api,
-      shard: event.shard,
-      requests: (Number(previous.requests) || 0) + 1,
-      successful: (Number(previous.successful) || 0) + (event.successful ? 1 : 0),
-      failed: (Number(previous.failed) || 0) + (event.failed ? 1 : 0),
-      endpointCounts,
-      updatedAt: event.at,
-    }, { merge: true });
-    if (!meta.exists) tx.create(metaRef, { trackingStartedAt: event.at });
+  if (typeof increment !== "function") throw new Error("Firestore increment transform is required for API analytics.");
+  const batch = db.batch();
+  batch.create(eventRef, event);
+  if (errorRef) batch.create(errorRef, event);
+  batch.set(aggregateRef, {
+    date: event.date,
+    api: event.api,
+    shard: event.shard,
+    requests: increment(1),
+    successful: increment(event.successful ? 1 : 0),
+    failed: increment(event.failed ? 1 : 0),
+    endpointCounts: {
+      [event.endpoint]: {
+        requests: increment(1),
+        successful: increment(event.successful ? 1 : 0),
+        failed: increment(event.failed ? 1 : 0),
+      },
+    },
+    updatedAt: event.at,
+  }, { merge: true });
+  await batch.commit();
+  await ensureTrackingStarted(db, event.at).catch((err) => {
+    console.warn("[api-analytics] could not initialize tracking metadata", err && err.message);
   });
 }
 
-export function createApiAnalyticsMiddleware(db, { now = () => Date.now(), randomShard = () => crypto.randomInt(DAILY_SHARDS), onError = (err) => console.warn("[api-analytics] event write failed", err && err.message) } = {}) {
+export function createApiAnalyticsMiddleware(db, { now = () => Date.now(), randomShard = () => crypto.randomInt(DAILY_SHARDS), increment, onError = (err) => console.warn("[api-analytics] event write failed", err && err.message) } = {}) {
   return function apiAnalyticsMiddleware(req, res, next) {
     const path = String(req.path || req.originalUrl || "").split("?")[0];
     const api = apiTypeForPath(path);
@@ -234,7 +246,7 @@ export function createApiAnalyticsMiddleware(db, { now = () => Date.now(), rando
         durationMs: Math.max(0, Math.min(10 * 60 * 1000, at - startedAt)),
         shard: randomShard(),
       };
-      persistApiEvent(db, event).catch(onError);
+      persistApiEvent(db, event, increment).catch(onError);
     };
     res.once("finish", () => record(false));
     res.once("close", () => {

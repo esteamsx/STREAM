@@ -3463,6 +3463,12 @@ button:active{transform:scale(.96)}
 
   var communityHasAccess = false;
   var communityPollTimer = null;
+  var communityPollInFlight = false;
+  var communityPollDelay = 4000;
+  var communityPollCursor = null;
+  var communityLastFullSyncAt = 0;
+  var communityForceFullRequested = false;
+  var COMMUNITY_CHAT_FULL_SYNC_MS = 60000;
   var communityAttachment = null;
   var communityMyUid = null;
   var communityMessagesById = {};
@@ -3471,16 +3477,19 @@ button:active{transform:scale(.96)}
 
   function openCommunityOverlay(){
     document.getElementById('trCommunityOverlay').classList.add('show');
-    loadCommunityMessages();
+    communityPollDelay = 4000;
+    loadCommunityMessages(true);
   }
   document.getElementById('trCommunityCloseBtn').addEventListener('click', function(){
     document.getElementById('trCommunityOverlay').classList.remove('show');
-    if (communityPollTimer) clearInterval(communityPollTimer);
+    if (communityPollTimer) clearTimeout(communityPollTimer);
+    communityPollTimer = null;
   });
   document.getElementById('trCommunityOverlay').addEventListener('click', function(e){
     if (e.target.id === 'trCommunityOverlay') {
       this.classList.remove('show');
-      if (communityPollTimer) clearInterval(communityPollTimer);
+      if (communityPollTimer) clearTimeout(communityPollTimer);
+      communityPollTimer = null;
     }
   });
   document.getElementById('trCommunityUpgradeBtn').addEventListener('click', function(){
@@ -3488,20 +3497,72 @@ button:active{transform:scale(.96)}
     openPricingOverlay();
   });
 
-  async function loadCommunityMessages(){
+  function scheduleCommunityPoll(delay){
+    if (communityPollTimer) clearTimeout(communityPollTimer);
+    communityPollTimer = null;
+    var overlay = document.getElementById('trCommunityOverlay');
+    if (!overlay || !overlay.classList.contains('show') || document.hidden || !communityHasAccess) return;
+    communityPollTimer = setTimeout(function(){ loadCommunityMessages(false); }, delay);
+  }
+
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) {
+      if (communityPollTimer) clearTimeout(communityPollTimer);
+      communityPollTimer = null;
+    } else {
+      var overlay = document.getElementById('trCommunityOverlay');
+      if (overlay && overlay.classList.contains('show') && communityHasAccess) {
+        communityPollDelay = 4000;
+        loadCommunityMessages(false);
+      }
+    }
+  });
+
+  async function loadCommunityMessages(forceFull){
+    if (forceFull) communityForceFullRequested = true;
+    if (communityPollInFlight || document.hidden) return;
+    var overlay = document.getElementById('trCommunityOverlay');
+    if (!overlay || !overlay.classList.contains('show')) return;
+    communityPollInFlight = true;
+    var fullSync = communityForceFullRequested || !communityPollCursor || Date.now() - communityLastFullSyncAt >= COMMUNITY_CHAT_FULL_SYNC_MS;
+    var url = '/api/community/messages';
+    if (!fullSync) {
+      url += '?afterAt=' + encodeURIComponent(communityPollCursor.at) + '&afterId=' + encodeURIComponent(communityPollCursor.id);
+    }
     try {
-      var data = await getJSON('/api/community/messages');
+      var data = await getJSON(url);
       communityHasAccess = true;
       communityMyUid = data.myUid;
       document.getElementById('trCommunityLocked').style.display = 'none';
       document.getElementById('trCommunityChatArea').classList.add('show');
-      renderCommunityMessages(data.messages || [], data.myUid);
-      if (!communityPollTimer) communityPollTimer = setInterval(loadCommunityMessages, 4000);
+      var incoming = data.messages || [];
+      if (fullSync) {
+        renderCommunityMessages(incoming, data.myUid);
+        communityLastFullSyncAt = Date.now();
+        communityPollCursor = data.cursor || null;
+        communityForceFullRequested = false;
+      } else if (incoming.length) {
+        var merged = Object.keys(communityMessagesById).map(function(id){ return communityMessagesById[id]; }).concat(incoming);
+        var unique = {};
+        merged.forEach(function(message){ unique[message.id] = message; });
+        merged = Object.keys(unique).map(function(id){ return unique[id]; });
+        merged.sort(function(a,b){ return (Number(a.createdAt) - Number(b.createdAt)) || String(a.id).localeCompare(String(b.id)); });
+        renderCommunityMessages(merged.slice(-50), data.myUid);
+        communityPollCursor = data.cursor || communityPollCursor;
+      }
+      communityPollDelay = incoming.length ? 4000 : Math.min(15000, communityPollDelay * 2);
     } catch (err) {
       communityHasAccess = false;
       document.getElementById('trCommunityLocked').style.display = 'block';
       document.getElementById('trCommunityChatArea').classList.remove('show');
-      if (communityPollTimer) { clearInterval(communityPollTimer); communityPollTimer = null; }
+      if (communityPollTimer) { clearTimeout(communityPollTimer); communityPollTimer = null; }
+    } finally {
+      communityPollInFlight = false;
+      if (communityForceFullRequested && communityHasAccess && !document.hidden) {
+        loadCommunityMessages(true);
+        return;
+      }
+      scheduleCommunityPoll(communityPollDelay);
     }
   }
 
@@ -3655,7 +3716,7 @@ button:active{transform:scale(.96)}
     if (!msgId) return;
     try {
       await fetch('/api/community/messages/' + encodeURIComponent(msgId), { method: 'DELETE', credentials: 'same-origin' });
-      loadCommunityMessages();
+      loadCommunityMessages(true);
     } catch (err) {
       toast('Could not delete that message.');
     }

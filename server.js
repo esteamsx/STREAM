@@ -372,6 +372,7 @@ import { blacklistMiddleware } from "./services/device-bans.js";
 import { initInspectGuard, inspectBlockGuard, inspectPageFetchGuard } from "./services/inspect-guard.js";
 import { vpnGuard } from "./services/vpn-guard.js";
 import { clientIp } from "./services/client-ip.js";
+import admin from "firebase-admin";
 import { db, auth as firebaseAuth } from "./config/firebase.js";
 import {
   PUSH_ENABLED,
@@ -415,7 +416,7 @@ app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
 app.use(requestId);
-app.use(createApiAnalyticsMiddleware(db));
+app.use(createApiAnalyticsMiddleware(db, { increment: (value) => admin.firestore.FieldValue.increment(value) }));
 
 app.use(responseWatchdog({ timeoutMs: 30000, exemptPrefixes: ["/api/v1/hls/"] }));
 
@@ -3951,8 +3952,11 @@ const communityChatLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.u
 
 app.get("/api/community/messages", requireAuth, async (req, res) => {
   try {
-    const messages = await getCommunityMessages(req.uid);
-    res.json({ name: COMMUNITY_CHAT_NAME, messages, myUid: req.uid });
+    const afterAt = Number(req.query.afterAt);
+    const afterId = String(req.query.afterId || "");
+    const after = Number.isFinite(afterAt) && afterId.length > 0 && afterId.length <= 200 ? { at: afterAt, id: afterId } : null;
+    const page = await getCommunityMessages(req.uid, { after });
+    res.json({ name: COMMUNITY_CHAT_NAME, ...page, myUid: req.uid });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || "Could not load the community chat." });
   }
