@@ -2871,6 +2871,12 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
 const DISCOVER_SCAN_LIMIT = 60;
 const POST_IMAGE_TYPES = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=]+)$/;
 
+function looksLikePromotionalPost(text) {
+  const value = String(text || "");
+  if (/https?:\/\/|www\.|\[[^\]]+\]\(https?:\/\//i.test(value)) return true;
+  return /\b(advertis(?:e|ed|ing|ement)?|promotion|promotional|sponsor(?:ed)?|affiliate|sale|discount|deal|offer|shop|product|service|order now|buy now|free trial|link in bio|dm to order)\b/i.test(value);
+}
+
 function feedAuthor(id, data) {
   return {
     uid: id,
@@ -2892,6 +2898,8 @@ async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
   let lastConsidered = null;
   let more = false;
   let sawAny = false;
+  const viewer = await getUserProfile(uid);
+  const viewerIsPremium = !!viewer && (isVerificationActive(viewer) || isAdminEmail(viewer.email));
 
   for (let round = 0; round < MAX_ROUNDS && visible.length < limit; round++) {
     let query = db.collection("posts").orderBy("createdAt", "desc");
@@ -2941,12 +2949,18 @@ async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
   const statsMap = await resolveEffectivePostStats(visible);
   const posts = visible.map((p) => {
     const stats = statsMap.get(p.id) || { likedBy: [], commentsCount: 0, commentsEnabled: true, bonusLikes: 0 };
+    const authorData = authorDocs.get(p.uid) || {};
+    const promotional = looksLikePromotionalPost(p.text);
+    const authorIsPremium = isVerificationActive(authorData) || isAdminEmail(authorData.email);
+    const promoRestricted = promotional && !viewerIsPremium && !authorIsPremium;
     return {
       id: p.id,
       author: feedAuthor(p.uid, authorDocs.get(p.uid)),
       isOwn: p.uid === uid,
-      text: p.text || "",
-      imageUrl: p.imageDataUrl ? `/api/posts/${p.id}/image` : null,
+      promotional,
+      promoRestricted,
+      text: promoRestricted ? "" : (p.text || ""),
+      imageUrl: promoRestricted ? null : (p.imageDataUrl ? `/api/posts/${p.id}/image` : null),
       taggedUids: p.taggedUids || [],
       visibility: p.visibility || "everyone",
       resharedFrom: p.resharedFrom || null,
