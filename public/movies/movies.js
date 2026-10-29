@@ -4,7 +4,7 @@
   "use strict";
   var API = "/api/movies";
   var SORTS = [["RECOMMEND", "Recommended"], ["NEWEST", "Newest"], ["RATING", "Top rated"]];
-  var TITLES = { movies: "Movies", "tv-series": "TV Series", animation: "Animation" };
+  var TITLES = { movies: "Movies", "tv-series": "TV Series", animation: "Animation", "my-list": "My List" };
 
   var $ = function (id) { return document.getElementById(id); };
   var els = { home: $("mvHome"), grid: $("mvGrid"), detail: $("mvDetail"), state: $("mvState"), tabs: $("mvTabs"), nav: $("mvNav"), form: $("mvSearchForm"), input: $("mvSearchInput"), clear: $("mvSearchClear"), suggest: $("mvSuggest"), toggle: $("mvSearchToggle") };
@@ -39,8 +39,11 @@
     film: '<rect x="3" y="3" width="18" height="18" rx="2.2"/><path d="M7 3v18M17 3v18M3 12h18M3 7h4M3 17h4M17 17h4M17 7h4"/>',
     warn: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/>',
   };
-  function api(path) {
-    return fetch(API + path, { credentials: "same-origin", headers: { Accept: "application/json" } }).then(function (res) {
+  function api(path, options) {
+    options = options || {};
+    options.credentials = "same-origin";
+    options.headers = Object.assign({ Accept: "application/json" }, options.headers || {});
+    return fetch(API + path, options).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
         if (!res.ok) { var e = new Error(data.error || "Something went wrong."); e.code = data.code || "server"; e.status = res.status; throw e; }
         return data;
@@ -191,7 +194,7 @@
     els.grid.textContent = "";
     var title = el("div", { class: "mv-gridtitle", text: g.q ? 'Results for "' + g.q + '"' : TITLES[g.kind] });
     var head = el("div", { class: "mv-gridhead" }, [title]);
-    if (g.kind) {
+    if (g.kind && g.kind !== "my-list") {
       var sorts = el("div", { class: "mv-sorts", role: "group", "aria-label": "Sort" });
       SORTS.forEach(function (s) { sorts.appendChild(el("button", { type: "button", class: "mv-sort" + (g.sort === s[0] ? " on" : ""), "data-sort": s[0], onclick: function () { go("/movies?cat=" + g.kind + (s[0] === "RECOMMEND" ? "" : "&sort=" + s[0]), true); } }, [s[1]])); });
       head.appendChild(sorts);
@@ -202,14 +205,14 @@
     for (var i = 0; i < 12; i++) grid.appendChild(el("div", { class: "mv-sk", style: "aspect-ratio:2/3" }));
 
     function fetchPage(first) {
-      var path = g.q ? "/search?q=" + encodeURIComponent(g.q) + "&page=" + g.page : "/catalog/" + g.kind + "?page=" + g.page + "&sort=" + g.sort;
+      var path = g.q ? "/search?q=" + encodeURIComponent(g.q) + "&page=" + g.page : g.kind === "my-list" ? "/watch-later" : "/catalog/" + g.kind + "?page=" + g.page + "&sort=" + g.sort;
       api(path).then(function (d) {
         if (t !== token) return;
         if (first) grid.textContent = "";
         g.items = g.items.concat(d.items || []); g.hasMore = !!d.hasMore; g.total = d.total || 0;
         (d.items || []).forEach(function (it) { grid.appendChild(card(it)); });
         if (g.total) title.appendChild(el("small", { text: g.total.toLocaleString() + " titles" }));
-        if (first && !g.items.length) { grid.appendChild(el("div", { class: "mv-empty", text: g.q ? 'No results for "' + g.q + '". Try a different title.' : "Nothing to show here yet." })); }
+        if (first && !g.items.length) { grid.appendChild(el("div", { class: "mv-empty", text: g.q ? 'No results for "' + g.q + '". Try a different title.' : g.kind === "my-list" ? "Your Watch Later list is empty. Save a movie or series to find it here." : "Nothing to show here yet." })); }
         paintMore();
       }, function (e) {
         if (t !== token) return;
@@ -231,7 +234,10 @@
     show("detail");
     els.detail.textContent = "";
     els.detail.appendChild(el("div", { class: "mv-sk", style: "min-height:420px;border-radius:22px" }));
-    api("/detail/" + encodeURIComponent(slug)).then(function (d) { if (t !== token) return; paintDetail(d); }, function (e) { if (t !== token) return; failed(e, function () { loadDetail(slug); }); });
+    api("/detail/" + encodeURIComponent(slug)).then(function (d) {
+      if (t !== token) return;
+      api("/watch-later/" + encodeURIComponent(slug)).then(function (saved) { if (t === token) paintDetail(d, !!saved.saved); }, function () { if (t === token) paintDetail(d, false); });
+    }, function (e) { if (t !== token) return; failed(e, function () { loadDetail(slug); }); });
   }
   function formatBytes(n) {
     if (!n || !Number.isFinite(Number(n))) return "";
@@ -240,6 +246,25 @@
     return (i === 0 ? Math.round(v) : v.toFixed(v >= 10 ? 0 : 1)) + " " + units[i];
   }
   function accountForPremium() { window.location.href = "/account#verify"; }
+  function shareMovie(d, button) {
+    var url = new URL(detailUrl(d.slug), window.location.origin).toString();
+    function copied() { button.textContent = "Link copied"; setTimeout(function () { if (button.isConnected) button.textContent = "Share"; }, 1800); }
+    function manualCopy() {
+      var field = el("textarea", { readonly: true, "aria-hidden": "true" });
+      field.value = url; field.style.position = "fixed"; field.style.opacity = "0"; document.body.appendChild(field); field.select();
+      var ok = document.execCommand("copy"); field.remove();
+      if (ok) copied(); else button.textContent = "Copy failed";
+      setTimeout(function () { if (button.isConnected) button.textContent = "Share"; }, 1800);
+      return Promise.resolve();
+    }
+    function copyFallback() {
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(url).then(copied).catch(manualCopy);
+      return manualCopy();
+    }
+    if (navigator.share) {
+      navigator.share({ title: d.title, text: "Watch " + d.title + " on ES TEAMS TV", url: url }).catch(function (e) { if (!e || e.name !== "AbortError") copyFallback(); });
+    } else copyFallback();
+  }
   function showDownloadPopup(d, sources, season, episode) {
     var old = document.getElementById("mvDownloadPopup"); if (old) old.remove();
     var overlay = el("div", { class: "mv-download-popup", id: "mvDownloadPopup", role: "dialog", "aria-modal": "true", "aria-label": "Download options" });
@@ -280,6 +305,8 @@
     function setButton(label) { button.textContent = ""; button.appendChild(svg(ICON.download, 16)); button.appendChild(document.createTextNode(label)); }
     setButton(d.kind === "tv" ? "Select season and episode" : "Download");
     controls.appendChild(button); section.appendChild(el("h3", { text: "Download" })); section.appendChild(controls);
+    var shareButton = el("button", { type: "button", class: "mv-btn ghost mv-share-button", onclick: function () { shareMovie(d, shareButton); } }, ["Share"]);
+    controls.appendChild(shareButton);
     button.addEventListener("click", function () {
       if (sourceState.loading) return;
       if (sourceState.sources.length) showDownloadPopup(d, sourceState.sources, seasonSelect ? seasonSelect.value : 1, episodeSelect ? episodeSelect.value : 1);
@@ -301,7 +328,23 @@
     if (seasonSelect) { seasonSelect.addEventListener("change", function () { fillEpisodes(); loadSources(); }); episodeSelect.addEventListener("change", loadSources); }
     else loadSources();
   }
-  function paintDetail(d) {
+  function paintWatchLater(d, initiallySaved) {
+    var saved = initiallySaved;
+    var button = el("button", { type: "button", class: "mv-btn ghost mv-watch-later", "aria-pressed": saved ? "true" : "false" }, [saved ? "Remove from My List" : "List / Watch Later"]);
+    button.addEventListener("click", function () {
+      if (button.disabled) return;
+      button.disabled = true;
+      button.textContent = saved ? "Removing…" : "Saving…";
+      var request = saved
+        ? api("/watch-later/" + encodeURIComponent(d.slug), { method: "DELETE" })
+        : api("/watch-later", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ movie: { slug: d.slug, title: d.title, poster: d.poster, year: d.year, rating: d.rating, kind: d.kind } }) });
+      request.then(function () { saved = !saved; button.setAttribute("aria-pressed", saved ? "true" : "false"); button.textContent = saved ? "Remove from My List" : "List / Watch Later"; })
+        .catch(function (e) { button.textContent = e.message || "Could not update list"; setTimeout(function () { if (button.isConnected) button.textContent = saved ? "Remove from My List" : "List / Watch Later"; }, 2200); })
+        .finally(function () { button.disabled = false; });
+    });
+    return button;
+  }
+  function paintDetail(d, saved) {
     show("detail");
     setTitle(d.title);
     els.detail.textContent = "";
@@ -318,7 +361,8 @@
     var top = el("div", { class: "mv-detail-top" }, [posterBox, el("div", { class: "mv-detail-head" }, [el("h1", { class: "mv-detail-title", text: d.title }), chips, genres])]);
     var downloads = el("div", { class: "mv-section mv-download-section" });
     var inner = el("div", { class: "mv-detail-inner" }, [back, top, downloads]);
-    if (d.description) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Overview" }), el("p", { class: "mv-about", text: d.description })]));
+    if (d.description) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Overview" }), el("p", { class: "mv-about", text: d.description }), el("div", { class: "mv-detail-actions" }, [paintWatchLater(d, saved)])]));
+    else inner.appendChild(el("div", { class: "mv-section mv-detail-actions" }, [paintWatchLater(d, saved)]));
     if (d.seasons && d.seasons.length) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Seasons" }), el("div", { class: "mv-seasons" }, d.seasons.map(function (s) { return el("div", { class: "mv-season" }, [el("b", { text: "Season " + s.season }), el("span", { text: s.episodes + (s.episodes === 1 ? " episode" : " episodes") })]); }))]));
     if (d.cast && d.cast.length) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Cast" }), el("div", { class: "mv-cast" }, d.cast.map(function (p) {
       var photo = el("div", { class: "mv-person-photo" });

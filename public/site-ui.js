@@ -824,6 +824,8 @@ function esRefreshDots() {
 window.addEventListener("es-status-changed", () => esRefreshDots());
 
 let esGiftOpen = false;
+let esPremiumPromoOpen = false;
+let esPremiumPromoTimer = null;
 const ES_GIFT_ICON = '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="24" width="48" height="14" rx="3"/><path d="M12 38v18a3 3 0 003 3h34a3 3 0 003-3V38"/><path d="M32 24v35"/><path d="M32 24c-4-12-18-12-18-4 0 5 9 4 18 4zM32 24c4-12 18-12 18-4 0 5-9 4-18 4z"/></svg>';
 const ES_COIN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 9.5c0-1.2 1.3-2 3-2s3 .8 3 2-1.3 1.8-3 2-3 .8-3 2 1.3 2 3 2 3-.8 3-2"/></svg>';
 
@@ -855,6 +857,9 @@ function esGiftStyles() {
     ".gf-amt svg{width:26px;height:26px;color:#FFC93C}" +
     ".gf-amt small{font-size:.8rem;font-weight:700;color:var(--muted,rgba(255,255,255,.6));letter-spacing:.04em}" +
     ".gf-btn{position:relative;width:100%;padding:14px;border:none;border-radius:13px;font-weight:700;font-size:.92rem;cursor:pointer;font-family:inherit;color:#04141a;background:linear-gradient(90deg,var(--accent,#00E0FF),var(--accent2,#7c5cff));box-shadow:0 8px 22px rgba(0,224,255,.25)}" +
+    ".gp-close{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:var(--text,#fff);font-size:1.2rem;line-height:1}" +
+    ".gp-benefits{position:relative;margin:-5px 0 14px;color:var(--muted,rgba(255,255,255,.65));font-size:.76rem;line-height:1.6}" +
+    ".gp-price{position:relative;margin:12px 0 16px;font-family:var(--font-mono,monospace);font-size:1.35rem;font-weight:800;color:var(--text,#fff)}.gp-price small{font:600 .72rem var(--font-body,inherit);color:var(--muted,rgba(255,255,255,.65))}" +
     "@media (prefers-reduced-motion:reduce){.gf-card,.gf-box,.gf-spark,.gf-amt{animation:none!important}.gf-spark{display:none}}";
   document.head.appendChild(st);
 }
@@ -921,12 +926,98 @@ function esCheckCoinGift() {
       })(performance.now());
       ok.addEventListener("click", () => {
         fetch("/api/coin-gifts/" + encodeURIComponent(g.id) + "/seen", { method: "POST", credentials: "same-origin" }).catch(() => {});
-        ov.remove();
-        esGiftOpen = false;
-        setTimeout(esCheckCoinGift, 400);
+      ov.remove();
+      esGiftOpen = false;
+      setTimeout(esCheckCoinGift, 400);
+      esSchedulePremiumPromotion(900);
       });
     })
     .catch(() => {});
+}
+
+function esPromotionBlocked() {
+  const path = String(window.location.pathname || "").replace(/\/+$/, "").toLowerCase();
+  if (["/account", "/checkout", "/payment", "/chess", "/ludo", "/whot", "/snakes", "/tictactoe", "/tic-tac-toe", "/trading"].includes(path)) return true;
+  if (document.querySelector(".page-overlay.show,.pm-overlay.show,.tr-overlay.show,.mv-download-popup,.ad-overlay.show,.checkout-overlay.show")) return true;
+  return Array.from(document.querySelectorAll("[role='dialog']")).some((dialog) => {
+    const style = window.getComputedStyle(dialog);
+    return dialog.getClientRects().length > 0 && style.display !== "none" && style.visibility !== "hidden";
+  });
+}
+
+function esSchedulePremiumPromotion(delay) {
+  if (esPremiumPromoTimer) clearTimeout(esPremiumPromoTimer);
+  esPremiumPromoTimer = setTimeout(esCheckPremiumPromotion, delay);
+}
+
+function esCheckPremiumPromotion() {
+  esPremiumPromoTimer = null;
+  if (esPremiumPromoOpen || !esState.me || document.visibilityState !== "visible") return;
+  if (esPromotionBlocked() || esGiftOpen) return esSchedulePremiumPromotion(12000);
+  fetch("/api/premium-promotion", { credentials: "same-origin", headers: { Accept: "application/json" } })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((state) => {
+      if (!state || !state.eligible || esPremiumPromoOpen) return;
+      if (esPromotionBlocked() || esGiftOpen || document.visibilityState !== "visible") return esSchedulePremiumPromotion(12000);
+      return fetch("/api/premium-promotion/shown", { method: "POST", credentials: "same-origin", headers: { Accept: "application/json" } })
+        .then((r) => (r.ok ? r.json() : { shown: false }))
+        .then((claim) => { if (claim && claim.shown && !esPromotionBlocked() && !esGiftOpen && document.visibilityState === "visible") esShowPremiumPromotion(state); });
+    })
+    .catch(() => {});
+}
+
+function esShowPremiumPromotion(offer) {
+  if (esPremiumPromoOpen || esPromotionBlocked() || esGiftOpen || !offer || !Number.isFinite(Number(offer.priceNgn)) || !Number.isFinite(Number(offer.days))) return;
+  esPremiumPromoOpen = true;
+  esGiftOpen = true;
+  esGiftStyles();
+  const ov = document.createElement("div");
+  ov.className = "page-overlay show";
+  ov.style.zIndex = "9600";
+  ov.setAttribute("role", "dialog");
+  ov.setAttribute("aria-modal", "true");
+  ov.setAttribute("aria-label", "Account Premium offer");
+  const card = document.createElement("div");
+  card.className = "gf-card";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "gp-close";
+  close.setAttribute("aria-label", "Close premium offer");
+  close.textContent = "×";
+  const glow = document.createElement("div");
+  glow.className = "gf-glow";
+  const box = document.createElement("div");
+  box.className = "gf-box";
+  box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l5 4 5-8 5 8 5-4-2 12H4L2 8z"/><path d="M5 17h14"/></svg>';
+  const title = document.createElement("div");
+  title.className = "gf-title";
+  title.textContent = "Get Account Premium";
+  const summary = document.createElement("div");
+  summary.className = "gp-benefits";
+  summary.textContent = "Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, and free bot deployment.";
+  const price = document.createElement("div");
+  price.className = "gp-price";
+  price.textContent = "₦" + Number(offer.priceNgn).toLocaleString("en-NG") + " ";
+  const period = document.createElement("small");
+  period.textContent = "/ " + Number(offer.days) + " days";
+  price.appendChild(period);
+  const get = document.createElement("button");
+  get.type = "button";
+  get.className = "gf-btn";
+  get.textContent = "Get Premium";
+  const closeOffer = function (dismissed) {
+    if (dismissed) fetch("/api/premium-promotion/dismissed", { method: "POST", credentials: "same-origin", headers: { Accept: "application/json" } }).catch(() => {});
+    ov.remove();
+    esPremiumPromoOpen = false;
+    esGiftOpen = false;
+    setTimeout(esCheckCoinGift, 400);
+  };
+  close.addEventListener("click", function () { closeOffer(true); });
+  get.addEventListener("click", function () { closeOffer(false); window.location.href = "/account?premium=1"; });
+  card.append(glow, close, box, title, summary, price, get);
+  ov.appendChild(card);
+  ov.addEventListener("click", function (e) { if (e.target === ov) closeOffer(true); });
+  document.body.appendChild(ov);
 }
 
 function esThemeToggle() {
@@ -1261,10 +1352,12 @@ window.EsUI = {
     (esState.waiters || []).forEach((fn) => fn(esState.me));
     esRefreshDots();
     esCheckCoinGift();
+    esSchedulePremiumPromotion(20000);
     esMaybeTrustPrompt();
     setInterval(esRefreshDots, 60000);
     document.addEventListener("visibilitychange", esRefreshDots);
     document.addEventListener("visibilitychange", esCheckCoinGift);
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible" && !esPremiumPromoOpen) esSchedulePremiumPromotion(1200); });
   }
   let cached = null;
   try { cached = JSON.parse(sessionStorage.getItem("es_me") || "null"); } catch (e) {}

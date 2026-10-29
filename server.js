@@ -178,6 +178,13 @@ import {
   resendPendingSignupCode,
   checkPendingSignupCode,
   getUserProfile,
+  listMovieWatchLater,
+  getMovieWatchLater,
+  saveMovieWatchLater,
+  removeMovieWatchLater,
+  getPremiumPromoState,
+  claimPremiumPromo,
+  markPremiumPromoDismissed,
   getPasskeysForUser,
   getMaxPasskeysForUser,
   beginPasskeyRegistration,
@@ -337,7 +344,7 @@ import {
   adminMarkChannelReactResent,
   adminDecideChannelReact,
 } from "./services/auth.js";
-import { chargeAuthorization } from "./services/paystack.js";
+import { chargeAuthorization, VERIFICATION_PRICE_NGN, VERIFICATION_DAYS } from "./services/paystack.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { promoteRouter } from "./routes/promote.js";
 import { injectPromoSlot } from "./middleware/promo-slot.js";
@@ -750,7 +757,7 @@ const tttRouter = express.Router();
 registerTttRoutes(tttRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, chessHub });
 app.use(tttRouter);
 const moviesRouter = express.Router();
-registerMovieRoutes(moviesRouter, { requireAuth, SimpleRateLimiter, getUserProfile, isVerificationActive, isAdminEmail });
+registerMovieRoutes(moviesRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, isVerificationActive, isAdminEmail, listMovieWatchLater, getMovieWatchLater, saveMovieWatchLater, removeMovieWatchLater });
 app.use(moviesRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
@@ -1392,7 +1399,35 @@ app.post("/api/coin-gifts/:id/seen", requireAuth, async (req, res) => {
     res.json({ ok: false });
   }
 });
-
+const premiumPromoLimiter = new SimpleRateLimiter(12, 10 * 60 * 1000, (req) => req.uid, "Please wait before checking the premium offer again.").middleware();
+app.get("/api/premium-promotion", requireAuth, premiumPromoLimiter, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.uid, 0);
+    const eligible = !!profile && !isVerificationActive(profile) && !isAdminEmail(profile.email);
+    const state = eligible ? await getPremiumPromoState(req.uid) : null;
+    res.set("Cache-Control", "no-store").json({ eligible, lastShownAt: Number(state?.lastShownAt) || 0, priceNgn: VERIFICATION_PRICE_NGN, days: VERIFICATION_DAYS });
+  } catch {
+    res.status(503).json({ eligible: false });
+  }
+});
+app.post("/api/premium-promotion/shown", requireAuth, requireSiteOrigin, premiumPromoLimiter, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.uid, 0);
+    if (!profile || isVerificationActive(profile) || isAdminEmail(profile.email)) return res.json({ shown: false });
+    const shown = await claimPremiumPromo(req.uid);
+    res.set("Cache-Control", "no-store").json({ shown });
+  } catch {
+    res.status(503).json({ shown: false });
+  }
+});
+app.post("/api/premium-promotion/dismissed", requireAuth, requireSiteOrigin, premiumPromoLimiter, async (req, res) => {
+  try {
+    await markPremiumPromoDismissed(req.uid);
+    res.set("Cache-Control", "no-store").json({ ok: true });
+  } catch {
+    res.status(503).json({ ok: false });
+  }
+});
 app.get("/api/admin/chess-reviews", requireAuth, requireAdmin, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store").json({ reviews: await listChessReviews() });

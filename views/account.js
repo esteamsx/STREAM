@@ -955,7 +955,8 @@ body:has(.page-overlay.show){overflow:hidden}
   background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;
 }
 .verify-icon-wrap svg{width:28px;height:28px}
-.verify-benefits{display:flex;flex-direction:column;gap:9px;margin:2px 0}
+.verify-benefits{display:flex;flex-direction:column;gap:9px;margin:2px 0;max-height:min(25dvh,190px);overflow-y:auto;overscroll-behavior:contain;padding:2px 5px 2px 0;scrollbar-width:thin}
+#verifyOverlay .overlay-card{max-height:92dvh;overflow-y:auto;overscroll-behavior:contain}
 .verify-benefit{display:flex;align-items:center;gap:9px;font-size:.82rem;color:var(--text)}
 .verify-benefit svg{width:16px;height:16px;color:var(--green);flex-shrink:0}
 .verify-benefit.htw-benefit{align-items:flex-start;text-align:left;line-height:1.5}
@@ -5092,7 +5093,7 @@ document.getElementById('verifyCancel2').addEventListener('click', closeVerifyOv
 document.getElementById('verifyOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'verifyOverlay') closeVerifyOverlay();
 });
-
+if (window.location.hash === '#verify' || new URLSearchParams(window.location.search).get('premium') === '1') openVerifyOverlay();
 document.getElementById('verifyPayBtn').addEventListener('click', async () => {
   const btn = document.getElementById('verifyPayBtn');
   const msg = document.getElementById('verifyIntroMsg');

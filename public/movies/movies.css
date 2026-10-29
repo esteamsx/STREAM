@@ -224,3 +224,8 @@ button{cursor:pointer}
 @keyframes cxDotPulse{0%,60%,100%{opacity:.28;transform:scale(.75)}30%{opacity:1;transform:scale(1)}}
 @media (min-width:900px){.mv-main{padding-top:18px}.mv-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:20px 16px}}
 @media (prefers-reduced-motion:reduce){.mv-slide{transition:none}.mv-poster,.mv-sk{animation:none}.mv-card:hover .mv-poster{transform:none}}
+
+.mv-detail-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:12px}
+.mv-detail-actions .mv-btn,.mv-share-button{min-height:38px}
+.mv-share-button{background:var(--surface-tint);color:var(--text);border:1px solid var(--border-strong)}
+.mv-share-button:hover,.mv-watch-later:hover{border-color:rgba(0,224,255,.45)}

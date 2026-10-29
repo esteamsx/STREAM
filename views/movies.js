@@ -38,6 +38,7 @@ ${siteHeadFor("movies", { image: "/og.png" })}
     <button type="button" class="mv-tab" data-tab="movies">Movies</button>
     <button type="button" class="mv-tab" data-tab="tv-series">TV Series</button>
     <button type="button" class="mv-tab" data-tab="animation">Animation</button>
+    <button type="button" class="mv-tab" data-tab="my-list">My List</button>
   </nav>
 
   <section id="mvState" class="mv-state" hidden></section>

@@ -268,6 +268,83 @@ async function updateUserProfile(uid, data) {
   userProfileCache.delete(uid);
 }
 
+function watchLaterMovieId(slug) {
+  return crypto.createHash("sha256").update(String(slug)).digest("hex");
+}
+
+function normalizeWatchLaterMovie(movie) {
+  const slug = String(movie?.slug || "").trim();
+  const title = String(movie?.title || "").trim().slice(0, 200);
+  if (!/^[A-Za-z0-9._-]{1,200}$/.test(slug) || !title) {
+    throw Object.assign(new Error("That movie cannot be added to your list."), { status: 400 });
+  }
+  const poster = String(movie?.poster || "").trim();
+  const safePoster = /^https?:\/\//i.test(poster) ? poster.slice(0, 2000) : null;
+  const rating = Number(movie?.rating);
+  return {
+    slug,
+    title,
+    poster: safePoster,
+    year: String(movie?.year || "").slice(0, 12),
+    rating: Number.isFinite(rating) ? Math.max(0, Math.min(10, rating)) : null,
+    kind: movie?.kind === "tv" ? "tv" : "movie",
+    badge: String(movie?.badge || "").slice(0, 40),
+  };
+}
+
+function watchLaterCollection(uid) {
+  return db.collection("users").doc(uid).collection("movie_watch_later");
+}
+
+async function listMovieWatchLater(uid) {
+  const snap = await watchLaterCollection(uid).orderBy("savedAt", "desc").limit(100).get();
+  return snap.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
+}
+
+async function getMovieWatchLater(uid, slug) {
+  const normalized = normalizeWatchLaterMovie({ slug, title: "check" });
+  const snap = await watchLaterCollection(uid).doc(watchLaterMovieId(normalized.slug)).get();
+  return snap.exists;
+}
+
+async function saveMovieWatchLater(uid, movie) {
+  const item = normalizeWatchLaterMovie(movie);
+  const ref = watchLaterCollection(uid).doc(watchLaterMovieId(item.slug));
+  const existing = await ref.get();
+  const savedAt = existing.exists ? (existing.data().savedAt || Date.now()) : Date.now();
+  await ref.set({ ...item, savedAt });
+  return { ...item, savedAt };
+}
+
+async function removeMovieWatchLater(uid, slug) {
+  const normalized = normalizeWatchLaterMovie({ slug, title: "check" });
+  await watchLaterCollection(uid).doc(watchLaterMovieId(normalized.slug)).delete();
+}
+
+function premiumPromoStateRef(uid) {
+  return db.collection("users").doc(uid).collection("site_preferences").doc("premium_promotion");
+}
+
+async function getPremiumPromoState(uid) {
+  const snap = await premiumPromoStateRef(uid).get();
+  return snap.exists ? snap.data() : null;
+}
+
+async function claimPremiumPromo(uid, now = Date.now()) {
+  const ref = premiumPromoStateRef(uid);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const lastShownAt = Number(snap.exists ? snap.data().lastShownAt : 0) || 0;
+    if (lastShownAt && now - lastShownAt < 3 * 24 * 60 * 60 * 1000) return false;
+    tx.set(ref, { lastShownAt: now }, { merge: true });
+    return true;
+  });
+}
+
+async function markPremiumPromoDismissed(uid, now = Date.now()) {
+  await premiumPromoStateRef(uid).set({ lastDismissedAt: now }, { merge: true });
+}
+
 const MAX_ALT_USERNAMES = 10;
 
 async function addAltUsername(uid, rawUsername) {
@@ -5747,6 +5824,13 @@ export {
   checkPendingSignupCode,
   getUserProfile,
   updateUserProfile,
+  listMovieWatchLater,
+  getMovieWatchLater,
+  saveMovieWatchLater,
+  removeMovieWatchLater,
+  getPremiumPromoState,
+  claimPremiumPromo,
+  markPremiumPromoDismissed,
   addAltUsername,
   removeAltUsername,
   updatePrivacySettings,

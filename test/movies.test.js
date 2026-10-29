@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
+import fs from "node:fs";
 import { Writable } from "node:stream";
 import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, getStreams, proxyStream, normalizeItem, normalizeDetail, apiBase, resetCache, MovieError } from "../services/moviebox.js";
 import { registerMovieRoutes } from "../routes/movies.js";
+import { VERIFICATION_PRICE_NGN } from "../services/paystack.js";
 import { injectPromoSlot } from "../middleware/promo-slot.js";
 
 /* a stand-in for the Moviebox-API that answers in the shapes its README documents */
@@ -237,9 +239,9 @@ test("items are tidied: only https posters, no junk, ratings and years made sens
 test("the routes hand the right data and status codes to the page", async () => {
   reset();
   const handlers = {};
-  const router = { get: (path, ...fns) => { handlers[path] = fns[fns.length - 1]; } };
+  const router = { get: (path, ...fns) => { handlers[path] = fns[fns.length - 1]; }, post: () => {}, delete: () => {} };
   class Limiter { middleware() { return (q, s, n) => n(); } }
-  registerMovieRoutes(router, { requireAuth: (q, s, n) => n(), SimpleRateLimiter: Limiter });
+  registerMovieRoutes(router, { requireAuth: (q, s, n) => n(), requireSiteOrigin: (q, s, n) => n(), SimpleRateLimiter: Limiter, listMovieWatchLater: async () => [], getMovieWatchLater: async () => false, saveMovieWatchLater: async () => ({}), removeMovieWatchLater: async () => {} });
   const call = async (path, { params = {}, query = {} } = {}) => {
     const out = { status: 200, body: null, headers: {} };
     const res = { set(k, v) { out.headers[k] = v; return res; }, status(c) { out.status = c; return res; }, json(b) { out.body = b; return res; } };
@@ -286,9 +288,10 @@ test("signed-in free accounts can browse movie lists without gaining premium dow
   const profile = { verified: false, email: "free@example.test" };
   const requireAuth = (req, res, next) => next();
   class Limiter { middleware() { return (req, res, next) => next(); } }
-  const router = { get: (path, ...fns) => { handlers[path] = fns; } };
+  const router = { get: (path, ...fns) => { handlers[path] = fns; }, post: (path, ...fns) => { handlers[path] = fns; }, delete: (path, ...fns) => { handlers[path] = fns; } };
   registerMovieRoutes(router, {
     requireAuth,
+    requireSiteOrigin: (req, res, next) => next(),
     SimpleRateLimiter: Limiter,
     getUserProfile: async () => profile,
     isVerificationActive: (user) => !!user.verified,
@@ -313,14 +316,53 @@ test("signed-in free accounts can browse movie lists without gaining premium dow
   assert.equal(streams.body.sources[0].available, false, "non-360p sources remain locked for free accounts");
 });
 
+test("Watch Later endpoints save, read and remove entries only for the authenticated account", async () => {
+  reset();
+  const handlers = {};
+  const saved = new Map();
+  const profile = { verified: false, email: "free@example.test" };
+  const requireAuth = (req, res, next) => next();
+  class Limiter { middleware() { return (req, res, next) => next(); } }
+  const router = {
+    get: (path, ...fns) => { handlers["GET " + path] = fns; },
+    post: (path, ...fns) => { handlers["POST " + path] = fns; },
+    delete: (path, ...fns) => { handlers["DELETE " + path] = fns; },
+  };
+  registerMovieRoutes(router, {
+    requireAuth, requireSiteOrigin: (req, res, next) => next(), SimpleRateLimiter: Limiter, getUserProfile: async () => profile,
+    isVerificationActive: (user) => !!user.verified, isAdminEmail: () => false,
+    listMovieWatchLater: async (uid) => Array.from(saved.entries()).filter(([key]) => key.startsWith(uid + ":")).map(([, item]) => item),
+    getMovieWatchLater: async (uid, slug) => saved.has(uid + ":" + slug),
+    saveMovieWatchLater: async (uid, movie) => { const item = { ...movie, savedAt: 123 }; saved.set(uid + ":" + movie.slug, item); return item; },
+    removeMovieWatchLater: async (uid, slug) => { saved.delete(uid + ":" + slug); },
+  });
+  const call = async (method, path, req = {}) => {
+    const fn = handlers[method + " " + path].at(-1);
+    const out = { status: 200, body: null, headers: {} };
+    const res = { set(k, v) { out.headers[k] = v; return res; }, status(c) { out.status = c; return res; }, json(b) { out.body = b; return res; } };
+    await fn({ uid: req.uid || "free-user", params: req.params || {}, query: {}, body: req.body || {} }, res);
+    return out;
+  };
+  const movie = { slug: "breaking-bad-ej6Bp0MCAo7", title: "Breaking Bad", kind: "tv" };
+  const savedResponse = await call("POST", "/api/movies/watch-later", { body: { movie } });
+  assert.equal(savedResponse.body.ok, true);
+  assert.equal((await call("GET", "/api/movies/watch-later")).body.items[0].title, "Breaking Bad");
+  assert.equal((await call("GET", "/api/movies/watch-later/:slug", { params: { slug: movie.slug } })).body.saved, true);
+  assert.equal((await call("GET", "/api/movies/watch-later", { uid: "other-user" })).body.items.length, 0);
+  assert.equal((await call("DELETE", "/api/movies/watch-later/:slug", { params: { slug: movie.slug } })).body.ok, true);
+  assert.equal((await call("GET", "/api/movies/watch-later/:slug", { params: { slug: movie.slug } })).body.saved, false);
+  assert.equal((await call("GET", "/api/movies/watch-later")).headers["Cache-Control"], "no-store");
+});
+
 test("download route forwards Range and preserves HTTP 206 for a signed-in free 360p download", async () => {
   reset();
   const handlers = {};
   const profile = { verified: false, email: "free@example.test" };
   class Limiter { middleware() { return (req, res, next) => next(); } }
-  const router = { get: (path, ...fns) => { handlers[path] = fns; } };
+  const router = { get: (path, ...fns) => { handlers[path] = fns; }, post: (path, ...fns) => { handlers[path] = fns; }, delete: (path, ...fns) => { handlers[path] = fns; } };
   registerMovieRoutes(router, {
     requireAuth: (req, res, next) => next(),
+    requireSiteOrigin: (req, res, next) => next(),
     SimpleRateLimiter: Limiter,
     getUserProfile: async () => profile,
     isVerificationActive: (user) => !!user.verified,
@@ -369,4 +411,37 @@ test("Movies uses the shared ES Teams favicon and branded social-preview thumbna
   assert.match(html, /<link rel="apple-touch-icon" href="\/apple-touch-icon\.png">/);
   assert.match(html, /<meta property="og:image" content="[^"]*\/og\.png">/);
   assert.match(html, /<meta name="twitter:image" content="[^"]*\/og\.png">/);
+});
+
+test("Movies detail pages provide My List, share the canonical title link, and retain a copy fallback", () => {
+  const template = fs.readFileSync(new URL("../views/movies.js", import.meta.url), "utf8");
+  const frontend = fs.readFileSync(new URL("../public/movies/movies.js", import.meta.url), "utf8");
+  assert.match(template, /data-tab="my-list">My List/);
+  assert.match(frontend, /\/watch-later/);
+  assert.match(frontend, /new URL\(detailUrl\(d\.slug\), window\.location\.origin\)/);
+  assert.match(frontend, /navigator\.clipboard\.writeText\(url\)/);
+  assert.match(frontend, /document\.execCommand\("copy"\)/);
+  assert.match(frontend, /List \/ Watch Later/);
+});
+
+test("premium offer uses the verification payment price, existing benefits and account purchase flow", () => {
+  const root = new URL("..", import.meta.url);
+  const read = (p) => fs.readFileSync(new URL(p, root), "utf8");
+  const account = read("views/account.js");
+  const payments = read("routes/payments.js");
+  const popup = read("public/site-ui.js");
+  const auth = read("services/auth.js");
+  const server = read("server.js");
+  assert.equal(VERIFICATION_PRICE_NGN, 3990);
+  assert.match(payments, /VERIFICATION_PRICE_NGN \* 100/);
+  for (const benefit of ["Verified badge on your profile", "Unlimited use of every free tool", "A downloadable verification certificate", "No ads on your account", "Free bot deployment"]) assert.ok(account.includes(benefit), benefit);
+  assert.match(account, /VERIFICATION_PRICE_NGN\.toLocaleString/);
+  assert.match(account, /\.verify-benefits\{[^}]*max-height:[^}]*overflow-y:auto/);
+  assert.match(account, /get\('premium'\) === '1'/);
+  assert.match(popup, /offer\.priceNgn/);
+  assert.match(popup, /\/account\?premium=1/);
+  assert.match(server, /\/api\/premium-promotion\/shown/);
+  assert.match(server, /\/api\/premium-promotion\/dismissed/);
+  assert.match(auth, /3 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(auth, /db\.runTransaction\(async \(tx\)/);
 });
