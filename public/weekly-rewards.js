@@ -225,7 +225,7 @@
       '<div class="es-weekly-stats"><div class="es-weekly-stat"><span>Qualifying days</span><b id="esWeeklyDays">— / 5</b></div>' +
       '<div class="es-weekly-stat"><span>Weekly reset</span><b id="esWeeklyReset">—</b></div></div>' +
       '<div class="es-weekly-day-section"><div class="es-weekly-section-title">Activity by day <span>1+ hour qualifies</span></div><div class="es-weekly-days" id="esWeeklyDayGrid"></div></div>' +
-      '<div class="es-weekly-reward-card"><div class="es-weekly-reward-icon" aria-hidden="true">🎁</div><div class="es-weekly-reward-copy"><b>Weekly milestone</b><span>Earn 5 coins after 50 active hours across 5 qualifying days.</span></div></div>' +
+      '<div class="es-weekly-reward-card"><div class="es-weekly-reward-icon" aria-hidden="true">🎁</div><div class="es-weekly-reward-copy"><b>Weekly milestone</b><span>Earn 10 coins after 50 active hours across 5 qualifying days.</span></div></div>' +
       '<div class="es-weekly-altcha" id="esWeeklyAltchaWrap" hidden><p>Confirm you are not a robot to claim your weekly reward.</p><altcha-widget id="esWeeklyAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>' +
       '<div class="es-weekly-status" id="esWeeklyStatus" role="status" aria-live="polite">Loading your account activity…</div>' +
       '<button type="button" class="es-weekly-claim" id="esWeeklyClaim" disabled>Complete the milestone to claim</button>' +
@@ -311,9 +311,9 @@
       var canClaim = eligible && captchaReady && !claimBusy;
       claimButton.disabled = !canClaim;
       claimButton.classList.toggle("is-ready", !!canClaim);
-      if (activityData.claimed) claimButton.textContent = "5 coins claimed";
+      if (activityData.claimed) claimButton.textContent = "10 coins claimed";
       else if (!activityData.eligible) claimButton.textContent = "Complete the milestone to claim";
-      else if (canClaim) claimButton.textContent = "🎁 Claim 5 Coins";
+      else if (canClaim) claimButton.textContent = "🎁 Claim 10 Coins";
       else if (altchaLoadFailed) claimButton.textContent = "Human check unavailable";
       else claimButton.textContent = "Complete the human check first";
     }
@@ -386,7 +386,7 @@
       if (data.claimed) {
         status.className = "es-weekly-status is-success";
         status.textContent = "Reward claimed for this week. Your next milestone starts at the weekly reset.";
-        claimButton.textContent = "5 coins claimed";
+        claimButton.textContent = "10 coins claimed";
       } else if (data.eligible) {
         status.className = "es-weekly-status is-success";
         status.textContent = weeklyCaptchaPassed
@@ -489,7 +489,7 @@
         else loadSummary();
         window.dispatchEvent(new CustomEvent("es:coin-balance-updated", { detail: { coinBalance: result.coinBalance, added: result.coinsAwarded } }));
         status.className = "es-weekly-status is-success";
-        status.textContent = "5 coins added to your account balance.";
+        status.textContent = "10 coins added to your account balance.";
       }).catch(function (error) {
         var message = error && error.message ? error.message : "The reward could not be claimed.";
         if (/captcha not completed/i.test(message)) {

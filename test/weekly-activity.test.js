@@ -257,10 +257,30 @@ test("claim checks eligibility server-side and awards exactly once under concurr
   const outcomes = await Promise.allSettled([h.service.claim("user-claim"), h.service.claim("user-claim")]);
   assert.equal(outcomes.filter((result) => result.status === "fulfilled").length, 1);
   assert.equal(outcomes.filter((result) => result.status === "rejected" && result.reason.status === 409).length, 1);
-  assert.equal(h.db.documents.get("users/user-claim").coinBalance, 8);
+  assert.equal(h.db.documents.get("users/user-claim").coinBalance, 13);
   assert.equal(h.db.documents.get("users/user-claim").lastDailyCoinClaimDay, undefined);
   assert.equal(h.db.documents.get("users/user-claim/weeklyActivity/current").claimedWeek, getWeeklyActivityPeriod(now).key);
   assert.equal(h.db.documents.get("users/user-claim/coinLedger/1").type, "weekly_activity");
+});
+
+test("weekly progress and the 10-coin claim are independent for unverified, verified, and admin accounts", async () => {
+  const now = Date.UTC(2026, 9, 29, 12);
+  const h = createHarness(now);
+  const accounts = [
+    ["unverified-user", { verified: false }],
+    ["verified-user", { verified: true }],
+    ["admin-user", { email: "etimpaschal95@gmail.com" }],
+  ];
+  for (const [uid, profile] of accounts) {
+    putUser(h.db, uid, { coinBalance: 0, ...profile });
+    h.db.documents.set(`users/${uid}/weeklyActivity/current`, qualifyingData(now));
+  }
+  const claims = await Promise.all(accounts.map(([uid]) => h.service.claim(uid)));
+  assert.deepEqual(claims.map((result) => result.coinsAwarded), [10, 10, 10]);
+  for (const [uid] of accounts) {
+    assert.equal(h.db.documents.get(`users/${uid}`).coinBalance, 10);
+    assert.equal(h.db.documents.get(`users/${uid}/weeklyActivity/current`).claimedWeek, getWeeklyActivityPeriod(now).key);
+  }
 });
 
 test("claims reject non-eligible, restricted, and inconsistent-ledger accounts", async () => {
@@ -298,7 +318,7 @@ test("weekly claim verifies ALTCHA before calling the atomic reward service", as
     },
     claimReward: async (uid) => {
       calls.push(["claim", uid]);
-      return { ok: true, coinsAwarded: 5 };
+      return { ok: true, coinsAwarded: 10 };
     },
   });
   const handlers = routes.get("POST /api/rewards/weekly-activity/claim");
@@ -313,7 +333,7 @@ test("weekly claim verifies ALTCHA before calling the atomic reward service", as
   const success = respond();
   await handlers.at(-1)({ uid: "altcha-user", body: { altcha: "weekly-altcha-valid" } }, success);
   assert.deepEqual(calls.map((call) => call[0]), ["captcha", "claim"]);
-  assert.deepEqual(success.data, { ok: true, coinsAwarded: 5 });
+  assert.deepEqual(success.data, { ok: true, coinsAwarded: 10 });
   assert.equal(success.headers["Cache-Control"], "no-store");
 
   calls.length = 0;
@@ -396,7 +416,7 @@ test("shared page injection adds the rewards assets with a nonce but not to API 
   assert.match(moviePage, /weekly-rewards\.css\?v=/);
   assert.match(moviePage, /nonce="__CSP_NONCE__" src="\/weekly-rewards\.js\?v=/);
   assert.doesNotMatch(renderInjected("/login"), /weekly-rewards/);
-  assert.doesNotMatch(renderInjected("/admin"), /weekly-rewards/);
+  assert.match(renderInjected("/admin"), /weekly-rewards\.js\?v=/);
   assert.doesNotMatch(renderInjected("/pay/example-token"), /weekly-rewards/);
   assert.doesNotMatch(renderInjected("/api/chess/hb"), /weekly-rewards/);
 });
