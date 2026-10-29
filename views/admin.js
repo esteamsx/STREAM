@@ -103,7 +103,7 @@ input{font-family:inherit}
 .api-aa-range{display:flex;gap:6px;flex-wrap:wrap}
 .api-aa-range button{padding:7px 11px;border-radius:999px;border:1px solid var(--border-strong);background:var(--card2);color:var(--muted);font-size:.7rem;font-weight:800}
 .api-aa-range button.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-color:transparent}
-.api-aa-note{font-size:.72rem;line-height:1.55;color:var(--muted);margin:8px 0 14px;padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.025)}
+.api-aa-note{font-size:.68rem;line-height:1.4;color:var(--muted);margin:6px 0 10px;padding:7px 10px;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.025)}
 .api-aa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
 .api-aa-stat{min-width:0;padding:11px 12px;border-radius:12px;border:1px solid var(--border);background:var(--card2)}
 .api-aa-stat-label{font-size:.61rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:800}
@@ -3929,7 +3929,7 @@ function apiAnalyticsEventRows(rows, isError){
   }).join('');
 }
 function apiAnalyticsTrend(series){
-  if (!series || !series.length || !series.some((point) => point.total > 0)) return '<div class="ad-empty">No request records yet. Historical request events were not stored before analytics tracking.</div>';
+  if (!series || !series.length || !series.some((point) => point.total > 0)) return '<div class="ad-empty">No API requests recorded yet.</div>';
   const width = 640, height = 170, left = 28, right = 10, top = 14, bottom = 24;
   const maxValue = Math.max(1, ...series.map((point) => Math.max(Number(point.developer) || 0, Number(point.livetv) || 0)));
   const x = (index) => left + (series.length < 2 ? 0 : index * (width - left - right) / (series.length - 1));
@@ -4005,11 +4005,10 @@ async function loadApiAnalytics(range){
     else renderApiAnalyticsActivity(data.activity || [], false);
     apiAnalyticsCursor = data.nextActivityCursor || null;
     document.getElementById('apiAnalyticsMore').style.display = apiAnalyticsCursor ? 'block' : 'none';
-    const started = data.trackingStartedAt ? 'Tracking since ' + new Date(data.trackingStartedAt).toLocaleDateString() + ';' : 'Tracking starts with the first API request;';
-    const historyNote = started + ' older request history unavailable.';
-    const scopeNote = 'Failed auth/rate-limit calls included; HLS streams excluded.';
-    const coinNote = coinLedgerAvailable ? 'Coins: request-pack totals, no per-call charge.' : ((data.coinAccounting && data.coinAccounting.note) || 'Coin totals unavailable.');
-    document.getElementById('apiAnalyticsNotice').textContent = [historyNote, scopeNote, coinNote].join(' ');
+    const trackingLabel = data.trackingStartedAt ? 'Since ' + new Date(data.trackingStartedAt).toLocaleDateString() : 'Tracking pending';
+    const historyLabel = data.trackingStartedAt ? 'Earlier history unavailable' : 'No earlier history';
+    const coinLabel = coinLedgerAvailable ? 'Coins: request-pack totals' : 'Coin totals unavailable (Firestore indexes)';
+    document.getElementById('apiAnalyticsNotice').textContent = [trackingLabel, historyLabel, coinLabel].join(' · ');
   } catch (err) {
     if (loadId !== apiAnalyticsLoadId) return;
     document.getElementById('apiAnalyticsNotice').textContent = err.message || 'Could not load API analytics.';
