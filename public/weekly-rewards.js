@@ -120,9 +120,9 @@
     });
   }
 
-  function loadClaimFaceModule() {
+  function loadFaceScanModule() {
     var suffix = assetVersion ? "?v=" + encodeURIComponent(assetVersion) : "";
-    return import("/claim-face.js" + suffix);
+    return import("/face-scan.js" + suffix);
   }
 
   function ensureAltchaLibrary() {
@@ -525,10 +525,10 @@
         }
         setFaceSetupRequired(false);
         status.textContent = "Follow the camera prompt to verify your Face ID.";
-        return loadClaimFaceModule();
+        return loadFaceScanModule();
       }).then(function (faceModule) {
         if (!faceModule) return null;
-        return faceModule.captureClaimFace().then(function (capture) {
+        return faceModule.captureFaceDescriptor({ requireLiveness: true, showCamera: true, returnSamples: true }).then(function (capture) {
           var samples = capture && Array.isArray(capture.samples) ? capture.samples : [];
           var faceDescriptor = samples.length ? samples.map(function (sample) { return { v: sample }; }) : capture && capture.descriptor;
           if (!Array.isArray(faceDescriptor) || !faceDescriptor.length) {
