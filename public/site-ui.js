@@ -460,7 +460,7 @@ var LG_ICONS = {
   success: '<svg class="lg-face" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/><circle cx="9" cy="10" r=".65" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".65" fill="currentColor" stroke="none"/><path d="M9 15c1 1 5 1 6 0"/></svg><svg class="lg-check-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path check" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>',
   error: '<svg class="lg-check-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path cross" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>'
 };
-function showLiquidToast(message, type){
+function showLiquidToast(message, type, durationMs){
   var kind = type === 'error' ? 'error' : 'success';
   var toast = document.createElement('div');
   toast.className = 'lg-toast';
@@ -471,7 +471,7 @@ function showLiquidToast(message, type){
   setTimeout(function(){
     toast.classList.remove('show');
     setTimeout(function(){ toast.remove(); }, 500);
-  }, 2600);
+  }, Number.isFinite(Number(durationMs)) ? Math.max(1000, Math.min(10000, Number(durationMs))) : 2600);
 }
 
 var FS_ADD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" d="M19 8v6M22 11h-6"/></svg>';
@@ -858,8 +858,12 @@ function esGiftStyles() {
     ".gf-amt small{font-size:.8rem;font-weight:700;color:var(--muted,rgba(255,255,255,.6));letter-spacing:.04em}" +
     ".gf-btn{position:relative;width:100%;padding:14px;border:none;border-radius:13px;font-weight:700;font-size:.92rem;cursor:pointer;font-family:inherit;color:#04141a;background:linear-gradient(90deg,var(--accent,#00E0FF),var(--accent2,#7c5cff));box-shadow:0 8px 22px rgba(0,224,255,.25)}" +
     ".gp-close{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:var(--text,#fff);font-size:1.2rem;line-height:1}" +
-    ".gp-benefits{position:relative;margin:-5px 0 14px;color:var(--muted,rgba(255,255,255,.65));font-size:.76rem;line-height:1.6}" +
-    ".gp-price{position:relative;margin:12px 0 16px;font-family:var(--font-mono,monospace);font-size:1.35rem;font-weight:800;color:var(--text,#fff)}.gp-price small{font:600 .72rem var(--font-body,inherit);color:var(--muted,rgba(255,255,255,.65))}" +
+    ".gp-premium-card{max-width:440px;padding:36px 32px 30px;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}" +
+    ".gp-premium-card .gf-box{margin-bottom:20px}.gp-premium-card .gf-title{font-size:1.35rem;line-height:1.25;margin-bottom:10px}" +
+    ".gp-benefits{position:relative;max-width:350px;margin:0 auto 8px;color:var(--muted,rgba(255,255,255,.72));font-size:.9rem;line-height:1.75;letter-spacing:.005em}" +
+    ".gp-price{position:relative;margin:14px 0 22px;font-family:var(--font-mono,monospace);font-size:1.45rem;line-height:1.45;font-weight:800;color:var(--text,#fff)}.gp-price small{font:600 .78rem var(--font-body,inherit);color:var(--muted,rgba(255,255,255,.72))}" +
+    ".gp-premium-card .gf-btn{padding:15px 16px;font-size:.96rem}" +
+    "@media(max-width:480px){.gp-premium-card{padding:32px 22px 24px;border-radius:18px}.gp-premium-card .gf-box{width:72px;height:72px;margin-bottom:17px}.gp-premium-card .gf-box svg{width:42px;height:42px}.gp-premium-card .gf-title{font-size:1.2rem}.gp-benefits{font-size:.84rem;line-height:1.7}.gp-price{font-size:1.3rem;margin:12px 0 18px}}" +
     "@media (prefers-reduced-motion:reduce){.gf-card,.gf-box,.gf-spark,.gf-amt{animation:none!important}.gf-spark{display:none}}";
   document.head.appendChild(st);
 }
@@ -978,7 +982,7 @@ function esShowPremiumPromotion(offer) {
   ov.setAttribute("aria-modal", "true");
   ov.setAttribute("aria-label", "Account Premium offer");
   const card = document.createElement("div");
-  card.className = "gf-card";
+  card.className = "gf-card gp-premium-card";
   const close = document.createElement("button");
   close.type = "button";
   close.className = "gp-close";
@@ -1331,6 +1335,7 @@ window.EsUI = {
   openLogout: esOpenLogout,
   openProfile: function (username) { openMiniPreview(username); },
   refreshDots: esRefreshDots,
+  toast: showLiquidToast,
   setBusy: esBusyOn,
   me: function () { return esState.me; },
   onReady: function (fn) { if (esState.ready) fn(esState.me); else (esState.waiters = esState.waiters || []).push(fn); }

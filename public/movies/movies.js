@@ -36,6 +36,8 @@
   var ICON = {
     left: '<path d="M15 18l-6-6 6-6"/>', right: '<path d="M9 18l6-6-6-6"/>',
     download: '<path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/>',
+    share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.6l6.8-4.2M8.6 13.4l6.8 4.2"/>',
+    bookmark: '<path d="M6 4.75A1.75 1.75 0 017.75 3h8.5A1.75 1.75 0 0118 4.75V21l-6-4-6 4V4.75z"/>',
     film: '<rect x="3" y="3" width="18" height="18" rx="2.2"/><path d="M7 3v18M17 3v18M3 12h18M3 7h4M3 17h4M17 17h4M17 7h4"/>',
     warn: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/>',
   };
@@ -52,6 +54,45 @@
   }
   function detailUrl(slug) { return "/movies/title/" + encodeURIComponent(slug); }
   function setTitle(t) { document.title = (t ? t + " | " : "") + "Movies | ES TEAMS TV"; }
+  function toast(message, type) {
+    if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(message, type || "success", 5000);
+  }
+  function watchLaterButton(item, initialSaved, onRemove) {
+    var saved = initialSaved === true;
+    var known = typeof initialSaved === "boolean";
+    var button = el("button", { type: "button", class: "mv-bookmark-button" + (saved ? " is-saved" : ""), "aria-label": saved ? "Remove from My List" : "Save to My List", title: saved ? "Remove from My List" : "Save to My List", "aria-pressed": saved ? "true" : "false" }, [svg(ICON.bookmark, 18)]);
+    function render() {
+      button.classList.toggle("is-saved", saved);
+      button.setAttribute("aria-pressed", saved ? "true" : "false");
+      button.setAttribute("aria-label", saved ? "Remove from My List" : "Save to My List");
+      button.title = saved ? "Remove from My List" : "Save to My List";
+    }
+    function loadState() {
+      if (known) return Promise.resolve(saved);
+      button.disabled = true;
+      return api("/watch-later/" + encodeURIComponent(item.slug)).then(function (result) {
+        known = true; saved = !!result.saved; render(); button.disabled = false; return saved;
+      }, function (error) { button.disabled = false; throw error; });
+    }
+    button.loadState = loadState;
+    button.addEventListener("click", function (event) {
+      event.preventDefault(); event.stopPropagation();
+      if (button.disabled) return;
+      button.disabled = true;
+      loadState().then(function (currentlySaved) {
+        return currentlySaved
+          ? api("/watch-later/" + encodeURIComponent(item.slug), { method: "DELETE" }).then(function () { return false; })
+          : api("/watch-later", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ movie: { slug: item.slug, title: item.title, poster: item.poster, year: item.year, rating: item.rating, kind: item.kind } }) }).then(function () { return true; });
+      }).then(function (nextSaved) {
+        saved = nextSaved; known = true; render();
+        toast(saved ? "Saved to List" : "Removed from List");
+        if (!saved && onRemove) onRemove();
+      }).catch(function (error) {
+        toast(error.message || "Could not update your list.", "error");
+      }).finally(function () { if (button.isConnected) button.disabled = false; });
+    });
+    return button;
+  }
 
   /* ---------------------------------------------------------------- what is on screen */
   function show(which) {
@@ -60,7 +101,11 @@
     if (which !== "home") stopHero();
   }
   function setTab(tab) {
-    Array.prototype.forEach.call(els.tabs.querySelectorAll(".mv-tab"), function (b) { b.classList.toggle("on", b.getAttribute("data-tab") === tab); });
+    Array.prototype.forEach.call(els.tabs.querySelectorAll(".mv-tab"), function (b) {
+      var selected = b.getAttribute("data-tab") === tab;
+      b.classList.toggle("on", selected);
+      if (selected) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
     els.tabs.hidden = tab === "detail";
   }
   function showState(kind, retry) {
@@ -79,7 +124,7 @@
   function failed(e, retry) { showState(e && e.code === "not_configured" ? "not_configured" : e && e.code === "not_found" ? "not_found" : "upstream", retry); }
 
   /* ---------------------------------------------------------------- cards */
-  function card(item) {
+  function card(item, savedState, onRemove) {
     var poster = el("div", { class: "mv-poster" });
     var fallback = el("div", { class: "mv-noimg", text: item.title });
     if (item.poster) {
@@ -94,14 +139,45 @@
     if (item.rating) poster.appendChild(el("span", { class: "mv-rate", text: "\u2605 " + item.rating.toFixed(1) }));
     var kids = [poster, el("div", { class: "mv-name", text: item.title })];
     if (item.year) kids.push(el("div", { class: "mv-year", text: item.year }));
-    if (!item.slug) return el("div", { class: "mv-card", "aria-label": item.title }, kids);
+    var wrap = el("div", { class: "mv-card-wrap" });
+    if (!item.slug) { wrap.appendChild(el("div", { class: "mv-card", "aria-label": item.title }, kids)); return wrap; }
     var a = el("a", { class: "mv-card", href: detailUrl(item.slug), "aria-label": item.title }, kids);
     a.addEventListener("click", function (e) {
+      if (suppressNavigation) { e.preventDefault(); suppressNavigation = false; return; }
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
       e.preventDefault();
       go(detailUrl(item.slug));
     });
-    return a;
+    var bookmark = watchLaterButton(item, savedState, onRemove);
+    bookmark.classList.add("mv-card-bookmark");
+    wrap.append(a, bookmark);
+    wrap.addEventListener("mouseenter", function () {
+      if (window.matchMedia && window.matchMedia("(pointer:fine)").matches) wrap.classList.add("bookmark-hover");
+    });
+    wrap.addEventListener("mouseleave", function () { wrap.classList.remove("bookmark-hover"); });
+    var pressTimer = null, startX = 0, startY = 0, suppressNavigation = false, resetSuppressTimer = null;
+    function clearPress() { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
+    wrap.addEventListener("pointerdown", function (e) {
+      if (e.target.closest("button") || e.button && e.pointerType === "mouse") return;
+      clearPress(); startX = e.clientX; startY = e.clientY;
+      pressTimer = setTimeout(function () {
+        pressTimer = null; suppressNavigation = true; wrap.classList.add("bookmark-revealed");
+        bookmark.loadState().catch(function () { toast("Could not check your list. Try again.", "error"); });
+      }, 520);
+    });
+    wrap.addEventListener("pointermove", function (e) {
+      if (pressTimer && Math.hypot(e.clientX - startX, e.clientY - startY) > 10) clearPress();
+    }, { passive: true });
+    wrap.addEventListener("pointerup", function () {
+      clearPress();
+      if (suppressNavigation) {
+        if (resetSuppressTimer) clearTimeout(resetSuppressTimer);
+        resetSuppressTimer = setTimeout(function () { suppressNavigation = false; }, 700);
+      }
+    });
+    wrap.addEventListener("pointercancel", clearPress);
+    wrap.addEventListener("contextmenu", function (e) { if (e.pointerType !== "mouse") e.preventDefault(); });
+    return wrap;
   }
 
   /* ---------------------------------------------------------------- the featured banner */
@@ -149,7 +225,7 @@
 
   /* ---------------------------------------------------------------- rows */
   function row(r) {
-    var scroller = el("div", { class: "mv-scroll" }, r.items.map(card));
+    var scroller = el("div", { class: "mv-scroll" }, r.items.map(function (item) { return card(item); }));
     var head = el("div", { class: "mv-row-head" }, [el("h2", { class: "mv-row-title", text: r.title })]);
     if (r.kind) head.appendChild(el("button", { type: "button", class: "mv-all", "data-kind": r.kind, onclick: function () { go("/movies?cat=" + encodeURIComponent(r.kind)); } }, ["See all"]));
     function scrollBy(dir) { scroller.scrollBy({ left: dir * Math.max(240, scroller.clientWidth * 0.8), behavior: "smooth" }); }
@@ -210,7 +286,16 @@
         if (t !== token) return;
         if (first) grid.textContent = "";
         g.items = g.items.concat(d.items || []); g.hasMore = !!d.hasMore; g.total = d.total || 0;
-        (d.items || []).forEach(function (it) { grid.appendChild(card(it)); });
+        (d.items || []).forEach(function (it) {
+          var savedTitle = g.kind === "my-list" ? true : null;
+          var titleCard;
+          var onRemoveFromList = savedTitle ? function () {
+            if (titleCard) titleCard.remove();
+            if (!grid.querySelector(".mv-card-wrap")) grid.appendChild(el("div", { class: "mv-empty", text: "Your Watch Later list is empty. Save a movie or series to find it here." }));
+          } : null;
+          titleCard = card(it, savedTitle, onRemoveFromList);
+          grid.appendChild(titleCard);
+        });
         if (g.total) title.appendChild(el("small", { text: g.total.toLocaleString() + " titles" }));
         if (first && !g.items.length) { grid.appendChild(el("div", { class: "mv-empty", text: g.q ? 'No results for "' + g.q + '". Try a different title.' : g.kind === "my-list" ? "Your Watch Later list is empty. Save a movie or series to find it here." : "Nothing to show here yet." })); }
         paintMore();
@@ -248,13 +333,13 @@
   function accountForPremium() { window.location.href = "/account#verify"; }
   function shareMovie(d, button) {
     var url = new URL(detailUrl(d.slug), window.location.origin).toString();
-    function copied() { button.textContent = "Link copied"; setTimeout(function () { if (button.isConnected) button.textContent = "Share"; }, 1800); }
+    function copied() { button.setAttribute("aria-label", "Link copied"); button.setAttribute("title", "Link copied"); setTimeout(function () { if (button.isConnected) { button.setAttribute("aria-label", "Share movie or series"); button.setAttribute("title", "Share"); } }, 1800); }
     function manualCopy() {
       var field = el("textarea", { readonly: true, "aria-hidden": "true" });
       field.value = url; field.style.position = "fixed"; field.style.opacity = "0"; document.body.appendChild(field); field.select();
       var ok = document.execCommand("copy"); field.remove();
-      if (ok) copied(); else button.textContent = "Copy failed";
-      setTimeout(function () { if (button.isConnected) button.textContent = "Share"; }, 1800);
+      if (ok) copied(); else { button.setAttribute("aria-label", "Copy failed"); button.setAttribute("title", "Copy failed"); }
+      setTimeout(function () { if (button.isConnected) { button.setAttribute("aria-label", "Share movie or series"); button.setAttribute("title", "Share"); } }, 1800);
       return Promise.resolve();
     }
     function copyFallback() {
@@ -285,7 +370,7 @@
     overlay.appendChild(card); document.body.appendChild(overlay);
     overlay.addEventListener("click", function (e) { if (e.target === overlay) close(); });
   }
-  function paintDownloadSection(d, section) {
+  function paintDownloadSection(d, section, detailSavedState) {
     section.textContent = "";
     var controls = el("div", { class: "mv-download-controls" });
     var seasonSelect, episodeSelect, button;
@@ -305,8 +390,11 @@
     function setButton(label) { button.textContent = ""; button.appendChild(svg(ICON.download, 16)); button.appendChild(document.createTextNode(label)); }
     setButton(d.kind === "tv" ? "Select season and episode" : "Download");
     controls.appendChild(button); section.appendChild(el("h3", { text: "Download" })); section.appendChild(controls);
-    var shareButton = el("button", { type: "button", class: "mv-btn ghost mv-share-button", onclick: function () { shareMovie(d, shareButton); } }, ["Share"]);
+    var shareButton = el("button", { type: "button", class: "mv-btn ghost mv-icon-action mv-share-button", "aria-label": "Share movie or series", title: "Share", onclick: function () { shareMovie(d, shareButton); } }, [svg(ICON.share, 18)]);
     controls.appendChild(shareButton);
+    var bookmarkButton = watchLaterButton(d, detailSavedState, null);
+    bookmarkButton.classList.add("mv-icon-action", "mv-detail-bookmark");
+    controls.appendChild(bookmarkButton);
     button.addEventListener("click", function () {
       if (sourceState.loading) return;
       if (sourceState.sources.length) showDownloadPopup(d, sourceState.sources, seasonSelect ? seasonSelect.value : 1, episodeSelect ? episodeSelect.value : 1);
@@ -328,22 +416,6 @@
     if (seasonSelect) { seasonSelect.addEventListener("change", function () { fillEpisodes(); loadSources(); }); episodeSelect.addEventListener("change", loadSources); }
     else loadSources();
   }
-  function paintWatchLater(d, initiallySaved) {
-    var saved = initiallySaved;
-    var button = el("button", { type: "button", class: "mv-btn ghost mv-watch-later", "aria-pressed": saved ? "true" : "false" }, [saved ? "Remove from My List" : "List / Watch Later"]);
-    button.addEventListener("click", function () {
-      if (button.disabled) return;
-      button.disabled = true;
-      button.textContent = saved ? "Removing…" : "Saving…";
-      var request = saved
-        ? api("/watch-later/" + encodeURIComponent(d.slug), { method: "DELETE" })
-        : api("/watch-later", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ movie: { slug: d.slug, title: d.title, poster: d.poster, year: d.year, rating: d.rating, kind: d.kind } }) });
-      request.then(function () { saved = !saved; button.setAttribute("aria-pressed", saved ? "true" : "false"); button.textContent = saved ? "Remove from My List" : "List / Watch Later"; })
-        .catch(function (e) { button.textContent = e.message || "Could not update list"; setTimeout(function () { if (button.isConnected) button.textContent = saved ? "Remove from My List" : "List / Watch Later"; }, 2200); })
-        .finally(function () { button.disabled = false; });
-    });
-    return button;
-  }
   function paintDetail(d, saved) {
     show("detail");
     setTitle(d.title);
@@ -361,8 +433,7 @@
     var top = el("div", { class: "mv-detail-top" }, [posterBox, el("div", { class: "mv-detail-head" }, [el("h1", { class: "mv-detail-title", text: d.title }), chips, genres])]);
     var downloads = el("div", { class: "mv-section mv-download-section" });
     var inner = el("div", { class: "mv-detail-inner" }, [back, top, downloads]);
-    if (d.description) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Overview" }), el("p", { class: "mv-about", text: d.description }), el("div", { class: "mv-detail-actions" }, [paintWatchLater(d, saved)])]));
-    else inner.appendChild(el("div", { class: "mv-section mv-detail-actions" }, [paintWatchLater(d, saved)]));
+    if (d.description) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Overview" }), el("p", { class: "mv-about", text: d.description })]));
     if (d.seasons && d.seasons.length) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Seasons" }), el("div", { class: "mv-seasons" }, d.seasons.map(function (s) { return el("div", { class: "mv-season" }, [el("b", { text: "Season " + s.season }), el("span", { text: s.episodes + (s.episodes === 1 ? " episode" : " episodes") })]); }))]));
     if (d.cast && d.cast.length) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Cast" }), el("div", { class: "mv-cast" }, d.cast.map(function (p) {
       var photo = el("div", { class: "mv-person-photo" });
@@ -375,7 +446,7 @@
     if (bgUrl) bg.style.backgroundImage = 'url("' + bgUrl.replace(/"/g, "%22") + '")';
     wrap.appendChild(bg); wrap.appendChild(inner);
     els.detail.appendChild(wrap);
-    paintDownloadSection(d, downloads);
+    paintDownloadSection(d, downloads, saved);
   }
 
   /* ---------------------------------------------------------------- moving around (real URLs, so Back and refresh work) */

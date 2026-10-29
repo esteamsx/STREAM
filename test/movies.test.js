@@ -413,15 +413,24 @@ test("Movies uses the shared ES Teams favicon and branded social-preview thumbna
   assert.match(html, /<meta name="twitter:image" content="[^"]*\/og\.png">/);
 });
 
-test("Movies detail pages provide My List, share the canonical title link, and retain a copy fallback", () => {
+test("Movies detail pages use icon-only Share and Bookmark controls with canonical sharing and copy fallback", () => {
   const template = fs.readFileSync(new URL("../views/movies.js", import.meta.url), "utf8");
   const frontend = fs.readFileSync(new URL("../public/movies/movies.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../public/movies/movies.css", import.meta.url), "utf8");
   assert.match(template, /data-tab="my-list">My List/);
   assert.match(frontend, /\/watch-later/);
   assert.match(frontend, /new URL\(detailUrl\(d\.slug\), window\.location\.origin\)/);
   assert.match(frontend, /navigator\.clipboard\.writeText\(url\)/);
   assert.match(frontend, /document\.execCommand\("copy"\)/);
-  assert.match(frontend, /List \/ Watch Later/);
+  assert.match(frontend, /class: "mv-btn ghost mv-icon-action mv-share-button"/);
+  assert.match(frontend, /classList\.add\("mv-icon-action", "mv-detail-bookmark"\)/);
+  assert.match(frontend, /setTimeout\(function \(\) \{[\s\S]{0,120}wrap\.classList\.add\("bookmark-revealed"\)/);
+  assert.match(frontend, /520\)/);
+  assert.match(frontend, /Saved to List/);
+  assert.match(frontend, /5000\)/);
+  assert.match(frontend, /Your Watch Later list is empty\. Save a movie or series to find it here\./);
+  assert.match(css, /\.mv-tab\[data-tab="my-list"\]\.on\{[^}]*text-decoration:underline/);
+  assert.match(css, /\.mv-grid \.mv-empty\{[^}]*grid-column:1\/-1[^}]*text-align:center/);
 });
 
 test("premium offer uses the verification payment price, existing benefits and account purchase flow", () => {
@@ -436,9 +445,17 @@ test("premium offer uses the verification payment price, existing benefits and a
   assert.match(payments, /VERIFICATION_PRICE_NGN \* 100/);
   for (const benefit of ["Verified badge on your profile", "Unlimited use of every free tool", "A downloadable verification certificate", "No ads on your account", "Free bot deployment"]) assert.ok(account.includes(benefit), benefit);
   assert.match(account, /VERIFICATION_PRICE_NGN\.toLocaleString/);
+  assert.match(account, /<div class="overlay-title"[^>]*>Get Account Premium<\/div>/);
+  assert.match(account, /Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, and free bot deployment\./);
+  assert.match(account, /verify-price-period">\/ 30 days/);
   assert.match(account, /\.verify-benefits\{[^}]*max-height:[^}]*overflow-y:auto/);
+  assert.match(account, /#verifyOverlay \.overlay-card\{[^}]*padding:30px 28px/);
   assert.match(account, /get\('premium'\) === '1'/);
   assert.match(popup, /offer\.priceNgn/);
+  assert.match(popup, /\.gp-premium-card\{max-width:440px;padding:36px 32px 30px/);
+  assert.match(popup, /Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, and free bot deployment\./);
+  assert.match(popup, /function showLiquidToast\(message, type, durationMs\)/);
+  assert.match(popup, /toast: showLiquidToast/);
   assert.match(popup, /\/account\?premium=1/);
   assert.match(server, /\/api\/premium-promotion\/shown/);
   assert.match(server, /\/api\/premium-promotion\/dismissed/);

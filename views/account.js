@@ -1,5 +1,5 @@
 import { siteHeadFor, ASSET_VERSION } from "../config/site.js";
-import { VERIFICATION_PRICE_NGN, NGN_PER_USD } from "../services/paystack.js";
+import { VERIFICATION_PRICE_NGN } from "../services/paystack.js";
 
 export function renderAccount(cfg) {
   return `<!DOCTYPE html>
@@ -955,14 +955,15 @@ body:has(.page-overlay.show){overflow:hidden}
   background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;
 }
 .verify-icon-wrap svg{width:28px;height:28px}
-.verify-benefits{display:flex;flex-direction:column;gap:9px;margin:2px 0;max-height:min(25dvh,190px);overflow-y:auto;overscroll-behavior:contain;padding:2px 5px 2px 0;scrollbar-width:thin}
-#verifyOverlay .overlay-card{max-height:92dvh;overflow-y:auto;overscroll-behavior:contain}
-.verify-benefit{display:flex;align-items:center;gap:9px;font-size:.82rem;color:var(--text)}
+.verify-benefits{display:flex;flex-direction:column;gap:12px;margin:4px 0 8px;max-height:min(25dvh,190px);overflow-y:auto;overscroll-behavior:contain;padding:4px 7px 4px 0;scrollbar-width:thin}
+#verifyOverlay .overlay-card{width:min(100%,440px);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;padding:30px 28px;gap:18px}
+#verifyOverlay #verifyStepIntro{gap:16px}
+.verify-benefit{display:flex;align-items:flex-start;gap:10px;font-size:.86rem;line-height:1.5;color:var(--text)}
 .verify-benefit svg{width:16px;height:16px;color:var(--green);flex-shrink:0}
 .verify-benefit.htw-benefit{align-items:flex-start;text-align:left;line-height:1.5}
 .verify-benefit.htw-benefit svg{margin-top:2px}
 .verify-price-row{
-  display:flex;align-items:baseline;justify-content:center;gap:6px;padding:14px 0;
+  display:flex;align-items:baseline;justify-content:center;flex-wrap:wrap;column-gap:8px;row-gap:4px;padding:17px 0;margin:2px 0;
   border-top:1px dashed var(--border-strong);border-bottom:1px dashed var(--border-strong);
 }
 .verify-price{font-family:var(--font-display);font-size:1.9rem;font-weight:700;color:var(--text)}
@@ -2094,8 +2095,8 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="verify-icon-wrap">
         <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
       </div>
-      <div class="overlay-title" style="text-align:center">Get Verified</div>
-      <div class="overlay-sub" style="text-align:center">Stand out with a verified badge and a personal ES TEAMS TV certificate.</div>
+      <div class="overlay-title" style="text-align:center;font-size:1.2rem;line-height:1.35">Get Account Premium</div>
+      <div class="overlay-sub" style="text-align:center;font-size:.88rem;line-height:1.7">Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, and free bot deployment.</div>
       <div class="verify-benefits">
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified badge on your profile</div>
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Unlimited use of every free tool</div>
@@ -2104,7 +2105,7 @@ body:has(.page-overlay.show){overflow:hidden}
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Free bot deployment</div>
       </div>
       <div class="verify-price-row">
-        <span class="verify-price" id="verifyPriceLabel">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span> <span class="verify-price-usd" style="font-size:.72rem;color:var(--muted)">≈ $${(VERIFICATION_PRICE_NGN / NGN_PER_USD).toFixed(2)}</span>
+        <span class="verify-price" id="verifyPriceLabel">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span>
         <span class="verify-price-period">/ 30 days</span>
       </div>
       <div class="rw-hint" style="font-size:.72rem;line-height:1.55;margin-bottom:10px">Your card is saved securely for renewals. Auto-renew stays off until you switch it on in Account settings, and you can remove the card there any time.</div>
