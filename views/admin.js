@@ -3967,15 +3967,18 @@ async function loadApiAnalytics(range){
     const data = await getJSON('/api/admin/api-analytics?range=' + encodeURIComponent(range));
     if (loadId !== apiAnalyticsLoadId) return;
     const totals = data.totals || {};
+    const coinLedgerAvailable = !data.coinAccounting || data.coinAccounting.available !== false;
+    const coinDisplay = (value) => coinLedgerAvailable ? apiAnalyticsCount(value) : 'Unavailable';
+    const signedCoinDisplay = (value) => coinLedgerAvailable ? apiAnalyticsSigned(value) : 'Unavailable';
     document.getElementById('apiAnalyticsTotals').innerHTML = [
       apiAnalyticsStat('Combined requests', apiAnalyticsCount(totals.requests)),
       apiAnalyticsStat('Successful', apiAnalyticsCount(totals.successful)),
       apiAnalyticsStat('Failed', apiAnalyticsCount(totals.failed)),
       apiAnalyticsStat('Error rate', (Number(totals.errorRate) || 0).toFixed(2) + '%'),
-      apiAnalyticsStat('Coins spent on request packs', apiAnalyticsCount(totals.coinsSpent) + ' coins'),
-      apiAnalyticsStat('Request-pack refunds', apiAnalyticsCount(totals.coinsRefunded) + ' coins'),
-      apiAnalyticsStat('Net API-pack coin consumption', apiAnalyticsSigned(totals.netCoinsSpent) + ' coins'),
-      apiAnalyticsStat('Admin coins earned from packs', apiAnalyticsCount(totals.coinsEarned) + ' coins'),
+      apiAnalyticsStat('Coins spent on request packs', coinDisplay(totals.coinsSpent) + (coinLedgerAvailable ? ' coins' : '')),
+      apiAnalyticsStat('Request-pack refunds', coinDisplay(totals.coinsRefunded) + (coinLedgerAvailable ? ' coins' : '')),
+      apiAnalyticsStat('Net API-pack coin consumption', signedCoinDisplay(totals.netCoinsSpent) + (coinLedgerAvailable ? ' coins' : '')),
+      apiAnalyticsStat('Admin coins earned from packs', coinDisplay(totals.coinsEarned) + (coinLedgerAvailable ? ' coins' : '')),
       apiAnalyticsStat('Coins charged per request', 'None'),
     ].join('');
     const apis = data.apis || {};
@@ -3986,9 +3989,9 @@ async function loadApiAnalytics(range){
         '<div class="api-aa-mini"><span>Successful / failed</span><b>' + apiAnalyticsCount(item.successful) + ' / ' + apiAnalyticsCount(item.failed) + '</b></div>' +
         '<div class="api-aa-mini"><span>Error rate</span><b>' + (Number(item.errorRate) || 0).toFixed(2) + '%</b></div>' +
         '<div class="api-aa-mini"><span>Today / week / month</span><b>' + apiAnalyticsCount(item.today && item.today.requests) + ' / ' + apiAnalyticsCount(item.week && item.week.requests) + ' / ' + apiAnalyticsCount(item.month && item.month.requests) + '</b></div>' +
-        '<div class="api-aa-mini"><span>Request-pack spend / refunds</span><b>' + apiAnalyticsCount(item.coinsSpent) + ' / ' + apiAnalyticsCount(item.coinsRefunded) + '</b></div>' +
-        '<div class="api-aa-mini"><span>Net coin consumption</span><b>' + apiAnalyticsSigned(item.netCoinsSpent) + '</b></div>' +
-        '<div class="api-aa-mini"><span>Admin coins earned from packs</span><b>' + apiAnalyticsCount(item.coinsEarned) + '</b></div></div>';
+        '<div class="api-aa-mini"><span>Request-pack spend / refunds</span><b>' + coinDisplay(item.coinsSpent) + ' / ' + coinDisplay(item.coinsRefunded) + '</b></div>' +
+        '<div class="api-aa-mini"><span>Net coin consumption</span><b>' + signedCoinDisplay(item.netCoinsSpent) + '</b></div>' +
+        '<div class="api-aa-mini"><span>Admin coins earned from packs</span><b>' + coinDisplay(item.coinsEarned) + '</b></div></div>';
     }).join('');
     document.getElementById('apiAnalyticsPeriods').innerHTML = (data.periods ? ['today','week','month'].map((key) => {
       const item = data.periods[key] || {};
@@ -3997,12 +4000,14 @@ async function loadApiAnalytics(range){
     document.getElementById('apiAnalyticsChart').innerHTML = apiAnalyticsTrend(data.series || []);
     document.getElementById('apiAnalyticsTopDev').innerHTML = apiAnalyticsEndpointRows(data.topEndpoints && data.topEndpoints.developer);
     document.getElementById('apiAnalyticsTopTv').innerHTML = apiAnalyticsEndpointRows(data.topEndpoints && data.topEndpoints.livetv);
-    document.getElementById('apiAnalyticsErrors').innerHTML = apiAnalyticsEventRows(data.recentErrors || [], true);
-    renderApiAnalyticsActivity(data.activity || [], false);
+    document.getElementById('apiAnalyticsErrors').innerHTML = data.errorsAvailable === false ? '<div class="ad-empty">Recent error records could not be loaded.</div>' : apiAnalyticsEventRows(data.recentErrors || [], true);
+    if (data.activityAvailable === false) document.getElementById('apiAnalyticsActivity').innerHTML = '<div class="ad-empty">Recent activity records could not be loaded.</div>';
+    else renderApiAnalyticsActivity(data.activity || [], false);
     apiAnalyticsCursor = data.nextActivityCursor || null;
     document.getElementById('apiAnalyticsMore').style.display = apiAnalyticsCursor ? 'block' : 'none';
     const started = data.trackingStartedAt ? new Date(data.trackingStartedAt).toLocaleString() : 'waiting for the first API request';
-    document.getElementById('apiAnalyticsNotice').textContent = (data.historyNotice || 'Historical request records may be unavailable.') + ' Tracking began: ' + started + '. Request-pack coin totals are drawn from the signed coin ledger; plan payments are not coin income.';
+    const accountingNote = data.coinAccounting && data.coinAccounting.note ? data.coinAccounting.note : 'Request-pack coin totals are drawn from the signed coin ledger; plan payments are not coin income.';
+    document.getElementById('apiAnalyticsNotice').textContent = (data.historyNotice || 'Historical request records may be unavailable.') + ' Tracking began: ' + started + '. ' + accountingNote;
   } catch (err) {
     if (loadId !== apiAnalyticsLoadId) return;
     document.getElementById('apiAnalyticsNotice').textContent = err.message || 'Could not load API analytics.';
@@ -4012,6 +4017,9 @@ async function loadApiAnalytics(range){
     document.getElementById('apiAnalyticsTopDev').innerHTML = '';
     document.getElementById('apiAnalyticsTopTv').innerHTML = '';
     document.getElementById('apiAnalyticsChart').innerHTML = '<div class="ad-empty">Could not load request trends.</div>';
+    document.getElementById('apiAnalyticsErrors').innerHTML = '<div class="ad-empty">Could not load recent errors.</div>';
+    document.getElementById('apiAnalyticsActivity').innerHTML = '<div class="ad-empty">Could not load recent API activity.</div>';
+    document.getElementById('apiAnalyticsMore').style.display = 'none';
   }
 }
 

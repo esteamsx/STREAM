@@ -37,6 +37,9 @@ class FakeQuery {
   limit(count) { return new FakeQuery(this.db, this.collection, this.filters, this.ordering, count, this.cursorId); }
   startAfter(snapshot) { return new FakeQuery(this.db, this.collection, this.filters, this.ordering, this.count, snapshot.id); }
   async get() {
+    if (this.collection === "coinLedger" && this.db.failCoinLedgerQueries) {
+      throw Object.assign(new Error("The query requires an index."), { code: "FAILED_PRECONDITION" });
+    }
     let entries;
     if (this.collection === "coinLedger") entries = this.db.ledger;
     else entries = [...(this.db.tables.get(this.collection) || new Map()).entries()].map(([id, value]) => ({ id, value }));
@@ -67,6 +70,7 @@ class FakeDb {
   constructor() {
     this.tables = new Map();
     this.ledger = [];
+    this.failCoinLedgerQueries = false;
   }
   collection(name) {
     return {
@@ -169,6 +173,22 @@ test("aggregates requests and signed coin-ledger request-pack charges/refunds by
   assert.equal(analytics.recentErrors.length, 1);
   assert.equal(analytics.historicalRequestDataAvailable, false);
   assert.equal(analytics.coinAccounting.directPerRequestCoinCharges, 0);
+});
+
+test("keeps request analytics available when Firestore coin-ledger indexes are missing", async () => {
+  const db = new FakeDb();
+  const middleware = createApiAnalyticsMiddleware(db, { now: () => NOW, randomShard: () => 0, onError: (err) => { throw err; } });
+  emitRequest(middleware, { path: "/api/v1/dev/quote", route: "/api/v1/dev/quote", status: 200 });
+  await flushWrites();
+  db.failCoinLedgerQueries = true;
+
+  const analytics = await getApiAnalytics(db, { range: "7d", now: NOW });
+  assert.equal(analytics.totals.requests, 1);
+  assert.equal(analytics.apis.developer.requests, 1);
+  assert.equal(analytics.coinAccounting.available, false);
+  assert.equal(analytics.totals.coinsSpent, null);
+  assert.match(analytics.coinAccounting.note, /composite indexes/i);
+  assert.equal(analytics.activityAvailable, true);
 });
 
 test("recent activity uses bounded pages and opaque event cursors", async () => {

@@ -49,6 +49,14 @@ function emptyMetrics() {
   return { requests: 0, successful: 0, failed: 0, errorRate: 0, coinsSpent: 0, coinsRefunded: 0, netCoinsSpent: 0, coinsEarned: 0, requestPackPurchases: 0 };
 }
 
+function markCoinMetricsUnavailable(metrics) {
+  metrics.coinsSpent = null;
+  metrics.coinsRefunded = null;
+  metrics.netCoinsSpent = null;
+  metrics.coinsEarned = null;
+  metrics.requestPackPurchases = null;
+}
+
 function finishMetrics(metrics) {
   metrics.errorRate = metrics.requests ? Math.round((metrics.failed / metrics.requests) * 10000) / 100 : 0;
   return metrics;
@@ -286,12 +294,23 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
   }
 
   const coinByDate = new Map();
-  const [developerCoinSpend, livetvCoinSpend, developerCoinIncome, livetvCoinIncome] = await Promise.all([
+  const coinReadResults = await Promise.allSettled([
     queryCoinPackSpend(db, "developer", normalized.rollupStartAt, normalized.endAt, coinByDate),
     queryCoinPackSpend(db, "livetv", normalized.rollupStartAt, normalized.endAt, coinByDate),
     queryApiCoinIncome(db, "developer", normalized.rollupStartAt, normalized.endAt, coinByDate),
     queryApiCoinIncome(db, "livetv", normalized.rollupStartAt, normalized.endAt, coinByDate),
   ]);
+  const coinLedgerAvailable = coinReadResults.every((result) => result.status === "fulfilled");
+  let coinLedgerNote = "Coin totals use API request-pack debits, refunds, and source-tagged admin ledger credits.";
+  if (!coinLedgerAvailable) {
+    coinByDate.clear();
+    const failures = coinReadResults.filter((result) => result.status === "rejected").map((result) => result.reason);
+    const missingIndex = failures.some((error) => /failed_precondition/i.test(String(error && error.code || "")) || /index/i.test(String(error && error.message || "")));
+    coinLedgerNote = missingIndex
+      ? "Coin-ledger totals are unavailable because the required Firestore composite indexes may not be deployed. Deploy the coinLedger indexes from firestore.indexes.json. API request statistics are loaded independently."
+      : "Coin-ledger totals are unavailable because a Firestore ledger query failed. API request statistics are loaded independently.";
+    console.error("[api-analytics] coin ledger aggregation unavailable", failures.map((error) => error && (error.code || error.message) || "unknown error").join("; "));
+  }
 
   const rangeFromDate = normalized.startDate;
   const todayDate = normalized.today;
@@ -329,6 +348,12 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
   const currentDay = periodStats(todayDate, todayDate);
   const currentWeek = periodStats(weekStartDate, todayDate);
   const currentMonth = periodStats(monthStartDate, todayDate);
+  if (!coinLedgerAvailable) {
+    for (const period of [selected, currentDay, currentWeek, currentMonth]) {
+      for (const api of API_TYPES) markCoinMetricsUnavailable(period[api]);
+      markCoinMetricsUnavailable(period.combined);
+    }
+  }
 
   const series = [];
   for (const [date, day] of dates.entries()) {
@@ -339,12 +364,12 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
       developer: day.developer.requests,
       livetv: day.livetv.requests,
       total: day.developer.requests + day.livetv.requests,
-      developerCoins: coins.developer,
-      livetvCoins: coins.livetv,
-      developerCoinRefunds: coins.developerRefunded,
-      livetvCoinRefunds: coins.livetvRefunded,
-      developerCoinsEarned: coins.developerEarned,
-      livetvCoinsEarned: coins.livetvEarned,
+      developerCoins: coinLedgerAvailable ? coins.developer : null,
+      livetvCoins: coinLedgerAvailable ? coins.livetv : null,
+      developerCoinRefunds: coinLedgerAvailable ? coins.developerRefunded : null,
+      livetvCoinRefunds: coinLedgerAvailable ? coins.livetvRefunded : null,
+      developerCoinsEarned: coinLedgerAvailable ? coins.developerEarned : null,
+      livetvCoinsEarned: coinLedgerAvailable ? coins.livetvEarned : null,
     });
   }
 
@@ -367,10 +392,15 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
       .slice(0, 8);
   }
 
-  const activity = await getApiActivityPage(db, { range: normalized.range, cursor: activityCursor, now });
-  const recentErrors = await getRecentErrors(db, normalized.startAt, now);
-  const metaSnapshot = await db.collection("apiAnalyticsMeta").doc("tracking").get();
-  const trackingStartedAt = metaSnapshot.exists ? Number((metaSnapshot.data() || {}).trackingStartedAt) || null : null;
+  const [activityResult, errorsResult, metaResult] = await Promise.allSettled([
+    getApiActivityPage(db, { range: normalized.range, cursor: activityCursor, now }),
+    getRecentErrors(db, normalized.startAt, now),
+    db.collection("apiAnalyticsMeta").doc("tracking").get(),
+  ]);
+  const activity = activityResult.status === "fulfilled" ? activityResult.value : { events: [], nextCursor: null };
+  const recentErrors = errorsResult.status === "fulfilled" ? errorsResult.value : [];
+  const metaSnapshot = metaResult.status === "fulfilled" ? metaResult.value : null;
+  const trackingStartedAt = metaSnapshot && metaSnapshot.exists ? Number((metaSnapshot.data() || {}).trackingStartedAt) || null : null;
   const apis = {
     developer: { ...selected.developer, today: currentDay.developer, week: currentWeek.developer, month: currentMonth.developer },
     livetv: { ...selected.livetv, today: currentDay.livetv, week: currentWeek.livetv, month: currentMonth.livetv },
@@ -395,7 +425,10 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
     recentErrors,
     activity: activity.events,
     nextActivityCursor: activity.nextCursor,
+    activityAvailable: activityResult.status === "fulfilled",
+    errorsAvailable: errorsResult.status === "fulfilled",
     coinAccounting: {
+      available: coinLedgerAvailable,
       developerRequestPackPurchases: selected.developer.requestPackPurchases,
       livetvRequestPackPurchases: selected.livetv.requestPackPurchases,
       developerRequestPackCoinsRefunded: selected.developer.coinsRefunded,
@@ -404,7 +437,7 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
       livetvAdminCoinsEarned: selected.livetv.coinsEarned,
       historicalAdminApiCoinIncomeAvailable: false,
       directPerRequestCoinCharges: 0,
-      note: "Coin totals are request-limit pack debits in the signed coin ledger, not per-call charges. API plan payments are handled in currency and are not coin income.",
+      note: coinLedgerAvailable ? `${coinLedgerNote} Coin totals are not per-call charges; API plan payments are handled in currency.` : `${coinLedgerNote} No zero values are being substituted for unavailable ledger totals.`,
     },
   };
 }
