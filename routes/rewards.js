@@ -45,6 +45,7 @@ registerWeeklyActivityRoutes(router, {
   requireSiteOrigin,
   SimpleRateLimiter,
   getSummary: getWeeklyActivitySummary,
+  verifyCaptcha,
   claimReward: claimWeeklyActivity,
   verifyFaceId: verifyWeeklyActivityFace,
 });

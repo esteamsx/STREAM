@@ -258,6 +258,7 @@ test("claim checks eligibility server-side and awards exactly once under concurr
   assert.equal(outcomes.filter((result) => result.status === "fulfilled").length, 1);
   assert.equal(outcomes.filter((result) => result.status === "rejected" && result.reason.status === 409).length, 1);
   assert.equal(h.db.documents.get("users/user-claim").coinBalance, 8);
+  assert.equal(h.db.documents.get("users/user-claim").lastDailyCoinClaimDay, undefined);
   assert.equal(h.db.documents.get("users/user-claim/weeklyActivity/current").claimedWeek, getWeeklyActivityPeriod(now).key);
   assert.equal(h.db.documents.get("users/user-claim/coinLedger/1").type, "weekly_activity");
 });
@@ -292,6 +293,10 @@ test("weekly claim verifies the account Face ID before calling the atomic reward
     requireSiteOrigin,
     SimpleRateLimiter: AllowLimiter,
     getSummary: async () => ({}),
+    verifyCaptcha: async (token) => {
+      calls.push(["captcha", token]);
+      return token === "weekly-altcha-valid";
+    },
     verifyFaceId: async (uid, descriptor) => {
       calls.push(["verify", uid, descriptor]);
       const valid = Array.isArray(descriptor) && descriptor.length > 0 && descriptor.every((sample) =>
@@ -313,17 +318,34 @@ test("weekly claim verifies the account Face ID before calling the atomic reward
   });
 
   const success = respond();
-  await handlers.at(-1)({ uid: "face-user", body: { faceDescriptor } }, success);
-  assert.deepEqual(calls.map((call) => call[0]), ["verify", "claim"]);
-  assert.deepEqual(calls[0], ["verify", "face-user", faceDescriptor]);
+  await handlers.at(-1)({ uid: "face-user", body: { altcha: "weekly-altcha-valid", faceDescriptor } }, success);
+  assert.deepEqual(calls.map((call) => call[0]), ["captcha", "verify", "claim"]);
+  assert.deepEqual(calls[1], ["verify", "face-user", faceDescriptor]);
   assert.deepEqual(success.data, { ok: true, coinsAwarded: 5 });
   assert.equal(success.headers["Cache-Control"], "no-store");
 
-  for (const body of [{}, { faceDescriptor: [{ v: [0.1, 0.2, 0.3] }] }]) {
+  calls.length = 0;
+  const missingCaptcha = respond();
+  await handlers.at(-1)({ uid: "face-user", body: { faceDescriptor } }, missingCaptcha);
+  assert.deepEqual(calls.map((call) => call[0]), ["captcha"]);
+  assert.equal(missingCaptcha.statusCode, 400);
+  assert.equal(missingCaptcha.data.error, "Captcha not completed.");
+
+  calls.length = 0;
+  const invalidCaptcha = respond();
+  await handlers.at(-1)({ uid: "face-user", body: { altcha: "weekly-altcha-invalid", faceDescriptor } }, invalidCaptcha);
+  assert.deepEqual(calls.map((call) => call[0]), ["captcha"]);
+  assert.equal(invalidCaptcha.statusCode, 400);
+  assert.equal(invalidCaptcha.data.error, "Captcha not completed.");
+
+  for (const body of [
+    { altcha: "weekly-altcha-valid" },
+    { altcha: "weekly-altcha-valid", faceDescriptor: [{ v: [0.1, 0.2, 0.3] }] },
+  ]) {
     calls.length = 0;
     const rejected = respond();
     await handlers.at(-1)({ uid: "face-user", body }, rejected);
-    assert.deepEqual(calls.map((call) => call[0]), ["verify"]);
+    assert.deepEqual(calls.map((call) => call[0]), ["captcha", "verify"]);
     assert.equal(rejected.statusCode, 400);
     assert.match(rejected.data.error, /Face check failed/);
   }

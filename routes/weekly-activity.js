@@ -3,6 +3,7 @@ export function registerWeeklyActivityRoutes(router, {
   requireSiteOrigin,
   SimpleRateLimiter,
   getSummary,
+  verifyCaptcha,
   verifyFaceId,
   claimReward,
 }) {
@@ -26,6 +27,9 @@ export function registerWeeklyActivityRoutes(router, {
     async (req, res) => {
       try {
         res.set("Cache-Control", "no-store");
+        if (!(await verifyCaptcha(req.body?.altcha))) {
+          return res.status(400).json({ error: "Captcha not completed." });
+        }
         await verifyFaceId(req.uid, req.body?.faceDescriptor);
         res.json(await claimReward(req.uid));
       } catch (err) {

@@ -4,6 +4,7 @@
   window.__EsWeeklyRewards = true;
 
   var assetVersion = "";
+  var altchaLoadPromise = null;
   try {
     var currentScript = document.currentScript;
     if (currentScript && currentScript.src) assetVersion = new URL(currentScript.src, location.href).searchParams.get("v") || "";
@@ -124,6 +125,42 @@
     return import("/claim-face.js" + suffix);
   }
 
+  function ensureAltchaLibrary() {
+    if (!window.customElements || typeof customElements.whenDefined !== "function") {
+      return Promise.reject(new Error("Human verification is unavailable in this browser."));
+    }
+    if (customElements.get("altcha-widget")) return Promise.resolve();
+    if (altchaLoadPromise) return altchaLoadPromise;
+    altchaLoadPromise = new Promise(function (resolve, reject) {
+      var settled = false;
+      var timeout = setTimeout(function () { finish(new Error("Human verification could not load. Please try again.")); }, 12000);
+      function finish(error) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (error) reject(error);
+        else resolve();
+      }
+      customElements.whenDefined("altcha-widget").then(function () { finish(); }, finish);
+      var script = document.querySelector('script[src*="altcha.min.js"]');
+      if (!script) {
+        script = document.createElement("script");
+        script.type = "module";
+        script.src = "https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js";
+        var nonceSource = document.querySelector("script[nonce]");
+        if (nonceSource && nonceSource.nonce) script.nonce = nonceSource.nonce;
+        script.addEventListener("error", function () { finish(new Error("Human verification could not load. Please try again.")); }, { once: true });
+        document.head.appendChild(script);
+      } else {
+        script.addEventListener("error", function () { finish(new Error("Human verification could not load. Please try again.")); }, { once: true });
+      }
+    }).catch(function (error) {
+      altchaLoadPromise = null;
+      throw error;
+    });
+    return altchaLoadPromise;
+  }
+
   function maybePulse() {
     if (authFailed || !focusedVisible()) return;
     var input = readInput();
@@ -199,6 +236,7 @@
       '<div class="es-weekly-stat"><span>Weekly reset</span><b id="esWeeklyReset">—</b></div></div>' +
       '<div class="es-weekly-day-section"><div class="es-weekly-section-title">Activity by day <span>1+ hour qualifies</span></div><div class="es-weekly-days" id="esWeeklyDayGrid"></div></div>' +
       '<div class="es-weekly-reward-card"><div class="es-weekly-reward-icon" aria-hidden="true">🎁</div><div class="es-weekly-reward-copy"><b>Weekly milestone</b><span>Earn 5 coins after 50 active hours across 5 qualifying days.</span></div></div>' +
+      '<div class="es-weekly-altcha" id="esWeeklyAltchaWrap" hidden><p>Confirm you are not a robot to continue to Face ID verification.</p><altcha-widget id="esWeeklyAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>' +
       '<div class="es-weekly-status" id="esWeeklyStatus" role="status" aria-live="polite">Loading your account activity…</div>' +
       '<div class="es-weekly-face-setup" id="esWeeklyFaceSetup" hidden><p>Your Face Id is what proves the claim is really you. Set it up once in your account settings, then you can claim every week.</p>' +
       '<div class="es-weekly-face-actions"><a class="es-weekly-face-link" href="/account#faceScanCard">Go to Face Id</a>' +
@@ -215,10 +253,15 @@
     var status = overlay.querySelector("#esWeeklyStatus");
     var faceSetup = overlay.querySelector("#esWeeklyFaceSetup");
     var faceCheckButton = overlay.querySelector("#esWeeklyFaceCheck");
+    var altchaWrap = overlay.querySelector("#esWeeklyAltchaWrap");
+    var altchaWidget = overlay.querySelector("#esWeeklyAltcha");
     var loading = false;
     var claimFailure = null;
     var faceSetupRequired = false;
-    var faceSetupPrompt = "Your Face Id is what proves the claim is really you. Set it up once in your account settings, then you can claim every week.";
+    var weeklyCaptchaPassed = false;
+    var weeklyCaptchaPayload = "";
+    var weeklyCaptchaWeekKey = "";
+    var altchaLoadFailed = false;
     var backgroundState = [];
     var buttonInertBefore = false;
     var buttonAriaHiddenBefore = null;
@@ -258,6 +301,56 @@
       button.focus({ preventScroll: true });
     }
 
+    function resetWeeklyCaptcha(resetWidget) {
+      weeklyCaptchaPassed = false;
+      weeklyCaptchaPayload = "";
+      weeklyCaptchaWeekKey = "";
+      if (resetWidget) {
+        var reset = false;
+        if (typeof altchaWidget.reset === "function") {
+          try { altchaWidget.reset(); reset = true; } catch (_) {}
+        }
+        if (!reset && altchaWidget.parentNode && window.customElements && customElements.get("altcha-widget")) {
+          var replacement = altchaWidget.cloneNode(false);
+          altchaWidget.parentNode.replaceChild(replacement, altchaWidget);
+          altchaWidget = replacement;
+          bindAltchaWidget();
+        }
+      }
+      syncClaimButton();
+    }
+
+    function syncClaimButton() {
+      if (!activityData) return;
+      var eligible = !!activityData.eligible && !activityData.claimed;
+      var captchaReady = weeklyCaptchaPassed && !!weeklyCaptchaPayload && weeklyCaptchaWeekKey === activityData.weekKey && !altchaLoadFailed;
+      var canClaim = eligible && captchaReady && !claimBusy && !faceSetupRequired;
+      claimButton.disabled = !canClaim;
+      claimButton.classList.toggle("is-ready", !!canClaim);
+      if (activityData.claimed) claimButton.textContent = "5 coins claimed";
+      else if (!activityData.eligible) claimButton.textContent = "Complete the milestone to claim";
+      else if (faceSetupRequired) claimButton.textContent = "Set up Face ID to claim";
+      else if (canClaim) claimButton.textContent = "🎁 Claim 5 Coins";
+      else if (altchaLoadFailed) claimButton.textContent = "Human check unavailable";
+      else claimButton.textContent = "Complete the human check first";
+    }
+
+    function bindAltchaWidget() {
+      altchaWidget.addEventListener("statechange", function (event) {
+        var detail = event.detail || {};
+        weeklyCaptchaPassed = detail.state === "verified" && !!detail.payload;
+        weeklyCaptchaPayload = weeklyCaptchaPassed ? detail.payload : "";
+        weeklyCaptchaWeekKey = weeklyCaptchaPassed && activityData ? activityData.weekKey : "";
+        altchaLoadFailed = false;
+        syncClaimButton();
+        if (activityData && activityData.eligible && !activityData.claimed && weeklyCaptchaPassed && !faceSetupRequired) {
+          status.className = "es-weekly-status is-success";
+          status.textContent = "Human check complete. Verify your Face ID to claim.";
+        }
+      });
+    }
+    bindAltchaWidget();
+
     function countdown() {
       if (!activityData || !activityData.resetAt) return;
       var remaining = Math.max(0, Number(activityData.resetAt) - Date.now());
@@ -294,6 +387,20 @@
 
     function render(data) {
       activityData = data;
+      if (weeklyCaptchaWeekKey && weeklyCaptchaWeekKey !== data.weekKey) resetWeeklyCaptcha(true);
+      if (data.eligible && !data.claimed) {
+        altchaWrap.hidden = false;
+        altchaLoadFailed = false;
+        ensureAltchaLibrary().catch(function () {
+          altchaLoadFailed = true;
+          status.className = "es-weekly-status is-error";
+          status.textContent = "Human verification could not load. Please try again.";
+          syncClaimButton();
+        });
+      } else {
+        altchaWrap.hidden = true;
+        resetWeeklyCaptcha(true);
+      }
       var hours = Number(data.hoursExact || 0);
       overlay.querySelector("#esWeeklyHours").textContent = hours + " / 50 hours";
       overlay.querySelector("#esWeeklyCoins").textContent = Number(data.coinBalance || 0).toLocaleString() + " coins";
@@ -314,8 +421,9 @@
         claimButton.textContent = "5 coins claimed";
       } else if (data.eligible) {
         status.className = "es-weekly-status is-success";
-        status.textContent = "Milestone complete. Your 5-coin reward is ready.";
-        claimButton.textContent = "🎁 Claim 5 Coins";
+        status.textContent = weeklyCaptchaPassed
+          ? "Milestone complete. Human check passed; verify your Face ID to claim."
+          : "Milestone complete. Complete the human check before Face ID verification.";
         if (faceSetupRequired) setFaceSetupRequired(true);
       } else {
         setFaceSetupRequired(false);
@@ -326,6 +434,7 @@
         status.textContent = missing.length ? "To qualify: " + missing.join(" and ") + "." : "Keep building genuine weekly activity.";
         claimButton.textContent = "Complete the milestone to claim";
       }
+      syncClaimButton();
     }
 
     function loadSummary(silent) {
@@ -392,6 +501,12 @@
     });
     function claimWithFaceId() {
       if (!activityData || !activityData.eligible || activityData.claimed || claimBusy) return;
+      if (!weeklyCaptchaPassed || !weeklyCaptchaPayload || weeklyCaptchaWeekKey !== activityData.weekKey) {
+        status.className = "es-weekly-status is-error";
+        status.textContent = "Complete the human verification first.";
+        syncClaimButton();
+        return;
+      }
       claimBusy = true;
       claimFailure = null;
       claimButton.disabled = true;
@@ -423,7 +538,7 @@
           return requestJson("/api/rewards/weekly-activity/claim", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ faceDescriptor: faceDescriptor }),
+            body: JSON.stringify({ altcha: weeklyCaptchaPayload, faceDescriptor: faceDescriptor }),
           });
         });
       }).then(function (result) {
@@ -436,6 +551,12 @@
         status.textContent = "5 coins added to your account balance.";
       }).catch(function (error) {
         var message = error && error.message ? error.message : "The reward could not be claimed.";
+        if (/captcha not completed/i.test(message)) {
+          resetWeeklyCaptcha(true);
+          status.className = "es-weekly-status is-error";
+          status.textContent = message;
+          return;
+        }
         if (/face id not set|no-faceid/i.test(message)) {
           setFaceSetupRequired(true);
           return;
@@ -447,16 +568,7 @@
       }).finally(function () {
         claimBusy = false;
         faceCheckButton.disabled = false;
-        if (faceSetupRequired) {
-          claimButton.disabled = true;
-          claimButton.classList.remove("is-ready");
-          claimButton.textContent = "Set up Face ID to claim";
-        } else if (activityData) {
-          claimButton.disabled = !activityData.eligible || activityData.claimed;
-          claimButton.classList.toggle("is-ready", !!activityData.eligible && !activityData.claimed);
-          if (activityData.claimed) claimButton.textContent = "5 coins claimed";
-          else if (activityData.eligible) claimButton.textContent = "🎁 Claim 5 Coins";
-        }
+        syncClaimButton();
       });
     }
     claimButton.addEventListener("click", claimWithFaceId);
