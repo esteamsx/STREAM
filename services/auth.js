@@ -2358,7 +2358,7 @@ async function getPostsByUser(targetUid, viewerUid, { limit = 30, before = null 
 
   const visiblePosts = posts.filter((p) => {
     if (isOwner) return true;
-    if (!viewerIsPremium && !ownerIsPremium && looksLikePromotionalPost(p.text)) return false;
+    if (!viewerIsPremium && looksLikePromotionalPost(p.text)) return false;
     const vis = p.visibility || "everyone";
     if (vis === "only_me") return false;
     if (vis === "friends") return mutualFollow;
@@ -3001,10 +3001,9 @@ async function getPostImage(viewerUid, postId) {
   const match = POST_IMAGE_TYPES.exec(String(post.imageDataUrl || ""));
   if (!match) return null;
   if (post.uid !== viewerUid && looksLikePromotionalPost(post.text)) {
-    const [author, viewer] = await Promise.all([getUserProfile(post.uid), getUserProfile(viewerUid)]);
-    const authorIsPremium = !!(author && (isVerificationActive(author) || isAdminEmail(author.email)));
+    const viewer = await getUserProfile(viewerUid);
     const viewerIsPremium = !!(viewer && (isVerificationActive(viewer) || isAdminEmail(viewer.email)));
-    if (!authorIsPremium && !viewerIsPremium) return null;
+    if (!viewerIsPremium) return null;
   }
   if (post.uid !== viewerUid) {
     const vis = post.visibility || "everyone";
