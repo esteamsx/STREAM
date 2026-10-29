@@ -219,6 +219,13 @@ function ensureOverlayStyles() {
   style.textContent = `
 #${OVERLAY_ID}{position:fixed;inset:0;z-index:2000;background:rgba(5,5,8,.92);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px}
+#${OVERLAY_ID}.fs-account-mode{background:rgba(5,5,8,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+#${OVERLAY_ID}.fs-account-mode.fs-top-mode{background:rgba(5,5,8,.72);justify-content:center;padding:24px;gap:18px}
+#${OVERLAY_ID}.fs-account-mode .fs-frame{width:min(320px,82vw);height:min(420px,96vw)}
+#${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-abstract{width:min(220px,58vw);height:min(220px,58vw)}
+#${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-abstract-face{width:104px;height:104px}
+#${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-abstract-cross{width:84px;height:84px}
+#${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-status{background:rgba(20,20,28,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:8px 16px;border-radius:16px;font-size:.88rem}
 #${OVERLAY_ID}.fs-top-mode{background:transparent;justify-content:flex-start;pointer-events:none;
   padding-top:max(28px,env(safe-area-inset-top));gap:10px}
 #${OVERLAY_ID}.fs-top-mode .fs-abstract,#${OVERLAY_ID}.fs-top-mode .fs-status,#${OVERLAY_ID}.fs-top-mode .fs-cancel{
@@ -374,6 +381,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
   ensureOverlayStyles();
   const overlay = document.createElement('div');
   overlay.id = OVERLAY_ID;
+  if (window.location.pathname === '/account') overlay.classList.add('fs-account-mode');
   if (!showCamera) overlay.classList.add('fs-top-mode');
 
   if (showCamera) {
