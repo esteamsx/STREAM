@@ -4005,9 +4005,11 @@ async function loadApiAnalytics(range){
     else renderApiAnalyticsActivity(data.activity || [], false);
     apiAnalyticsCursor = data.nextActivityCursor || null;
     document.getElementById('apiAnalyticsMore').style.display = apiAnalyticsCursor ? 'block' : 'none';
-    const started = data.trackingStartedAt ? new Date(data.trackingStartedAt).toLocaleString() : 'waiting for the first API request';
-    const accountingNote = data.coinAccounting && data.coinAccounting.note ? data.coinAccounting.note : 'Request-pack coin totals are drawn from the signed coin ledger; plan payments are not coin income.';
-    document.getElementById('apiAnalyticsNotice').textContent = (data.historyNotice || 'Historical request records may be unavailable.') + ' Tracking began: ' + started + '. ' + accountingNote;
+    const started = data.trackingStartedAt ? 'Tracking since ' + new Date(data.trackingStartedAt).toLocaleDateString() + ';' : 'Tracking starts with the first API request;';
+    const historyNote = started + ' older request history unavailable.';
+    const scopeNote = 'Failed auth/rate-limit calls included; HLS streams excluded.';
+    const coinNote = coinLedgerAvailable ? 'Coins: request-pack totals, no per-call charge.' : ((data.coinAccounting && data.coinAccounting.note) || 'Coin totals unavailable.');
+    document.getElementById('apiAnalyticsNotice').textContent = [historyNote, scopeNote, coinNote].join(' ');
   } catch (err) {
     if (loadId !== apiAnalyticsLoadId) return;
     document.getElementById('apiAnalyticsNotice').textContent = err.message || 'Could not load API analytics.';

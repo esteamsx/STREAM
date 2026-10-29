@@ -301,14 +301,14 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
     queryApiCoinIncome(db, "livetv", normalized.rollupStartAt, normalized.endAt, coinByDate),
   ]);
   const coinLedgerAvailable = coinReadResults.every((result) => result.status === "fulfilled");
-  let coinLedgerNote = "Coin totals use API request-pack debits, refunds, and source-tagged admin ledger credits.";
+  let coinLedgerNote = "Request-pack totals only; no per-call coin charge.";
   if (!coinLedgerAvailable) {
     coinByDate.clear();
     const failures = coinReadResults.filter((result) => result.status === "rejected").map((result) => result.reason);
     const missingIndex = failures.some((error) => /failed_precondition/i.test(String(error && error.code || "")) || /index/i.test(String(error && error.message || "")));
     coinLedgerNote = missingIndex
-      ? "Coin-ledger totals are unavailable because the required Firestore composite indexes may not be deployed. Deploy the coinLedger indexes from firestore.indexes.json. API request statistics are loaded independently."
-      : "Coin-ledger totals are unavailable because a Firestore ledger query failed. API request statistics are loaded independently.";
+      ? "Coin totals unavailable; deploy the coinLedger composite indexes from firestore.indexes.json."
+      : "Coin totals unavailable; a Firestore ledger query failed.";
     console.error("[api-analytics] coin ledger aggregation unavailable", failures.map((error) => error && (error.code || error.message) || "unknown error").join("; "));
   }
 
@@ -411,7 +411,7 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
     rangeStart: normalized.startAt,
     rangeEnd: normalized.endAt,
     trackingStartedAt,
-    historyNotice: "Per-request history starts with API analytics tracking. Earlier request totals, endpoint breakdowns, and outcomes were not retained. Counts are HTTP attempts to Developer API routes plus Live TV channel-catalog/link-issuance routes; authentication and rate-limit failures count as failed requests, while HLS manifests and stream segments are excluded as media delivery. Coin spend and refunds use signed ledger entries for API request-limit packs; tagged admin coin income is reportable only from this rollout onward. No per-request coin deduction is present in these API routes.",
+    historyNotice: "Tracking starts with this rollout; earlier request history is unavailable.",
     historicalRequestDataAvailable: false,
     totals: selected.combined,
     apis,
@@ -437,7 +437,7 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
       livetvAdminCoinsEarned: selected.livetv.coinsEarned,
       historicalAdminApiCoinIncomeAvailable: false,
       directPerRequestCoinCharges: 0,
-      note: coinLedgerAvailable ? `${coinLedgerNote} Coin totals are not per-call charges; API plan payments are handled in currency.` : `${coinLedgerNote} No zero values are being substituted for unavailable ledger totals.`,
+      note: coinLedgerNote,
     },
   };
 }
