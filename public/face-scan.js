@@ -276,6 +276,7 @@ function ensureOverlayStyles() {
 #${OVERLAY_ID} .fs-frame-outline path{fill:none;stroke-width:.008}
 #${OVERLAY_ID} .fs-frame-outline-bg{stroke:rgba(0,224,255,.25)}
 #${OVERLAY_ID} .fs-frame-outline-progress{stroke:#00E0FF;transition:stroke-dashoffset .4s ease}
+#${OVERLAY_ID}.fs-enrollment-mode .fs-frame-outline-bg{stroke:rgba(0,224,255,.62)}
 #${OVERLAY_ID}.fs-success .fs-frame-outline-bg{stroke:rgba(0,224,255,.25)}
 #${OVERLAY_ID}.fs-success .fs-frame-outline-progress{stroke:#00E0FF}
 
@@ -721,8 +722,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           }
           if (!requireLiveness) setStatus('Hold still');
 
-          const wantDescriptor = !requireLiveness || turnStage === 3;
-          const result = await runDetect(true, wantDescriptor);
+          const result = await runDetect(true, !requireLiveness);
           if (cancelled) return;
           if (result === DETECT_FAILED) {
             again(safeTick, ERROR_BACKOFF_MS);
@@ -734,13 +734,12 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             return;
           }
 
-          const descriptor = wantDescriptor && result.descriptor ? Array.from(result.descriptor) : null;
-          if (wantDescriptor && (!descriptor || descriptor.length !== DESCRIPTOR_LENGTH)) {
-            again(safeTick);
-            return;
-          }
-
           if (!requireLiveness) {
+            const descriptor = result && result.descriptor ? Array.from(result.descriptor) : null;
+            if (!descriptor || descriptor.length !== DESCRIPTOR_LENGTH) {
+              again(safeTick);
+              return;
+            }
             collected.push(descriptor);
             if (collected.length >= sampleTarget) {
               finishCapture(collected);
@@ -782,6 +781,17 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
               neutralPitch === null ||
               Math.abs(headPitchRatio(result.landmarks) - neutralPitch) < NOD_THRESHOLD;
             if (Math.abs(turnRatio) < CENTER_THRESHOLD && levelEnough) {
+              const descriptorResult = await runDetect(true, true);
+              if (cancelled) return;
+              if (descriptorResult === DETECT_FAILED) {
+                again(safeTick, ERROR_BACKOFF_MS);
+                return;
+              }
+              const descriptor = descriptorResult && descriptorResult.descriptor ? Array.from(descriptorResult.descriptor) : null;
+              if (!descriptor || descriptor.length !== DESCRIPTOR_LENGTH) {
+                again(safeTick);
+                return;
+              }
               collected.push(descriptor);
               if (enrollmentMode) setStatus('Hold still — capturing ' + collected.length + ' of ' + sampleTarget);
               if (collected.length >= sampleTarget) {

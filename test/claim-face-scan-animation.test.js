@@ -22,6 +22,9 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.match(loginScanner, /fs-step-check/);
   assert.match(loginScanner, /fs-step-check-path/);
   assert.match(loginScanner, /Hold still — capturing /);
+  assert.match(loginScanner, /fs-enrollment-mode \.fs-frame-outline-bg\{stroke:rgba\(0,224,255,\.62\)/);
+  assert.match(loginScanner, /const result = await runDetect\(true, !requireLiveness\)/);
+  assert.match(loginScanner, /const descriptorResult = await runDetect\(true, true\)/);
   assert.doesNotMatch(loginScanner, /flashEnrollmentCapture|fs-capture-flash|fsCaptureFlash/);
   assert.match(account, /try \{ return await import\('\/face-scan\.js'\);/);
   assert.match(account, /claimModule\.captureFaceDescriptor\(\{ requireLiveness: false, showCamera: false, voice: false, returnSamples: true \}\)/);
