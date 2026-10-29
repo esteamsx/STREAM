@@ -13,7 +13,7 @@ test("daily coin face check reuses Login Face ID with the original liveness flow
   assert.match(loginScanner, /setStatus\('Hold still'\)/);
   assert.match(loginScanner, /if \(stream\) stream\.getTracks\(\)\.forEach\(\(t\) => t\.stop\(\)\)/);
   assert.match(account, /try \{ return await import\('\/face-scan\.js\?v=\$\{ASSET_VERSION\}'\);/);
-  assert.match(account, /claimModule\.captureFaceDescriptor\(\{ requireLiveness: true, showCamera: true, returnSamples: true \}\)/);
+  assert.match(account, /claimModule\.captureFaceDescriptor\(\{ requireLiveness: false, showCamera: false, voice: false, returnSamples: true \}\)/);
   assert.doesNotMatch(account, /claimModule\.captureClaimFace\(\)/);
   assert.doesNotMatch(account, /import\('\/claim-face\.js/);
 });

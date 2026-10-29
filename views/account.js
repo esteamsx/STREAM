@@ -5606,7 +5606,7 @@ claimContinueBtn.addEventListener('click', async () => {
   let capture = null;
   try {
     claimModule = await loadClaimFaceModule();
-    capture = await claimModule.captureFaceDescriptor({ requireLiveness: true, showCamera: true, returnSamples: true });
+    capture = await claimModule.captureFaceDescriptor({ requireLiveness: false, showCamera: false, voice: false, returnSamples: true });
   } catch (err) {
     claimContinueBtn.innerHTML = original;
     claimContinueBtn.disabled = !claimCaptchaPassed;
