@@ -30,11 +30,22 @@ import {
   MIN_COIN_REQUEST,
   MAX_COIN_REQUEST,
   COIN_REQUEST_LINK_TTL_MS,
+  getWeeklyActivitySummary,
+  claimWeeklyActivity,
 } from "../services/auth.js";
 import { findBankCode, resolveAccountNumber } from "../services/paystack.js";
 import { SimpleRateLimiter, requireSiteOrigin } from "../middleware/security-middleware.js";
+import { registerWeeklyActivityRoutes } from "./weekly-activity.js";
 
 const router = express.Router();
+
+registerWeeklyActivityRoutes(router, {
+  requireAuth,
+  requireSiteOrigin,
+  SimpleRateLimiter,
+  getSummary: getWeeklyActivitySummary,
+  claimReward: claimWeeklyActivity,
+});
 
 const PUBLIC_BASE = "https://esteamstv.devs.surf";
 const ALTCHA_HMAC_KEY = process.env.ALTCHA_SECRET;

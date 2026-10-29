@@ -5,11 +5,13 @@ import { replayBotGame, analyzeBotGame } from "../services/chess-anticheat.js";
 
 const MAX_TABS = 10;
 
-export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview, hub = createChessHub({ adjudicate: adjudicatePosition }) }) {
+export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview, recordWeeklyActivityPulse, hub = createChessHub({ adjudicate: adjudicatePosition }) }) {
   const readLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid).middleware();
   const challengeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
   const moveLimiter = new SimpleRateLimiter(40, 10 * 1000, (req) => req.uid).middleware();
   const streamLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid).middleware();
+  const weeklyPulseLimiter = new SimpleRateLimiter(80, 60 * 60 * 1000, (req) => req.uid).middleware();
+  const weeklyPulseBurstLimiter = new SimpleRateLimiter(5, 60 * 1000, (req) => req.uid).middleware();
 
   const photoFor = (uid, p) => {
     if (!p || p.showProfilePhoto === false || !p.photoURL) return null;
@@ -105,7 +107,32 @@ export function registerChessRoutes(router, { requireAuth, requireSiteOrigin, Si
     if (req.socket) req.socket.on("close", done);
   }
 
-  router.post("/api/chess/hb", requireAuth, (req, res) => { hub.touch(req.uid); res.set("Cache-Control", "no-store").json({ ok: true }); });
+  router.post("/api/chess/hb", requireAuth, (req, res) => {
+    const weeklyActivity = req.body && Object.prototype.hasOwnProperty.call(req.body, "weeklyActivity")
+      ? req.body.weeklyActivity
+      : undefined;
+    if (weeklyActivity === undefined) {
+      hub.touch(req.uid);
+      return res.set("Cache-Control", "no-store").json({ ok: true });
+    }
+    const record = async () => {
+      weeklyPulseBurstLimiter(req, res, () => weeklyPulseLimiter(req, res, async () => {
+        try {
+          hub.touch(req.uid);
+          const pulseResult = typeof recordWeeklyActivityPulse === "function"
+            ? await recordWeeklyActivityPulse(req.uid, weeklyActivity)
+            : null;
+          const response = { ok: true };
+          if (pulseResult && pulseResult.challenge) response.weeklyActivity = { challenge: pulseResult.challenge };
+          res.set("Cache-Control", "no-store").json(response);
+        } catch (err) {
+          res.status(err.status || 400).json({ error: err.message || "Could not record activity." });
+        }
+      }));
+    };
+    if (typeof requireSiteOrigin === "function") return requireSiteOrigin(req, res, record);
+    return record();
+  });
 
   router.get("/api/chess/stream", requireAuth, streamLimiter, async (req, res) => {
     try {

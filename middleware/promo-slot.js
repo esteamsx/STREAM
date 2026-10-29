@@ -38,6 +38,8 @@ const PRESENCE_SKIP_PATHS = [
   "/tictactoe/guest",
 ];
 
+const REWARDS_SKIP_PATHS = [...PRESENCE_SKIP_PATHS, "/admin", "/pay/"];
+
 const SOCIAL_SKIP_PATHS = [
   "/api/",
   "/embed/",
@@ -72,6 +74,8 @@ const BUILD = Date.now().toString(36);
 
 const SPONSOR_TAG = `<script nonce="__CSP_NONCE__" src="/sponsor.js?v=${BUILD}" defer></script>`;
 const PRESENCE_TAG = `<script nonce="__CSP_NONCE__" src="/chess-presence.js?v=${BUILD}" defer></script>`;
+const WEEKLY_REWARDS_TAG = `<script nonce="__CSP_NONCE__" src="/weekly-rewards.js?v=${BUILD}" defer></script>`;
+const WEEKLY_REWARDS_CSS_TAG = `<link rel="stylesheet" href="/weekly-rewards.css?v=${BUILD}">`;
 const SOCIAL_TAG = `<script nonce="__CSP_NONCE__" src="/social-bar.js?v=${BUILD}" defer></script>`;
 const POPUNDER_TAG = `<script nonce="__CSP_NONCE__" src="/popunder.js?v=${BUILD}" defer></script>`;
 const NATIVE_TAG = `<script nonce="__CSP_NONCE__" src="/native-banner.js?v=${BUILD}" defer></script>`;
@@ -87,10 +91,11 @@ export function injectPromoSlot(req, res, next) {
   const wantsAds = !matches(req.path, SKIP_PATHS);
   const wantsNav = matches(req.path, NAV_PATHS);
   const wantsPresence = !matches(req.path, PRESENCE_SKIP_PATHS);
+  const wantsRewards = !matches(req.path, REWARDS_SKIP_PATHS);
   const wantsSocial = !matches(req.path, SOCIAL_SKIP_PATHS);
   const wantsPopunder = !matches(req.path, POPUNDER_SKIP_PATHS);
   const wantsNative = wantsPopunder && (NATIVE_EXACT_PATHS.includes(req.path) || NATIVE_PREFIX_PATHS.some((p) => req.path.startsWith(p)));
-  if (!wantsAds && !wantsNav && !wantsPresence && !wantsSocial) return next();
+  if (!wantsAds && !wantsNav && !wantsPresence && !wantsSocial && !wantsRewards) return next();
   const originalSend = res.send.bind(res);
   res.send = (body) => {
     if (typeof body === "string" && res.statusCode === 200) {
@@ -100,6 +105,10 @@ export function injectPromoSlot(req, res, next) {
           const head = body.indexOf("</head>");
           if (head !== -1) body = body.slice(0, head) + THEME_TAG + body.slice(head);
         }
+        if (wantsRewards) {
+          const head = body.indexOf("</head>");
+          if (head !== -1 && !body.includes("weekly-rewards.css")) body = body.slice(0, head) + WEEKLY_REWARDS_CSS_TAG + body.slice(head);
+        }
         const at = body.lastIndexOf("</body>");
         if (at !== -1) {
           const adsOk = !(res.locals && res.locals.noAds);
@@ -107,6 +116,7 @@ export function injectPromoSlot(req, res, next) {
             (wantsNav ? NAV_TAG : "") +
             (wantsAds ? SPONSOR_TAG : "") +
             (wantsPresence ? PRESENCE_TAG : "") +
+            (wantsRewards ? WEEKLY_REWARDS_TAG : "") +
             (wantsSocial && adsOk ? SOCIAL_TAG : "") +
             (wantsPopunder && adsOk && body.indexOf("/popunder.js") === -1 ? POPUNDER_TAG : "") +
             (wantsNative && adsOk && body.indexOf("/native-banner.js") === -1 ? NATIVE_TAG : "");

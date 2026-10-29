@@ -738,6 +738,20 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div>
   </div>
 
+  <div class="ad-card open accent-blue" id="weeklyActivityReviewCard">
+    <div class="ad-card-header" style="cursor:default">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M3 12h3m12 0h3M4.9 19.1 7 17m10-10 2.1-2.1"/><circle cx="12" cy="12" r="5"/></svg>
+      <div class="ad-card-header-title">Weekly Activity Signals</div>
+    </div>
+    <div class="ad-card-body" style="max-height:none">
+      <div class="ad-card-body-inner">
+        <div style="font-size:.76rem;color:var(--muted);line-height:1.5;margin-bottom:10px">Review-only signals for rapid heartbeats, overlapping sessions, and unusually regular activity timing. These signals do not automatically restrict an account.</div>
+        <button type="button" class="cn-refund" id="weeklyActivityRefresh" style="width:100%;padding:10px;border-radius:12px">Refresh activity signals</button>
+        <div id="weeklyActivitySignalList" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="cn-ov" id="cnOverlay"><div class="cn-card" id="cnCard"></div></div>
   <div class="cn-ov" id="fcBanOverlay" style="z-index:640"><div class="cn-card" style="text-align:center">
     <div class="cn-title" id="fcBanTitle">Ban from coins</div>
@@ -3634,6 +3648,41 @@ document.getElementById('maintenanceOpenBtn').addEventListener('click', () => {
   if (location.hash === '#fake-coins') {
     setTimeout(function(){ var c = document.getElementById('fakeCoinsCard'); c.scrollIntoView({ behavior: 'smooth', block: 'start' }); c.classList.add('flash'); }, 500);
   }
+})();
+
+(function(){
+  var list = document.getElementById('weeklyActivitySignalList');
+  var refresh = document.getElementById('weeklyActivityRefresh');
+  if (!list || !refresh) return;
+  function ago(ts){ var m = Math.max(0, Math.floor((Date.now() - Number(ts || 0)) / 60000)); if (m < 1) return 'just now'; if (m < 60) return m + ' min ago'; var h = Math.floor(m / 60); if (h < 48) return h + ' h ago'; return Math.floor(h / 24) + ' days ago'; }
+  function label(code){
+    return ({
+      rapid_pulse: 'Rapid repeated heartbeat',
+      overlapping_sessions: 'Overlapping activity sessions',
+      regular_heartbeat_pattern: 'Unusually regular activity timing',
+      repeated_interaction_pattern: 'Repeated automated interaction pattern',
+      invalid_activity_challenge: 'Invalid or replayed activity challenge',
+      client_supplied_progress: 'Client-supplied progress attempt',
+      invalid_session_id: 'Invalid activity session identifier',
+      missing_interaction: 'Heartbeat without a recent interaction',
+      coin_ledger_mismatch: 'Coin ledger requires review'
+    })[code] || 'Activity integrity signal';
+  }
+  function load(){
+    refresh.disabled = true;
+    list.innerHTML = '<div class="cn-load"><span class="ad-spinner"></span> Loading</div>';
+    getJSON('/api/admin/weekly-activity-abuse').then(function(data){
+      var events = data.events || [];
+      list.innerHTML = events.length ? events.map(function(event){
+        var count = Math.max(1, Number(event.occurrences) || 1);
+        return '<div class="cn-p"><div>' + esc(label(event.code)) + '<small>User ' + esc(event.uid || 'unknown') + ' · week ' + esc(event.weekKey || 'unknown') + ' · ' + esc(ago(event.at)) + ' · ' + count + ' signal' + (count === 1 ? '' : 's') + '</small></div></div>';
+      }).join('') : '<div class="ad-hint" style="padding:12px 0">No activity signals to review.</div>';
+    }).catch(function(error){
+      list.innerHTML = '<div class="ad-hint" style="padding:12px 0">' + esc(error.message || 'Could not load activity signals.') + '</div>';
+    }).finally(function(){ refresh.disabled = false; });
+  }
+  refresh.addEventListener('click', load);
+  load();
 })();
 
 document.getElementById('pageLockOpenBtn').addEventListener('click', () => {

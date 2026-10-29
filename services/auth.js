@@ -13,6 +13,7 @@ import { VERIFICATION_PRICE_NGN } from "./paystack.js";
 import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEmail } from "./mailer.js";
 import { appendCoinLedger, coinLedgerMismatch, verifyCoinLedgerChain } from "./coin-ledger.js";
 import { openDeviceSession, checkDeviceSession, touchDeviceSession, revokeDeviceSession, revokeAllDeviceSessions, TRUSTED_SESSION_TTL_MS } from "./device-sessions.js";
+import { createWeeklyActivityService } from "./weekly-activity.js";
 
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
@@ -5776,6 +5777,22 @@ async function getSupportThreadsForAdmin() {
   });
 }
 
+const weeklyActivityService = createWeeklyActivityService({
+  db,
+  increment: admin.firestore.FieldValue.increment,
+  appendCoinLedger,
+  coinLedgerMismatch,
+  assertCoinsAllowed,
+  invalidateProfileCache: invalidateUserProfileCache,
+  onAbuse: ({ uid, code, at, weekKey }) => {
+    console.warn("[weekly-activity] suspicious event", { uid, code, at, weekKey });
+  },
+});
+const getWeeklyActivitySummary = (...args) => weeklyActivityService.getSummary(...args);
+const recordWeeklyActivityPulse = (...args) => weeklyActivityService.recordPulse(...args);
+const claimWeeklyActivity = (...args) => weeklyActivityService.claim(...args);
+const adminListWeeklyActivityAbuse = (...args) => weeklyActivityService.listAbuseEvents(...args);
+
 export {
   adminListUsers,
   adminSearchUsers,
@@ -5907,6 +5924,10 @@ export {
   creditCompetitiveGameWin,
   recordChessReview,
   listChessReviews,
+  getWeeklyActivitySummary,
+  recordWeeklyActivityPulse,
+  claimWeeklyActivity,
+  adminListWeeklyActivityAbuse,
   isCoinRestricted,
   getPendingCoinGift,
   markCoinGiftSeen,

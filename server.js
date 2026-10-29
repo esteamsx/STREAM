@@ -343,6 +343,8 @@ import {
   adminListChannelReactLog,
   adminMarkChannelReactResent,
   adminDecideChannelReact,
+  adminListWeeklyActivityAbuse,
+  recordWeeklyActivityPulse,
 } from "./services/auth.js";
 import { chargeAuthorization, VERIFICATION_PRICE_NGN, VERIFICATION_DAYS } from "./services/paystack.js";
 import { paymentsRouter } from "./routes/payments.js";
@@ -742,7 +744,7 @@ app.use("/api/rewards", coinDeviceGuard);
 app.use(rewardsRouter);
 app.use(createGiveawayRouter({ verifyCaptcha }));
 const chessRouter = express.Router();
-const chessHub = registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview });
+const chessHub = registerChessRoutes(chessRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, isVerificationActive, isAdminEmail, creditChessBotWin, recordChessReview, recordWeeklyActivityPulse });
 app.use(chessRouter);
 const ludoRouter = express.Router();
 registerLudoRoutes(ludoRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, searchUsersByUsername, creditCompetitiveGameWin, chessHub });
@@ -1441,6 +1443,14 @@ app.get("/api/admin/fake-coins", requireAuth, requireAdmin, async (req, res) => 
     res.set("Cache-Control", "no-store").json(await listFakeCoinAlerts());
   } catch (err) {
     res.status(400).json({ error: "Could not load fake coin alerts." });
+  }
+});
+
+app.get("/api/admin/weekly-activity-abuse", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store").json({ events: await adminListWeeklyActivityAbuse(50) });
+  } catch (err) {
+    res.status(400).json({ error: "Could not load weekly activity signals." });
   }
 });
 
