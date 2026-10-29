@@ -277,10 +277,9 @@ test("claims reject non-eligible, restricted, and inconsistent-ledger accounts",
   assert.ok(h.events.some((event) => event.code === "coin_ledger_mismatch"));
 });
 
-test("weekly claim verifies the account Face ID before calling the atomic reward service", async () => {
+test("weekly claim verifies ALTCHA before calling the atomic reward service", async () => {
   const routes = new Map();
   const calls = [];
-  const faceDescriptor = Array.from({ length: 3 }, () => ({ v: new Array(128).fill(0.1) }));
   const requireAuth = () => {};
   const requireSiteOrigin = (req, res, next) => next();
   class AllowLimiter { middleware() { return (req, res, next) => next(); } }
@@ -297,12 +296,6 @@ test("weekly claim verifies the account Face ID before calling the atomic reward
       calls.push(["captcha", token]);
       return token === "weekly-altcha-valid";
     },
-    verifyFaceId: async (uid, descriptor) => {
-      calls.push(["verify", uid, descriptor]);
-      const valid = Array.isArray(descriptor) && descriptor.length > 0 && descriptor.every((sample) =>
-        sample && Array.isArray(sample.v) && sample.v.length === 128 && sample.v.every(Number.isFinite));
-      if (!valid) throw Object.assign(new Error("Face check failed. Please try again."), { status: 400 });
-    },
     claimReward: async (uid) => {
       calls.push(["claim", uid]);
       return { ok: true, coinsAwarded: 5 };
@@ -318,37 +311,25 @@ test("weekly claim verifies the account Face ID before calling the atomic reward
   });
 
   const success = respond();
-  await handlers.at(-1)({ uid: "face-user", body: { altcha: "weekly-altcha-valid", faceDescriptor } }, success);
-  assert.deepEqual(calls.map((call) => call[0]), ["captcha", "verify", "claim"]);
-  assert.deepEqual(calls[1], ["verify", "face-user", faceDescriptor]);
+  await handlers.at(-1)({ uid: "altcha-user", body: { altcha: "weekly-altcha-valid" } }, success);
+  assert.deepEqual(calls.map((call) => call[0]), ["captcha", "claim"]);
   assert.deepEqual(success.data, { ok: true, coinsAwarded: 5 });
   assert.equal(success.headers["Cache-Control"], "no-store");
 
   calls.length = 0;
   const missingCaptcha = respond();
-  await handlers.at(-1)({ uid: "face-user", body: { faceDescriptor } }, missingCaptcha);
+  await handlers.at(-1)({ uid: "altcha-user", body: {} }, missingCaptcha);
   assert.deepEqual(calls.map((call) => call[0]), ["captcha"]);
   assert.equal(missingCaptcha.statusCode, 400);
   assert.equal(missingCaptcha.data.error, "Captcha not completed.");
 
   calls.length = 0;
   const invalidCaptcha = respond();
-  await handlers.at(-1)({ uid: "face-user", body: { altcha: "weekly-altcha-invalid", faceDescriptor } }, invalidCaptcha);
+  await handlers.at(-1)({ uid: "altcha-user", body: { altcha: "weekly-altcha-invalid" } }, invalidCaptcha);
   assert.deepEqual(calls.map((call) => call[0]), ["captcha"]);
   assert.equal(invalidCaptcha.statusCode, 400);
   assert.equal(invalidCaptcha.data.error, "Captcha not completed.");
 
-  for (const body of [
-    { altcha: "weekly-altcha-valid" },
-    { altcha: "weekly-altcha-valid", faceDescriptor: [{ v: [0.1, 0.2, 0.3] }] },
-  ]) {
-    calls.length = 0;
-    const rejected = respond();
-    await handlers.at(-1)({ uid: "face-user", body }, rejected);
-    assert.deepEqual(calls.map((call) => call[0]), ["captcha", "verify"]);
-    assert.equal(rejected.statusCode, 400);
-    assert.match(rejected.data.error, /Face check failed/);
-  }
 });
 
 test("weekly activity uses the existing chess heartbeat without changing plain presence pings", async () => {

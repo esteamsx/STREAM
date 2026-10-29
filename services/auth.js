@@ -5788,16 +5788,6 @@ const weeklyActivityService = createWeeklyActivityService({
     console.warn("[weekly-activity] suspicious event", { uid, code, at, weekKey });
   },
 });
-const verifyWeeklyActivityFace = async (uid, input) => {
-  const probes = normalizeFaceSamples(input);
-  if (!probes.length) {
-    throw Object.assign(new Error("Face check failed. Please try again."), {
-      status: 400,
-      code: "weekly_activity/face_required",
-    });
-  }
-  return verifyOwnFaceId(uid, probes);
-};
 const getWeeklyActivitySummary = (...args) => weeklyActivityService.getSummary(...args);
 const recordWeeklyActivityPulse = (...args) => weeklyActivityService.recordPulse(...args);
 const claimWeeklyActivity = (...args) => weeklyActivityService.claim(...args);
@@ -5936,7 +5926,6 @@ export {
   listChessReviews,
   getWeeklyActivitySummary,
   recordWeeklyActivityPulse,
-  verifyWeeklyActivityFace,
   claimWeeklyActivity,
   adminListWeeklyActivityAbuse,
   isCoinRestricted,

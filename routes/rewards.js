@@ -32,7 +32,6 @@ import {
   COIN_REQUEST_LINK_TTL_MS,
   getWeeklyActivitySummary,
   claimWeeklyActivity,
-  verifyWeeklyActivityFace,
 } from "../services/auth.js";
 import { findBankCode, resolveAccountNumber } from "../services/paystack.js";
 import { SimpleRateLimiter, requireSiteOrigin } from "../middleware/security-middleware.js";
@@ -47,7 +46,6 @@ registerWeeklyActivityRoutes(router, {
   getSummary: getWeeklyActivitySummary,
   verifyCaptcha,
   claimReward: claimWeeklyActivity,
-  verifyFaceId: verifyWeeklyActivityFace,
 });
 
 const PUBLIC_BASE = "https://esteamstv.devs.surf";

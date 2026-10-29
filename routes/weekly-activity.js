@@ -4,7 +4,6 @@ export function registerWeeklyActivityRoutes(router, {
   SimpleRateLimiter,
   getSummary,
   verifyCaptcha,
-  verifyFaceId,
   claimReward,
 }) {
   const summaryLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
@@ -30,7 +29,6 @@ export function registerWeeklyActivityRoutes(router, {
         if (!(await verifyCaptcha(req.body?.altcha))) {
           return res.status(400).json({ error: "Captcha not completed." });
         }
-        await verifyFaceId(req.uid, req.body?.faceDescriptor);
         res.json(await claimReward(req.uid));
       } catch (err) {
         res.status(err.status || 500).json({ error: err.message || "Could not claim this week's reward." });
