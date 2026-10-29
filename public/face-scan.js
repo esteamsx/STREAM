@@ -482,10 +482,15 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
   let loopTimer = null;
   let watchdogTimer = null;
 
+  function stopCaptureWatchdog() {
+    if (watchdogTimer) clearTimeout(watchdogTimer);
+    watchdogTimer = null;
+  }
+
   function cleanup() {
     if (scanTimer) clearTimeout(scanTimer);
     if (loopTimer) clearTimeout(loopTimer);
-    if (watchdogTimer) clearTimeout(watchdogTimer);
+    stopCaptureWatchdog();
     if (stream) stream.getTracks().forEach((t) => t.stop());
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     lastSpoken = '';
@@ -690,7 +695,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             giveUp('giving up early');
             return;
           }
-          if (elapsed > captureTimeout) {
+          if (elapsed > captureTimeout && turnStage < 3) {
             giveUp('timed out');
             return;
           }
@@ -773,6 +778,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             if (nodBaseline === null) nodBaseline = pitchRatio;
             if (Math.abs(pitchRatio - nodBaseline) > NOD_THRESHOLD) {
               turnStage = 3;
+              if (enrollmentMode) stopCaptureWatchdog();
               setStep(3);
               setStatus('Hold still');
             }
