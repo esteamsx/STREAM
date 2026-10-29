@@ -3,6 +3,12 @@
   if (window.__EsWeeklyRewards) return;
   window.__EsWeeklyRewards = true;
 
+  var assetVersion = "";
+  try {
+    var currentScript = document.currentScript;
+    if (currentScript && currentScript.src) assetVersion = new URL(currentScript.src, location.href).searchParams.get("v") || "";
+  } catch (_) {}
+
   var SID_KEY = "es-weekly-activity-session-v1";
   var LEASE_KEY = "es-weekly-activity-leader-v1";
   var INPUT_KEY = "es-weekly-activity-input-v1";
@@ -113,6 +119,11 @@
     });
   }
 
+  function loadClaimFaceModule() {
+    var suffix = assetVersion ? "?v=" + encodeURIComponent(assetVersion) : "";
+    return import("/claim-face.js" + suffix);
+  }
+
   function maybePulse() {
     if (authFailed || !focusedVisible()) return;
     var input = readInput();
@@ -155,7 +166,7 @@
   }
 
   function ensureStyles() {
-    if (document.querySelector('link[data-es-weekly-rewards-style]')) return;
+    if (document.querySelector('link[data-es-weekly-rewards-style],link[href*="weekly-rewards.css"]')) return;
     var link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = "/weekly-rewards.css";
@@ -189,6 +200,9 @@
       '<div class="es-weekly-day-section"><div class="es-weekly-section-title">Activity by day <span>1+ hour qualifies</span></div><div class="es-weekly-days" id="esWeeklyDayGrid"></div></div>' +
       '<div class="es-weekly-reward-card"><div class="es-weekly-reward-icon" aria-hidden="true">🎁</div><div class="es-weekly-reward-copy"><b>Weekly milestone</b><span>Earn 5 coins after 50 active hours across 5 qualifying days.</span></div></div>' +
       '<div class="es-weekly-status" id="esWeeklyStatus" role="status" aria-live="polite">Loading your account activity…</div>' +
+      '<div class="es-weekly-face-setup" id="esWeeklyFaceSetup" hidden><p>Your Face Id is what proves the claim is really you. Set it up once in your account settings, then you can claim every week.</p>' +
+      '<div class="es-weekly-face-actions"><a class="es-weekly-face-link" href="/account#faceScanCard">Go to Face Id</a>' +
+      '<button type="button" class="es-weekly-face-check" id="esWeeklyFaceCheck">I\'ve set it up — check again</button></div></div>' +
       '<button type="button" class="es-weekly-claim" id="esWeeklyClaim" disabled>Complete the milestone to claim</button>' +
       '<p class="es-weekly-note">Only visible, recently used sessions count. Time pauses when this page is hidden or idle.</p>' +
       '</div></section>';
@@ -199,8 +213,12 @@
     var panel = overlay.querySelector(".es-weekly-panel");
     var claimButton = overlay.querySelector("#esWeeklyClaim");
     var status = overlay.querySelector("#esWeeklyStatus");
+    var faceSetup = overlay.querySelector("#esWeeklyFaceSetup");
+    var faceCheckButton = overlay.querySelector("#esWeeklyFaceCheck");
     var loading = false;
     var claimFailure = null;
+    var faceSetupRequired = false;
+    var faceSetupPrompt = "Your Face Id is what proves the claim is really you. Set it up once in your account settings, then you can claim every week.";
     var backgroundState = [];
     var buttonInertBefore = false;
     var buttonAriaHiddenBefore = null;
@@ -260,6 +278,20 @@
       }).join("");
     }
 
+    function setFaceSetupRequired(required) {
+      faceSetupRequired = !!required;
+      faceSetup.hidden = !faceSetupRequired;
+      if (faceSetupRequired) {
+        status.className = "es-weekly-status";
+        status.textContent = "Face Id not Set. Go to Face Id and configure.";
+        claimButton.disabled = true;
+        claimButton.classList.remove("is-ready");
+        claimButton.textContent = "Set up Face ID to claim";
+        faceCheckButton.disabled = false;
+        faceCheckButton.textContent = "I've set it up — check again";
+      }
+    }
+
     function render(data) {
       activityData = data;
       var hours = Number(data.hoursExact || 0);
@@ -273,9 +305,10 @@
       renderDayGrid(data);
       countdown();
 
-      claimButton.disabled = !data.eligible || data.claimed || claimBusy;
-      claimButton.classList.toggle("is-ready", !!data.eligible && !data.claimed);
+      claimButton.disabled = !data.eligible || data.claimed || claimBusy || faceSetupRequired;
+      claimButton.classList.toggle("is-ready", !!data.eligible && !data.claimed && !faceSetupRequired);
       if (data.claimed) {
+        setFaceSetupRequired(false);
         status.className = "es-weekly-status is-success";
         status.textContent = "Reward claimed for this week. Your next milestone starts at the weekly reset.";
         claimButton.textContent = "5 coins claimed";
@@ -283,7 +316,9 @@
         status.className = "es-weekly-status is-success";
         status.textContent = "Milestone complete. Your 5-coin reward is ready.";
         claimButton.textContent = "🎁 Claim 5 Coins";
+        if (faceSetupRequired) setFaceSetupRequired(true);
       } else {
+        setFaceSetupRequired(false);
         status.className = "es-weekly-status";
         var missing = [];
         if (data.hoursRemaining) missing.push(data.hoursRemaining + " more active hour" + (data.hoursRemaining === 1 ? "" : "s"));
@@ -355,16 +390,44 @@
         else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panel)) { event.preventDefault(); first.focus(); }
       }
     });
-    claimButton.addEventListener("click", function () {
-      if (!activityData || !activityData.eligible || claimBusy) return;
+    function claimWithFaceId() {
+      if (!activityData || !activityData.eligible || activityData.claimed || claimBusy) return;
       claimBusy = true;
+      claimFailure = null;
       claimButton.disabled = true;
-      claimButton.textContent = "Claiming…";
-      requestJson("/api/rewards/weekly-activity/claim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
+      faceCheckButton.disabled = true;
+      claimButton.textContent = "Checking Face ID…";
+      status.className = "es-weekly-status";
+      status.textContent = "Checking your Face ID setup…";
+
+      requestJson("/api/facescan/status").catch(function (error) {
+        if (error.status === 401) throw error;
+        throw new Error("Could not check Face ID setup. Please try again.");
+      }).then(function (faceStatus) {
+        if (!faceStatus.enabled) {
+          setFaceSetupRequired(true);
+          return null;
+        }
+        setFaceSetupRequired(false);
+        status.textContent = "Follow the camera prompt to verify your Face ID.";
+        return loadClaimFaceModule();
+      }).then(function (faceModule) {
+        if (!faceModule) return null;
+        return faceModule.captureClaimFace().then(function (capture) {
+          var samples = capture && Array.isArray(capture.samples) ? capture.samples : [];
+          var faceDescriptor = samples.length ? samples.map(function (sample) { return { v: sample }; }) : capture && capture.descriptor;
+          if (!Array.isArray(faceDescriptor) || !faceDescriptor.length) {
+            throw new Error("Face check failed. Please try again.");
+          }
+          status.textContent = "Face captured. Verifying your claim…";
+          return requestJson("/api/rewards/weekly-activity/claim", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ faceDescriptor: faceDescriptor }),
+          });
+        });
       }).then(function (result) {
+        if (!result) return;
         claimFailure = null;
         if (result.summary) render(result.summary);
         else loadSummary();
@@ -372,16 +435,32 @@
         status.className = "es-weekly-status is-success";
         status.textContent = "5 coins added to your account balance.";
       }).catch(function (error) {
-        claimFailure = error.message || "The reward could not be claimed.";
-        status.className = "es-weekly-status is-error";
-        status.textContent = claimFailure;
-        loadSummary(true);
+        var message = error && error.message ? error.message : "The reward could not be claimed.";
+        if (/face id not set|no-faceid/i.test(message)) {
+          setFaceSetupRequired(true);
+          return;
+        }
+        claimFailure = message;
+        status.className = error && error.status === 401 ? "es-weekly-status" : "es-weekly-status is-error";
+        if (error && error.status === 401) status.innerHTML = 'Your sign-in expired. <a href="/login">Sign in again</a> to claim.';
+        else status.textContent = message;
       }).finally(function () {
         claimBusy = false;
-        if (activityData && !claimFailure) render(activityData);
-        else claimButton.disabled = true;
+        faceCheckButton.disabled = false;
+        if (faceSetupRequired) {
+          claimButton.disabled = true;
+          claimButton.classList.remove("is-ready");
+          claimButton.textContent = "Set up Face ID to claim";
+        } else if (activityData) {
+          claimButton.disabled = !activityData.eligible || activityData.claimed;
+          claimButton.classList.toggle("is-ready", !!activityData.eligible && !activityData.claimed);
+          if (activityData.claimed) claimButton.textContent = "5 coins claimed";
+          else if (activityData.eligible) claimButton.textContent = "🎁 Claim 5 Coins";
+        }
       });
-    });
+    }
+    claimButton.addEventListener("click", claimWithFaceId);
+    faceCheckButton.addEventListener("click", claimWithFaceId);
     button.addEventListener("keydown", function (event) { if (event.key === "Enter" || event.key === " ") noteInteraction("keyboard"); });
     return { countdown: countdown };
   }

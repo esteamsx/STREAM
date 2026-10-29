@@ -3,6 +3,7 @@ export function registerWeeklyActivityRoutes(router, {
   requireSiteOrigin,
   SimpleRateLimiter,
   getSummary,
+  verifyFaceId,
   claimReward,
 }) {
   const summaryLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
@@ -25,6 +26,7 @@ export function registerWeeklyActivityRoutes(router, {
     async (req, res) => {
       try {
         res.set("Cache-Control", "no-store");
+        await verifyFaceId(req.uid, req.body?.faceDescriptor);
         res.json(await claimReward(req.uid));
       } catch (err) {
         res.status(err.status || 500).json({ error: err.message || "Could not claim this week's reward." });

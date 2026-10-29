@@ -5166,7 +5166,18 @@ function showRewards(){
   syncPanelHeight();
   window.scrollTo(0, 0);
 }
-if (localStorage.getItem(ACC_VIEW_STORAGE_KEY) === 'rewards' || window.location.hash === '#rewards') {
+if (window.location.hash === '#faceScanCard') {
+  showAccount();
+  const faceCard = document.getElementById('faceScanCard');
+  if (faceCard) {
+    faceCard.classList.add('open');
+    setTimeout(() => {
+      faceCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      faceCard.classList.add('flash-highlight');
+      setTimeout(() => faceCard.classList.remove('flash-highlight'), 1800);
+    }, 380);
+  }
+} else if (localStorage.getItem(ACC_VIEW_STORAGE_KEY) === 'rewards' || window.location.hash === '#rewards') {
   showRewards();
   loadRewardsSummary();
 }

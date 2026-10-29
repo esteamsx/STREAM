@@ -8,6 +8,7 @@ import {
   WEEKLY_ACTIVITY_MIN_PULSE_MS,
 } from "../services/weekly-activity.js";
 import { registerChessRoutes } from "../routes/chess.js";
+import { registerWeeklyActivityRoutes } from "../routes/weekly-activity.js";
 import { injectPromoSlot } from "../middleware/promo-slot.js";
 
 const HOUR = 60 * 60 * 1000;
@@ -273,6 +274,59 @@ test("claims reject non-eligible, restricted, and inconsistent-ledger accounts",
   h.db.documents.set("users/user-ledger/weeklyActivity/current", qualifyingData(now));
   await assert.rejects(h.service.claim("user-ledger"), { status: 409, code: "weekly_activity/coin_review" });
   assert.ok(h.events.some((event) => event.code === "coin_ledger_mismatch"));
+});
+
+test("weekly claim verifies the account Face ID before calling the atomic reward service", async () => {
+  const routes = new Map();
+  const calls = [];
+  const faceDescriptor = Array.from({ length: 3 }, () => ({ v: new Array(128).fill(0.1) }));
+  const requireAuth = () => {};
+  const requireSiteOrigin = (req, res, next) => next();
+  class AllowLimiter { middleware() { return (req, res, next) => next(); } }
+  const router = {
+    get(path, ...handlers) { routes.set("GET " + path, handlers); },
+    post(path, ...handlers) { routes.set("POST " + path, handlers); },
+  };
+  registerWeeklyActivityRoutes(router, {
+    requireAuth,
+    requireSiteOrigin,
+    SimpleRateLimiter: AllowLimiter,
+    getSummary: async () => ({}),
+    verifyFaceId: async (uid, descriptor) => {
+      calls.push(["verify", uid, descriptor]);
+      const valid = Array.isArray(descriptor) && descriptor.length > 0 && descriptor.every((sample) =>
+        sample && Array.isArray(sample.v) && sample.v.length === 128 && sample.v.every(Number.isFinite));
+      if (!valid) throw Object.assign(new Error("Face check failed. Please try again."), { status: 400 });
+    },
+    claimReward: async (uid) => {
+      calls.push(["claim", uid]);
+      return { ok: true, coinsAwarded: 5 };
+    },
+  });
+  const handlers = routes.get("POST /api/rewards/weekly-activity/claim");
+  const respond = () => ({
+    statusCode: 200,
+    headers: {},
+    set(name, value) { this.headers[name] = value; return this; },
+    status(code) { this.statusCode = code; return this; },
+    json(data) { this.data = data; return this; },
+  });
+
+  const success = respond();
+  await handlers.at(-1)({ uid: "face-user", body: { faceDescriptor } }, success);
+  assert.deepEqual(calls.map((call) => call[0]), ["verify", "claim"]);
+  assert.deepEqual(calls[0], ["verify", "face-user", faceDescriptor]);
+  assert.deepEqual(success.data, { ok: true, coinsAwarded: 5 });
+  assert.equal(success.headers["Cache-Control"], "no-store");
+
+  for (const body of [{}, { faceDescriptor: [{ v: [0.1, 0.2, 0.3] }] }]) {
+    calls.length = 0;
+    const rejected = respond();
+    await handlers.at(-1)({ uid: "face-user", body }, rejected);
+    assert.deepEqual(calls.map((call) => call[0]), ["verify"]);
+    assert.equal(rejected.statusCode, 400);
+    assert.match(rejected.data.error, /Face check failed/);
+  }
 });
 
 test("weekly activity uses the existing chess heartbeat without changing plain presence pings", async () => {
