@@ -1,3 +1,5 @@
+import { requestMedia } from '/permission-gate.js';
+
 const OVERLAY_ID = 'faceScanOverlay';
 const CLIP_ID = 'faceScanClipPath';
 const CAPTURE_TIMEOUT_MS = 60000;
@@ -468,9 +470,9 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
     (async () => {
       try {
         const modelsPromise = warmUpModels();
-        const cameraPromise = navigator.mediaDevices.getUserMedia({
+        const cameraPromise = requestMedia({
           video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
-        });
+        }, { kind: 'camera', title: 'Face ID needs your camera', reason: 'ES TEAMS uses your camera only to scan your face for Face ID. The browser will ask for access next.' });
 
         stream = await cameraPromise;
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
