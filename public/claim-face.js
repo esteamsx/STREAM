@@ -63,6 +63,16 @@ function cfWarmUp() {
       });
       await faceapi.detectSingleFace(canvas, options).withFaceLandmarks().withFaceDescriptor();
     } catch (e) {}
+    try {
+      const warm = document.createElement('canvas');
+      warm.width = 150;
+      warm.height = 150;
+      const wctx = warm.getContext('2d');
+      wctx.fillStyle = '#9a9a9a';
+      wctx.fillRect(0, 0, warm.width, warm.height);
+      await faceapi.nets.faceLandmark68Net.detectLandmarks(warm);
+      await faceapi.nets.faceRecognitionNet.computeFaceDescriptor(warm);
+    } catch (e) {}
     return faceapi;
   })();
   return cfWarmupPromise;

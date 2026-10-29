@@ -11,6 +11,8 @@ test("daily coin face check preserves the original center-face flow", () => {
   assert.match(source, /setStatus\('Center your face and hold still'\)/);
   assert.match(source, /setStatus\('Hold still'\)/);
   assert.doesNotMatch(source, /cfRoll|cfBob|cf-ring|cf-coin/);
+  assert.match(source, /faceapi\.nets\.faceLandmark68Net\.detectLandmarks\(warm\)/);
+  assert.match(source, /faceapi\.nets\.faceRecognitionNet\.computeFaceDescriptor\(warm\)/);
   assert.equal((account.match(/import\('\/claim-face\.js\?v=\$\{ASSET_VERSION\}'\)/g) || []).length, 2);
   assert.doesNotMatch(source, /setStatus\('Scanning your face — hold still'\)/);
 });
