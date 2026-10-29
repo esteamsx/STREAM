@@ -2346,6 +2346,8 @@ async function getPostsByUser(targetUid, viewerUid, { limit = 30, before = null 
   posts.sort((a, b) => (b.pinnedAt ? 1 : 0) - (a.pinnedAt ? 1 : 0) || b.createdAt - a.createdAt);
 
   const isOwner = viewerUid === targetUid;
+  const ownerProfile = isOwner ? await getUserProfile(targetUid) : null;
+  const ownerIsPremium = !!(ownerProfile && (isVerificationActive(ownerProfile) || isAdminEmail(ownerProfile.email)));
   let mutualFollow = false;
   if (!isOwner && viewerUid) {
     const [a, b] = await Promise.all([isFollowing(viewerUid, targetUid), isFollowing(targetUid, viewerUid)]);
@@ -2368,6 +2370,7 @@ async function getPostsByUser(targetUid, viewerUid, { limit = 30, before = null 
       id: p.id,
       text: p.text || "",
       imageDataUrl: p.imageDataUrl || null,
+      promoRestrictedForOwner: isOwner && !ownerIsPremium && looksLikePromotionalPost(p.text),
       taggedUids: p.taggedUids || [],
       visibility: p.visibility || "everyone",
       resharedFrom: p.resharedFrom || null,

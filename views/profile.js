@@ -611,6 +611,11 @@ body:has(.page-overlay.show){overflow:hidden}
 .pf-post-pinned-label svg{width:14px;height:14px}
 .pf-post.is-pinned{border:1px solid rgba(245,183,0,.35);background:linear-gradient(180deg,rgba(245,183,0,.06),transparent 60%)}
 .pf-post-edited{font-size:.68rem;color:var(--muted)}
+.pf-post-restricted{position:relative;margin:0 0 10px;padding:9px 38px 9px 11px;border:1px solid rgba(245,183,0,.42);border-radius:10px;background:rgba(245,183,0,.08);color:var(--text);font-size:.76rem;line-height:1.45}
+.pf-post-restricted summary{color:#ffd166;text-decoration:underline;text-underline-offset:3px;font-weight:700;cursor:pointer}
+.pf-post-restricted-copy{margin-top:6px;color:var(--muted)}
+.pf-post-restricted-flag{position:absolute;top:9px;right:10px;color:#ff3b5c;font-size:1.05rem;line-height:1}
+.pf-post-restricted-copy a{color:#ffd166;text-decoration:underline;text-underline-offset:2px;font-weight:700}
 .post-opt-btn{
   display:flex;align-items:center;gap:12px;width:100%;padding:12px 10px;background:transparent;border:none;
   color:var(--text);font-size:.86rem;font-weight:600;border-radius:10px;text-align:left;
@@ -1537,6 +1542,13 @@ function createPostCard(post, isOwner){
   card.className = 'pf-post' + (post.pinnedAt ? ' is-pinned' : '');
   card.id = 'post-' + post.id;
   card.style.position = 'relative';
+
+  if (isOwner && post.promoRestrictedForOwner) {
+    const restricted = document.createElement('details');
+    restricted.className = 'pf-post-restricted';
+    restricted.innerHTML = '<summary>Restricted View</summary><span class="pf-post-restricted-flag" aria-label="Restricted post" title="Restricted post">⚑</span><div class="pf-post-restricted-copy">Users without Premium will never see this post on your profile. <a href="/account#verify">Upgrade to Premium</a> to make it visible to users.</div>';
+    card.appendChild(restricted);
+  }
 
   if (post.pinnedAt) {
     const pinnedLabel = document.createElement('div');
