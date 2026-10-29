@@ -603,6 +603,9 @@ body:has(.ad-overlay.show){overflow:hidden}
 .ad-analytics-title{font-family:var(--font-display);font-weight:800;font-size:1.05rem}
 .ad-analytics-close{width:36px;height:36px;border-radius:50%;background:var(--card2);border:1px solid var(--border-strong);color:var(--text);display:flex;align-items:center;justify-content:center}
 .ad-analytics-body{flex:1;overflow-y:auto;padding:16px 18px 40px}
+.ad-analytics-tabs{display:flex;gap:8px;margin-bottom:16px}
+.ad-analytics-tab{flex:1;padding:10px 12px;border-radius:11px;background:var(--card2);border:1px solid var(--border-strong);color:var(--muted);font-weight:800;font-size:.78rem}
+.ad-analytics-tab.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-color:transparent}
 
 .ad-range-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:18px}
 .ad-range-pill{
@@ -1019,39 +1022,6 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div></div>
   </div>
 
-  <div class="ad-section-label">API Analytics</div>
-  <div class="ad-card open accent-blue" id="apiAnalyticsCard">
-    <div class="ad-card-header" style="cursor:default">
-      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <div class="ad-card-header-title">Developer &amp; Live TV API</div>
-    </div>
-    <div class="ad-card-body" style="max-height:none"><div class="ad-card-body-inner">
-      <div class="api-aa-toolbar">
-        <div style="font-size:.7rem;color:var(--muted)">Request telemetry · UTC</div>
-        <div class="api-aa-range" id="apiAnalyticsRange" role="group" aria-label="API analytics date range">
-          <button type="button" data-range="7d">7 days</button>
-          <button type="button" class="active" data-range="30d">30 days</button>
-          <button type="button" data-range="90d">90 days</button>
-        </div>
-      </div>
-      <div class="api-aa-note" id="apiAnalyticsNotice">Loading API request records…</div>
-      <div class="api-aa-grid" id="apiAnalyticsTotals"></div>
-      <div class="api-aa-product-grid" id="apiAnalyticsProducts"></div>
-      <div class="api-aa-sec-title" style="font:700 .78rem var(--font-display);margin:2px 0 8px">Daily / weekly / monthly requests</div>
-      <div class="api-aa-grid" id="apiAnalyticsPeriods"></div>
-      <div class="api-aa-sec-title" style="font:700 .78rem var(--font-display);margin:14px 0 8px">Request trend</div>
-      <div class="api-aa-chart" id="apiAnalyticsChart"><div class="ad-empty">Loading…</div></div>
-      <div class="api-aa-columns">
-        <div class="api-aa-list"><div class="api-aa-list-title">Most-used Developer API endpoints</div><div id="apiAnalyticsTopDev"></div></div>
-        <div class="api-aa-list"><div class="api-aa-list-title">Most-used Live TV API endpoints</div><div id="apiAnalyticsTopTv"></div></div>
-      </div>
-      <div class="api-aa-columns">
-        <div class="api-aa-list"><div class="api-aa-list-title">Recent errors</div><div id="apiAnalyticsErrors"></div></div>
-        <div class="api-aa-list"><div class="api-aa-list-title">Recent API activity</div><div class="api-aa-activity" id="apiAnalyticsActivity"></div><button type="button" class="api-aa-load" id="apiAnalyticsMore" style="display:none">Load older activity</button></div>
-      </div>
-    </div></div>
-  </div>
-
   <div class="ad-section-label">Users &amp; Moderation</div>
 
   <div class="ad-card accent-purple" id="usersCard">
@@ -1275,34 +1245,67 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </button>
   </div>
   <div class="ad-analytics-body">
-    <div class="ad-range-row" id="analyticsRangeRow">
-      <button type="button" class="ad-range-pill" data-range="24h">24 Hours</button>
-      <button type="button" class="ad-range-pill active" data-range="7d">7 Days</button>
-      <button type="button" class="ad-range-pill" data-range="30d">30 Days</button>
-      <button type="button" class="ad-range-pill" data-range="60d">60 Days</button>
-      <button type="button" class="ad-range-pill" data-range="180d">180 Days</button>
-      <button type="button" class="ad-range-pill" data-range="lifetime">Lifetime</button>
+    <div class="ad-analytics-tabs" role="tablist" aria-label="Analytics type">
+      <button type="button" class="ad-analytics-tab active" id="analyticsApiTab" role="tab" aria-selected="true" aria-controls="apiAnalyticsPanel">API Requests</button>
+      <button type="button" class="ad-analytics-tab" id="analyticsSiteTab" role="tab" aria-selected="false" aria-controls="siteAnalyticsPanel">Site Views</button>
     </div>
 
-    <div class="ad-analytics-summary">
-      <div class="ad-summary-card">
-        <div class="ad-summary-label"><span class="ad-summary-dot" style="background:#00E0FF"></span>Views</div>
-        <div class="ad-summary-value" id="analyticsViewsTotal">--</div>
+    <div id="apiAnalyticsPanel" role="tabpanel" aria-labelledby="analyticsApiTab">
+      <div class="api-aa-toolbar">
+        <div style="font-size:.7rem;color:var(--muted)">Request telemetry · UTC</div>
+        <div class="api-aa-range" id="apiAnalyticsRange" role="group" aria-label="API analytics date range">
+          <button type="button" data-range="7d">7 days</button>
+          <button type="button" class="active" data-range="30d">30 days</button>
+          <button type="button" data-range="90d">90 days</button>
+        </div>
       </div>
-      <div class="ad-summary-card">
-        <div class="ad-summary-label"><span class="ad-summary-dot" style="background:#12C48B"></span>Visitors</div>
-        <div class="ad-summary-value" id="analyticsVisitorsTotal">--</div>
+      <div class="api-aa-note" id="apiAnalyticsNotice">Loading API request records…</div>
+      <div class="api-aa-grid" id="apiAnalyticsTotals"></div>
+      <div class="api-aa-product-grid" id="apiAnalyticsProducts"></div>
+      <div class="api-aa-sec-title" style="font:700 .78rem var(--font-display);margin:2px 0 8px">Daily / weekly / monthly requests</div>
+      <div class="api-aa-grid" id="apiAnalyticsPeriods"></div>
+      <div class="api-aa-sec-title" style="font:700 .78rem var(--font-display);margin:14px 0 8px">Request trend</div>
+      <div class="api-aa-chart" id="apiAnalyticsChart"><div class="ad-empty">Loading…</div></div>
+      <div class="api-aa-columns">
+        <div class="api-aa-list"><div class="api-aa-list-title">Most-used Developer API endpoints</div><div id="apiAnalyticsTopDev"></div></div>
+        <div class="api-aa-list"><div class="api-aa-list-title">Most-used Live TV API endpoints</div><div id="apiAnalyticsTopTv"></div></div>
+      </div>
+      <div class="api-aa-columns">
+        <div class="api-aa-list"><div class="api-aa-list-title">Recent errors</div><div id="apiAnalyticsErrors"></div></div>
+        <div class="api-aa-list"><div class="api-aa-list-title">Recent API activity</div><div class="api-aa-activity" id="apiAnalyticsActivity"></div><button type="button" class="api-aa-load" id="apiAnalyticsMore" style="display:none">Load older activity</button></div>
       </div>
     </div>
 
-    <div class="ad-chart-wrap">
-      <canvas id="adAnalyticsCanvas" height="220"></canvas>
-      <div class="ad-chart-tooltip" id="analyticsTooltip"></div>
-      <div class="ad-chart-empty" id="analyticsChartEmpty" style="display:none">No traffic recorded for this range yet.</div>
-    </div>
+    <div id="siteAnalyticsPanel" role="tabpanel" aria-labelledby="analyticsSiteTab" style="display:none">
+      <div class="ad-range-row" id="analyticsRangeRow">
+        <button type="button" class="ad-range-pill" data-range="24h">24 Hours</button>
+        <button type="button" class="ad-range-pill active" data-range="7d">7 Days</button>
+        <button type="button" class="ad-range-pill" data-range="30d">30 Days</button>
+        <button type="button" class="ad-range-pill" data-range="60d">60 Days</button>
+        <button type="button" class="ad-range-pill" data-range="180d">180 Days</button>
+        <button type="button" class="ad-range-pill" data-range="lifetime">Lifetime</button>
+      </div>
 
-    <div class="ad-analytics-sec-title">Top Pages</div>
-    <div id="analyticsTopPages"></div>
+      <div class="ad-analytics-summary">
+        <div class="ad-summary-card">
+          <div class="ad-summary-label"><span class="ad-summary-dot" style="background:#00E0FF"></span>Views</div>
+          <div class="ad-summary-value" id="analyticsViewsTotal">--</div>
+        </div>
+        <div class="ad-summary-card">
+          <div class="ad-summary-label"><span class="ad-summary-dot" style="background:#12C48B"></span>Visitors</div>
+          <div class="ad-summary-value" id="analyticsVisitorsTotal">--</div>
+        </div>
+      </div>
+
+      <div class="ad-chart-wrap">
+        <canvas id="adAnalyticsCanvas" height="220"></canvas>
+        <div class="ad-chart-tooltip" id="analyticsTooltip"></div>
+        <div class="ad-chart-empty" id="analyticsChartEmpty" style="display:none">No traffic recorded for this range yet.</div>
+      </div>
+
+      <div class="ad-analytics-sec-title">Top Pages</div>
+      <div id="analyticsTopPages"></div>
+    </div>
   </div>
 </div>
 
@@ -4036,13 +4039,30 @@ document.querySelectorAll('#apiAnalyticsRange button').forEach((button) => {
   });
 });
 document.getElementById('apiAnalyticsMore').addEventListener('click', loadMoreApiActivity);
-loadApiAnalytics(apiAnalyticsRangeValue);
 
 let analyticsCurrentRange = '7d';
+let analyticsCurrentPanel = 'api';
+
+function showAnalyticsPanel(panel){
+  analyticsCurrentPanel = panel === 'site' ? 'site' : 'api';
+  const isApi = analyticsCurrentPanel === 'api';
+  document.getElementById('apiAnalyticsPanel').style.display = isApi ? 'block' : 'none';
+  document.getElementById('siteAnalyticsPanel').style.display = isApi ? 'none' : 'block';
+  document.getElementById('analyticsApiTab').classList.toggle('active', isApi);
+  document.getElementById('analyticsSiteTab').classList.toggle('active', !isApi);
+  document.getElementById('analyticsApiTab').setAttribute('aria-selected', isApi ? 'true' : 'false');
+  document.getElementById('analyticsSiteTab').setAttribute('aria-selected', isApi ? 'false' : 'true');
+  document.querySelector('.ad-analytics-body').scrollTop = 0;
+  if (isApi) loadApiAnalytics(apiAnalyticsRangeValue);
+  else loadAnalytics(analyticsCurrentRange);
+}
+
+document.getElementById('analyticsApiTab').addEventListener('click', () => showAnalyticsPanel('api'));
+document.getElementById('analyticsSiteTab').addEventListener('click', () => showAnalyticsPanel('site'));
 
 document.getElementById('analyticsFabBtn').addEventListener('click', () => {
   document.getElementById('analyticsOverlay').classList.add('show');
-  loadAnalytics(analyticsCurrentRange);
+  showAnalyticsPanel(analyticsCurrentPanel);
 });
 document.getElementById('analyticsCloseBtn').addEventListener('click', () => {
   document.getElementById('analyticsOverlay').classList.remove('show');
