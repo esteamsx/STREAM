@@ -230,15 +230,13 @@ function ensureOverlayStyles() {
 #${OVERLAY_ID} .fs-step.fs-active{border-color:#00E0FF;color:#fff;box-shadow:0 0 14px rgba(0,224,255,.3);transform:scale(1.06)}
 #${OVERLAY_ID} .fs-step.fs-complete{border-color:#6CF08A;background:rgba(108,240,138,.16);color:#6CF08A;box-shadow:0 0 14px rgba(108,240,138,.22)}
 #${OVERLAY_ID} .fs-step.fs-complete:not(:last-child)::before{background:#6CF08A}
-#${OVERLAY_ID} .fs-step-check{display:none;font-size:1rem;line-height:1}
+#${OVERLAY_ID} .fs-step-check{display:none;width:18px;height:18px;overflow:visible}
+#${OVERLAY_ID} .fs-step-check-circle{fill:none;stroke:#6CF08A;stroke-width:2;opacity:.45}
+#${OVERLAY_ID} .fs-step-check-path{fill:none;stroke:#6CF08A;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24;transition:stroke-dashoffset .24s cubic-bezier(.65,0,.35,1)}
 #${OVERLAY_ID} .fs-step.fs-complete .fs-step-number{display:none}
 #${OVERLAY_ID} .fs-step.fs-complete .fs-step-check{display:block}
+#${OVERLAY_ID} .fs-step.fs-complete .fs-step-check-path{stroke-dashoffset:0}
 #${OVERLAY_ID} .fs-enrollment-mode .fs-status{max-width:310px}
-#${OVERLAY_ID} .fs-frame.fs-capture-flash{animation:fsCaptureFlash .28s ease-out both}
-#${OVERLAY_ID} .fs-frame.fs-capture-flash-cyan{--fs-flash-color:rgba(0,224,255,.72)}
-#${OVERLAY_ID} .fs-frame.fs-capture-flash-violet{--fs-flash-color:rgba(177,112,255,.72)}
-#${OVERLAY_ID} .fs-frame.fs-capture-flash-amber{--fs-flash-color:rgba(255,184,76,.72)}
-@keyframes fsCaptureFlash{0%{filter:brightness(1)}18%{filter:brightness(1.8) drop-shadow(0 0 22px var(--fs-flash-color))}100%{filter:brightness(1)}}
 #${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-abstract{width:min(220px,58vw);height:min(220px,58vw)}
 #${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-abstract-face{width:104px;height:104px}
 #${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-abstract-cross{width:84px;height:84px}
@@ -406,9 +404,9 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
   const enrollmentSteps = enrollmentMode
     ? '<div class="fs-enrollment-steps" aria-label="Face scan progress">' +
-      '<div class="fs-step fs-active" data-step="0"><span class="fs-step-number">1</span><span class="fs-step-check">✓</span></div>' +
-      '<div class="fs-step" data-step="1"><span class="fs-step-number">2</span><span class="fs-step-check">✓</span></div>' +
-      '<div class="fs-step" data-step="2"><span class="fs-step-number">3</span><span class="fs-step-check">✓</span></div>' +
+      '<div class="fs-step fs-active" data-step="0"><span class="fs-step-number">1</span><svg class="fs-step-check" viewBox="0 0 24 24" aria-hidden="true"><circle class="fs-step-check-circle" cx="12" cy="12" r="9"/><path class="fs-step-check-path" d="M7 12.5l3.2 3.1L17.5 9"/></svg></div>' +
+      '<div class="fs-step" data-step="1"><span class="fs-step-number">2</span><svg class="fs-step-check" viewBox="0 0 24 24" aria-hidden="true"><circle class="fs-step-check-circle" cx="12" cy="12" r="9"/><path class="fs-step-check-path" d="M7 12.5l3.2 3.1L17.5 9"/></svg></div>' +
+      '<div class="fs-step" data-step="2"><span class="fs-step-number">3</span><svg class="fs-step-check" viewBox="0 0 24 24" aria-hidden="true"><circle class="fs-step-check-circle" cx="12" cy="12" r="9"/><path class="fs-step-check-path" d="M7 12.5l3.2 3.1L17.5 9"/></svg></div>' +
       '</div>'
     : '';
 
@@ -476,16 +474,6 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
       step.classList.toggle('fs-complete', stepIndex < index);
       step.classList.toggle('fs-active', stepIndex === index && index < 3);
     });
-  }
-
-  function flashEnrollmentCapture(sampleIndex) {
-    if (!enrollmentMode) return;
-    const frame = overlay.querySelector('.fs-frame');
-    if (!frame) return;
-    frame.classList.remove('fs-capture-flash', 'fs-capture-flash-cyan', 'fs-capture-flash-violet', 'fs-capture-flash-amber');
-    void frame.offsetWidth;
-    const colors = ['fs-capture-flash-cyan', 'fs-capture-flash-violet', 'fs-capture-flash-amber'];
-    frame.classList.add('fs-capture-flash', colors[sampleIndex % colors.length]);
   }
 
   let stream = null;
@@ -795,7 +783,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
               Math.abs(headPitchRatio(result.landmarks) - neutralPitch) < NOD_THRESHOLD;
             if (Math.abs(turnRatio) < CENTER_THRESHOLD && levelEnough) {
               collected.push(descriptor);
-              flashEnrollmentCapture(collected.length - 1);
+              if (enrollmentMode) setStatus('Hold still — capturing ' + collected.length + ' of ' + sampleTarget);
               if (collected.length >= sampleTarget) {
                 finishCapture(collected);
                 return;
