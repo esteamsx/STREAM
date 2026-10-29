@@ -4308,7 +4308,8 @@ async function creditAdminFromSpend(spenderUid, spenderEmail, spenderUsername, a
     await db.runTransaction(async (tx) => {
       const adminSnap = await tx.get(adminDoc.ref);
       const data = adminSnap.exists ? adminSnap.data() : {};
-      const ledger = appendCoinLedger(tx, adminDoc.ref, data, amount, opts.reason || "channel_react_income", { fromUid: spenderUid });
+      const ledgerMeta = { ...(opts.meta && typeof opts.meta === "object" ? opts.meta : {}), fromUid: spenderUid };
+      const ledger = appendCoinLedger(tx, adminDoc.ref, data, amount, opts.reason || "channel_react_income", ledgerMeta);
       tx.set(adminDoc.ref, { coinBalance: admin.firestore.FieldValue.increment(amount), ...ledger }, { merge: true });
     });
     invalidateUserProfileCache(adminDoc.id);
@@ -4347,7 +4348,9 @@ async function redeemCoinsForLimit(uid, itemKey, product) {
     addMonthlyBonusRequests(tx, userRef, data, product, item.bonusAmount);
   });
   invalidateUserProfileCache(uid);
-  creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, item.coinCost).catch(() => {});
+  creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, item.coinCost, {
+    meta: { source: "api_request_limit", product, itemKey },
+  }).catch(() => {});
   const productLabel = product === "devapi" ? "Developer API" : "Live TV API";
   await addNotification(uid, "coin_redeem", `Redeemed ${item.coinCost} coins for ${item.label} on your ${productLabel}`, { itemKey, product });
   return { amount: item.bonusAmount, coinCost: item.coinCost };

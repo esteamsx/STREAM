@@ -405,6 +405,7 @@ import {
 import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
 import { canonicalPath, pageGuards } from "./middleware/navigation.js";
 import { WEB_MANIFEST, siteHead, siteHeadFor, siteOrigin } from "./config/site.js";
+import { createApiAnalyticsMiddleware, getApiAnalytics, getApiActivityPage } from "./services/api-analytics.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -414,6 +415,7 @@ app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
 app.use(requestId);
+app.use(createApiAnalyticsMiddleware(db));
 
 app.use(responseWatchdog({ timeoutMs: 30000, exemptPrefixes: ["/api/v1/hls/"] }));
 
@@ -1237,6 +1239,29 @@ app.get("/api/admin/analytics", requireAuth, requireAdmin, async (req, res) => {
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: "Could not load analytics." });
+  }
+});
+
+app.get("/api/admin/api-analytics", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const range = ["7d", "30d", "90d"].includes(String(req.query.range || "30d")) ? String(req.query.range || "30d") : "30d";
+    const data = await getApiAnalytics(db, { range });
+    res.set("Cache-Control", "no-store").json(data);
+  } catch (err) {
+    console.error("admin API analytics load failed:", err && err.message);
+    res.status(500).set("Cache-Control", "no-store").json({ error: "Could not load API analytics." });
+  }
+});
+
+app.get("/api/admin/api-analytics/activity", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const range = ["7d", "30d", "90d"].includes(String(req.query.range || "30d")) ? String(req.query.range || "30d") : "30d";
+    const cursor = String(req.query.cursor || "");
+    const data = await getApiActivityPage(db, { range, cursor });
+    res.set("Cache-Control", "no-store").json(data);
+  } catch (err) {
+    console.error("admin API activity load failed:", err && err.message);
+    res.status(500).set("Cache-Control", "no-store").json({ error: "Could not load API activity." });
   }
 });
 

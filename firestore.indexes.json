@@ -15,6 +15,25 @@
         { "fieldPath": "uid", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "coinLedger",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "meta.product", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "coinLedger",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "meta.source", "order": "ASCENDING" },
+        { "fieldPath": "meta.product", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

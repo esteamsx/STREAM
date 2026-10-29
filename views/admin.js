@@ -99,6 +99,35 @@ input{font-family:inherit}
 }
 .ad-section-label::after{content:'';flex:1;height:1px;background:var(--border)}
 .ad-section-label:first-child{margin-top:0}
+.api-aa-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.api-aa-range{display:flex;gap:6px;flex-wrap:wrap}
+.api-aa-range button{padding:7px 11px;border-radius:999px;border:1px solid var(--border-strong);background:var(--card2);color:var(--muted);font-size:.7rem;font-weight:800}
+.api-aa-range button.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;border-color:transparent}
+.api-aa-note{font-size:.72rem;line-height:1.55;color:var(--muted);margin:8px 0 14px;padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.025)}
+.api-aa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.api-aa-stat{min-width:0;padding:11px 12px;border-radius:12px;border:1px solid var(--border);background:var(--card2)}
+.api-aa-stat-label{font-size:.61rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.api-aa-stat-value{font-family:var(--font-display);font-weight:800;font-size:1.08rem;margin-top:4px;overflow-wrap:anywhere}
+.api-aa-product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:14px}
+.api-aa-product{border:1px solid var(--border-strong);border-radius:13px;padding:12px;background:linear-gradient(155deg,rgba(255,255,255,.07),rgba(255,255,255,.015))}
+.api-aa-product h4{margin:0 0 10px;font:700 .82rem var(--font-display);color:var(--accent)}
+.api-aa-product-grid .api-aa-product:nth-child(2) h4{color:var(--accent2)}
+.api-aa-mini{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--border);font-size:.68rem;color:var(--muted)}
+.api-aa-mini b{color:var(--text);font-variant-numeric:tabular-nums}
+.api-aa-chart{border:1px solid var(--border);border-radius:13px;padding:12px;background:var(--card2);margin-bottom:14px}
+.api-aa-chart svg{display:block;width:100%;height:170px;overflow:visible}
+.api-aa-chart text{font:10px system-ui,sans-serif;fill:var(--muted)}
+.api-aa-legend{display:flex;gap:14px;font-size:.66rem;color:var(--muted);margin-top:6px}
+.api-aa-legend span{display:flex;align-items:center;gap:5px}.api-aa-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.api-aa-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.api-aa-list{border:1px solid var(--border);border-radius:12px;background:rgba(0,0,0,.08);padding:10px;min-width:0}
+.api-aa-list-title{font:700 .76rem var(--font-display);margin:0 0 6px}
+.api-aa-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:.67rem}
+.api-aa-row:last-child{border-bottom:0}.api-aa-path{min-width:0;overflow-wrap:anywhere;color:var(--muted)}
+.api-aa-count{flex-shrink:0;color:var(--accent);font-weight:800;font-variant-numeric:tabular-nums}
+.api-aa-error{color:#ff758d}.api-aa-activity{margin-top:4px}
+.api-aa-load{width:100%;margin-top:9px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:10px;background:var(--card2);color:var(--text);font-weight:700;font-size:.72rem}
+@media(max-width:430px){.api-aa-product-grid,.api-aa-columns{grid-template-columns:1fr}.api-aa-stat-value{font-size:1rem}}
 :root[data-theme="light"] .ad-card{
   background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
   border:1px solid rgba(255,255,255,.55);
@@ -987,6 +1016,39 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
       </div>
       <div class="ad-list" id="adsList"></div>
       <button type="button" class="ad-loadmore" id="adsMore" style="display:none">Show more</button>
+    </div></div>
+  </div>
+
+  <div class="ad-section-label">API Analytics</div>
+  <div class="ad-card open accent-blue" id="apiAnalyticsCard">
+    <div class="ad-card-header" style="cursor:default">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="ad-card-header-title">Developer &amp; Live TV API</div>
+    </div>
+    <div class="ad-card-body" style="max-height:none"><div class="ad-card-body-inner">
+      <div class="api-aa-toolbar">
+        <div style="font-size:.7rem;color:var(--muted)">Request telemetry · UTC</div>
+        <div class="api-aa-range" id="apiAnalyticsRange" role="group" aria-label="API analytics date range">
+          <button type="button" data-range="7d">7 days</button>
+          <button type="button" class="active" data-range="30d">30 days</button>
+          <button type="button" data-range="90d">90 days</button>
+        </div>
+      </div>
+      <div class="api-aa-note" id="apiAnalyticsNotice">Loading API request records…</div>
+      <div class="api-aa-grid" id="apiAnalyticsTotals"></div>
+      <div class="api-aa-product-grid" id="apiAnalyticsProducts"></div>
+      <div class="api-aa-sec-title" style="font:700 .78rem var(--font-display);margin:2px 0 8px">Daily / weekly / monthly requests</div>
+      <div class="api-aa-grid" id="apiAnalyticsPeriods"></div>
+      <div class="api-aa-sec-title" style="font:700 .78rem var(--font-display);margin:14px 0 8px">Request trend</div>
+      <div class="api-aa-chart" id="apiAnalyticsChart"><div class="ad-empty">Loading…</div></div>
+      <div class="api-aa-columns">
+        <div class="api-aa-list"><div class="api-aa-list-title">Most-used Developer API endpoints</div><div id="apiAnalyticsTopDev"></div></div>
+        <div class="api-aa-list"><div class="api-aa-list-title">Most-used Live TV API endpoints</div><div id="apiAnalyticsTopTv"></div></div>
+      </div>
+      <div class="api-aa-columns">
+        <div class="api-aa-list"><div class="api-aa-list-title">Recent errors</div><div id="apiAnalyticsErrors"></div></div>
+        <div class="api-aa-list"><div class="api-aa-list-title">Recent API activity</div><div class="api-aa-activity" id="apiAnalyticsActivity"></div><button type="button" class="api-aa-load" id="apiAnalyticsMore" style="display:none">Load older activity</button></div>
+      </div>
     </div></div>
   </div>
 
@@ -3840,6 +3902,141 @@ document.getElementById('maintenanceEndBtn').addEventListener('click', async () 
   }
   btn.disabled = false;
 });
+
+let apiAnalyticsRangeValue = '30d';
+let apiAnalyticsCursor = null;
+let apiAnalyticsLoadId = 0;
+
+function apiAnalyticsStat(label, value){
+  return '<div class="api-aa-stat"><div class="api-aa-stat-label">' + escHtml(label) + '</div><div class="api-aa-stat-value">' + escHtml(value) + '</div></div>';
+}
+function apiAnalyticsCount(value){ return formatCompactNumber(Math.max(0, Number(value) || 0)); }
+function apiAnalyticsSigned(value){ const n = Number(value) || 0; return (n < 0 ? '−' : '') + formatCompactNumber(Math.abs(n)); }
+function apiAnalyticsName(api){ return api === 'developer' ? 'Developer API' : 'Live TV API'; }
+function apiAnalyticsEndpointRows(rows){
+  if (!rows || !rows.length) return '<div class="ad-empty">No endpoint requests recorded for this range.</div>';
+  return rows.map((row) => '<div class="api-aa-row"><span class="api-aa-path">' + escHtml(row.endpoint) + '</span><span class="api-aa-count">' + apiAnalyticsCount(row.requests) + '</span></div>').join('');
+}
+function apiAnalyticsEventRows(rows, isError){
+  if (!rows || !rows.length) return '<div class="ad-empty">' + (isError ? 'No errors recorded for this range.' : 'No API activity recorded for this range.') + '</div>';
+  return rows.map((row) => {
+    const time = row.at ? new Date(row.at).toLocaleString() : '—';
+    const status = Number(row.status) || 0;
+    return '<div class="api-aa-row"><span class="api-aa-path' + (isError ? ' api-aa-error' : '') + '">' + escHtml(apiAnalyticsName(row.api)) + ' · ' + escHtml(row.method) + ' ' + escHtml(row.endpoint) + '<br><span style="font-size:.61rem">' + escHtml(time) + ' · ' + (Number(row.durationMs) || 0) + ' ms</span></span><span class="api-aa-count' + (isError ? ' api-aa-error' : '') + '">' + status + '</span></div>';
+  }).join('');
+}
+function apiAnalyticsTrend(series){
+  if (!series || !series.length || !series.some((point) => point.total > 0)) return '<div class="ad-empty">No request records yet. Historical request events were not stored before analytics tracking.</div>';
+  const width = 640, height = 170, left = 28, right = 10, top = 14, bottom = 24;
+  const maxValue = Math.max(1, ...series.map((point) => Math.max(Number(point.developer) || 0, Number(point.livetv) || 0)));
+  const x = (index) => left + (series.length < 2 ? 0 : index * (width - left - right) / (series.length - 1));
+  const y = (value) => height - bottom - (Number(value || 0) / maxValue) * (height - top - bottom);
+  const dev = series.map((point, index) => x(index).toFixed(1) + ',' + y(point.developer).toFixed(1)).join(' ');
+  const tv = series.map((point, index) => x(index).toFixed(1) + ',' + y(point.livetv).toFixed(1)).join(' ');
+  const dots = series.length === 1 ? '<circle cx="' + x(0) + '" cy="' + y(series[0].developer) + '" r="4" fill="var(--accent)"/><circle cx="' + x(0) + '" cy="' + y(series[0].livetv) + '" r="4" fill="var(--accent2)"/>' : '';
+  const labels = '<text x="' + left + '" y="' + (height - 4) + '">' + escHtml(series[0].date) + '</text><text x="' + (width - right) + '" y="' + (height - 4) + '" text-anchor="end">' + escHtml(series[series.length - 1].date) + '</text>';
+  return '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Daily Developer API and Live TV API request trend"><line x1="' + left + '" y1="' + (height - bottom) + '" x2="' + (width - right) + '" y2="' + (height - bottom) + '" stroke="var(--border-strong)"/><line x1="' + left + '" y1="' + top + '" x2="' + (width - right) + '" y2="' + top + '" stroke="var(--border)"/><polyline points="' + dev + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/><polyline points="' + tv + '" fill="none" stroke="var(--accent2)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' + dots + labels + '</svg><div class="api-aa-legend"><span><i style="background:var(--accent)"></i>Developer API</span><span><i style="background:var(--accent2)"></i>Live TV API</span></div>';
+}
+function renderApiAnalyticsActivity(rows, append){
+  const el = document.getElementById('apiAnalyticsActivity');
+  if (!append) el.innerHTML = apiAnalyticsEventRows(rows, false);
+  else if (rows && rows.length) {
+    const html = apiAnalyticsEventRows(rows, false);
+    if (el.querySelector('.ad-empty')) el.innerHTML = html;
+    else el.insertAdjacentHTML('beforeend', html);
+  }
+}
+async function loadApiAnalytics(range){
+  apiAnalyticsRangeValue = range;
+  apiAnalyticsCursor = null;
+  const loadId = ++apiAnalyticsLoadId;
+  document.getElementById('apiAnalyticsTotals').innerHTML = apiAnalyticsStat('Combined requests', '…');
+  document.getElementById('apiAnalyticsProducts').innerHTML = '';
+  document.getElementById('apiAnalyticsPeriods').innerHTML = '';
+  document.getElementById('apiAnalyticsChart').innerHTML = '<div class="ad-empty">Loading…</div>';
+  document.getElementById('apiAnalyticsTopDev').innerHTML = '';
+  document.getElementById('apiAnalyticsTopTv').innerHTML = '';
+  document.getElementById('apiAnalyticsNotice').textContent = 'Loading server-recorded API requests and coin-ledger entries…';
+  document.getElementById('apiAnalyticsActivity').innerHTML = '<div class="ad-empty">Loading…</div>';
+  document.getElementById('apiAnalyticsErrors').innerHTML = '<div class="ad-empty">Loading…</div>';
+  document.getElementById('apiAnalyticsMore').style.display = 'none';
+  try {
+    const data = await getJSON('/api/admin/api-analytics?range=' + encodeURIComponent(range));
+    if (loadId !== apiAnalyticsLoadId) return;
+    const totals = data.totals || {};
+    document.getElementById('apiAnalyticsTotals').innerHTML = [
+      apiAnalyticsStat('Combined requests', apiAnalyticsCount(totals.requests)),
+      apiAnalyticsStat('Successful', apiAnalyticsCount(totals.successful)),
+      apiAnalyticsStat('Failed', apiAnalyticsCount(totals.failed)),
+      apiAnalyticsStat('Error rate', (Number(totals.errorRate) || 0).toFixed(2) + '%'),
+      apiAnalyticsStat('Coins spent on request packs', apiAnalyticsCount(totals.coinsSpent) + ' coins'),
+      apiAnalyticsStat('Request-pack refunds', apiAnalyticsCount(totals.coinsRefunded) + ' coins'),
+      apiAnalyticsStat('Net API-pack coin consumption', apiAnalyticsSigned(totals.netCoinsSpent) + ' coins'),
+      apiAnalyticsStat('Admin coins earned from packs', apiAnalyticsCount(totals.coinsEarned) + ' coins'),
+      apiAnalyticsStat('Coins charged per request', 'None'),
+    ].join('');
+    const apis = data.apis || {};
+    document.getElementById('apiAnalyticsProducts').innerHTML = ['developer','livetv'].map((api) => {
+      const item = apis[api] || {};
+      return '<div class="api-aa-product"><h4>' + apiAnalyticsName(api) + '</h4>' +
+        '<div class="api-aa-mini"><span>Selected range requests</span><b>' + apiAnalyticsCount(item.requests) + '</b></div>' +
+        '<div class="api-aa-mini"><span>Successful / failed</span><b>' + apiAnalyticsCount(item.successful) + ' / ' + apiAnalyticsCount(item.failed) + '</b></div>' +
+        '<div class="api-aa-mini"><span>Error rate</span><b>' + (Number(item.errorRate) || 0).toFixed(2) + '%</b></div>' +
+        '<div class="api-aa-mini"><span>Today / week / month</span><b>' + apiAnalyticsCount(item.today && item.today.requests) + ' / ' + apiAnalyticsCount(item.week && item.week.requests) + ' / ' + apiAnalyticsCount(item.month && item.month.requests) + '</b></div>' +
+        '<div class="api-aa-mini"><span>Request-pack spend / refunds</span><b>' + apiAnalyticsCount(item.coinsSpent) + ' / ' + apiAnalyticsCount(item.coinsRefunded) + '</b></div>' +
+        '<div class="api-aa-mini"><span>Net coin consumption</span><b>' + apiAnalyticsSigned(item.netCoinsSpent) + '</b></div>' +
+        '<div class="api-aa-mini"><span>Admin coins earned from packs</span><b>' + apiAnalyticsCount(item.coinsEarned) + '</b></div></div>';
+    }).join('');
+    document.getElementById('apiAnalyticsPeriods').innerHTML = (data.periods ? ['today','week','month'].map((key) => {
+      const item = data.periods[key] || {};
+      return apiAnalyticsStat(item.label || key, apiAnalyticsCount(item.requests) + ' requests · ' + apiAnalyticsCount(item.failed) + ' failed');
+    }).join('') : '');
+    document.getElementById('apiAnalyticsChart').innerHTML = apiAnalyticsTrend(data.series || []);
+    document.getElementById('apiAnalyticsTopDev').innerHTML = apiAnalyticsEndpointRows(data.topEndpoints && data.topEndpoints.developer);
+    document.getElementById('apiAnalyticsTopTv').innerHTML = apiAnalyticsEndpointRows(data.topEndpoints && data.topEndpoints.livetv);
+    document.getElementById('apiAnalyticsErrors').innerHTML = apiAnalyticsEventRows(data.recentErrors || [], true);
+    renderApiAnalyticsActivity(data.activity || [], false);
+    apiAnalyticsCursor = data.nextActivityCursor || null;
+    document.getElementById('apiAnalyticsMore').style.display = apiAnalyticsCursor ? 'block' : 'none';
+    const started = data.trackingStartedAt ? new Date(data.trackingStartedAt).toLocaleString() : 'waiting for the first API request';
+    document.getElementById('apiAnalyticsNotice').textContent = (data.historyNotice || 'Historical request records may be unavailable.') + ' Tracking began: ' + started + '. Request-pack coin totals are drawn from the signed coin ledger; plan payments are not coin income.';
+  } catch (err) {
+    if (loadId !== apiAnalyticsLoadId) return;
+    document.getElementById('apiAnalyticsNotice').textContent = err.message || 'Could not load API analytics.';
+    document.getElementById('apiAnalyticsTotals').innerHTML = '';
+    document.getElementById('apiAnalyticsProducts').innerHTML = '';
+    document.getElementById('apiAnalyticsPeriods').innerHTML = '';
+    document.getElementById('apiAnalyticsTopDev').innerHTML = '';
+    document.getElementById('apiAnalyticsTopTv').innerHTML = '';
+    document.getElementById('apiAnalyticsChart').innerHTML = '<div class="ad-empty">Could not load request trends.</div>';
+  }
+}
+
+async function loadMoreApiActivity(){
+  const button = document.getElementById('apiAnalyticsMore');
+  if (!apiAnalyticsCursor || button.disabled) return;
+  button.disabled = true;
+  try {
+    const query = new URLSearchParams({ range: apiAnalyticsRangeValue, cursor: apiAnalyticsCursor });
+    const data = await getJSON('/api/admin/api-analytics/activity?' + query.toString());
+    renderApiAnalyticsActivity(data.events || [], true);
+    apiAnalyticsCursor = data.nextCursor || null;
+    button.style.display = apiAnalyticsCursor ? 'block' : 'none';
+  } catch (err) {
+    showToast(err.message || 'Could not load older API activity.');
+  }
+  button.disabled = false;
+}
+
+document.querySelectorAll('#apiAnalyticsRange button').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('#apiAnalyticsRange button').forEach((item) => item.classList.remove('active'));
+    button.classList.add('active');
+    loadApiAnalytics(button.getAttribute('data-range'));
+  });
+});
+document.getElementById('apiAnalyticsMore').addEventListener('click', loadMoreApiActivity);
+loadApiAnalytics(apiAnalyticsRangeValue);
 
 let analyticsCurrentRange = '7d';
 
