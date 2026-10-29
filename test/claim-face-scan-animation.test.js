@@ -16,7 +16,7 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.match(loginScanner, /fs-account-mode\.fs-top-mode \.fs-abstract\{width:min\(220px,58vw\)/);
   assert.match(loginScanner, /backdrop-filter:blur\(18px\)/);
   assert.match(loginScanner, /window\.location\.pathname === '\/account'/);
-  assert.match(loginScanner, /const ENROLLMENT_TIMEOUT_MS = 90000/);
+  assert.match(loginScanner, /const ENROLLMENT_TIMEOUT_MS = 180000/);
   assert.match(loginScanner, /const enrollmentMode = showCamera && requireLiveness && window\.location\.pathname === '\/account'/);
   assert.match(loginScanner, /fs-enrollment-steps/);
   assert.match(loginScanner, /fs-step-check/);
@@ -26,8 +26,8 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.match(loginScanner, /const result = await runDetect\(true, !requireLiveness\)/);
   assert.match(loginScanner, /const descriptorResult = await runDetect\(true, true\)/);
   assert.match(loginScanner, /function stopCaptureWatchdog\(\)/);
-  assert.match(loginScanner, /if \(enrollmentMode\) stopCaptureWatchdog\(\);/);
-  assert.match(loginScanner, /if \(elapsed > captureTimeout && turnStage < 3\)/);
+  assert.match(loginScanner, /if \(elapsed > captureTimeout\)/);
+  assert.doesNotMatch(loginScanner, /if \(enrollmentMode\) stopCaptureWatchdog\(\);/);
   assert.doesNotMatch(loginScanner, /flashEnrollmentCapture|fs-capture-flash|fsCaptureFlash/);
   assert.match(account, /try \{ return await import\('\/face-scan\.js'\);/);
   assert.match(account, /claimModule\.captureFaceDescriptor\(\{ requireLiveness: false, showCamera: false, voice: false, returnSamples: true \}\)/);

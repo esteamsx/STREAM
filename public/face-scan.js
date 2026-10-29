@@ -3,7 +3,7 @@ import { requestMedia } from '/permission-gate.js';
 const OVERLAY_ID = 'faceScanOverlay';
 const CLIP_ID = 'faceScanClipPath';
 const CAPTURE_TIMEOUT_MS = 60000;
-const ENROLLMENT_TIMEOUT_MS = 90000;
+const ENROLLMENT_TIMEOUT_MS = 180000;
 const TURN_THRESHOLD = 0.16;
 const CENTER_THRESHOLD = 0.09;
 const NOD_THRESHOLD = 0.12;
@@ -695,7 +695,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             giveUp('giving up early');
             return;
           }
-          if (elapsed > captureTimeout && turnStage < 3) {
+          if (elapsed > captureTimeout) {
             giveUp('timed out');
             return;
           }
@@ -778,7 +778,6 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             if (nodBaseline === null) nodBaseline = pitchRatio;
             if (Math.abs(pitchRatio - nodBaseline) > NOD_THRESHOLD) {
               turnStage = 3;
-              if (enrollmentMode) stopCaptureWatchdog();
               setStep(3);
               setStatus('Hold still');
             }
