@@ -2874,7 +2874,15 @@ const POST_IMAGE_TYPES = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0
 function looksLikePromotionalPost(text) {
   const value = String(text || "");
   if (/https?:\/\/|www\.|\[[^\]]+\]\(https?:\/\//i.test(value)) return true;
-  return /\b(advertis(?:e|ed|ing|ement)?|promotion|promotional|sponsor(?:ed)?|affiliate|sale|discount|deal|offer|shop|product|service|order now|buy now|free trial|link in bio|dm to order)\b/i.test(value);
+  if (/\b(advertis(?:e|ed|ing|ement)?|promotion|promotional|sponsor(?:ed)?|affiliate|sale|discount|deal|offer|shop|order now|buy now|free trial|link in bio|dm to order)\b/i.test(value)) return true;
+  const advertisingMarkers = [
+    /\b(?:premium|non[- ]?voip|voip)\b/i,
+    /\b(?:verification|verify|otp|rental)\b/i,
+    /\b(?:available|instant delivery|replacement|guaranteed)\b/i,
+    /\b(?:works for|text me|dm me|contact me)\b/i,
+    /\b(?:numbers?|countries|service|product)\b/i,
+  ];
+  return advertisingMarkers.filter((pattern) => pattern.test(value)).length >= 2;
 }
 
 function feedAuthor(id, data) {
