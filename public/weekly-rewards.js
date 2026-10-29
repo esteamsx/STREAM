@@ -512,7 +512,8 @@
     return { countdown: countdown };
   }
 
-  var ui = buildUi();
+  var accountPage = location.pathname === "/account";
+  var ui = accountPage ? null : buildUi();
   setInterval(function () {
     if (focusedVisible()) acquireLease();
     else releaseLease();
@@ -522,6 +523,6 @@
   document.addEventListener("visibilitychange", function () {
     if (!focusedVisible()) releaseLease();
   });
-  countdownTimer = setInterval(ui.countdown, 1000);
+  if (ui) countdownTimer = setInterval(ui.countdown, 1000);
   schedulePulse();
 })();
