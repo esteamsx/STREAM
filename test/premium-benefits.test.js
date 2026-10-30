@@ -59,12 +59,17 @@ test("free users see Premium benefits; CTA opens Account and auto-opens the veri
   const view = source("../views/channel-react.js");
   const route = source("../routes/channel-tools.js");
   const account = source("../views/account.js");
+  const pageBenefits = view.slice(view.indexOf('<div class="cr-premium-overlay"'), view.indexOf('<div class="cr-verify-overlay"'));
   assert.match(view, /PREMIUM BENEFITS/);
   assert.match(view, /5 coins instead of 8/);
   assert.match(view, /5 coins instead of 10/);
-  assert.match(view, /Claim 3 daily coins instead of 1/);
+  assert.match(pageBenefits, /Unlimited channel reactions and poll votes/);
+  assert.equal([...pageBenefits.matchAll(/class="cr-premium-benefit"/g)].length, 3);
+  assert.doesNotMatch(pageBenefits, /daily coins|Verified badge|15% off/);
   assert.match(view, /\.cr-premium-overlay\{[^}]*background:rgba\(10,10,15,\.75\);backdrop-filter:blur\(8px\)/);
   assert.match(view, /\.cr-premium-card\{[^}]*rgba\(255,255,255,\.06\)/);
+  assert.match(view, /\.cr-premium-kicker\{[^}]*color:var\(--accent\)/);
+  assert.match(view, /\.cr-premium-cta\{[^}]*linear-gradient\(100deg,var\(--accent\),#4b78ff\)/);
   assert.match(view, /class="cr-premium-check" viewBox="0 0 24 24"/);
   assert.doesNotMatch(view, /<span class="cr-premium-check">/);
   assert.match(view, /href="\/account\?premium=1"/);
