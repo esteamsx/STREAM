@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const auth = readFileSync(new URL("../services/auth.js", import.meta.url), "utf8");
 const account = readFileSync(new URL("../views/account.js", import.meta.url), "utf8");
+const channelTools = readFileSync(new URL("../routes/channel-tools.js", import.meta.url), "utf8");
 
 test("coin package, store, reaction, and receiving prices follow the new pricing", () => {
   const expectedPackages = {
@@ -23,7 +24,9 @@ test("coin package, store, reaction, and receiving prices follow the new pricing
   assert.match(auth, /boost50: \{ label: "\+50 request limit", coinCost: 180, bonusAmount: 50 \}/);
   assert.match(auth, /boost100: \{ label: "\+100 request limit", coinCost: 360, bonusAmount: 100 \}/);
   assert.match(auth, /verify3d: \{ label: "3-day account verification", coinCost: 495 \}/);
-  assert.match(auth, /const CHANNEL_REACT_COIN_COST = 8;/);
+  assert.match(auth, /const CHANNEL_REACT_COIN_COST = 5;/);
+  assert.match(channelTools, /const PRICE = \{ react: reactPrice, vote: 10 \}/);
+  assert.match(channelTools, /spendCoins\(uid, price, type === "vote" \? "channel-poll" : "channel-react"\)/);
   assert.match(auth, /const COIN_REQUEST_NGN_PER_COIN = 62\.5;/);
   assert.match(account, /coinRequestRateNgn\) \|\| 62\.5/);
 });

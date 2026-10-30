@@ -4270,7 +4270,7 @@ async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
   return { amount };
 }
 
-const CHANNEL_REACT_COIN_COST = 8;
+const CHANNEL_REACT_COIN_COST = 5;
 
 async function spendCoins(uid, amount, reason) {
   const cost = Math.max(0, Math.floor(Number(amount) || 0));

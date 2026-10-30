@@ -10,7 +10,7 @@ export function registerChannelRoutes(router, deps) {
     isAdminEmail, isVerificationActive, reactPrice,
   } = deps;
 
-  const PRICE = { react: reactPrice, vote: Math.max(1, Number(process.env.WA_VOTE_PRICE) || reactPrice) };
+  const PRICE = { react: reactPrice, vote: 10 };
   const DAILY_LIMIT = 3;
   const MAX_AMOUNT = Number(process.env.WA_MAX_AMOUNT || 0);   // 0 = no cap, empty amount means "as many as possible"
   const LABEL = { react: "Channel Reactions", vote: "Poll Votes" };
