@@ -246,18 +246,18 @@ altcha-widget{--altcha-max-width:100%}
 .cr-verify-overlay{position:fixed;inset:0;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:100;padding:24px}
 .cr-verify-overlay.show{display:flex}
 body:has(.cr-verify-overlay.show){overflow:hidden}
-.cr-premium-overlay{position:fixed;inset:0;background:rgba(7,9,20,.78);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;z-index:120;padding:18px}
+.cr-premium-overlay{position:fixed;inset:0;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:120;padding:24px}
 .cr-premium-overlay.show{display:flex}
 body:has(.cr-premium-overlay.show){overflow:hidden}
-.cr-premium-card{position:relative;width:min(100%,420px);max-height:min(88dvh,660px);overflow-y:auto;overscroll-behavior:contain;padding:24px 22px;border-radius:20px;border:1px solid rgba(130,145,255,.42);background:linear-gradient(145deg,rgba(85,105,255,.16),rgba(255,255,255,.035) 45%,rgba(161,80,255,.12)),rgba(15,18,34,.95);box-shadow:0 24px 80px rgba(0,0,0,.58),0 0 34px rgba(78,105,255,.18),inset 0 1px 0 rgba(255,255,255,.18);display:flex;flex-direction:column;gap:14px}
-:root[data-theme="light"] .cr-premium-card{background:linear-gradient(145deg,rgba(85,105,255,.12),rgba(255,255,255,.88) 45%,rgba(161,80,255,.1));box-shadow:0 22px 65px rgba(30,38,90,.2),0 0 26px rgba(78,105,255,.14)}
+.cr-premium-card{position:relative;width:min(100%,440px);max-height:min(88dvh,640px);overflow-y:auto;overscroll-behavior:contain;padding:26px 22px;border-radius:16px;border:1px solid rgba(255,255,255,.22);background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);display:flex;flex-direction:column;gap:14px}
+:root[data-theme="light"] .cr-premium-card{background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);border-color:rgba(255,255,255,.65);box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7)}
 .cr-premium-close{position:absolute;right:12px;top:12px;width:34px;height:34px;border-radius:10px;border:1px solid var(--border-strong);background:rgba(255,255,255,.06);color:var(--text);font-size:1.15rem;cursor:pointer}
 .cr-premium-kicker{text-align:center;color:#b9b7ff;font-size:.68rem;font-weight:800;letter-spacing:.16em}
 .cr-premium-heading{text-align:center;font-family:var(--font-display);font-weight:800;font-size:1.25rem;line-height:1.3;margin-top:2px}
 .cr-premium-copy{text-align:center;color:var(--muted);font-size:.8rem;line-height:1.55;margin:0}
-.cr-premium-benefits{display:flex;flex-direction:column;gap:9px;padding:4px 0}
-.cr-premium-benefit{display:flex;align-items:flex-start;gap:10px;padding:10px 11px;border:1px solid rgba(135,145,255,.17);border-radius:11px;background:rgba(255,255,255,.035);font-size:.79rem;line-height:1.45;color:var(--text)}
-.cr-premium-check{display:grid;place-items:center;flex:0 0 19px;height:19px;border-radius:50%;background:rgba(87,235,190,.14);color:#6ff0c5;font-size:.78rem;font-weight:900}
+.cr-premium-benefits{display:flex;flex-direction:column;gap:12px;padding:4px 7px 4px 0;max-height:min(23dvh,170px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.cr-premium-benefit{display:flex;align-items:flex-start;gap:10px;font-size:.86rem;line-height:1.5;color:var(--text)}
+.cr-premium-check{width:16px;height:16px;color:var(--green);flex-shrink:0;margin-top:2px}
 .cr-premium-cta{display:block;text-align:center;text-decoration:none;padding:12px 15px;border-radius:12px;background:linear-gradient(100deg,#63e8ff,#aa78ff);color:#0a1020;font-weight:900;font-size:.83rem;letter-spacing:.045em;box-shadow:0 0 20px rgba(92,130,255,.42),0 0 38px rgba(166,98,255,.23);transition:transform .16s ease,box-shadow .16s ease}
 .cr-premium-cta:hover{transform:translateY(-1px);box-shadow:0 0 25px rgba(92,130,255,.58),0 0 46px rgba(166,98,255,.34)}
 .cr-verify-card{width:100%;max-width:380px;max-height:90vh;overflow-y:auto;background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:26px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3)}
@@ -420,12 +420,12 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
     <div class="cr-premium-heading" id="crPremiumBenefitsTitle">PREMIUM BENEFITS</div>
     <p class="cr-premium-copy">More coins, lower channel costs, and unlimited tool access.</p>
     <div class="cr-premium-benefits">
-      <div class="cr-premium-benefit"><span class="cr-premium-check">✓</span><span>Channel reactions cost 5 coins instead of 8</span></div>
-      <div class="cr-premium-benefit"><span class="cr-premium-check">✓</span><span>Poll votes cost 5 coins instead of 10</span></div>
-      <div class="cr-premium-benefit"><span class="cr-premium-check">✓</span><span>Claim 3 daily coins instead of 1</span></div>
-      <div class="cr-premium-benefit"><span class="cr-premium-check">✓</span><span>Unlimited channel tool use</span></div>
-      <div class="cr-premium-benefit"><span class="cr-premium-check">✓</span><span>Verified badge on your profile</span></div>
-      <div class="cr-premium-benefit"><span class="cr-premium-check">✓</span><span>15% off other eligible paid charges</span></div>
+      <div class="cr-premium-benefit"><svg class="cr-premium-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span>Channel reactions cost 5 coins instead of 8</span></div>
+      <div class="cr-premium-benefit"><svg class="cr-premium-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span>Poll votes cost 5 coins instead of 10</span></div>
+      <div class="cr-premium-benefit"><svg class="cr-premium-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span>Claim 3 daily coins instead of 1</span></div>
+      <div class="cr-premium-benefit"><svg class="cr-premium-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span>Unlimited channel tool use</span></div>
+      <div class="cr-premium-benefit"><svg class="cr-premium-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span>Verified badge on your profile</span></div>
+      <div class="cr-premium-benefit"><svg class="cr-premium-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span>15% off other eligible paid charges</span></div>
     </div>
     <a class="cr-premium-cta" id="crPremiumBenefitsCta" href="/account?premium=1">GET PREMIUM</a>
   </section>

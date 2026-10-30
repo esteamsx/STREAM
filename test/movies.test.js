@@ -447,7 +447,7 @@ test("premium offer uses the verification payment price, existing benefits and a
   for (const benefit of ["Verified badge on your profile", "Unlimited use of every free tool", "+3 Daily Coins Claim", "A downloadable verification certificate", "No ads on your account", "Free bot deployment", "Earn ₦600+ daily from successful Premium referrals"]) assert.ok(account.includes(benefit), benefit);
   assert.match(account, /VERIFICATION_PRICE_NGN\.toLocaleString/);
   assert.match(account, /id="verifyOverlayTitle"[^>]*>Get Account Premium<\/div>/);
-  assert.match(account, /Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, free bot deployment, \+3 daily coins, and 15% off paid services and coin charges while verified\./);
+  assert.match(account, /class="overlay-sub"[^>]*>What You Get\?<\/div>/);
   assert.match(account, /id="getVerifiedLabel">Get Verified<\/span>/);
   assert.match(account, /rollover \? 'ROLL OVER' : 'Get Verified'/);
   assert.match(account, /id="verifyPricePeriod">\/ 30 days/);

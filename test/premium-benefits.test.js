@@ -63,6 +63,10 @@ test("free users see Premium benefits; CTA opens Account and auto-opens the veri
   assert.match(view, /5 coins instead of 8/);
   assert.match(view, /5 coins instead of 10/);
   assert.match(view, /Claim 3 daily coins instead of 1/);
+  assert.match(view, /\.cr-premium-overlay\{[^}]*background:rgba\(10,10,15,\.75\);backdrop-filter:blur\(8px\)/);
+  assert.match(view, /\.cr-premium-card\{[^}]*rgba\(255,255,255,\.06\)/);
+  assert.match(view, /class="cr-premium-check" viewBox="0 0 24 24"/);
+  assert.doesNotMatch(view, /<span class="cr-premium-check">/);
   assert.match(view, /href="\/account\?premium=1"/);
   assert.match(route, /isPremium: !!\(profile && isVerificationActive\(profile\)\)/);
   assert.match(view, /if \(!data\.isPremium && !data\.isAdmin\)/);
@@ -70,6 +74,9 @@ test("free users see Premium benefits; CTA opens Account and auto-opens the veri
   assert.match(account, /id="getVerifiedLabel">Get Verified<\/span>/);
   assert.match(account, /rollover \? 'ROLL OVER' : 'Get Verified'/);
   assert.match(account, /id="verifyPriceLabel" data-new-price="\$\{VERIFICATION_PRICE_NGN\}" data-rollover-price="\$\{VERIFICATION_ROLLOVER_PRICE_NGN\}"/);
+  assert.match(account, /class="overlay-sub"[^>]*>What You Get\?<\/div>/);
+  assert.match(account, /#verifyOverlay \.verify-icon-wrap\{width:64px;height:64px/);
+  assert.match(account, /#verifyOverlay \.verify-icon-wrap svg\{width:36px;height:36px/);
 });
 
 test("channel popup reuses the authenticated config response without another profile request or poll", () => {

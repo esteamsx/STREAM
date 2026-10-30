@@ -974,6 +974,8 @@ body:has(.page-overlay.show){overflow:hidden}
   background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;
 }
 .verify-icon-wrap svg{width:28px;height:28px}
+#verifyOverlay .verify-icon-wrap{width:64px;height:64px;flex-shrink:0}
+#verifyOverlay .verify-icon-wrap svg{width:36px;height:36px}
 .verify-benefits{display:flex;flex-direction:column;gap:12px;margin:4px 0 8px;max-height:min(25dvh,190px);overflow-y:auto;overscroll-behavior:contain;padding:4px 7px 4px 0;scrollbar-width:thin}
 #verifyOverlay .overlay-card{width:min(100%,440px);height:min(640px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);overflow:hidden;overscroll-behavior:contain;padding:20px 22px;gap:10px}
 #verifyOverlay #verifyStepIntro{flex:1;min-height:0;overflow:hidden;gap:0}
@@ -2119,7 +2121,7 @@ body:has(.page-overlay.show){overflow:hidden}
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
         </div>
         <div class="overlay-title" id="verifyOverlayTitle" style="text-align:center;font-size:1.2rem;line-height:1.35">Get Account Premium</div>
-        <div class="overlay-sub" style="text-align:center;font-size:.88rem;line-height:1.7">Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, free bot deployment, +3 daily coins, and 15% off paid services and coin charges while verified.</div>
+        <div class="overlay-sub" style="text-align:center;font-size:.88rem;line-height:1.7">What You Get?</div>
         <div class="verify-benefits">
           <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified badge on your profile</div>
           <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Unlimited use of every free tool</div>
