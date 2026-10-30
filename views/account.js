@@ -5333,8 +5333,8 @@ async function loadRewardsSummary(){
     pack350: { label: 'Value Pack' },
     pack500: { label: 'Premium Pack' },
     pack1000: { badge: 'BEST VALUE', badgeClass: ' best' },
-    pack2000: { label: 'Mega Pack' },
-    pack3000: { label: 'Max Pack' },
+    pack2000: { label: 'Mega Pack', badge: '15% OFF', badgeClass: ' best' },
+    pack3000: { label: 'Max Pack', badge: '15% OFF', badgeClass: ' best' },
   };
   const coinIcon = '<span class="rw-buy-coin-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 9.3c0-1 2-1.8 4.5-1.8s4.5.8 4.5 1.8-2 1.8-4.5 1.8-4.5-.8-4.5-1.8Zm0 0v5.4c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V9.3m-9 2.7c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8"/></svg></span>';
   buyGrid.innerHTML = Object.keys(rewardsSummary.coinPackages).map((key) => {

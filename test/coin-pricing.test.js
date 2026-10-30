@@ -13,8 +13,8 @@ test("coin package prices and payment-link rate follow the new pricing", () => {
     pack350: [350, 3375],
     pack500: [500, 4500],
     pack1000: [1000, 7500],
-    pack2000: [2000, 15000],
-    pack3000: [3000, 22500],
+    pack2000: [2000, 12750],
+    pack3000: [3000, 19125],
   };
   for (const [key, [coins, priceNgn]] of Object.entries(expectedPackages)) {
     assert.match(auth, new RegExp(`${key}: \\{ coins: ${coins}, priceNgn: ${priceNgn} \\}`));
@@ -30,6 +30,6 @@ test("Buy Coins stays two columns with an internal scroll area and highlighted P
   assert.match(account, /\.rw-buy-item-badge-row\{height:15px/);
   assert.match(account, /rw-buy-item-label\{[^}]*white-space:nowrap/);
   assert.match(account, /presentation\.badge === 'POPULAR'/);
-  assert.match(account, /pack2000: \{ label: 'Mega Pack' \}/);
-  assert.match(account, /pack3000: \{ label: 'Max Pack' \}/);
+  assert.match(account, /pack2000: \{ label: 'Mega Pack', badge: '15% OFF', badgeClass: ' best' \}/);
+  assert.match(account, /pack3000: \{ label: 'Max Pack', badge: '15% OFF', badgeClass: ' best' \}/);
 });

@@ -4104,8 +4104,8 @@ const COIN_PACKAGES = {
   pack350: { coins: 350, priceNgn: 3375 },
   pack500: { coins: 500, priceNgn: 4500 },
   pack1000: { coins: 1000, priceNgn: 7500 },
-  pack2000: { coins: 2000, priceNgn: 15000 },
-  pack3000: { coins: 3000, priceNgn: 22500 },
+  pack2000: { coins: 2000, priceNgn: 12750 },
+  pack3000: { coins: 3000, priceNgn: 19125 },
 };
 
 async function generateReferralCode() {
