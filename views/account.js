@@ -5641,6 +5641,7 @@ claimContinueBtn.addEventListener('click', async () => {
       showCamera: false,
       voice: false,
       samples: 2,
+      timeoutMs: 120000,
       verify: async (descriptor, samples) => {
         claimContinueBtn.innerHTML = '<span class="btn-spinner"></span>Verifying Face ID…';
         const faceDescriptor = [descriptor, ...(samples || [])]
