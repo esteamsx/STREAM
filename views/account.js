@@ -5415,7 +5415,7 @@ const receiveMsg = document.getElementById('rwReceiveMsg');
 
 function receiveLimits(){
   return {
-    rate: (rewardsSummary && rewardsSummary.coinRequestRateNgn) || 5,
+    rate: (rewardsSummary && rewardsSummary.coinRequestRateNgn) || 62.5,
     min: (rewardsSummary && rewardsSummary.minCoinRequest) || 20,
     max: (rewardsSummary && rewardsSummary.maxCoinRequest) || 5000,
     ttlMin: Math.round(((rewardsSummary && rewardsSummary.coinRequestTtlMs) || 3600000) / 60000),

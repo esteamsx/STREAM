@@ -4091,21 +4091,20 @@ const MIN_COIN_TRANSFER = 5;
 const MAX_COIN_TRANSFER = 100;
 
 const COIN_STORE_ITEMS = {
-  boost30: { label: "+30 request limit", coinCost: 60, bonusAmount: 30 },
-  boost50: { label: "+50 request limit", coinCost: 120, bonusAmount: 50 },
-  boost100: { label: "+100 request limit", coinCost: 240, bonusAmount: 100 },
-  verify3d: { label: "3-day account verification", coinCost: 330 },
+  boost30: { label: "+30 request limit", coinCost: 90, bonusAmount: 30 },
+  boost50: { label: "+50 request limit", coinCost: 180, bonusAmount: 50 },
+  boost100: { label: "+100 request limit", coinCost: 360, bonusAmount: 100 },
+  verify3d: { label: "3-day account verification", coinCost: 495 },
 };
-
 const COIN_PACKAGES = {
-  pack25: { coins: 25, priceNgn: 375 },
-  pack50: { coins: 50, priceNgn: 750 },
-  pack150: { coins: 150, priceNgn: 1875 },
-  pack350: { coins: 350, priceNgn: 3375 },
-  pack500: { coins: 500, priceNgn: 4500 },
-  pack1000: { coins: 1000, priceNgn: 7500 },
-  pack2000: { coins: 2000, priceNgn: 12750 },
-  pack3000: { coins: 3000, priceNgn: 19125 },
+  pack25: { coins: 25, priceNgn: 550 },
+  pack50: { coins: 50, priceNgn: 1100 },
+  pack150: { coins: 150, priceNgn: 2750 },
+  pack350: { coins: 350, priceNgn: 4950 },
+  pack500: { coins: 500, priceNgn: 6600 },
+  pack1000: { coins: 1000, priceNgn: 11000 },
+  pack2000: { coins: 2000, priceNgn: 18700 },
+  pack3000: { coins: 3000, priceNgn: 28050 },
 };
 
 async function generateReferralCode() {
@@ -4271,7 +4270,7 @@ async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
   return { amount };
 }
 
-const CHANNEL_REACT_COIN_COST = 5;
+const CHANNEL_REACT_COIN_COST = 8;
 
 async function spendCoins(uid, amount, reason) {
   const cost = Math.max(0, Math.floor(Number(amount) || 0));
@@ -4904,7 +4903,7 @@ async function finalizeCoinPurchasePayment(reference, paystackData) {
   return { alreadyProcessed: false, uid: record.uid, coins };
 }
 
-const COIN_REQUEST_NGN_PER_COIN = 12.5;
+const COIN_REQUEST_NGN_PER_COIN = 62.5;
 const MIN_COIN_REQUEST = 20;
 const MAX_COIN_REQUEST = 5000;
 const COIN_REQUEST_LINK_TTL_MS = 60 * 60 * 1000;
