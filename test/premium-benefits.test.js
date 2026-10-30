@@ -57,7 +57,9 @@ test("new verification is ₦4,800 and active-member rollover is ₦3,990, serve
 
 test("rollover explanation is tucked behind the existing Learn more disclosure", () => {
   const account = source("../views/account.js");
-  assert.match(account, /<details style="margin-top:6px;font-size:\.72rem;line-height:1\.55">\s*<summary[^>]*>Learn more<\/summary>\s*<div class="rw-hint" id="verifyRolloverHint"/);
+  assert.match(account, /<details class="verify-rollover-more">\s*<summary>Learn more<\/summary>\s*<div class="rw-hint" id="verifyRolloverHint"/);
+  assert.match(account, /\.verify-rollover-more>summary\{cursor:pointer;color:var\(--accent\);font-weight:600\}/);
+  assert.doesNotMatch(account, /verify-rollover-more>summary\{[^}]*list-style:none/);
   assert.match(account, /document\.getElementById\('verifyRolloverHint'\)\.textContent = rollover/);
 });
 
