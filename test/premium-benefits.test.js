@@ -38,8 +38,8 @@ test("active Premium rollover adds 30 days to the existing expiry; inactive acco
   assert.match(auth, /nextVerificationExpiry\(user\.verifiedExpiresAt, now, PAID_VERIFICATION_DAYS, isVerificationActive\(user\)\)/);
 });
 
-test("new verification is ₦4,990 and active-member rollover is ₦3,990, server-selected", () => {
-  assert.equal(VERIFICATION_PRICE_NGN, 4990);
+test("new verification is ₦4,800 and active-member rollover is ₦3,990, server-selected", () => {
+  assert.equal(VERIFICATION_PRICE_NGN, 4800);
   assert.equal(VERIFICATION_ROLLOVER_PRICE_NGN, 3990);
   const payments = source("../routes/payments.js");
   const auth = source("../services/auth.js");

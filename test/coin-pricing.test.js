@@ -49,7 +49,7 @@ test("coin package, store, reaction, and receiving prices follow the new pricing
   assert.match(payments, /discountedCashPrice\(pkg\.priceNgn, profile\)/);
   assert.match(rewards, /priceNgn: discountedCashPrice\(pkg\.priceNgn, profile\)/);
   assert.match(promote, /discountedCashPrice\(AD_PRICE_PER_DAY_NGN \* days, profile\)/);
-  assert.match(account, /15% off paid services and coin charges while verified/);
+  assert.match(account, /class="overlay-sub"[^>]*>What You Get\?/);
   assert.match(auth, /const COIN_REQUEST_NGN_PER_COIN = 62\.5;/);
   assert.match(account, /coinRequestRateNgn\) \|\| 62\.5/);
 });

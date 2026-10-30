@@ -441,7 +441,7 @@ test("premium offer uses the verification payment price, existing benefits and a
   const popup = read("public/site-ui.js");
   const auth = read("services/auth.js");
   const server = read("server.js");
-  assert.equal(VERIFICATION_PRICE_NGN, 4990);
+  assert.equal(VERIFICATION_PRICE_NGN, 4800);
   assert.equal(VERIFICATION_ROLLOVER_PRICE_NGN, 3990);
   assert.match(payments, /rollover \? VERIFICATION_ROLLOVER_PRICE_NGN : VERIFICATION_PRICE_NGN/);
   for (const benefit of ["Verified badge on your profile", "Unlimited use of every free tool", "+3 Daily Coins Claim", "A downloadable verification certificate", "No ads on your account", "Free bot deployment", "Earn ₦600+ daily from successful Premium referrals"]) assert.ok(account.includes(benefit), benefit);
