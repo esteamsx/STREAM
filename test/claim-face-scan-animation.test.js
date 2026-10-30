@@ -30,8 +30,8 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.doesNotMatch(loginScanner, /if \(enrollmentMode\) stopCaptureWatchdog\(\);/);
   assert.doesNotMatch(loginScanner, /flashEnrollmentCapture|fs-capture-flash|fsCaptureFlash/);
   assert.match(account, /try \{ return await import\('\/face-scan\.js'\);/);
-  assert.match(account, /claimModule\.captureFaceDescriptor\(\{ requireLiveness: false, showCamera: false, voice: false, samples: 2, returnSamples: true \}\)/);
-  assert.match(account, /\[capture\.descriptor, \.\.\.\(capture\.samples \|\| \[\]\)\]/);
+  assert.match(account, /capture = await claimModule\.captureFaceDescriptor\(\{[\s\S]*?samples: 2,[\s\S]*?verify: async \(descriptor, samples\) => \{[\s\S]*?postJSON\('\/api\/rewards\/daily-claim'/);
+  assert.equal((account.match(/postJSON\('\/api\/rewards\/daily-claim'/g) || []).length, 1);
   assert.doesNotMatch(account, /import\('\/face-scan\.js\?v=\$\{ASSET_VERSION\}/);
   assert.doesNotMatch(account, /claimModule\.captureClaimFace\(\)/);
   assert.doesNotMatch(account, /import\('\/claim-face\.js/);

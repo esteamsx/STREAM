@@ -5636,24 +5636,33 @@ claimContinueBtn.addEventListener('click', async () => {
   let capture = null;
   try {
     claimModule = await loadClaimFaceModule();
-    capture = await claimModule.captureFaceDescriptor({ requireLiveness: false, showCamera: false, voice: false, samples: 2, returnSamples: true });
+    capture = await claimModule.captureFaceDescriptor({
+      requireLiveness: false,
+      showCamera: false,
+      voice: false,
+      samples: 2,
+      verify: async (descriptor, samples) => {
+        claimContinueBtn.innerHTML = '<span class="btn-spinner"></span>Verifying Face ID…';
+        const faceDescriptor = [descriptor, ...(samples || [])]
+          .filter((v) => Array.isArray(v))
+          .map((v) => ({ v }));
+        return await postJSON('/api/rewards/daily-claim', {
+          altcha: claimCaptchaValue,
+          faceDescriptor,
+          paymentReference: paidRef,
+        });
+      },
+    });
   } catch (err) {
     claimContinueBtn.innerHTML = original;
     claimContinueBtn.disabled = !claimCaptchaPassed;
-    flashMsg(claimMsg, (err && err.message) || 'Face check failed. Please try again.', false);
+    if (/Face Id not Set/i.test(err.message || '')) setClaimState('nofaceid');
+    else flashMsg(claimMsg, paidRef ? ((err.message || 'Face check failed.') + ' Your ₦' + ((rewardsSummary && rewardsSummary.dailyClaimFeeNgn) || 100) + ' payment is saved, tap Continue to try again.') : ((err && err.message) || 'Face check failed. Please try again.'), false);
     return;
   }
 
-  claimContinueBtn.innerHTML = '<span class="btn-spinner"></span>Claiming…';
   try {
-    const faceDescriptor = [capture.descriptor, ...(capture.samples || [])]
-      .filter((v) => Array.isArray(v))
-      .map((v) => ({ v }));
-    const result = await postJSON('/api/rewards/daily-claim', {
-      altcha: claimCaptchaValue,
-      faceDescriptor,
-      paymentReference: paidRef,
-    });
+    const result = capture;
     if (rewardsSummary) rewardsSummary.claimCreditRef = null;
     closeRwOverlay(rwClaimOverlay);
     try { claimModule.playCoinSound(); } catch (e) {}
