@@ -4341,7 +4341,7 @@ function updateVerificationUI(){
   const priceEl = document.getElementById('verifyPriceLabel');
   const price = Number(rollover ? priceEl.dataset.rolloverPrice : priceEl.dataset.newPrice);
   priceEl.textContent = '₦' + price.toLocaleString('en-US');
-  document.getElementById('verifyPricePeriod').textContent = rollover ? '/ 30 days added to your remaining time' : '/ 30 days';
+  document.getElementById('verifyPricePeriod').textContent = '/ 30 days';
   document.getElementById('verifyPayBtn').textContent = rollover ? 'ROLL OVER' : 'Pay & Verify';
   document.getElementById('verifyRolloverHint').textContent = rollover
     ? 'Your current Premium days stay intact; this rollover adds 30 more days to your expiry date.'

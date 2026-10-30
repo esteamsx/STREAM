@@ -451,6 +451,8 @@ test("premium offer uses the verification payment price, existing benefits and a
   assert.match(account, /id="getVerifiedLabel">Get Verified<\/span>/);
   assert.match(account, /rollover \? 'ROLL OVER' : 'Get Verified'/);
   assert.match(account, /id="verifyPricePeriod">\/ 30 days/);
+  assert.match(account, /document\.getElementById\('verifyPricePeriod'\)\.textContent = '\/ 30 days'/);
+  assert.doesNotMatch(account, /\/ 30 days added to your remaining time/);
   assert.match(account, /\.verify-benefits\{[^}]*max-height:[^}]*overflow-y:auto/);
   assert.match(account, /#verifyOverlay \.overlay-card\{[^}]*overflow:hidden/);
   assert.match(account, /\.verify-sticky-actions\{[^}]*flex-shrink:0/);
