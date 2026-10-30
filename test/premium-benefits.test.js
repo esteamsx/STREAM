@@ -55,6 +55,12 @@ test("new verification is ₦4,800 and active-member rollover is ₦3,990, serve
   assert.match(source("../views/account.js"), /result\.rolledOver \? 'Premium Extended' : 'You are now Verified'/);
 });
 
+test("rollover explanation is tucked behind the existing Learn more disclosure", () => {
+  const account = source("../views/account.js");
+  assert.match(account, /<details style="margin-top:6px;font-size:\.72rem;line-height:1\.55">\s*<summary[^>]*>Learn more<\/summary>\s*<div class="rw-hint" id="verifyRolloverHint"/);
+  assert.match(account, /document\.getElementById\('verifyRolloverHint'\)\.textContent = rollover/);
+});
+
 test("free users see Premium benefits; CTA opens Account and auto-opens the verification overlay", () => {
   const view = source("../views/channel-react.js");
   const route = source("../routes/channel-tools.js");

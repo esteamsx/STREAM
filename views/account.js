@@ -2136,7 +2136,10 @@ body:has(.page-overlay.show){overflow:hidden}
           <span class="verify-price" id="verifyPriceLabel" data-new-price="${VERIFICATION_PRICE_NGN}" data-rollover-price="${VERIFICATION_ROLLOVER_PRICE_NGN}">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span>
           <span class="verify-price-period" id="verifyPricePeriod">/ 30 days</span>
         </div>
-        <div class="rw-hint" id="verifyRolloverHint" style="font-size:.72rem;line-height:1.55">Rollover adds 30 days to any Premium time you still have. Auto-renew remains off unless you enable it in Account settings.</div>
+        <details style="margin-top:6px;font-size:.72rem;line-height:1.55">
+          <summary style="cursor:pointer;color:var(--accent);font-weight:600;list-style:none">Learn more</summary>
+          <div class="rw-hint" id="verifyRolloverHint" style="margin-top:6px;font-size:.72rem;line-height:1.55">Rollover adds 30 days to any Premium time you still have. Auto-renew remains off unless you enable it in Account settings.</div>
+        </details>
       </div>
       <div class="verify-sticky-actions">
         <div class="acc-msg err" id="verifyIntroMsg"></div>
