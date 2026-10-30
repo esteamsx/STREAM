@@ -1,5 +1,5 @@
 import { siteHeadFor, ASSET_VERSION } from "../config/site.js";
-import { VERIFICATION_PRICE_NGN } from "../services/paystack.js";
+import { VERIFICATION_PRICE_NGN, VERIFICATION_ROLLOVER_PRICE_NGN } from "../services/paystack.js";
 
 export function renderAccount(cfg) {
   return `<!DOCTYPE html>
@@ -975,8 +975,11 @@ body:has(.page-overlay.show){overflow:hidden}
 }
 .verify-icon-wrap svg{width:28px;height:28px}
 .verify-benefits{display:flex;flex-direction:column;gap:12px;margin:4px 0 8px;max-height:min(25dvh,190px);overflow-y:auto;overscroll-behavior:contain;padding:4px 7px 4px 0;scrollbar-width:thin}
-#verifyOverlay .overlay-card{width:min(100%,440px);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;padding:30px 28px;gap:18px}
-#verifyOverlay #verifyStepIntro{gap:16px}
+#verifyOverlay .overlay-card{width:min(100%,440px);height:min(640px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);overflow:hidden;overscroll-behavior:contain;padding:20px 22px;gap:10px}
+#verifyOverlay #verifyStepIntro{flex:1;min-height:0;overflow:hidden;gap:0}
+.verify-intro-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:14px;padding:2px 7px 8px 0;scrollbar-width:thin}
+.verify-sticky-actions{flex-shrink:0;display:flex;flex-direction:column;gap:9px;padding-top:10px;border-top:1px solid var(--border)}
+#verifyOverlay .verify-benefits{max-height:min(23dvh,170px)}
 .verify-benefit{display:flex;align-items:flex-start;gap:10px;font-size:.86rem;line-height:1.5;color:var(--text)}
 .verify-benefit svg{width:16px;height:16px;color:var(--green);flex-shrink:0}
 .verify-benefit.htw-benefit{align-items:flex-start;text-align:left;line-height:1.5}
@@ -1110,7 +1113,7 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
     <button type="button" class="acc-verify-link" id="getVerifiedLink" style="display:none">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
-      Get Verified
+      <span id="getVerifiedLabel">Get Verified</span>
     </button>
     <button class="acc-settings-icon" id="themeToggle" aria-label="Toggle theme">
       <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
@@ -2111,27 +2114,32 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="verifyOverlay">
   <div class="overlay-card" style="max-width:380px">
     <div class="overlay-step active" id="verifyStepIntro">
-      <div class="verify-icon-wrap">
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
+      <div class="verify-intro-scroll">
+        <div class="verify-icon-wrap">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
+        </div>
+        <div class="overlay-title" id="verifyOverlayTitle" style="text-align:center;font-size:1.2rem;line-height:1.35">Get Account Premium</div>
+        <div class="overlay-sub" style="text-align:center;font-size:.88rem;line-height:1.7">Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, free bot deployment, +3 daily coins, and 15% off paid services and coin charges while verified.</div>
+        <div class="verify-benefits">
+          <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified badge on your profile</div>
+          <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Unlimited use of every free tool</div>
+          <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>+3 Daily Coins Claim</div>
+          <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>A downloadable verification certificate</div>
+          <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>No ads on your account</div>
+          <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Free bot deployment</div>
+          <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15% off other eligible paid services and coin charges</div>
+        </div>
+        <div class="verify-price-row">
+          <span class="verify-price" id="verifyPriceLabel" data-new-price="${VERIFICATION_PRICE_NGN}" data-rollover-price="${VERIFICATION_ROLLOVER_PRICE_NGN}">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span>
+          <span class="verify-price-period" id="verifyPricePeriod">/ 30 days</span>
+        </div>
+        <div class="rw-hint" id="verifyRolloverHint" style="font-size:.72rem;line-height:1.55">Rollover adds 30 days to any Premium time you still have. Auto-renew remains off unless you enable it in Account settings.</div>
       </div>
-      <div class="overlay-title" style="text-align:center;font-size:1.2rem;line-height:1.35">Get Account Premium</div>
-      <div class="overlay-sub" style="text-align:center;font-size:.88rem;line-height:1.7">Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, free bot deployment, and 15% off paid services and coin charges while verified.</div>
-      <div class="verify-benefits">
-        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified badge on your profile</div>
-        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Unlimited use of every free tool</div>
-        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>A downloadable verification certificate</div>
-        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>No ads on your account</div>
-        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Free bot deployment</div>
-        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15% off paid services and coin charges while verified</div>
+      <div class="verify-sticky-actions">
+        <div class="acc-msg err" id="verifyIntroMsg"></div>
+        <button class="acc-btn" id="verifyPayBtn" style="width:100%">Pay & Verify</button>
+        <button class="overlay-cancel" id="verifyCancel1">Cancel</button>
       </div>
-      <div class="verify-price-row">
-        <span class="verify-price" id="verifyPriceLabel">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span>
-        <span class="verify-price-period">/ 30 days</span>
-      </div>
-      <div class="rw-hint" style="font-size:.72rem;line-height:1.55;margin-bottom:10px">Your card is saved securely for renewals. Auto-renew stays off until you switch it on in Account settings, and you can remove the card there any time.</div>
-      <div class="acc-msg err" id="verifyIntroMsg"></div>
-      <button class="acc-btn" id="verifyPayBtn" style="width:100%">Pay & Verify</button>
-      <button class="overlay-cancel" id="verifyCancel1">Cancel</button>
     </div>
     <div class="overlay-step" id="verifyStepProcessing">
       <div class="acc-loader-ring" style="margin:24px auto"></div>
@@ -2141,8 +2149,8 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="verify-success-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
       </div>
-      <div class="overlay-title" style="text-align:center">You are now Verified</div>
-      <div class="overlay-sub" style="text-align:center">Your certificate is ready, valid for 30 days.</div>
+      <div class="overlay-title" id="verifySuccessTitle" style="text-align:center">You are now Verified</div>
+      <div class="overlay-sub" style="text-align:center">Your Premium time has been extended by 30 days. Any remaining verified days have been preserved.</div>
       <button class="acc-btn" id="verifyViewCertBtn" style="width:100%">View Certificate</button>
       <button class="overlay-cancel" id="verifyCancel2">Close</button>
     </div>
@@ -4323,7 +4331,18 @@ document.getElementById('tfaDisableBtn').addEventListener('click', async () => {
 function updateVerificationUI(){
   const heroBtn = document.getElementById('getVerifiedLink');
   const fab = document.getElementById('certFab');
-  heroBtn.style.display = (profile.verified || profile.isAdmin) ? 'none' : 'flex';
+  const rollover = !!(profile && profile.verified && !profile.isAdmin);
+  heroBtn.style.display = profile && profile.isAdmin ? 'none' : 'flex';
+  document.getElementById('getVerifiedLabel').textContent = rollover ? 'ROLL OVER' : 'Get Verified';
+  document.getElementById('verifyOverlayTitle').textContent = rollover ? 'Roll Over Premium' : 'Get Account Premium';
+  const priceEl = document.getElementById('verifyPriceLabel');
+  const price = Number(rollover ? priceEl.dataset.rolloverPrice : priceEl.dataset.newPrice);
+  priceEl.textContent = '₦' + price.toLocaleString('en-US');
+  document.getElementById('verifyPricePeriod').textContent = rollover ? '/ 30 days added to your remaining time' : '/ 30 days';
+  document.getElementById('verifyPayBtn').textContent = rollover ? 'ROLL OVER' : 'Pay & Verify';
+  document.getElementById('verifyRolloverHint').textContent = rollover
+    ? 'Your current Premium days stay intact; this rollover adds 30 more days to your expiry date.'
+    : 'New Premium lasts 30 days. Current Premium members can roll over for ₦' + Number(priceEl.dataset.rolloverPrice).toLocaleString('en-US') + ' and keep their remaining days.';
   fab.classList.toggle('dead', !profile.verified);
   try { if (window.EsTheme) EsTheme.sync(profile); } catch (e) {}
   try { if (themesOverlay.classList.contains('show')) paintThemes(); } catch (e) {}
@@ -5103,7 +5122,7 @@ function openVerifyOverlay(){
   showVerifyStep('verifyStepIntro');
   const btn = document.getElementById('verifyPayBtn');
   btn.disabled = false;
-  btn.textContent = 'Pay & Verify';
+  btn.textContent = profile && profile.verified && !profile.isAdmin ? 'ROLL OVER' : 'Pay & Verify';
   document.getElementById('verifyOverlay').classList.add('show');
 }
 function closeVerifyOverlay(){
@@ -5131,12 +5150,12 @@ document.getElementById('verifyPayBtn').addEventListener('click', async () => {
     data = await postJSON('/api/verification/initialize', { method: payMethod });
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = 'Pay & Verify';
+    btn.textContent = profile && profile.verified && !profile.isAdmin ? 'ROLL OVER' : 'Pay & Verify';
     flashMsg(msg, err.message || 'Could not start payment.', false);
     return;
   }
   btn.disabled = false;
-  btn.textContent = 'Pay & Verify';
+  btn.textContent = profile && profile.verified && !profile.isAdmin ? 'ROLL OVER' : 'Pay & Verify';
   esPay.open(data, {
     onSuccess: function(reference){
       showVerifyStep('verifyStepProcessing');
@@ -5152,6 +5171,7 @@ async function confirmVerificationPayment(reference){
     profile.verified = true;
     profile.verifiedAt = profile.verifiedAt || Date.now();
     profile.verifiedExpiresAt = result.expiresAt;
+    document.getElementById('verifySuccessTitle').textContent = result.rolledOver ? 'Premium Extended' : 'You are now Verified';
     document.getElementById('heroName').innerHTML = 'Hi, ' + esc(profile.firstName) + VERIFIED_BADGE;
     updateVerificationUI();
     showVerifyStep('verifyStepSuccess');

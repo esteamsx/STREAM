@@ -45,7 +45,7 @@ import {
   findUnusedClaimPayment,
   finalizeClaimPayment,
 } from "../services/auth.js";
-import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN, normalizePaymentMethod, ngnToUsd, NGN_PER_USD } from "../services/paystack.js";
+import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN, VERIFICATION_ROLLOVER_PRICE_NGN, normalizePaymentMethod, ngnToUsd, NGN_PER_USD } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { finalizeAdPayment } from "../services/ads.js";
 
@@ -75,19 +75,20 @@ const webhookLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.ip).mid
 
 router.post("/api/verification/initialize", requireAuth, initLimiter, async (req, res) => {
   try {
-    const profile = await getUserProfile(req.uid);
+    const profile = req.userProfile;
     if (!profile) return res.status(404).json({ error: "Account not found." });
-    if (isVerificationActive(profile)) return res.status(400).json({ error: "You're already verified." });
     if (!profile.email) return res.status(400).json({ error: "Add an email to your account before verifying." });
 
-    const amountKobo = VERIFICATION_PRICE_NGN * 100;
+    const rollover = isVerificationActive(profile);
+    const priceNgn = rollover ? VERIFICATION_ROLLOVER_PRICE_NGN : VERIFICATION_PRICE_NGN;
+    const amountKobo = priceNgn * 100;
     const data = await initializeTransaction({
       method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
       amountKobo,
-      metadata: { uid: req.uid, purpose: "verification" },
+      metadata: { uid: req.uid, purpose: "verification", rollover },
     });
-    await createVerificationPayment(req.uid, data.reference, amountKobo);
+    await createVerificationPayment(req.uid, data.reference, amountKobo, rollover);
 
     res.json({
       reference: data.reference,
@@ -98,7 +99,7 @@ router.post("/api/verification/initialize", requireAuth, initLimiter, async (req
       amountUsd: ngnToUsd(amountKobo / 100),
       email: profile.email,
       amountKobo,
-      priceNgn: VERIFICATION_PRICE_NGN,
+      priceNgn,
     });
   } catch (err) {
     console.error(err);
@@ -116,12 +117,12 @@ router.post("/api/verification/confirm", requireAuth, confirmLimiter, async (req
 
     if (record.status === "success") {
       const profile = await getUserProfile(req.uid);
-      return res.json({ verified: true, expiresAt: profile?.verifiedExpiresAt || null });
+      return res.json({ verified: true, expiresAt: profile?.verifiedExpiresAt || null, rolledOver: !!record.rollover });
     }
 
     const paystackData = await verifyTransaction(reference);
     const result = await finalizeVerificationPayment(reference, paystackData);
-    res.json({ verified: true, expiresAt: result.expiresAt || null });
+    res.json({ verified: true, expiresAt: result.expiresAt || null, rolledOver: !!result.rollover });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: err.message || "Could not confirm payment." });

@@ -3,7 +3,8 @@ import crypto from "crypto";
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "";
 const PAYSTACK_BASE = "https://api.paystack.co";
 
-export const VERIFICATION_PRICE_NGN = 3990;
+export const VERIFICATION_PRICE_NGN = 4990;
+export const VERIFICATION_ROLLOVER_PRICE_NGN = 3990;
 export const VERIFICATION_DAYS = 30;
 
 async function paystackRequest(method, endpoint, body) {

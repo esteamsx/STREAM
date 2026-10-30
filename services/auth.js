@@ -9,7 +9,8 @@ import {
 } from "@simplewebauthn/server";
 import { db, auth } from "../config/firebase.js";
 import { checkQuotaError } from "../middleware/quota-guard.js";
-import { VERIFICATION_PRICE_NGN } from "./paystack.js";
+import { VERIFICATION_ROLLOVER_PRICE_NGN } from "./paystack.js";
+import { channelCoinCost, dailyCoinClaimAmount, FREE_CHANNEL_REACTION_COST, FREE_DAILY_COIN_CLAIM_AMOUNT, nextVerificationExpiry } from "./coin-pricing.js";
 import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEmail } from "./mailer.js";
 import { appendCoinLedger, coinLedgerMismatch, verifyCoinLedgerChain } from "./coin-ledger.js";
 import { openDeviceSession, checkDeviceSession, touchDeviceSession, revokeDeviceSession, revokeAllDeviceSessions, TRUSTED_SESSION_TTL_MS } from "./device-sessions.js";
@@ -3195,6 +3196,7 @@ async function searchUsersByUsername(query, excludeUid, limit = 15) {
 const LAST_ACTIVE_UPDATE_THROTTLE_MS = 2 * 60 * 1000;
 
 const BACKGROUND_POLL_PATHS = ["/api/chess/hb", "/api/notifications/unread", "/api/feed/following/unseen-count", "/api/status/unseen-count", "/api/devices/prompt"];
+const FRESH_PROFILE_PATHS = new Set(["/api/verification/initialize"]);
 
 function requireAuth(req, res, next) {
   const sessionId = req.cookies?.session;
@@ -3202,7 +3204,8 @@ function requireAuth(req, res, next) {
     .then(async (uid) => {
       if (!uid) return res.status(401).json({ error: "not_authenticated" });
       const isBackgroundPoll = BACKGROUND_POLL_PATHS.some((p) => req.path.startsWith(p));
-      const profile = await getUserProfile(uid, isBackgroundPoll ? 60 * 1000 : undefined);
+      const profileMaxAge = FRESH_PROFILE_PATHS.has(req.path) ? 0 : (isBackgroundPoll ? 60 * 1000 : undefined);
+      const profile = await getUserProfile(uid, profileMaxAge);
       if (!profile || profile.pendingDeletion || profile.banned || isSessionRevoked(sessionId, profile)) {
         await deleteSession(sessionId);
         return res.status(401).json({ error: "not_authenticated" });
@@ -3404,10 +3407,11 @@ async function adminUnverifyUser(uid) {
 
 const PAID_VERIFICATION_DAYS = 30;
 
-async function createVerificationPayment(uid, reference, amountKobo) {
+async function createVerificationPayment(uid, reference, amountKobo, rollover = false) {
   await db.collection("verificationPayments").doc(reference).set({
     uid,
     amountKobo,
+    rollover: !!rollover,
     status: "pending",
     createdAt: Date.now(),
   });
@@ -3427,19 +3431,28 @@ async function finalizeVerificationPayment(reference, paystackData) {
   if (claim.failed) throw new Error("Payment was not successful.");
 
   const record = claim.record;
-  const expiresAt = Date.now() + PAID_VERIFICATION_DAYS * 24 * 60 * 60 * 1000;
-  await db.collection("users").doc(record.uid).update({
-    verified: true,
-    verifiedAt: Date.now(),
-    verifiedExpiresAt: expiresAt,
-    verifiedVia: "payment",
+  const userRef = db.collection("users").doc(record.uid);
+  const now = Date.now();
+  const expiresAt = await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) throw new Error("Account not found.");
+    const user = userSnap.data();
+    const nextExpiry = nextVerificationExpiry(user.verifiedExpiresAt, now, PAID_VERIFICATION_DAYS, isVerificationActive(user));
+    tx.update(userRef, {
+      verified: true,
+      verifiedAt: user.verifiedAt || now,
+      verifiedExpiresAt: nextExpiry,
+      verifiedVia: "payment",
+    });
+    return nextExpiry;
   });
+  invalidateUserProfileCache(record.uid);
   await ref.update({ status: "success", confirmedAt: Date.now() });
   await saveBillingAuthorization(record.uid, paystackData);
   await addNotification(record.uid, "verified", "You are now Verified", { expiresAt });
   await creditReferralCommission(record.uid, record.amountKobo / 100, "account verification");
 
-  return { alreadyProcessed: false, uid: record.uid, expiresAt };
+  return { alreadyProcessed: false, uid: record.uid, expiresAt, rollover: !!record.rollover };
 }
 
 const API_PLAN_DAYS = 30;
@@ -3667,7 +3680,7 @@ const RENEWABLE_PRODUCTS = {
     days: PAID_VERIFICATION_DAYS,
     label: "Account verification",
     commissionLabel: "account verification",
-    priceNgn: () => VERIFICATION_PRICE_NGN,
+    priceNgn: () => VERIFICATION_ROLLOVER_PRICE_NGN,
     applyRenewal: (expiresAt) => ({
       verified: true,
       verifiedAt: Date.now(),
@@ -4092,8 +4105,6 @@ async function redeemTradingPlanCode(uid, rawCode) {
 
 const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const REFERRAL_SIGNUP_COINS = 3;
-const DAILY_COIN_CLAIM_AMOUNT = 1;
-const ADMIN_DAILY_COIN_CLAIM_AMOUNT = 5;
 const REFERRAL_COMMISSION_RATE = 0.15;
 const MIN_WITHDRAWAL_NGN = 3000;
 const MAX_WITHDRAWAL_NGN = 100000;
@@ -4229,17 +4240,17 @@ async function finalizeClaimPayment(reference, paystackData) {
 
 async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
   const reference = String(paymentReference || "").trim();
-  const pre = await getUserProfile(uid);
-  if (DAILY_CLAIM_FEE_NGN > 0 && !(pre && isAdminEmail(pre.email))) {
+  if (DAILY_CLAIM_FEE_NGN > 0) {
+    const pre = await getUserProfile(uid);
     const prePay = reference ? await getClaimPayment(reference) : null;
-    if (!prePay || prePay.uid !== uid || prePay.status !== "success" || prePay.used) {
+    if (!(pre && isAdminEmail(pre.email)) && (!prePay || prePay.uid !== uid || prePay.status !== "success" || prePay.used)) {
       throw Object.assign(new Error(`Pay \u20A6${DAILY_CLAIM_FEE_NGN} to claim your daily coins.`), { status: 402 });
     }
   }
   const probes = await checkClaimFace(uid, faceDescriptor);
   const today = currentUsageDay();
   const ref = db.collection("users").doc(uid);
-  let amount = DAILY_COIN_CLAIM_AMOUNT;
+  let amount = FREE_DAILY_COIN_CLAIM_AMOUNT;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new Error("Account not found.");
@@ -4267,7 +4278,7 @@ async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
         throw Object.assign(new Error("That payment was already used for a claim."), { status: 400 });
       }
     }
-    if (isAdmin) amount = ADMIN_DAILY_COIN_CLAIM_AMOUNT;
+    amount = dailyCoinClaimAmount({ isAdmin, isPremium: isVerificationActive(data) });
     assertCoinsAllowed(data);
     const ledger = appendCoinLedger(tx, ref, data, amount, "daily_claim", { day: today, ...(free ? {} : { reference }) });
     tx.set(ref, { coinBalance: admin.firestore.FieldValue.increment(amount), lastDailyCoinClaimDay: today, ...ledger }, { merge: true });
@@ -4281,7 +4292,7 @@ async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
   return { amount };
 }
 
-const CHANNEL_REACT_COIN_COST = 8;
+const CHANNEL_REACT_COIN_COST = FREE_CHANNEL_REACTION_COST;
 
 async function spendCoins(uid, amount, reason) {
   const baseCost = Math.max(0, Math.floor(Number(amount) || 0));
@@ -4299,7 +4310,11 @@ async function spendCoins(uid, amount, reason) {
       throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
     }
     assertCoinsAllowed(data);
-    cost = discountedCoinCost(baseCost, data);
+    cost = reason === "channel-react"
+      ? channelCoinCost("react", isVerificationActive(data))
+      : reason === "channel-poll"
+        ? channelCoinCost("poll", isVerificationActive(data))
+        : discountedCoinCost(baseCost, data);
     const balance = data.coinBalance || 0;
     if (balance < cost) {
       throw Object.assign(

@@ -348,6 +348,7 @@ import {
   recordWeeklyActivityPulse,
 } from "./services/auth.js";
 import { chargeAuthorization, VERIFICATION_PRICE_NGN, VERIFICATION_DAYS } from "./services/paystack.js";
+import { channelCoinCost } from "./services/coin-pricing.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { promoteRouter } from "./routes/promote.js";
 import { injectPromoSlot } from "./middleware/promo-slot.js";
@@ -2937,7 +2938,7 @@ app.get("/api/channel/targets", requireAuth, botStatusLimiter, async (req, res) 
       unlimited: !!(profile && (isAdminEmail(profile.email) || isVerificationActive(profile))),
       free: isAdmin,
       coinBalance: Number(profile?.coinBalance || 0),
-      coinCost: discountedCoinCost(CHANNEL_REACT_COIN_COST, profile),
+      coinCost: channelCoinCost("react", isVerificationActive(profile)),
       dailyLimit: CHANNEL_REACT_DAILY_LIMIT,
       ready: true,
     });

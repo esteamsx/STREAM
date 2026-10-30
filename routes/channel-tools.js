@@ -1,4 +1,5 @@
 import * as ch from "../services/channel-service.js";
+import { channelCoinCost, FREE_CHANNEL_POLL_VOTE_COST } from "../services/coin-pricing.js";
 
 /* Channel react and poll votes. Everything here runs on the server: the browser only talks to /api/wa/*
    and never learns who the provider is, which tokens exist, or how much they hold. */
@@ -10,7 +11,7 @@ export function registerChannelRoutes(router, deps) {
     isAdminEmail, isVerificationActive, reactPrice,
   } = deps;
 
-  const PRICE = { react: reactPrice, vote: 10 };
+  const PRICE = { react: reactPrice, vote: FREE_CHANNEL_POLL_VOTE_COST };
   const DAILY_LIMIT = 3;
   const MAX_AMOUNT = Number(process.env.WA_MAX_AMOUNT || 0);   // 0 = no cap, empty amount means "as many as possible"
   const LABEL = { react: "Channel Reactions", vote: "Poll Votes" };
@@ -57,11 +58,11 @@ export function registerChannelRoutes(router, deps) {
     const profile = req.userProfile;
     const admin = isAdmin(req);
     res.set("Cache-Control", "no-store").json({
-      ok: true, isAdmin: admin, free: admin,
+      ok: true, isAdmin: admin, isPremium: !!(profile && isVerificationActive(profile)), free: admin,
       unlimited: !!(profile && (admin || isVerificationActive(profile))),
       coinBalance: Number(profile && profile.coinBalance) || 0,
-      reactCost: isVerificationActive(profile) ? Math.round(PRICE.react * 0.85) : PRICE.react,
-      voteCost: isVerificationActive(profile) ? Math.round(PRICE.vote * 0.85) : PRICE.vote,
+      reactCost: channelCoinCost("react", isVerificationActive(profile)),
+      voteCost: channelCoinCost("poll", isVerificationActive(profile)),
       dailyLimit: DAILY_LIMIT,
       ready: await ch.isReady(),
     });
