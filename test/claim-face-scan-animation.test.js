@@ -32,6 +32,9 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.match(account, /try \{ return await import\('\/face-scan\.js'\);/);
   assert.match(account, /capture = await claimModule\.captureFaceDescriptor\(\{[\s\S]*?samples: 2,[\s\S]*?timeoutMs: 120000,[\s\S]*?verify: async \(descriptor, samples\) => \{[\s\S]*?postJSON\('\/api\/rewards\/daily-claim'/);
   assert.equal((account.match(/postJSON\('\/api\/rewards\/daily-claim'/g) || []).length, 1);
+  assert.match(account, /const claimWasRecordedToday = async \(\) =>/);
+  assert.match(account, /latest\.lastDailyCoinClaimDay === new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);
+  assert.match(account, /if \(await claimWasRecordedToday\(\)\) return \{ ok: true, alreadyClaimed: true \}/);
   assert.doesNotMatch(account, /import\('\/face-scan\.js\?v=\$\{ASSET_VERSION\}/);
   assert.doesNotMatch(account, /claimModule\.captureClaimFace\(\)/);
   assert.doesNotMatch(account, /import\('\/claim-face\.js/);

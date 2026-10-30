@@ -518,9 +518,8 @@ input{font-family:inherit}
 .rw-ref-row-commission{font-size:.78rem;font-weight:700;color:var(--green)}
 
 .rw-store-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.rw-buy-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-width:0}
-@media(min-width:520px){ .rw-buy-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
-@media(max-width:359px){ .rw-buy-grid{grid-template-columns:1fr} }
+.rw-buy-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-width:0;max-height:410px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:3px 5px 8px 3px}
+@media(max-width:359px){ .rw-buy-grid{grid-template-columns:1fr;max-height:390px} }
 .rw-store-item,.rw-buy-item{
   background:var(--card2);border:1px solid var(--border-strong);border-radius:12px;padding:12px;
   display:flex;flex-direction:column;gap:8px;align-items:flex-start;
@@ -534,7 +533,9 @@ input{font-family:inherit}
 .rw-buy-item .rw-buy-item-label{font-size:.66rem;font-weight:700;letter-spacing:.025em;color:var(--muted);margin-top:3px}
 .rw-buy-item-badge{align-self:flex-end;padding:3px 6px;border-radius:999px;background:rgba(0,224,255,.1);border:1px solid rgba(0,224,255,.2);color:var(--accent);font-size:.5rem;line-height:1.2;font-weight:900;letter-spacing:.055em;white-space:nowrap;margin-bottom:-4px}
 .rw-buy-item-badge.best{background:rgba(245,166,35,.11);border-color:rgba(245,166,35,.24);color:#FFB020}
+.rw-buy-item-popular{border-color:rgba(124,92,255,.52);box-shadow:0 0 0 1px rgba(124,92,255,.14),0 0 20px rgba(124,92,255,.18)}
 .rw-buy-item .rw-buy-item-cost{display:flex;flex-direction:column;gap:2px;color:var(--text);font-size:.9rem;font-weight:800;line-height:1.2}
+.rw-buy-item .rw-buy-item-cost.popular{padding:8px 10px;border:1px solid rgba(124,92,255,.48);border-radius:10px;background:linear-gradient(120deg,rgba(124,92,255,.15),rgba(0,224,255,.06));box-shadow:0 0 17px rgba(124,92,255,.24),inset 0 0 12px rgba(124,92,255,.08)}
 .rw-buy-item-cost strong{font:inherit}
 .rw-buy-item-cost span{font-size:.64rem;font-weight:600;color:var(--muted)}
 .rw-buy-item:active{transform:scale(.985)}
@@ -5331,16 +5332,19 @@ async function loadRewardsSummary(){
     pack350: { label: 'Value Pack' },
     pack500: { label: 'Premium Pack' },
     pack1000: { badge: 'BEST VALUE', badgeClass: ' best' },
+    pack2000: { label: 'Mega Pack' },
+    pack3000: { label: 'Max Pack' },
   };
   const coinIcon = '<span class="rw-buy-coin-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 9.3c0-1 2-1.8 4.5-1.8s4.5.8 4.5 1.8-2 1.8-4.5 1.8-4.5-.8-4.5-1.8Zm0 0v5.4c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V9.3m-9 2.7c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8"/></svg></span>';
   buyGrid.innerHTML = Object.keys(rewardsSummary.coinPackages).map((key) => {
     const pkg = rewardsSummary.coinPackages[key];
     const presentation = coinPackagePresentation[key] || {};
+    const isPopular = presentation.badge === 'POPULAR';
     const badge = presentation.badge ? '<span class="rw-buy-item-badge' + (presentation.badgeClass || '') + '">' + presentation.badge + '</span>' : '';
     const label = presentation.label ? '<div class="rw-buy-item-label">' + presentation.label + '</div>' : '';
-    return '<div class="rw-buy-item">' + badge +
+    return '<div class="rw-buy-item' + (isPopular ? ' rw-buy-item-popular' : '') + '">' + badge +
       '<div class="rw-buy-item-head">' + coinIcon + '<div class="rw-buy-item-main"><div class="rw-buy-item-coins">' + Number(pkg.coins).toLocaleString() + ' coins</div>' + label + '</div></div>' +
-      '<div class="rw-buy-item-cost"><strong>' + fmtNgn(pkg.priceNgn) + '</strong><span>≈ ' + esPay.fmtUsd(pkg.priceNgn) + '</span></div>' +
+      '<div class="rw-buy-item-cost' + (isPopular ? ' popular' : '') + '"><strong>' + fmtNgn(pkg.priceNgn) + '</strong><span>≈ ' + esPay.fmtUsd(pkg.priceNgn) + '</span></div>' +
       '<button type="button" class="acc-btn acc-btn-ghost" data-buy-pkg="' + key + '">Buy</button></div>';
   }).join('');
   buyGrid.querySelectorAll('[data-buy-pkg]').forEach((btn) => {
@@ -5634,6 +5638,17 @@ claimContinueBtn.addEventListener('click', async () => {
 
   let claimModule = null;
   let capture = null;
+  const claimWasRecordedToday = async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const latest = await getJSON('/api/rewards/summary');
+        rewardsSummary = latest;
+        if (latest.lastDailyCoinClaimDay === new Date().toISOString().slice(0, 10)) return true;
+      } catch (summaryError) {}
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    return false;
+  };
   try {
     claimModule = await loadClaimFaceModule();
     capture = await claimModule.captureFaceDescriptor({
@@ -5647,16 +5662,28 @@ claimContinueBtn.addEventListener('click', async () => {
         const faceDescriptor = [descriptor, ...(samples || [])]
           .filter((v) => Array.isArray(v))
           .map((v) => ({ v }));
-        return await postJSON('/api/rewards/daily-claim', {
-          altcha: claimCaptchaValue,
-          faceDescriptor,
-          paymentReference: paidRef,
-        });
+        try {
+          return await postJSON('/api/rewards/daily-claim', {
+            altcha: claimCaptchaValue,
+            faceDescriptor,
+            paymentReference: paidRef,
+          });
+        } catch (claimError) {
+          if (await claimWasRecordedToday()) return { ok: true, alreadyClaimed: true };
+          throw claimError;
+        }
       },
     });
   } catch (err) {
     claimContinueBtn.innerHTML = original;
     claimContinueBtn.disabled = !claimCaptchaPassed;
+    if (await claimWasRecordedToday()) {
+      closeRwOverlay(rwClaimOverlay);
+      await loadRewardsSummary();
+      showToast('Your daily coins were already claimed today');
+      flashMsg(document.getElementById('rwDailyClaimMsg'), 'Today’s claim is recorded and your balance has been refreshed.', true);
+      return;
+    }
     if (/Face Id not Set/i.test(err.message || '')) setClaimState('nofaceid');
     else flashMsg(claimMsg, paidRef ? ((err.message || 'Face check failed.') + ' Your ₦' + ((rewardsSummary && rewardsSummary.dailyClaimFeeNgn) || 100) + ' payment is saved, tap Continue to try again.') : ((err && err.message) || 'Face check failed. Please try again.'), false);
     return;
@@ -5664,6 +5691,13 @@ claimContinueBtn.addEventListener('click', async () => {
 
   try {
     const result = capture;
+    if (result && result.alreadyClaimed) {
+      closeRwOverlay(rwClaimOverlay);
+      await loadRewardsSummary();
+      showToast('Your daily coins were already claimed today');
+      flashMsg(document.getElementById('rwDailyClaimMsg'), 'Today’s claim is recorded and your balance has been refreshed.', true);
+      return;
+    }
     if (rewardsSummary) rewardsSummary.claimCreditRef = null;
     closeRwOverlay(rwClaimOverlay);
     try { claimModule.playCoinSound(); } catch (e) {}
