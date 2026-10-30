@@ -525,21 +525,22 @@ input{font-family:inherit}
   display:flex;flex-direction:column;gap:8px;align-items:flex-start;
 }
 .rw-buy-item{position:relative;min-width:0;box-sizing:border-box;min-height:150px;align-items:stretch;padding:13px;gap:10px;background:linear-gradient(155deg,rgba(255,255,255,.085),rgba(255,255,255,.025));transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
-.rw-buy-item-head{display:flex;align-items:center;gap:9px;min-height:42px;padding-right:22px}
+.rw-buy-item-badge-row{height:15px;display:flex;align-items:flex-start;justify-content:flex-end}
+.rw-buy-item-head{display:flex;align-items:center;gap:9px;min-height:42px}
 .rw-buy-coin-icon{width:34px;height:34px;flex:0 0 34px;display:flex;align-items:center;justify-content:center;border-radius:11px;background:linear-gradient(145deg,rgba(0,224,255,.12),rgba(167,92,255,.12));color:var(--accent)}
 .rw-buy-coin-icon svg{width:23px;height:23px}
-.rw-buy-item-main{min-width:0}
+.rw-buy-item-main{min-width:0;display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 5px;line-height:1.15}
 .rw-buy-item-coins{font-family:var(--font-display);font-size:.98rem;line-height:1.15;font-weight:800;color:var(--text);white-space:nowrap}
-.rw-buy-item .rw-buy-item-label{font-size:.66rem;font-weight:700;letter-spacing:.025em;color:var(--muted);margin-top:3px}
-.rw-buy-item-badge{align-self:flex-end;padding:3px 6px;border-radius:999px;background:rgba(0,224,255,.1);border:1px solid rgba(0,224,255,.2);color:var(--accent);font-size:.5rem;line-height:1.2;font-weight:900;letter-spacing:.055em;white-space:nowrap;margin-bottom:-4px}
+.rw-buy-item .rw-buy-item-label{display:inline;font-size:.6rem;font-weight:700;letter-spacing:.015em;color:var(--muted);white-space:nowrap}
+.rw-buy-item-badge{padding:2px 6px;border-radius:999px;background:rgba(0,224,255,.1);border:1px solid rgba(0,224,255,.2);color:var(--accent);font-size:.5rem;line-height:1.2;font-weight:900;letter-spacing:.055em;white-space:nowrap}
 .rw-buy-item-badge.best{background:rgba(245,166,35,.11);border-color:rgba(245,166,35,.24);color:#FFB020}
 .rw-buy-item-popular{border-color:rgba(124,92,255,.52);box-shadow:0 0 0 1px rgba(124,92,255,.14),0 0 20px rgba(124,92,255,.18)}
 .rw-buy-item .rw-buy-item-cost{display:flex;flex-direction:column;gap:2px;color:var(--text);font-size:.9rem;font-weight:800;line-height:1.2}
-.rw-buy-item .rw-buy-item-cost.popular{padding:8px 10px;border:1px solid rgba(124,92,255,.48);border-radius:10px;background:linear-gradient(120deg,rgba(124,92,255,.15),rgba(0,224,255,.06));box-shadow:0 0 17px rgba(124,92,255,.24),inset 0 0 12px rgba(124,92,255,.08)}
 .rw-buy-item-cost strong{font:inherit}
 .rw-buy-item-cost span{font-size:.64rem;font-weight:600;color:var(--muted)}
 .rw-buy-item:active{transform:scale(.985)}
 @media(hover:hover){.rw-buy-item:hover{transform:translateY(-2px);border-color:rgba(0,224,255,.32);box-shadow:0 8px 22px rgba(0,0,0,.18)}}
+@media(hover:hover){.rw-buy-item.rw-buy-item-popular:hover{border-color:rgba(124,92,255,.62);box-shadow:0 0 0 1px rgba(124,92,255,.2),0 0 24px rgba(124,92,255,.25)}}
 @media(prefers-reduced-motion:reduce){.rw-buy-item{transition:none}.rw-buy-item:active,.rw-buy-item:hover{transform:none}}
 .rw-store-item-label,.rw-buy-item-label{font-size:.8rem;font-weight:700}
 .rw-store-item-cost,.rw-buy-item-cost{font-size:.72rem;color:var(--muted)}
@@ -5341,10 +5342,10 @@ async function loadRewardsSummary(){
     const presentation = coinPackagePresentation[key] || {};
     const isPopular = presentation.badge === 'POPULAR';
     const badge = presentation.badge ? '<span class="rw-buy-item-badge' + (presentation.badgeClass || '') + '">' + presentation.badge + '</span>' : '';
-    const label = presentation.label ? '<div class="rw-buy-item-label">' + presentation.label + '</div>' : '';
-    return '<div class="rw-buy-item' + (isPopular ? ' rw-buy-item-popular' : '') + '">' + badge +
+    const label = presentation.label ? '<span class="rw-buy-item-label">' + presentation.label + '</span>' : '';
+    return '<div class="rw-buy-item' + (isPopular ? ' rw-buy-item-popular' : '') + '"><div class="rw-buy-item-badge-row">' + badge + '</div>' +
       '<div class="rw-buy-item-head">' + coinIcon + '<div class="rw-buy-item-main"><div class="rw-buy-item-coins">' + Number(pkg.coins).toLocaleString() + ' coins</div>' + label + '</div></div>' +
-      '<div class="rw-buy-item-cost' + (isPopular ? ' popular' : '') + '"><strong>' + fmtNgn(pkg.priceNgn) + '</strong><span>≈ ' + esPay.fmtUsd(pkg.priceNgn) + '</span></div>' +
+      '<div class="rw-buy-item-cost"><strong>' + fmtNgn(pkg.priceNgn) + '</strong><span>≈ ' + esPay.fmtUsd(pkg.priceNgn) + '</span></div>' +
       '<button type="button" class="acc-btn acc-btn-ghost" data-buy-pkg="' + key + '">Buy</button></div>';
   }).join('');
   buyGrid.querySelectorAll('[data-buy-pkg]').forEach((btn) => {

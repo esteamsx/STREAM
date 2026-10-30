@@ -25,7 +25,10 @@ test("coin package prices and payment-link rate follow the new pricing", () => {
 test("Buy Coins stays two columns with an internal scroll area and highlighted Popular price", () => {
   assert.match(account, /\.rw-buy-grid\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)[^}]*max-height:410px[^}]*overflow-y:auto/);
   assert.match(account, /@media\(max-width:359px\)\{ \.rw-buy-grid\{grid-template-columns:1fr/);
-  assert.match(account, /\.rw-buy-item-cost\.popular\{[^}]*box-shadow:[^}]*rgba\(124,92,255/);
+  assert.match(account, /\.rw-buy-item-popular\{[^}]*box-shadow:[^}]*rgba\(124,92,255/);
+  assert.doesNotMatch(account, /rw-buy-item-cost\.popular/);
+  assert.match(account, /\.rw-buy-item-badge-row\{height:15px/);
+  assert.match(account, /rw-buy-item-label\{[^}]*white-space:nowrap/);
   assert.match(account, /presentation\.badge === 'POPULAR'/);
   assert.match(account, /pack2000: \{ label: 'Mega Pack' \}/);
   assert.match(account, /pack3000: \{ label: 'Max Pack' \}/);
