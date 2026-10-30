@@ -2128,6 +2128,7 @@ body:has(.page-overlay.show){overflow:hidden}
           <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>No ads on your account</div>
           <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Free bot deployment</div>
           <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15% off other eligible paid services and coin charges</div>
+          <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Earn ₦600+ daily from successful Premium referrals</div>
         </div>
         <div class="verify-price-row">
           <span class="verify-price" id="verifyPriceLabel" data-new-price="${VERIFICATION_PRICE_NGN}" data-rollover-price="${VERIFICATION_ROLLOVER_PRICE_NGN}">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span>
