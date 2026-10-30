@@ -11,6 +11,7 @@ import { db, auth } from "../config/firebase.js";
 import { checkQuotaError } from "../middleware/quota-guard.js";
 import { VERIFICATION_ROLLOVER_PRICE_NGN } from "./paystack.js";
 import { channelCoinCost, dailyCoinClaimAmount, FREE_CHANNEL_REACTION_COST, FREE_DAILY_COIN_CLAIM_AMOUNT, nextVerificationExpiry } from "./coin-pricing.js";
+import { isFirstPremiumPayment, planPremiumReferralAwards } from "./premium-referral-rewards.js";
 import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEmail } from "./mailer.js";
 import { appendCoinLedger, coinLedgerMismatch, verifyCoinLedgerChain } from "./coin-ledger.js";
 import { openDeviceSession, checkDeviceSession, touchDeviceSession, revokeDeviceSession, revokeAllDeviceSessions, TRUSTED_SESSION_TTL_MS } from "./device-sessions.js";
@@ -3422,6 +3423,137 @@ async function getVerificationPayment(reference) {
   return snap.exists ? snap.data() : null;
 }
 
+async function settlePremiumReferralPayment({ uid, eventKey, gatewayReference = null, paymentRef = null, forceRenewal = false, buildUserUpdate }) {
+  const now = Date.now();
+  const eventId = crypto.createHash("sha256").update(String(eventKey)).digest("hex");
+  const eventRef = db.collection("premiumReferralRewards").doc(eventId);
+  const buyerRef = db.collection("users").doc(uid);
+  const priorPaymentQuery = db.collection("verificationPayments")
+    .where("uid", "==", uid)
+    .where("status", "==", "success")
+    .limit(1);
+
+  const result = await db.runTransaction(async (tx) => {
+    const [buyerSnap, eventSnap, paymentSnap] = await Promise.all([
+      tx.get(buyerRef),
+      tx.get(eventRef),
+      paymentRef ? tx.get(paymentRef) : Promise.resolve(null),
+    ]);
+    if (!buyerSnap.exists) throw new Error("Account not found.");
+    const buyer = buyerSnap.data();
+
+    if (paymentRef && paymentSnap?.exists && paymentSnap.data().status === "success") {
+      return { alreadyProcessed: true, uid, expiresAt: buyer.verifiedExpiresAt || null };
+    }
+    if (paymentRef && (!paymentSnap?.exists || paymentSnap.data().status !== "claimed")) {
+      throw new Error("Premium payment is not in a claimable state.");
+    }
+    if (eventSnap.exists) {
+      if (paymentRef) tx.update(paymentRef, { status: "success", confirmedAt: now });
+      return { alreadyProcessed: true, uid, expiresAt: buyer.verifiedExpiresAt || null };
+    }
+
+    let priorPaymentSnap = null;
+    if (!buyer.premiumFirstPaymentAt && buyer.verifiedVia !== "payment" && !forceRenewal) {
+      priorPaymentSnap = await tx.get(priorPaymentQuery);
+    }
+    const priorPaymentDoc = priorPaymentSnap && !priorPaymentSnap.empty ? priorPaymentSnap.docs[0] : null;
+    const firstPayment = isFirstPremiumPayment({
+      hasFirstPaymentMarker: !!buyer.premiumFirstPaymentAt,
+      verifiedVia: buyer.verifiedVia || null,
+      hasPriorSuccessfulPayment: !!priorPaymentDoc,
+      forceRenewal,
+    });
+
+    const ancestors = [];
+    const seenUids = new Set([uid]);
+    let ancestorUid = buyer.referredBy;
+    for (let generation = 1; generation <= 3 && ancestorUid; generation += 1) {
+      const nextUid = String(ancestorUid);
+      if (seenUids.has(nextUid)) break;
+      seenUids.add(nextUid);
+      const ancestorRef = db.collection("users").doc(nextUid);
+      const ancestorSnap = await tx.get(ancestorRef);
+      if (!ancestorSnap.exists) break;
+      const data = ancestorSnap.data();
+      ancestors.push({ uid: nextUid, ref: ancestorRef, data, eligible: isVerificationActive(data) });
+      ancestorUid = data.referredBy;
+    }
+
+    const mutation = buildUserUpdate(buyer, now);
+    const markerAt = buyer.premiumFirstPaymentAt ||
+      (priorPaymentDoc && (priorPaymentDoc.data().createdAt || priorPaymentDoc.data().confirmedAt)) ||
+      ((buyer.verifiedVia === "payment" || forceRenewal) ? (buyer.verifiedAt || now) : now);
+    const markerReference = buyer.premiumFirstPaymentReference ||
+      (priorPaymentDoc ? priorPaymentDoc.id :
+        ((buyer.verifiedVia === "payment" || forceRenewal) ? "legacy_premium_payment" : String(gatewayReference || eventKey)));
+    const marker = {
+      premiumFirstPaymentAt: markerAt,
+      premiumFirstPaymentReference: markerReference,
+    };
+    tx.set(buyerRef, { ...mutation.fields, ...marker }, { merge: true });
+
+    const plannedAwards = planPremiumReferralAwards(ancestors, firstPayment);
+    const auditedAwards = [];
+    const affectedUids = [];
+    const notifiedUids = [];
+    for (let index = 0; index < plannedAwards.length; index += 1) {
+      const planned = plannedAwards[index];
+      const ancestor = ancestors[index];
+      const audit = { ...planned };
+      if (planned.rewardType === "cash") {
+        tx.update(ancestor.ref, { nairaBalance: admin.firestore.FieldValue.increment(planned.amountNgn) });
+        affectedUids.push(ancestor.uid);
+        const notificationId = crypto.createHash("sha256").update(`${eventId}:${ancestor.uid}`).digest("hex");
+        const notificationRef = db.collection("notifications").doc(notificationId);
+        tx.set(notificationRef, {
+          uid: ancestor.uid,
+          type: "premium_referral_cash",
+          message: `You've received a cash prize of ₦${planned.amountNgn}!`,
+          meta: { amountNgn: planned.amountNgn, generation: planned.generation, referredUid: uid, paymentReference: gatewayReference || String(eventKey), actionUrl: "/account" },
+          createdAt: now,
+          read: false,
+        });
+        notifiedUids.push(ancestor.uid);
+      } else if (planned.rewardType === "coins") {
+        if (coinLedgerMismatch(ancestor.data) || isCoinRestricted(ancestor.data)) {
+          audit.rewardType = "none";
+          audit.coins = 0;
+          audit.reason = coinLedgerMismatch(ancestor.data) ? "referrer_coin_ledger_mismatch" : "referrer_coin_balance_restricted";
+        } else {
+          const ledger = appendCoinLedger(tx, ancestor.ref, ancestor.data, planned.coins, "premium_referral_renewal", {
+            referredUid: uid,
+            generation: planned.generation,
+            paymentReference: gatewayReference || String(eventKey),
+          });
+          tx.update(ancestor.ref, { coinBalance: admin.firestore.FieldValue.increment(planned.coins), ...ledger });
+          affectedUids.push(ancestor.uid);
+        }
+      }
+      auditedAwards.push(audit);
+    }
+
+    tx.set(eventRef, {
+      eventKey: String(eventKey),
+      paymentReference: gatewayReference || String(eventKey),
+      uid,
+      eventType: firstPayment ? "first_successful_premium_payment" : "premium_renewal_or_rollover",
+      firstPayment,
+      processedAt: now,
+      awards: auditedAwards,
+    });
+    if (paymentRef) tx.update(paymentRef, { status: "success", confirmedAt: now, referralRewardsProcessedAt: now });
+    return { alreadyProcessed: false, uid, expiresAt: mutation.expiresAt || null, firstPayment, affectedUids, notifiedUids };
+  });
+
+  if (!result.alreadyProcessed) {
+    invalidateUserProfileCache(uid);
+    for (const affectedUid of result.affectedUids) invalidateUserProfileCache(affectedUid);
+    for (const notifiedUid of result.notifiedUids) invalidateNotifState(notifiedUid);
+  }
+  return result;
+}
+
 async function finalizeVerificationPayment(reference, paystackData) {
   const ref = db.collection("verificationPayments").doc(reference);
   const claim = await claimPendingPayment(ref, paystackData);
@@ -3431,23 +3563,22 @@ async function finalizeVerificationPayment(reference, paystackData) {
   if (claim.failed) throw new Error("Payment was not successful.");
 
   const record = claim.record;
-  const userRef = db.collection("users").doc(record.uid);
-  const now = Date.now();
-  const expiresAt = await db.runTransaction(async (tx) => {
-    const userSnap = await tx.get(userRef);
-    if (!userSnap.exists) throw new Error("Account not found.");
-    const user = userSnap.data();
-    const nextExpiry = nextVerificationExpiry(user.verifiedExpiresAt, now, PAID_VERIFICATION_DAYS, isVerificationActive(user));
-    tx.update(userRef, {
-      verified: true,
-      verifiedAt: user.verifiedAt || now,
-      verifiedExpiresAt: nextExpiry,
-      verifiedVia: "payment",
-    });
-    return nextExpiry;
+  const settled = await settlePremiumReferralPayment({
+    uid: record.uid,
+    eventKey: `verification-payment:${reference}`,
+    gatewayReference: reference,
+    paymentRef: ref,
+    forceRenewal: !!record.rollover,
+    buildUserUpdate: (user, now) => {
+      const expiresAt = nextVerificationExpiry(user.verifiedExpiresAt, now, PAID_VERIFICATION_DAYS, isVerificationActive(user));
+      return {
+        fields: { verified: true, verifiedAt: user.verifiedAt || now, verifiedExpiresAt: expiresAt, verifiedVia: "payment" },
+        expiresAt,
+      };
+    },
   });
-  invalidateUserProfileCache(record.uid);
-  await ref.update({ status: "success", confirmedAt: Date.now() });
+  if (settled.alreadyProcessed) return { alreadyProcessed: true, uid: record.uid, expiresAt: settled.expiresAt, rollover: !!record.rollover };
+  const expiresAt = settled.expiresAt;
   await saveBillingAuthorization(record.uid, paystackData);
   await addNotification(record.uid, "verified", "You are now Verified", { expiresAt });
   await creditReferralCommission(record.uid, record.amountKobo / 100, "account verification");
@@ -3839,13 +3970,22 @@ async function renewOneSubscription(uid, product, claimed, chargeFn) {
   if (charge && charge.status === "success") {
     const base = Math.max(Date.now(), claimed.expiresAt);
     const nextExpiry = base + config.days * 24 * 60 * 60 * 1000;
-    await userRef.set(
-      {
-        ...config.applyRenewal(nextExpiry),
-        renewState: { [product]: admin.firestore.FieldValue.delete() },
-      },
-      { merge: true }
-    );
+    const renewalFields = {
+      ...config.applyRenewal(nextExpiry),
+      renewState: { [product]: admin.firestore.FieldValue.delete() },
+    };
+    if (product === "verification") {
+      const settled = await settlePremiumReferralPayment({
+        uid,
+        eventKey: `auto-renew:verification:${uid}:${claimed.expiresAt}`,
+        gatewayReference: charge.reference || null,
+        forceRenewal: true,
+        buildUserUpdate: () => ({ fields: renewalFields, expiresAt: nextExpiry }),
+      });
+      if (settled.alreadyProcessed) return { uid, product, outcome: "already_processed", expiresAt: settled.expiresAt };
+    } else {
+      await userRef.set(renewalFields, { merge: true });
+    }
     await addNotification(
       uid,
       "auto_renew",
@@ -4106,7 +4246,7 @@ async function redeemTradingPlanCode(uid, rawCode) {
 const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const REFERRAL_SIGNUP_COINS = 3;
 const REFERRAL_COMMISSION_RATE = 0.15;
-const MIN_WITHDRAWAL_NGN = 3000;
+const MIN_WITHDRAWAL_NGN = 3500;
 const MAX_WITHDRAWAL_NGN = 100000;
 const WITHDRAWAL_TAX_RATE = 0.15;
 const MIN_COIN_TRANSFER = 5;

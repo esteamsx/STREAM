@@ -50,6 +50,14 @@
       ]
     },
     {
+      "collectionGroup": "verificationPayments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "coinLedger",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

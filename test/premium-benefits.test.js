@@ -34,7 +34,7 @@ test("active Premium rollover adds 30 days to the existing expiry; inactive acco
   assert.equal(nextVerificationExpiry(now - day, now, 30, true), now + 30 * day);
 
   const auth = source("../services/auth.js");
-  assert.match(auth, /db\.runTransaction\(async \(tx\) => \{\s*const userSnap = await tx\.get\(userRef\)/);
+  assert.match(auth, /async function settlePremiumReferralPayment\([\s\S]*?db\.runTransaction\(async \(tx\) =>/);
   assert.match(auth, /nextVerificationExpiry\(user\.verifiedExpiresAt, now, PAID_VERIFICATION_DAYS, isVerificationActive\(user\)\)/);
 });
 

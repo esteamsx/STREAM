@@ -1808,10 +1808,10 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="rwWithdrawOverlay">
   <div class="overlay-card" style="max-width:360px">
     <div class="overlay-title">Withdraw to your bank</div>
-    <div class="overlay-sub">Withdrawals are &#8358;3,000-&#8358;100,000. Save your bank details first if you haven't.</div>
+    <div class="overlay-sub" id="rwWithdrawalRange">Withdrawals are &#8358;3,500-&#8358;100,000. Save your bank details first if you haven't.</div>
     <div class="field">
       <label>Amount (&#8358;)</label>
-      <input type="number" id="rwWithdrawAmount" placeholder="3000" min="3000" max="100000" step="100">
+      <input type="number" id="rwWithdrawAmount" placeholder="3500" min="3500" max="100000" step="100">
     </div>
     <div class="rw-withdraw-payout" id="rwWithdrawPayoutNote"></div>
     <div class="rw-hint">A 15% service fee applies to every withdrawal: it's taken out of what you receive, not added to what's debited. Only verified accounts can withdraw; this helps prevent fraud and fake account farming.</div>
@@ -2903,11 +2903,11 @@ function notifRender(list){
       viewBtn.addEventListener('click', () => { window.location.href = '/channel-react'; });
       top.appendChild(viewBtn);
     }
-    if (n.type === 'referral_signup' || n.type === 'referral_commission' || n.type === 'coin_redeem' || n.type === 'coin_purchase') {
+    if (n.type === 'premium_referral_cash' || n.type === 'referral_signup' || n.type === 'referral_commission' || n.type === 'coin_redeem' || n.type === 'coin_purchase') {
       const viewBtn = document.createElement('button');
       viewBtn.type = 'button';
       viewBtn.className = 'notif-view-post-btn';
-      viewBtn.textContent = 'View';
+      viewBtn.textContent = n.type === 'premium_referral_cash' ? 'VIEW' : 'View';
       viewBtn.addEventListener('click', () => {
         document.getElementById('notifOverlay').classList.remove('show');
         showRewards();
@@ -5301,6 +5301,13 @@ async function loadRewardsSummary(){
 
   renderWalletBalance();
   document.getElementById('rwReferralLinkInput').value = rewardsSummary.referralLink || '';
+  const withdrawalMin = Number(rewardsSummary.minWithdrawalNgn) || 3500;
+  const withdrawalMax = Number(rewardsSummary.maxWithdrawalNgn) || 100000;
+  const withdrawInput = document.getElementById('rwWithdrawAmount');
+  withdrawInput.min = String(withdrawalMin);
+  withdrawInput.max = String(withdrawalMax);
+  withdrawInput.placeholder = String(withdrawalMin);
+  document.getElementById('rwWithdrawalRange').textContent = 'Withdrawals are ' + fmtNgn(withdrawalMin) + '-' + fmtNgn(withdrawalMax) + '. Save your bank details first if you haven\'t.';
 
   const sendMin = rewardsSummary.minCoinTransfer || 5;
   const sendMax = rewardsSummary.maxCoinTransfer || 100;
@@ -6160,6 +6167,11 @@ document.getElementById('rwWithdrawConfirmBtn').addEventListener('click', async 
   const amountNgn = Number(document.getElementById('rwWithdrawAmount').value);
   if (!amountNgn) {
     flashMsg(msg, 'Enter an amount.', false);
+    return;
+  }
+  const minimumWithdrawalNgn = Number(rewardsSummary && rewardsSummary.minWithdrawalNgn) || 3500;
+  if (amountNgn < minimumWithdrawalNgn) {
+    flashMsg(msg, 'Minimum withdrawal is ' + fmtNgn(minimumWithdrawalNgn) + '.', false);
     return;
   }
   if (amountNgn > 100000) {
