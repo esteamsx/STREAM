@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import vm from "node:vm";
 import {
   isFirstPremiumPayment,
   planPremiumReferralAwards,
 } from "../services/premium-referral-rewards.js";
+import { renderAccount } from "../views/account.js";
 
 const auth = readFileSync(new URL("../services/auth.js", import.meta.url), "utf8");
 const account = readFileSync(new URL("../views/account.js", import.meta.url), "utf8");
@@ -95,4 +97,13 @@ test("bounded prior-payment lookup has its composite index", () => {
   assert.ok(indexes.indexes.some((index) => index.collectionGroup === "verificationPayments" &&
     index.fields.some((field) => field.fieldPath === "uid") &&
     index.fields.some((field) => field.fieldPath === "status")));
+});
+
+test("all rendered Account inline scripts compile for the browser", () => {
+  const html = renderAccount({});
+  const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+  assert.ok(scripts.length > 0);
+  scripts.forEach((match, index) => {
+    new vm.Script(match[1], { filename: `account-inline-${index + 1}.js` });
+  });
 });

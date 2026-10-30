@@ -5308,7 +5308,7 @@ async function loadRewardsSummary(){
   withdrawInput.min = String(withdrawalMin);
   withdrawInput.max = String(withdrawalMax);
   withdrawInput.placeholder = String(withdrawalMin);
-  document.getElementById('rwWithdrawalRange').textContent = 'Withdrawals are ' + fmtNgn(withdrawalMin) + '-' + fmtNgn(withdrawalMax) + '. Save your bank details first if you haven\'t.';
+  document.getElementById('rwWithdrawalRange').textContent = 'Withdrawals are ' + fmtNgn(withdrawalMin) + '-' + fmtNgn(withdrawalMax) + '. Save your bank details first.';
 
   const sendMin = rewardsSummary.minCoinTransfer || 5;
   const sendMax = rewardsSummary.maxCoinTransfer || 100;
