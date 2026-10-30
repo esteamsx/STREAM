@@ -60,7 +60,9 @@ export function registerChannelRoutes(router, deps) {
       ok: true, isAdmin: admin, free: admin,
       unlimited: !!(profile && (admin || isVerificationActive(profile))),
       coinBalance: Number(profile && profile.coinBalance) || 0,
-      reactCost: PRICE.react, voteCost: PRICE.vote, dailyLimit: DAILY_LIMIT,
+      reactCost: isVerificationActive(profile) ? Math.round(PRICE.react * 0.85) : PRICE.react,
+      voteCost: isVerificationActive(profile) ? Math.round(PRICE.vote * 0.85) : PRICE.vote,
+      dailyLimit: DAILY_LIMIT,
       ready: await ch.isReady(),
     });
   });
@@ -111,7 +113,7 @@ export function registerChannelRoutes(router, deps) {
         quotaTaken = true;
       }
       if (!admin) {
-        try { await spendCoins(uid, price, type === "vote" ? "channel-poll" : "channel-react"); charged = price; }
+        try { const spend = await spendCoins(uid, price, type === "vote" ? "channel-poll" : "channel-react"); charged = spend.spent; }
         catch (e) {
           if (quotaTaken) await releaseDailyLimit(quotaKey);
           return fail(res, 402, "NO_USER_COINS", (e && e.message) || `You need ${price} coins for this.`);

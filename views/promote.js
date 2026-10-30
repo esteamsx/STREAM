@@ -197,7 +197,7 @@ textarea.pm-in{resize:vertical;min-height:74px;line-height:1.45}
     <div>
       <div class="pm-eyebrow">Advertising</div>
       <h1>Put your link in front of everyone watching</h1>
-      <p>Your ad rotates on every page of the site. Verified members do not see ads, and you never see your own. <b>2,500 naira per 24 hours</b>, for as many days as you choose.</p>
+      <p>Your ad rotates on every page of the site. Verified members do not see ads, and you never see your own. <b>2,500 naira per 24 hours</b>, for as many days as you choose. Active verified advertisers automatically pay 15% less.</p>
     </div>
     <button class="pm-btn" id="pmNew" type="button">Create ad</button>
   </header>

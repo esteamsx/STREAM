@@ -36,6 +36,8 @@ import {
   getTradingPlanPayment,
   finalizeTradingPlanPayment,
   isAdminEmail,
+  discountedCashPrice,
+  PREMIUM_DISCOUNT_RATE,
   DAILY_CLAIM_FEE_NGN,
   hasClaimedDailyToday,
   createClaimPayment,
@@ -131,12 +133,13 @@ router.post("/api/plan/initialize", requireAuth, initLimiter, async (req, res) =
     const plan = String(req.body?.plan || "").trim();
     if (!PURCHASABLE_API_PLANS.includes(plan)) return res.status(400).json({ error: "Unknown plan." });
 
-    const profile = await getUserProfile(req.uid);
+    const profile = await getUserProfile(req.uid, 0);
     if (!profile) return res.status(404).json({ error: "Account not found." });
     if (!profile.email) return res.status(400).json({ error: "Add an email to your account before upgrading." });
     if (getEffectiveApiPlan(profile) === plan) return res.status(400).json({ error: `You're already on the ${API_PLANS[plan].name} plan.` });
 
-    const amountKobo = API_PLANS[plan].priceNgn * 100;
+    const priceNgn = discountedCashPrice(API_PLANS[plan].priceNgn, profile);
+    const amountKobo = priceNgn * 100;
     const data = await initializeTransaction({
       method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
@@ -154,7 +157,7 @@ router.post("/api/plan/initialize", requireAuth, initLimiter, async (req, res) =
       amountUsd: ngnToUsd(amountKobo / 100),
       email: profile.email,
       amountKobo,
-      priceNgn: API_PLANS[plan].priceNgn,
+      priceNgn,
       plan,
     });
   } catch (err) {
@@ -199,12 +202,13 @@ router.post("/api/trading-plan/initialize", requireAuth, initLimiter, async (req
     const plan = String(req.body?.plan || "").trim();
     if (!PURCHASABLE_TRADING_PLANS.includes(plan)) return res.status(400).json({ error: "Unknown plan." });
 
-    const profile = await getUserProfile(req.uid);
+    const profile = await getUserProfile(req.uid, 0);
     if (!profile) return res.status(404).json({ error: "Account not found." });
     if (!profile.email) return res.status(400).json({ error: "Add an email to your account before upgrading." });
     if (getEffectiveTradingPlan(profile) === plan) return res.status(400).json({ error: `You're already on the ${TRADING_PLANS[plan].name} plan.` });
 
-    const amountKobo = TRADING_PLANS[plan].priceNgn * 100;
+    const priceNgn = discountedCashPrice(TRADING_PLANS[plan].priceNgn, profile);
+    const amountKobo = priceNgn * 100;
     const data = await initializeTransaction({
       method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
@@ -222,7 +226,7 @@ router.post("/api/trading-plan/initialize", requireAuth, initLimiter, async (req
       amountUsd: ngnToUsd(amountKobo / 100),
       email: profile.email,
       amountKobo,
-      priceNgn: TRADING_PLANS[plan].priceNgn,
+      priceNgn,
       plan,
     });
   } catch (err) {
@@ -255,9 +259,10 @@ router.post("/api/trading-plan/confirm", requireAuth, confirmLimiter, async (req
 
 router.get("/api/trading-plan/status", requireAuth, confirmLimiter, async (req, res) => {
   try {
-    const profile = await getUserProfile(req.uid);
+    const profile = await getUserProfile(req.uid, 0);
     if (!profile) return res.status(404).json({ error: "Account not found." });
     const effectivePlan = getEffectiveTradingPlan(profile);
+    res.set("Cache-Control", "no-store");
     res.json({
       plan: effectivePlan,
       config: TRADING_PLANS[effectivePlan],
@@ -265,6 +270,7 @@ router.get("/api/trading-plan/status", requireAuth, confirmLimiter, async (req, 
       tradesUsed: profile.tradingWeekCount || 0,
       tradesWindowStart: profile.tradingWeekStart || null,
       username: profile.username || "",
+      premiumDiscountRate: isVerificationActive(profile) ? PREMIUM_DISCOUNT_RATE : 0,
     });
   } catch (err) {
     console.error(err);
@@ -277,12 +283,13 @@ router.post("/api/devplan/initialize", requireAuth, initLimiter, async (req, res
     const plan = String(req.body?.plan || "").trim();
     if (!PURCHASABLE_DEV_API_PLANS.includes(plan)) return res.status(400).json({ error: "Unknown plan." });
 
-    const profile = await getUserProfile(req.uid);
+    const profile = await getUserProfile(req.uid, 0);
     if (!profile) return res.status(404).json({ error: "Account not found." });
     if (!profile.email) return res.status(400).json({ error: "Add an email to your account before upgrading." });
     if (getEffectiveDevApiPlan(profile) === plan) return res.status(400).json({ error: `You're already on the ${DEV_API_PLANS[plan].name} plan.` });
 
-    const amountKobo = DEV_API_PLANS[plan].priceNgn * 100;
+    const priceNgn = discountedCashPrice(DEV_API_PLANS[plan].priceNgn, profile);
+    const amountKobo = priceNgn * 100;
     const data = await initializeTransaction({
       method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
@@ -300,7 +307,7 @@ router.post("/api/devplan/initialize", requireAuth, initLimiter, async (req, res
       amountUsd: ngnToUsd(amountKobo / 100),
       email: profile.email,
       amountKobo,
-      priceNgn: DEV_API_PLANS[plan].priceNgn,
+      priceNgn,
       plan,
     });
   } catch (err) {
@@ -346,11 +353,12 @@ router.post("/api/coins/initialize", requireAuth, initLimiter, async (req, res) 
     const pkg = COIN_PACKAGES[packageKey];
     if (!pkg) return res.status(400).json({ error: "Unknown coin package." });
 
-    const profile = await getUserProfile(req.uid);
+    const profile = await getUserProfile(req.uid, 0);
     if (!profile) return res.status(404).json({ error: "Account not found." });
     if (!profile.email) return res.status(400).json({ error: "Add an email to your account before buying coins." });
 
-    const amountKobo = pkg.priceNgn * 100;
+    const priceNgn = discountedCashPrice(pkg.priceNgn, profile);
+    const amountKobo = priceNgn * 100;
     const data = await initializeTransaction({
       method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
@@ -368,7 +376,7 @@ router.post("/api/coins/initialize", requireAuth, initLimiter, async (req, res) 
       amountUsd: ngnToUsd(amountKobo / 100),
       email: profile.email,
       amountKobo,
-      priceNgn: pkg.priceNgn,
+      priceNgn,
       coins: pkg.coins,
       packageKey,
     });
@@ -402,7 +410,7 @@ router.post("/api/coins/confirm", requireAuth, confirmLimiter, async (req, res) 
 
 router.post("/api/rewards/claim-pay/initialize", requireAuth, initLimiter, async (req, res) => {
   try {
-    const profile = await getUserProfile(req.uid);
+    const profile = await getUserProfile(req.uid, 0);
     if (!profile) return res.status(404).json({ error: "Account not found." });
     if (isAdminEmail(profile.email) || DAILY_CLAIM_FEE_NGN <= 0) return res.json({ free: true });
     if (hasClaimedDailyToday(profile)) return res.status(400).json({ error: "You've already claimed today's coins. Come back tomorrow." });
@@ -411,7 +419,8 @@ router.post("/api/rewards/claim-pay/initialize", requireAuth, initLimiter, async
     const existing = await findUnusedClaimPayment(req.uid);
     if (existing) return res.json({ paid: true, reference: existing });
 
-    const amountKobo = DAILY_CLAIM_FEE_NGN * 100;
+    const priceNgn = discountedCashPrice(DAILY_CLAIM_FEE_NGN, profile);
+    const amountKobo = priceNgn * 100;
     const data = await initializeTransaction({
       method: normalizePaymentMethod(req.body?.method),
       email: profile.email,
@@ -426,10 +435,10 @@ router.post("/api/rewards/claim-pay/initialize", requireAuth, initLimiter, async
       publicKey: PAYSTACK_PUBLIC_KEY,
       method: normalizePaymentMethod(req.body?.method),
       ngnPerUsd: NGN_PER_USD,
-      amountUsd: ngnToUsd(DAILY_CLAIM_FEE_NGN),
+      amountUsd: ngnToUsd(priceNgn),
       email: profile.email,
       amountKobo,
-      priceNgn: DAILY_CLAIM_FEE_NGN,
+      priceNgn,
     });
   } catch (err) {
     console.error(err);

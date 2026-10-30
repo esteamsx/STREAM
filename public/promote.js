@@ -531,7 +531,9 @@
   }
 
   function openCheckout(ad) {
-    var price = (state.data && state.data.pricePerDayNgn) || 2500;
+    var basePrice = (state.data && state.data.pricePerDayNgn) || 2500;
+    var discountRate = Number(state.data && state.data.premiumDiscountRate) || 0;
+    var price = discountRate ? Math.round(basePrice * (1 - discountRate)) : basePrice;
     var minDays = (state.data && state.data.minDays) || 1;
     var maxDays = (state.data && state.data.maxDays) || 30;
     var days = 7;
@@ -551,7 +553,7 @@
     }
 
     function paint() {
-      rowDays.textContent = days + (days === 1 ? " day" : " days") + " \u00d7 " + money(price);
+      rowDays.textContent = days + (days === 1 ? " day" : " days") + " \u00d7 " + money(price) + (discountRate ? " (15% verified discount)" : "");
       rowHours.textContent = days * 24 + " hours";
       rowTotal.textContent = money(days * price) + " \u2248 " + esPay.fmtUsd(days * price);
       payBtn.textContent = "Pay " + money(days * price);
@@ -616,7 +618,9 @@
       err.textContent = "Payments are temporarily unavailable. Please try again later.";
       return;
     }
-    var perDay = (state.data && state.data.pricePerDayNgn) || 2500;
+    var basePerDay = (state.data && state.data.pricePerDayNgn) || 2500;
+    var discountRate = Number(state.data && state.data.premiumDiscountRate) || 0;
+    var perDay = discountRate ? Math.round(basePerDay * (1 - discountRate)) : basePerDay;
     esPay.choose({ ngn: days * perDay }).then(function (payMethod) {
       if (!payMethod) return;
       btn.disabled = true;

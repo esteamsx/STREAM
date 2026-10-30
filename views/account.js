@@ -2115,13 +2115,14 @@ body:has(.page-overlay.show){overflow:hidden}
         <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></svg>
       </div>
       <div class="overlay-title" style="text-align:center;font-size:1.2rem;line-height:1.35">Get Account Premium</div>
-      <div class="overlay-sub" style="text-align:center;font-size:.88rem;line-height:1.7">Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, and free bot deployment.</div>
+      <div class="overlay-sub" style="text-align:center;font-size:.88rem;line-height:1.7">Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, free bot deployment, and 15% off paid services and coin charges while verified.</div>
       <div class="verify-benefits">
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Verified badge on your profile</div>
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Unlimited use of every free tool</div>
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>A downloadable verification certificate</div>
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>No ads on your account</div>
         <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>Free bot deployment</div>
+        <div class="verify-benefit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>15% off paid services and coin charges while verified</div>
       </div>
       <div class="verify-price-row">
         <span class="verify-price" id="verifyPriceLabel">₦${VERIFICATION_PRICE_NGN.toLocaleString("en-US")}</span>

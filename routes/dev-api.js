@@ -64,6 +64,8 @@ import {
   redeemBonusCode,
   getEffectiveBonusRequests,
   isAdminEmail,
+  isVerificationActive,
+  PREMIUM_DISCOUNT_RATE,
 } from "../services/auth.js";
 
 const router = express.Router();
@@ -181,10 +183,12 @@ router.get("/api/devapi/keys", requireAuth, async (req, res) => {
       listDevApiKeysForUser(req.uid),
       getAccountDevApiUsage(req.uid, monthlyLimit),
     ]);
+    res.set("Cache-Control", "no-store");
     let planExpiresAt = null;
     if (planKey !== "free" && planKey !== "starter") planExpiresAt = req.userProfile.devApiPlanExpiresAt || null;
     else if (planKey === "starter") planExpiresAt = req.userProfile.verifiedExpiresAt || null;
     res.json({
+      premiumDiscountRate: isVerificationActive(req.userProfile) ? PREMIUM_DISCOUNT_RATE : 0,
       keys: keys.map((k) => ({
         id: k.id,
         label: k.label,

@@ -3239,9 +3239,20 @@ button:active{transform:scale(.96)}
     return '';
   }
 
+  function applyPremiumPlanPrices(rate){
+    var basePrices = { standard: 5000, pro: 10000, max: 15000 };
+    document.querySelectorAll('#trPlanScroll .plan-card').forEach(function(card){
+      var base = basePrices[card.getAttribute('data-plan')];
+      var priceEl = card.querySelector('.plan-price');
+      if (!base || !priceEl) return;
+      var price = rate ? Math.round(base * (1 - rate)) : base;
+      priceEl.innerHTML = '&#8358;' + price.toLocaleString('en-NG') + '<span>' + (rate ? ' &middot; verified 15% off &middot; 30 days' : ' &middot; 30 days') + '</span>';
+    });
+  }
   async function loadPricingStatus(){
     try {
       var status = await getJSON('/api/trading-plan/status');
+      applyPremiumPlanPrices(Number(status.premiumDiscountRate) || 0);
       latestPlanStatus = status;
       var expiresText = status.expiresAt ? new Date(status.expiresAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
       document.getElementById('trPlanCurrent').innerHTML = 'Current plan: <b>' + (PLAN_NAMES[status.plan] || status.plan) + '</b>' + (expiresText ? ' &middot; expires ' + expiresText : '');

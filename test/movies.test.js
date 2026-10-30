@@ -446,14 +446,14 @@ test("premium offer uses the verification payment price, existing benefits and a
   for (const benefit of ["Verified badge on your profile", "Unlimited use of every free tool", "A downloadable verification certificate", "No ads on your account", "Free bot deployment"]) assert.ok(account.includes(benefit), benefit);
   assert.match(account, /VERIFICATION_PRICE_NGN\.toLocaleString/);
   assert.match(account, /<div class="overlay-title"[^>]*>Get Account Premium<\/div>/);
-  assert.match(account, /Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, and free bot deployment\./);
+  assert.match(account, /Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, free bot deployment, and 15% off paid services and coin charges while verified\./);
   assert.match(account, /verify-price-period">\/ 30 days/);
   assert.match(account, /\.verify-benefits\{[^}]*max-height:[^}]*overflow-y:auto/);
   assert.match(account, /#verifyOverlay \.overlay-card\{[^}]*padding:30px 28px/);
   assert.match(account, /get\('premium'\) === '1'/);
   assert.match(popup, /offer\.priceNgn/);
   assert.match(popup, /\.gp-premium-card\{max-width:440px;padding:36px 32px 30px/);
-  assert.match(popup, /Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, and free bot deployment\./);
+  assert.match(popup, /Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, free bot deployment, and 15% off paid services and coin charges while verified\./);
   assert.match(popup, /function showLiquidToast\(message, type, durationMs\)/);
   assert.match(popup, /toast: showLiquidToast/);
   assert.match(popup, /\/account\?premium=1/);

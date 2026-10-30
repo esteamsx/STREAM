@@ -606,12 +606,13 @@ ${musicPlayerHtml()}
   var PLAN_DEFS = [
     { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, monthlyRequests: 50, note: 'Default plan' },
     { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, monthlyRequests: 50, note: 'Auto with account verification' },
-    { key: 'standard', name: 'Standard', priceNgn: 3000, apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, monthlyRequests: 100, note: '30 days' },
-    { key: 'pro', name: 'Pro', priceNgn: 5000, apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, monthlyRequests: 100, note: '30 days' },
-    { key: 'max', name: 'Max', priceNgn: 10000, apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, monthlyRequests: null, note: '30 days', highlight: true },
+    { key: 'standard', name: 'Standard', priceNgn: 4500, apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, monthlyRequests: 100, note: '30 days' },
+    { key: 'pro', name: 'Pro', priceNgn: 7500, apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, monthlyRequests: 100, note: '30 days' },
+    { key: 'max', name: 'Max', priceNgn: 15000, apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, monthlyRequests: null, note: '30 days', highlight: true },
   ];
 
   function fmtNgn(n){ return '₦' + n.toLocaleString('en-NG'); }
+  function displayedPlanPrice(plan){ var rate = currentProfile && currentProfile.verified ? 0.15 : 0; return rate ? Math.round(plan.priceNgn * (1 - rate)) : plan.priceNgn; }
   function fmtHours(h){ return h >= 24 ? Math.round(h / 24) + ' day' + (Math.round(h / 24) === 1 ? '' : 's') : h + ' hours'; }
 
   function planFeatureRow(ok, label){
@@ -632,7 +633,7 @@ ${musicPlayerHtml()}
       var cls = 'plan-card' + (isCurrent ? ' current' : '') + (p.highlight ? ' highlight' : '');
       var priceHtml = p.priceNgn === 0
         ? (p.key === 'starter' ? '<div class="plan-price">Free<span> · with verification</span></div>' : '<div class="plan-price">Free</div>')
-        : '<div class="plan-price">' + fmtNgn(p.priceNgn) + '<span> / 30 days &middot; &asymp; ' + esPay.fmtUsd(p.priceNgn) + '</span></div>';
+        : '<div class="plan-price">' + fmtNgn(displayedPlanPrice(p)) + '<span> / 30 days' + (currentProfile && currentProfile.verified ? ' &middot; verified 15% off' : '') + ' &middot; &asymp; ' + esPay.fmtUsd(displayedPlanPrice(p)) + '</span></div>';
 
       var cta;
       if(!loggedIn){
@@ -685,7 +686,7 @@ ${musicPlayerHtml()}
     var def = matches[0];
     if(!def) return;
     document.getElementById('planPayTitle').textContent = 'Upgrade to ' + def.name;
-    document.getElementById('planPaySub').textContent = fmtNgn(def.priceNgn) + ' (≈ ' + esPay.fmtUsd(def.priceNgn) + ') for 30 days: ' + def.apiKeys + ' API keys, ' + fmtHours(def.streamHours) + ' links' + (!def.watermark ? ', no watermark' : '') + (def.customVisitPage ? ', custom visit page' : '') + '.';
+    document.getElementById('planPaySub').textContent = fmtNgn(displayedPlanPrice(def)) + ' (≈ ' + esPay.fmtUsd(displayedPlanPrice(def)) + ')' + (currentProfile && currentProfile.verified ? ' with the verified 15% discount' : '') + ' for 30 days: ' + def.apiKeys + ' API keys, ' + fmtHours(def.streamHours) + ' links' + (!def.watermark ? ', no watermark' : '') + (def.customVisitPage ? ', custom visit page' : '') + '.';
     var payBtn = document.getElementById('planPayBtn');
     payBtn.setAttribute('data-plan', planKey);
     payBtn.disabled = false;
@@ -708,7 +709,7 @@ ${musicPlayerHtml()}
       return;
     }
     var planDef = PLAN_DEFS.filter(function(p){ return p.key === plan; })[0] || {};
-    esPay.choose({ ngn: planDef.priceNgn }).then(function(payMethod){
+    esPay.choose({ ngn: displayedPlanPrice(planDef) }).then(function(payMethod){
     if(!payMethod) return;
     btn.disabled = true;
     btn.innerHTML = '<span class="btn-spinner"></span>Starting…';

@@ -998,7 +998,7 @@ function esShowPremiumPromotion(offer) {
   title.textContent = "Get Account Premium";
   const summary = document.createElement("div");
   summary.className = "gp-benefits";
-  summary.textContent = "Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, and free bot deployment.";
+  summary.textContent = "Verified badge, unlimited use of every free tool, a downloadable certificate, no ads, free bot deployment, and 15% off paid services and coin charges while verified.";
   const price = document.createElement("div");
   price.className = "gp-price";
   price.textContent = "₦" + Number(offer.priceNgn).toLocaleString("en-NG") + " ";

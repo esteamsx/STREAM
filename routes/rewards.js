@@ -18,6 +18,9 @@ import {
   isVerificationActive,
   COIN_STORE_ITEMS,
   COIN_PACKAGES,
+  discountedCashPrice,
+  discountedCoinCost,
+  PREMIUM_DISCOUNT_RATE,
   MIN_WITHDRAWAL_NGN,
   MAX_WITHDRAWAL_NGN,
   WITHDRAWAL_TAX_RATE,
@@ -80,7 +83,18 @@ const TRANSFER_USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
 router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res) => {
   try {
-    const profile = req.userProfile;
+    const profile = await getUserProfile(req.uid, 0);
+    if (!profile) return res.status(404).json({ error: "Account not found." });
+    res.set("Cache-Control", "no-store");
+    const activePremium = isVerificationActive(profile);
+    const coinPackages = Object.fromEntries(Object.entries(COIN_PACKAGES).map(([key, pkg]) => [key, {
+      ...pkg,
+      priceNgn: discountedCashPrice(pkg.priceNgn, profile),
+    }]));
+    const coinStoreItems = Object.fromEntries(Object.entries(COIN_STORE_ITEMS).map(([key, item]) => [key, {
+      ...item,
+      coinCost: key === "verify3d" ? item.coinCost : discountedCoinCost(item.coinCost, profile),
+    }]));
     const [referralCode, referrals, withdrawals, claimCreditRef] = await Promise.all([
       ensureReferralCode(req.uid, profile),
       getReferralsForUser(req.uid),
@@ -93,11 +107,12 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
       coinBalance: profile.coinBalance || 0,
       nairaBalance: profile.nairaBalance || 0,
       lastDailyCoinClaimDay: profile.lastDailyCoinClaimDay || null,
-      dailyClaimFeeNgn: DAILY_CLAIM_FEE_NGN,
+      dailyClaimFeeNgn: discountedCashPrice(DAILY_CLAIM_FEE_NGN, profile),
       dailyClaimFree: isAdminEmail(profile.email) || DAILY_CLAIM_FEE_NGN <= 0,
       claimCreditRef: claimCreditRef || null,
       bankDetails: profile.bankDetails || null,
       verified: isAdminEmail(profile.email) || isVerificationActive(profile),
+      premiumDiscountRate: activePremium ? PREMIUM_DISCOUNT_RATE : 0,
       minWithdrawalNgn: MIN_WITHDRAWAL_NGN,
       maxWithdrawalNgn: MAX_WITHDRAWAL_NGN,
       withdrawalTaxRate: WITHDRAWAL_TAX_RATE,
@@ -122,8 +137,8 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
         completedAt: w.completedAt || null,
         certificateSerial: w.certificateSerial || null,
       })),
-      coinStoreItems: COIN_STORE_ITEMS,
-      coinPackages: COIN_PACKAGES,
+      coinStoreItems,
+      coinPackages,
     });
   } catch (err) {
     console.error("rewards summary error:", err.message);

@@ -1,5 +1,5 @@
 import express from "express";
-import { requireAuth, getUserProfile, isAdminEmail } from "../services/auth.js";
+import { requireAuth, getUserProfile, isAdminEmail, isVerificationActive, PREMIUM_DISCOUNT_RATE, discountedCashPrice } from "../services/auth.js";
 import { initializeTransaction, verifyTransaction, normalizePaymentMethod, ngnToUsd, NGN_PER_USD } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import {
@@ -84,7 +84,8 @@ router.get("/api/sp/img/:id", imageLimiter, async (req, res) => {
 router.get("/api/promote/mine", requireAuth, readLimiter, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
-    res.json(await listAdsWithStats(req.uid));
+    const [data, profile] = await Promise.all([listAdsWithStats(req.uid), getUserProfile(req.uid, 0)]);
+    res.json({ ...data, premiumDiscountRate: isVerificationActive(profile) ? PREMIUM_DISCOUNT_RATE : 0 });
   } catch (err) {
     console.error("promote mine failed:", err && err.stack ? err.stack : err);
     res.status(500).json({ error: "Could not load your ads." });
@@ -116,11 +117,11 @@ router.post("/api/promote/pay/init", requireAuth, payInitLimiter, async (req, re
     const days = validateDays(req.body && req.body.days);
     await assertAdPayable(req.uid, adId);
 
-    const profile = await getUserProfile(req.uid);
+    const profile = await getUserProfile(req.uid, 0);
     if (!profile) return res.status(404).json({ error: "Account not found." });
     if (!profile.email) return res.status(400).json({ error: "Add an email to your account before paying." });
 
-    const priceNgn = AD_PRICE_PER_DAY_NGN * days;
+    const priceNgn = discountedCashPrice(AD_PRICE_PER_DAY_NGN * days, profile);
     const amountKobo = priceNgn * 100;
     const method = normalizePaymentMethod(req.body && req.body.method);
     const data = await initializeTransaction({

@@ -310,6 +310,7 @@ import {
   isAdminEmail,
   getAdminUid,
   isVerificationActive,
+  discountedCoinCost,
   checkAndIncrementDailyLimit,
   spendCoins,
   refundCoins,
@@ -2936,7 +2937,7 @@ app.get("/api/channel/targets", requireAuth, botStatusLimiter, async (req, res) 
       unlimited: !!(profile && (isAdminEmail(profile.email) || isVerificationActive(profile))),
       free: isAdmin,
       coinBalance: Number(profile?.coinBalance || 0),
-      coinCost: CHANNEL_REACT_COIN_COST,
+      coinCost: discountedCoinCost(CHANNEL_REACT_COIN_COST, profile),
       dailyLimit: CHANNEL_REACT_DAILY_LIMIT,
       ready: true,
     });
@@ -3054,8 +3055,8 @@ async function submitChannelReactRequest(req, link) {
 
   if (!isAdmin) {
     try {
-      await spendCoins(req.uid, CHANNEL_REACT_COIN_COST, "channel-react");
-      charged = CHANNEL_REACT_COIN_COST;
+      const spend = await spendCoins(req.uid, CHANNEL_REACT_COIN_COST, "channel-react");
+      charged = spend.spent;
     } catch (coinErr) {
       throw Object.assign(new Error(coinErr.message || "Not enough coins."), { status: coinErr.status || 400 });
     }

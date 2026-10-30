@@ -39,6 +39,16 @@ function isVerificationActive(data) {
   return Date.now() < data.verifiedExpiresAt;
 }
 
+const PREMIUM_DISCOUNT_RATE = 0.15;
+function discountedCashPrice(priceNgn, profile) {
+  const price = Math.max(0, Math.round(Number(priceNgn) || 0));
+  return isVerificationActive(profile) ? Math.round(price * (1 - PREMIUM_DISCOUNT_RATE)) : price;
+}
+function discountedCoinCost(cost, profile) {
+  const coins = Math.max(0, Math.round(Number(cost) || 0));
+  return isVerificationActive(profile) ? Math.round(coins * (1 - PREMIUM_DISCOUNT_RATE)) : coins;
+}
+
 async function autoFollowAdmin(newUid, newUserEmail) {
   try {
     if (isAdminEmail(newUserEmail)) return;
@@ -3792,7 +3802,8 @@ async function claimRenewalAttempt(uid, product, now) {
 async function renewOneSubscription(uid, product, claimed, chargeFn) {
   const config = RENEWABLE_PRODUCTS[product];
   const data = claimed.data;
-  const priceNgn = config.priceNgn(data);
+  const basePriceNgn = config.priceNgn(data);
+  const priceNgn = product === "verification" ? basePriceNgn : discountedCashPrice(basePriceNgn, data);
   const userRef = db.collection("users").doc(uid);
 
   if (!priceNgn) {
@@ -4270,11 +4281,12 @@ async function claimDailyCoins(uid, faceDescriptor, paymentReference) {
   return { amount };
 }
 
-const CHANNEL_REACT_COIN_COST = 5;
+const CHANNEL_REACT_COIN_COST = 8;
 
 async function spendCoins(uid, amount, reason) {
-  const cost = Math.max(0, Math.floor(Number(amount) || 0));
-  if (!cost) return { spent: 0, balance: null };
+  const baseCost = Math.max(0, Math.floor(Number(amount) || 0));
+  if (!baseCost) return { spent: 0, balance: null };
+  let cost = baseCost;
   const userRef = db.collection("users").doc(uid);
   let remaining = 0;
   let spenderData = null;
@@ -4287,6 +4299,7 @@ async function spendCoins(uid, amount, reason) {
       throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
     }
     assertCoinsAllowed(data);
+    cost = discountedCoinCost(baseCost, data);
     const balance = data.coinBalance || 0;
     if (balance < cost) {
       throw Object.assign(
@@ -4347,6 +4360,7 @@ async function redeemCoinsForLimit(uid, itemKey, product) {
   if (!item || !item.bonusAmount) throw Object.assign(new Error("Unknown reward."), { status: 400 });
   const userRef = db.collection("users").doc(uid);
   let spenderData = null;
+  let cost = item.coinCost;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
     if (!snap.exists) throw new Error("Account not found.");
@@ -4356,22 +4370,23 @@ async function redeemCoinsForLimit(uid, itemKey, product) {
       throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
     }
     assertCoinsAllowed(data);
+    cost = discountedCoinCost(item.coinCost, data);
     const balance = data.coinBalance || 0;
-    if (balance < item.coinCost) throw Object.assign(new Error("Not enough coins for that reward."), { status: 400 });
-    const ledger = appendCoinLedger(tx, userRef, data, -item.coinCost, "store_redeem", { itemKey, product });
+    if (balance < cost) throw Object.assign(new Error("Not enough coins for that reward."), { status: 400 });
+    const ledger = appendCoinLedger(tx, userRef, data, -cost, "store_redeem", { itemKey, product });
     tx.update(userRef, {
-      coinBalance: admin.firestore.FieldValue.increment(-item.coinCost),
+      coinBalance: admin.firestore.FieldValue.increment(-cost),
       ...ledger,
     });
     addMonthlyBonusRequests(tx, userRef, data, product, item.bonusAmount);
   });
   invalidateUserProfileCache(uid);
-  creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, item.coinCost, {
+  creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, cost, {
     meta: { source: "api_request_limit", product, itemKey },
   }).catch(() => {});
   const productLabel = product === "devapi" ? "Developer API" : "Live TV API";
-  await addNotification(uid, "coin_redeem", `Redeemed ${item.coinCost} coins for ${item.label} on your ${productLabel}`, { itemKey, product });
-  return { amount: item.bonusAmount, coinCost: item.coinCost };
+  await addNotification(uid, "coin_redeem", `Redeemed ${cost} coins for ${item.label} on your ${productLabel}`, { itemKey, product });
+  return { amount: item.bonusAmount, coinCost: cost };
 }
 
 
@@ -4708,7 +4723,7 @@ async function getSpinStatus(uid) {
   const snap = await db.collection("users").doc(uid).get();
   const data = snap.exists ? snap.data() : {};
   return {
-    cost: SPIN_COST,
+    cost: discountedCoinCost(SPIN_COST, data),
     coinBalance: data.coinBalance || 0,
     segments: SPIN_SEGMENTS.map((x) => ({ type: x.type, label: x.label })),
   };
@@ -4720,6 +4735,7 @@ async function spinTheWheel(uid) {
   let outcome = "nothing";
   let balanceAfter = 0;
   let verifiedUntil = 0;
+  let cost = SPIN_COST;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
     if (!snap.exists) throw Object.assign(new Error("Account not found."), { status: 404 });
@@ -4729,16 +4745,17 @@ async function spinTheWheel(uid) {
       throw Object.assign(new Error("Your coin balance failed a security check. Contact support."), { status: 409, code: "coins/ledger-mismatch" });
     }
     assertCoinsAllowed(data);
+    cost = discountedCoinCost(SPIN_COST, data);
     const balance = data.coinBalance || 0;
-    if (balance < SPIN_COST) {
-      throw Object.assign(new Error(`You need ${SPIN_COST} coins to spin. You have ${balance}.`), { status: 402, code: "coins/insufficient" });
+    if (balance < cost) {
+      throw Object.assign(new Error(`You need ${cost} coins to spin. You have ${balance}.`), { status: 402, code: "coins/insufficient" });
     }
     const canWinVerify = !(data.verified && !data.verifiedExpiresAt);
     const stats = data.spinStats || {};
     outcome = pickSpinOutcome(stats, canWinVerify);
-    const ledger = appendCoinLedger(tx, userRef, data, -SPIN_COST, "spin_wheel", { outcome });
+    const ledger = appendCoinLedger(tx, userRef, data, -cost, "spin_wheel", { outcome });
     const update = {
-      coinBalance: admin.firestore.FieldValue.increment(-SPIN_COST),
+      coinBalance: admin.firestore.FieldValue.increment(-cost),
       spinStats: {
         total: (stats.total || 0) + 1,
         nothingRun: outcome === "nothing" ? (stats.nothingRun || 0) + 1 : 0,
@@ -4759,10 +4776,10 @@ async function spinTheWheel(uid) {
     tx.update(userRef, update);
     if (outcome === "livetv") addMonthlyBonusRequests(tx, userRef, data, "livetv", SPIN_API_BONUS);
     if (outcome === "devapi") addMonthlyBonusRequests(tx, userRef, data, "devapi", SPIN_API_BONUS);
-    balanceAfter = balance - SPIN_COST;
+    balanceAfter = balance - cost;
   });
   invalidateUserProfileCache(uid);
-  creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, SPIN_COST, {
+  creditAdminFromSpend(uid, spenderData && spenderData.email, spenderData && spenderData.username, cost, {
     reason: "spin_wheel_income",
     popup: true,
     message: (handle, amount) => `${handle} sent you ${amount} coins on the spin wheel`,
@@ -4774,7 +4791,7 @@ async function spinTheWheel(uid) {
     const text = outcome === "naira" ? `You won ₦${SPIN_NAIRA_PRIZE} on the spin wheel` : `You won ${prize.label} on the spin wheel`;
     await addNotification(uid, "spin_win", text, { outcome }).catch(() => {});
   }
-  return { ok: true, segment, outcome, label: prize.label, coinBalance: balanceAfter, verifiedUntil: verifiedUntil || null };
+  return { ok: true, segment, outcome, label: prize.label, coinBalance: balanceAfter, cost, verifiedUntil: verifiedUntil || null };
 }
 
 async function findUserByAnyUsername(username) {
@@ -5940,6 +5957,9 @@ export {
   checkAndIncrementDailyLimit,
   spendCoins,
   refundCoins,
+  PREMIUM_DISCOUNT_RATE,
+  discountedCashPrice,
+  discountedCoinCost,
   CHANNEL_REACT_COIN_COST,
   COIN_STORE_ITEMS,
   COIN_PACKAGES,
