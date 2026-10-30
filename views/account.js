@@ -5636,7 +5636,7 @@ claimContinueBtn.addEventListener('click', async () => {
   let capture = null;
   try {
     claimModule = await loadClaimFaceModule();
-    capture = await claimModule.captureFaceDescriptor({ requireLiveness: false, showCamera: false, voice: false, returnSamples: true });
+    capture = await claimModule.captureFaceDescriptor({ requireLiveness: false, showCamera: false, voice: false, samples: 2, returnSamples: true });
   } catch (err) {
     claimContinueBtn.innerHTML = original;
     claimContinueBtn.disabled = !claimCaptchaPassed;
@@ -5646,9 +5646,9 @@ claimContinueBtn.addEventListener('click', async () => {
 
   claimContinueBtn.innerHTML = '<span class="btn-spinner"></span>Claiming…';
   try {
-    const faceDescriptor = (capture.samples && capture.samples.length)
-      ? capture.samples.map((v) => ({ v }))
-      : capture.descriptor;
+    const faceDescriptor = [capture.descriptor, ...(capture.samples || [])]
+      .filter((v) => Array.isArray(v))
+      .map((v) => ({ v }));
     const result = await postJSON('/api/rewards/daily-claim', {
       altcha: claimCaptchaValue,
       faceDescriptor,
