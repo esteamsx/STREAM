@@ -18,7 +18,7 @@ import { openDeviceSession, checkDeviceSession, touchDeviceSession, revokeDevice
 import { createWeeklyActivityService } from "./weekly-activity.js";
 import { fetchVisibleFollowingPosts } from "./following-feed-queries.js";
 import { fetchCommunityMessagePage } from "./community-chat-queries.js";
-
+import { analyzePromotionalContent } from "./promotional-moderation.js";
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -2264,6 +2264,7 @@ async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
   const author = await getUserProfile(uid);
   if (!author) throw new Error("Profile not found.");
 
+  const moderation = await analyzePromotionalContent({ text: cleanText, imageDataUrl: imageDataUrl || null });
   const tagged = await resolveTaggedUsers(uid, taggedUsernames);
 
   const post = {
@@ -2281,11 +2282,17 @@ async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
     pinnedAt: null,
     editedAt: null,
     createdAt: Date.now(),
+    moderationStatus: moderation.status,
+    moderationScore: moderation.score,
+    moderationReasons: moderation.reasons,
+    moderationImageAnalysis: moderation.imageAnalysis,
+    moderationAt: Date.now(),
   };
   if (isAdminEmail(author.email)) {
     post.bonusLikes = 50 + Math.floor(Math.random() * 51);
   }
   const ref = await db.collection("posts").add(post);
+  if (moderation.status !== "allow") return { id: ref.id, ...post, moderation };
   if (post.bonusLikes) {
     await db.collection("users").doc(uid).update({
       likesCount: admin.firestore.FieldValue.increment(post.bonusLikes),
@@ -2391,6 +2398,7 @@ async function getPostsByUser(targetUid, viewerUid, { limit = 30, before = null 
   }
 
   const visiblePosts = posts.filter((p) => {
+    if (p.moderationStatus && p.moderationStatus !== "allow") return false;
     if (isOwner) return true;
     if (!ownerIsPremium && looksLikePromotionalPost(p.text)) return false;
     const vis = p.visibility || "everyone";
@@ -2475,6 +2483,7 @@ async function updatePost(uid, postId, { text, imageDataUrl, taggedUsernames }) 
 
   const author = await getUserProfile(uid);
   const tagged = await resolveTaggedUsers(uid, taggedUsernames);
+  const moderation = await analyzePromotionalContent({ text: cleanText, imageDataUrl: finalImage || null });
   const newUids = tagged.map((t) => t.uid);
   const oldUids = new Set(post.taggedUids || []);
   const newlyTagged = tagged.filter((t) => !oldUids.has(t.uid));
@@ -2484,6 +2493,13 @@ async function updatePost(uid, postId, { text, imageDataUrl, taggedUsernames }) 
     imageDataUrl: finalImage || null,
     taggedUids: newUids,
     editedAt: Date.now(),
+    moderationStatus: moderation.status,
+    moderationScore: moderation.score,
+    moderationReasons: moderation.reasons,
+    moderationImageAnalysis: moderation.imageAnalysis,
+    moderationAt: Date.now(),
+    moderationReviewedAt: null,
+    moderationReviewedBy: null,
   });
 
   const authorName = author ? (`${author.firstName || ""} ${author.lastName || ""}`.trim() || `@${author.username}`) : "Someone";
@@ -2494,6 +2510,7 @@ async function updatePost(uid, postId, { text, imageDataUrl, taggedUsernames }) 
 
   const updatedSnap = await ref.get();
   const updated = updatedSnap.data();
+  if (moderation.status !== "allow") return { id: postId, moderation };
   return {
     id: postId,
     text: updated.text,
@@ -2563,6 +2580,7 @@ async function resharePost(uid, postId) {
 
   const [author, resharer] = await Promise.all([getUserProfile(original.uid), getUserProfile(uid)]);
   if (!author || !resharer) throw new Error("Profile not found.");
+  const moderation = await analyzePromotionalContent({ text: original.text || "", imageDataUrl: original.imageDataUrl || null });
 
   const newPost = {
     uid,
@@ -2579,8 +2597,14 @@ async function resharePost(uid, postId) {
     pinnedAt: null,
     editedAt: null,
     createdAt: Date.now(),
+    moderationStatus: moderation.status,
+    moderationScore: moderation.score,
+    moderationReasons: moderation.reasons,
+    moderationImageAnalysis: moderation.imageAnalysis,
+    moderationAt: Date.now(),
   };
   const newRef = await db.collection("posts").add(newPost);
+  if (moderation.status !== "allow") return { id: newRef.id, ...newPost, moderation };
   await ref.update({ reshareCount: admin.firestore.FieldValue.increment(1) }).catch(() => {});
 
   const resharerName = `${resharer.firstName || ""} ${resharer.lastName || ""}`.trim() || `@${resharer.username}`;
@@ -2972,6 +2996,7 @@ async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
       lastConsidered = p;
       const author = authorDocs.get(p.uid);
       if (!author || !author.username || author.banned || author.pendingDeletion) continue;
+      if (p.moderationStatus && p.moderationStatus !== "allow") continue;
       if (p.uid !== uid) {
         const vis = p.visibility || "everyone";
         const rel = follow.get(p.uid) || { viewerFollows: false, authorFollows: false };
@@ -3026,6 +3051,7 @@ async function getPostImage(viewerUid, postId) {
   const snap = await db.collection("posts").doc(String(postId || "")).get();
   if (!snap.exists) return null;
   const post = snap.data();
+  if (post.moderationStatus && post.moderationStatus !== "allow") return null;
   const match = POST_IMAGE_TYPES.exec(String(post.imageDataUrl || ""));
   if (!match) return null;
   if (post.uid !== viewerUid && looksLikePromotionalPost(post.text)) {
@@ -3120,7 +3146,7 @@ async function computeFollowingFeedUnseenCount(uid, cachedProfile) {
     if (Date.now() >= feedCountIndexRetryAt) {
       try {
         snap = await db.collection("posts").where("uid", "in", chunk).where("createdAt", ">", lastSeenFeedAt).limit(50)
-          .select("createdAt", "visibility").get();
+          .select("createdAt", "visibility", "moderationStatus").get();
       } catch (err) {
         feedCountIndexRetryAt = Date.now() + 10 * 60 * 1000;
         console.warn("[quota] the new-posts badge reads the slow way until this index exists (open the link in the error): " + String(err.message || err).slice(0, 400));
@@ -3128,11 +3154,12 @@ async function computeFollowingFeedUnseenCount(uid, cachedProfile) {
     }
     if (!snap) {
       snap = await db.collection("posts").where("uid", "in", chunk).limit(50)
-        .select("createdAt", "visibility").get();
+        .select("createdAt", "visibility", "moderationStatus").get();
     }
     snap.docs.forEach((d) => {
       const data = d.data();
       if (data.createdAt <= lastSeenFeedAt) return;
+      if (data.moderationStatus && data.moderationStatus !== "allow") return;
       if ((data.visibility || "everyone") === "only_me") return;
       count++;
     });

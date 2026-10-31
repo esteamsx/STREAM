@@ -121,6 +121,7 @@ import { renderQrScanner } from "./views/tools/qr-scanner.js";
 import { renderOcrTool } from "./views/tools/ocr-tool.js";
 import { toolsRouter } from "./routes/tools.js";
 import { freeApiRouter, handleShortlinkRedirect } from "./routes/free-apis.js";
+import { listPromotionalReviews, decidePromotionalReview } from "./services/promotional-moderation.js";
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -1234,6 +1235,21 @@ async function requireAdmin(req, res, next) {
   }
 }
 
+app.get("/api/admin/promotional-reviews", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store").json({ reviews: await listPromotionalReviews() });
+  } catch (err) {
+    console.error("promotional review list failed:", err);
+    res.status(500).json({ error: "Could not load promotional reviews." });
+  }
+});
+app.post("/api/admin/promotional-reviews/:postId", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ ok: true, review: await decidePromotionalReview(req.params.postId, req.body?.decision, req.uid) });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "Could not update the review." });
+  }
+});
 app.get("/api/admin/analytics", requireAuth, requireAdmin, async (req, res) => {
   try {
     const range = String(req.query.range || "7d");
@@ -4183,6 +4199,10 @@ app.post("/api/posts", requireAuth, async (req, res) => {
   try {
     const { text, imageDataUrl, taggedUsernames } = req.body;
     const post = await createPost(req.uid, { text, imageDataUrl, taggedUsernames });
+    if (post.moderationStatus !== "allow") {
+      const held = post.moderationStatus === "review";
+      return res.status(422).json({ error: held ? "Your post is held for admin review." : "Your post was blocked as promotional content.", moderationStatus: post.moderationStatus, score: post.moderationScore, reasons: post.moderationReasons });
+    }
     res.json({ ok: true, post });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not create your post." });
@@ -4233,6 +4253,7 @@ app.post("/api/posts/:postId/edit", requireAuth, async (req, res) => {
   try {
     const { text, imageDataUrl, taggedUsernames } = req.body;
     const post = await updatePost(req.uid, req.params.postId, { text, imageDataUrl, taggedUsernames });
+    if (post.moderation) return res.status(422).json({ error: post.moderation.status === "review" ? "Your edited post is held for admin review." : "Your edited post was blocked as promotional content.", moderationStatus: post.moderation.status, score: post.moderation.score, reasons: post.moderation.reasons });
     res.json({ ok: true, post });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not save your changes." });
@@ -4251,6 +4272,7 @@ app.post("/api/posts/:postId/delete", requireAuth, async (req, res) => {
 app.post("/api/posts/:postId/reshare", requireAuth, async (req, res) => {
   try {
     const post = await resharePost(req.uid, req.params.postId);
+    if (post.moderation) return res.status(422).json({ error: post.moderation.status === "review" ? "This reshare is held for admin review." : "This reshare was blocked as promotional content.", moderationStatus: post.moderation.status, score: post.moderation.score, reasons: post.moderation.reasons });
     res.json({ ok: true, post });
   } catch (err) {
     res.status(400).json({ error: err.message || "Could not reshare that post." });

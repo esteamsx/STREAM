@@ -57,6 +57,13 @@ async function fetchImageBuffer(url) {
 
 export async function extractTextFromImageUrl(url) {
   const buffer = await fetchImageBuffer(url);
+  return extractTextFromImageBuffer(buffer);
+}
+
+export async function extractTextFromImageBuffer(buffer) {
+  if (!Buffer.isBuffer(buffer) || !buffer.length || buffer.length > MAX_IMAGE_BYTES) {
+    throw new Error("Image is empty or too large for local OCR.");
+  }
   const worker = await getWorker();
   const { data } = await worker.recognize(buffer);
   return { text: data.text.trim(), confidence: data.confidence };

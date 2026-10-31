@@ -6,7 +6,7 @@ let followingFeedIndexWarningLogged = false;
 const FEED_POST_FIELDS = [
   "uid", "visibility", "createdAt", "text", "imageDataUrl", "resharedFrom",
   "reshareEnabled", "linksEnabled", "reshareCount", "pinnedAt", "editedAt", "taggedUids",
-  "likedBy", "commentsCount", "commentsEnabled", "bonusLikes",
+  "likedBy", "commentsCount", "commentsEnabled", "bonusLikes", "moderationStatus",
 ];
 
 function chunks(items, size) {
@@ -78,6 +78,7 @@ export async function fetchVisibleFollowingPosts(db, followingUids, viewerUid, {
   }
 
   async function postIsVisible(post) {
+    if (post.moderationStatus && post.moderationStatus !== "allow") return false;
     const visibility = post.visibility || "everyone";
     if (visibility === "only_me") return false;
     if (visibility !== "friends") return true;

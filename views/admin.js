@@ -1024,6 +1024,17 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
 
   <div class="ad-section-label">Users &amp; Moderation</div>
 
+  <div class="ad-card open accent-red" id="promoReviewsCard">
+    <div class="ad-card-header" style="cursor:default">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 16H3z"/><path d="M12 9v4M12 16h.01"/></svg>
+      <div class="ad-card-header-title">Promotional Post Reviews</div>
+      <div class="ad-card-count" id="promoReviewsCount" style="display:none"></div>
+    </div>
+    <div class="ad-card-body" style="max-height:none"><div class="ad-card-body-inner">
+      <div style="font-size:.76rem;color:var(--muted);line-height:1.5;margin-bottom:10px">Posts at 70–89% are held for review and posts at 90% or higher are blocked. Decisions are enforced server-side. Text and attached images are checked with local rules and free Tesseract OCR; image-only promotions can still need human review when OCR is unavailable.</div>
+      <div id="promoReviewsList"><div class="ad-empty">Loading...</div></div>
+    </div></div>
+  </div>
   <div class="ad-card accent-purple" id="usersCard">
     <div class="ad-card-header" id="usersHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
@@ -4232,7 +4243,44 @@ function drawAnalyticsChart(canvas, points, range) {
   canvas.addEventListener('touchend', () => { tooltip.style.display = 'none'; });
 }
 
+async function loadPromotionalReviews(){
+  const list = document.getElementById('promoReviewsList');
+  const count = document.getElementById('promoReviewsCount');
+  try {
+    const data = await getJSON('/api/admin/promotional-reviews');
+    const rows = data.reviews || [];
+    count.style.display = rows.length ? '' : 'none';
+    count.textContent = String(rows.length);
+    if (!rows.length) { list.innerHTML = '<div class="ad-empty">No held or blocked posts need review.</div>'; return; }
+    list.innerHTML = '';
+    rows.forEach(function(row){
+      const card = document.createElement('div');
+      card.style.cssText = 'padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--card2);margin-bottom:8px';
+      const head = document.createElement('div');
+      head.style.cssText = 'display:flex;justify-content:space-between;gap:8px;font-size:.78rem;font-weight:700';
+      head.textContent = '@' + (row.username || 'unknown');
+      const badge = document.createElement('span');
+      badge.style.color = row.status === 'blocked' ? 'var(--red)' : '#F5B700';
+      badge.textContent = row.status.toUpperCase() + ' · ' + row.score + '%';
+      head.appendChild(badge); card.appendChild(head);
+      const body = document.createElement('div');
+      body.style.cssText = 'font-size:.78rem;line-height:1.45;margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere';
+      body.textContent = row.text || '[image-only post]'; card.appendChild(body);
+      if (row.imageDataUrl) { const image = document.createElement('img'); image.src = row.imageDataUrl; image.alt = 'Attached post image'; image.style.cssText = 'display:block;max-width:100%;max-height:180px;border-radius:9px;margin-top:8px;object-fit:cover'; card.appendChild(image); }
+      const reasons = document.createElement('div');
+      reasons.style.cssText = 'font-size:.7rem;color:var(--muted);line-height:1.45;margin-top:8px';
+      reasons.textContent = (row.reasons || []).join(' · ') || 'No textual reason recorded.'; card.appendChild(reasons);
+      const actions = document.createElement('div'); actions.style.cssText = 'display:flex;gap:7px;margin-top:10px';
+      ['allow','block'].forEach(function(decision){
+        const button = document.createElement('button'); button.type='button'; button.className='cn-refund'; button.style.cssText='padding:8px 12px;border-radius:9px;flex:1'; button.textContent=decision === 'allow' ? 'Allow post' : 'Keep blocked';
+        button.addEventListener('click', async function(){ button.disabled=true; try { await postJSON('/api/admin/promotional-reviews/' + encodeURIComponent(row.id), { decision: decision }); loadPromotionalReviews(); } catch(err) { button.disabled=false; showToast(err.message || 'Could not update review.'); } }); actions.appendChild(button);
+      });
+      card.appendChild(actions); list.appendChild(card);
+    });
+  } catch (err) { list.innerHTML = '<div class="ad-empty">Could not load promotional reviews.</div>'; }
+}
 loadMaintenanceStatus();
+loadPromotionalReviews();
 loadBonusCodes();
 loadTpCodes();
 loadWithdrawals();
