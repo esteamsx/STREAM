@@ -251,7 +251,6 @@ body:has(.cr-verify-overlay.show){overflow:hidden}
 body:has(.cr-premium-overlay.show){overflow:hidden}
 .cr-premium-card{position:relative;width:min(100%,440px);max-height:min(88dvh,640px);overflow-y:auto;overscroll-behavior:contain;padding:26px 22px;border-radius:16px;border:1px solid rgba(255,255,255,.22);background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);display:flex;flex-direction:column;gap:14px}
 :root[data-theme="light"] .cr-premium-card{background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);border-color:rgba(255,255,255,.65);box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7)}
-.cr-premium-close{position:absolute;right:12px;top:12px;width:34px;height:34px;border-radius:10px;border:1px solid var(--border-strong);background:rgba(255,255,255,.06);color:var(--text);font-size:1.15rem;cursor:pointer}
 .cr-premium-kicker{text-align:center;color:var(--accent);font-size:.68rem;font-weight:800;letter-spacing:.16em}
 .cr-premium-heading{text-align:center;font-family:var(--font-display);font-weight:800;font-size:1.25rem;line-height:1.3;margin-top:2px}
 .cr-premium-copy{text-align:center;color:var(--muted);font-size:.8rem;line-height:1.55;margin:0}
@@ -260,6 +259,8 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
 .cr-premium-check{width:16px;height:16px;color:var(--green);flex-shrink:0;margin-top:2px}
 .cr-premium-cta{display:block;text-align:center;text-decoration:none;padding:12px 15px;border-radius:12px;background:linear-gradient(100deg,var(--accent),#4b78ff);color:#04141a;font-weight:900;font-size:.83rem;letter-spacing:.045em;box-shadow:0 0 20px rgba(0,224,255,.34),0 0 38px rgba(75,120,255,.24);transition:transform .16s ease,box-shadow .16s ease}
 .cr-premium-cta:hover{transform:translateY(-1px);box-shadow:0 0 25px rgba(0,224,255,.48),0 0 46px rgba(75,120,255,.34)}
+.cr-premium-skip{align-self:center;margin-top:-7px;padding:7px 18px;border:1px solid var(--border-strong);border-radius:10px;background:rgba(0,0,0,.32);color:var(--muted);font-size:.76rem;font-weight:700;cursor:not-allowed;opacity:.58;transition:opacity .16s ease,color .16s ease,border-color .16s ease}
+.cr-premium-skip:not(:disabled){background:rgba(255,255,255,.07);color:var(--text);cursor:pointer;opacity:1}
 .cr-verify-card{width:100%;max-width:380px;max-height:90vh;overflow-y:auto;background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:26px 22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3)}
 :root[data-theme="light"] .cr-verify-card{background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);border-color:rgba(255,255,255,.65);box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7)}
 .cr-verify-step{display:none;flex-direction:column;gap:14px}.cr-verify-step.active{display:flex}
@@ -415,7 +416,6 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
 
 <div class="cr-premium-overlay" id="crPremiumBenefitsOverlay" aria-hidden="true">
   <section class="cr-premium-card" role="dialog" aria-modal="true" aria-labelledby="crPremiumBenefitsTitle">
-    <button class="cr-premium-close" id="crPremiumBenefitsClose" type="button" aria-label="Close">×</button>
     <div class="cr-premium-kicker">ES TEAMS TV</div>
     <div class="cr-premium-heading" id="crPremiumBenefitsTitle">PREMIUM BENEFITS</div>
     <p class="cr-premium-copy">Lower channel costs and unlimited reactions and votes.</p>
@@ -425,6 +425,7 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
       <div class="cr-premium-benefit"><svg class="cr-premium-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><span>Unlimited channel reactions and poll votes</span></div>
     </div>
     <a class="cr-premium-cta" id="crPremiumBenefitsCta" href="/account?premium=1">GET PREMIUM</a>
+    <button class="cr-premium-skip" id="crPremiumBenefitsSkip" type="button" disabled>Skip (15)</button>
   </section>
 </div>
 
@@ -585,12 +586,60 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
       return;
     }
   }
+  let premiumSkipTimer = null;
+  let premiumSkipRemaining = 15;
+  function stopPremiumSkipCountdown(){
+    if (premiumSkipTimer !== null) {
+      window.clearInterval(premiumSkipTimer);
+      premiumSkipTimer = null;
+    }
+  }
+  function startPremiumSkipCountdown(){
+    stopPremiumSkipCountdown();
+    const skipButton = document.getElementById('crPremiumBenefitsSkip');
+    if (!skipButton) return;
+    if (premiumSkipRemaining <= 0) {
+      skipButton.textContent = 'Skip';
+      skipButton.disabled = false;
+      return;
+    }
+    skipButton.textContent = 'Skip (' + premiumSkipRemaining + ')';
+    skipButton.disabled = true;
+    premiumSkipTimer = window.setInterval(function(){
+      if (premiumSkipRemaining > 1) {
+        premiumSkipRemaining -= 1;
+        skipButton.textContent = 'Skip (' + premiumSkipRemaining + ')';
+        return;
+      }
+      premiumSkipRemaining = 0;
+      stopPremiumSkipCountdown();
+      skipButton.textContent = 'Skip';
+      skipButton.disabled = false;
+    }, 1000);
+  }
+  function openPremiumBenefits(){
+    const overlay = document.getElementById('crPremiumBenefitsOverlay');
+    if (overlay.classList.contains('show')) return;
+    premiumSkipRemaining = 15;
+    overlay.classList.add('show');
+    overlay.setAttribute('aria-hidden', 'false');
+    startPremiumSkipCountdown();
+  }
   function closePremiumBenefits(){
     const overlay = document.getElementById('crPremiumBenefitsOverlay');
+    const skipButton = document.getElementById('crPremiumBenefitsSkip');
+    if (skipButton && skipButton.disabled) return;
+    stopPremiumSkipCountdown();
     overlay.classList.remove('show');
     overlay.setAttribute('aria-hidden', 'true');
   }
-  document.getElementById('crPremiumBenefitsClose').addEventListener('click', closePremiumBenefits);
+  document.getElementById('crPremiumBenefitsSkip').addEventListener('click', closePremiumBenefits);
+  window.addEventListener('pagehide', stopPremiumSkipCountdown);
+  window.addEventListener('pageshow', function(){
+    const overlay = document.getElementById('crPremiumBenefitsOverlay');
+    const skipButton = document.getElementById('crPremiumBenefitsSkip');
+    if (overlay.classList.contains('show') && skipButton.disabled && premiumSkipTimer === null) startPremiumSkipCountdown();
+  });
   document.getElementById('crPremiumBenefitsOverlay').addEventListener('click', function(e){
     if (e.target.id === 'crPremiumBenefitsOverlay') closePremiumBenefits();
   });
@@ -682,9 +731,7 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
       if (getVerifiedBtn) getVerifiedBtn.addEventListener('click', openCrVerifyOverlay);
       paintMode();
       if (!data.isPremium && !data.isAdmin) {
-        const benefits = document.getElementById('crPremiumBenefitsOverlay');
-        benefits.classList.add('show');
-        benefits.setAttribute('aria-hidden', 'false');
+        openPremiumBenefits();
       }
     } catch (err) {
       state.loaded = true;

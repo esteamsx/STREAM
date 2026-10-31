@@ -92,6 +92,20 @@ test("free users see Premium benefits; CTA opens Account and auto-opens the veri
   assert.match(account, /#verifyOverlay \.verify-icon-wrap svg\{width:36px;height:36px/);
 });
 
+test("Channel React Premium overlay uses a guarded 15-second Skip countdown", () => {
+  const view = source("../views/channel-react.js");
+  const overlay = view.slice(view.indexOf('<div class="cr-premium-overlay"'), view.indexOf('<div class="cr-verify-overlay"'));
+  assert.doesNotMatch(overlay, /crPremiumBenefitsClose|cr-premium-close|>×</);
+  assert.match(overlay, /<a class="cr-premium-cta" id="crPremiumBenefitsCta" href="\/account\?premium=1">GET PREMIUM<\/a>\s*<button class="cr-premium-skip" id="crPremiumBenefitsSkip" type="button" disabled>Skip \(15\)<\/button>/);
+  assert.match(view, /\.cr-premium-skip\{[^}]*cursor:not-allowed[^}]*opacity:\.58/);
+  assert.match(view, /function startPremiumSkipCountdown\(\)[\s\S]*?window\.setInterval\(function\(\)[\s\S]*?Skip \(' \+ premiumSkipRemaining \+ '\)[\s\S]*?skipButton\.disabled = false/);
+  assert.match(view, /if \(skipButton && skipButton\.disabled\) return/);
+  assert.match(view, /document\.getElementById\('crPremiumBenefitsSkip'\)\.addEventListener\('click', closePremiumBenefits\)/);
+  assert.match(view, /window\.addEventListener\('pagehide', stopPremiumSkipCountdown/);
+  assert.match(view, /window\.clearInterval\(premiumSkipTimer\)/);
+  assert.match(view, /window\.addEventListener\('keydown'|document\.addEventListener\('keydown'/);
+});
+
 test("channel popup reuses the authenticated config response without another profile request or poll", () => {
   const view = source("../views/channel-react.js");
   const route = source("../routes/channel-tools.js");
