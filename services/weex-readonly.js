@@ -197,6 +197,28 @@ export function getPublicTicker(category, symbol, demo = false) {
   return publicGet(symbolPricePath(), { symbol: toWeexSymbol(symbol), priceType: "MARK" });
 }
 
+export function getSpotTicker(symbol) {
+  return publicGet("/api/v3/market/ticker/price", { symbol: toWeexSymbol(symbol) });
+}
+
+export function getSpotCoins() {
+  return publicGet("/api/v3/coins");
+}
+
+export function getSpotDepositHistory(params = {}, override) {
+  return signedGet(false, "/api/v3/wallet/deposit/history", {
+    coin: params.coin ? String(params.coin).toUpperCase() : undefined,
+    network: params.network,
+    id: params.id,
+    txHash: params.txHash,
+    status: params.status,
+    startTime: params.startTime,
+    endTime: params.endTime,
+    pageNo: params.pageNo || 1,
+    pageSize: params.pageSize || 50,
+  }, override);
+}
+
 export async function getPublicInstruments(category, demo = false) {
   return publicGet("/capi/v3/market/exchangeInfo", {});
 }

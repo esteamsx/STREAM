@@ -558,10 +558,10 @@ input{font-family:inherit}
 .rw-deposit-meta{margin-top:0;flex:1;min-width:0;font-size:.62rem;color:var(--muted);line-height:1.45;word-break:break-word}.rw-deposit-amount{font-family:var(--font-mono);font-size:.72rem;color:var(--text);margin-top:0;white-space:nowrap}
 .rw-deposit-status{display:inline-flex;margin-top:0;padding:3px 6px;border-radius:999px;font-size:.56rem;font-weight:800;letter-spacing:.04em;flex-shrink:0}.rw-deposit-status.pending{background:rgba(245,166,35,.15);color:#FFB020}.rw-deposit-status.successful{background:rgba(18,196,139,.15);color:var(--green)}.rw-deposit-status.hold{background:rgba(124,92,255,.15);color:#B9A7FF}.rw-deposit-status.declined{background:rgba(255,59,92,.15);color:var(--red)}
 .rw-crypto-link{display:inline-flex;align-items:center;gap:6px;margin-top:12px;border:0;background:transparent;color:var(--accent);font:600 .78rem var(--font-body);cursor:pointer;padding:3px 0}.rw-crypto-link:hover{text-decoration:underline}
-.crypto-network-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.crypto-network-btn{display:flex;align-items:center;gap:8px;text-align:left;padding:10px;border-radius:12px;background:rgba(255,255,255,.045);border:1px solid var(--border);color:var(--text);font:600 .76rem var(--font-body)}.crypto-network-btn img{width:20px;height:20px}.crypto-network-btn.active{border-color:var(--accent);box-shadow:0 0 0 1px rgba(0,224,255,.18);background:rgba(0,224,255,.08)}
+.crypto-network-grid{display:flex;flex-direction:column;gap:10px;margin:10px 0}.crypto-network-group{border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.035);overflow:hidden}.crypto-network-group-title{display:block;padding:8px 10px;color:var(--muted);font:800 .67rem var(--font-display);letter-spacing:.08em;text-transform:uppercase}.crypto-network-select{width:100%;min-height:78px;max-height:78px;padding:4px 6px;border:0;border-top:1px solid var(--border);outline:0;background:rgba(255,255,255,.025);color:var(--text);font:600 .76rem var(--font-body);overflow-y:auto}.crypto-network-select option{padding:8px 7px;border-radius:7px;background:var(--card);color:var(--text)}.crypto-network-select option:checked{background:rgba(0,224,255,.16);color:var(--text)}
 .crypto-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.crypto-summary-box{padding:9px;border-radius:10px;background:rgba(255,255,255,.045);border:1px solid var(--border)}.crypto-summary-box b{display:block;font-size:.82rem;margin-top:3px;word-break:break-word}.crypto-summary-box span{font-size:.62rem;color:var(--muted)}.crypto-address{display:flex;gap:7px;align-items:center;margin:10px 0;padding:10px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid var(--border);font:600 .68rem var(--font-mono);word-break:break-all}.crypto-address button{flex:0 0 auto;padding:6px 8px}
 .crypto-note{font-size:.7rem;color:var(--muted);line-height:1.45;margin:8px 0}.crypto-note.warn{color:#FFB020}.crypto-note.hold{color:#B9A7FF}
-@media(max-width:500px){.rw-deposit-item{align-items:flex-start;flex-wrap:wrap;gap:7px}.rw-deposit-asset{min-width:calc(50% - 7px)}.rw-deposit-amount{margin-left:auto}.rw-deposit-meta{flex-basis:100%;order:3}.rw-deposit-status{order:2}.crypto-network-grid{grid-template-columns:1fr}}
+@media(max-width:500px){.rw-deposit-item{align-items:flex-start;flex-wrap:wrap;gap:7px}.rw-deposit-asset{min-width:calc(50% - 7px)}.rw-deposit-amount{margin-left:auto}.rw-deposit-meta{flex-basis:100%;order:3}.rw-deposit-status{order:2}}
 .rw-referral-list::-webkit-scrollbar,.rw-withdrawal-list::-webkit-scrollbar{width:4px}
 .rw-referral-list::-webkit-scrollbar-track,.rw-withdrawal-list::-webkit-scrollbar-track{background:transparent}
 .rw-referral-list::-webkit-scrollbar-thumb,.rw-withdrawal-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
@@ -1673,7 +1673,7 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
     <div class="overlay-step" id="rwCryptoStepHash">
       <div class="overlay-title">Verify your transaction</div>
-      <div class="overlay-sub">Enter the blockchain transaction hash. Coins are credited only after Bybit confirms an exact match.</div>
+      <div class="overlay-sub">Enter the blockchain transaction hash. Coins are credited only after WEEX confirms an exact match.</div>
       <div class="field"><label for="rwCryptoHash">Transaction hash</label><input type="text" id="rwCryptoHash" autocomplete="off" spellcheck="false" placeholder="Paste transaction hash"></div>
       <div class="acc-msg" id="rwCryptoHashMsg"></div>
       <button class="acc-btn" id="rwCryptoVerifyBtn" type="button" style="width:100%;justify-content:center">Verify Deposit</button>
@@ -5530,18 +5530,22 @@ function setCryptoStep(id){
   rwCryptoOverlay.querySelectorAll('.overlay-step').forEach((el) => el.classList.toggle('active', el.id === id));
 }
 function cryptoMsg(el, text, ok){ el.className = 'acc-msg' + (text ? (ok ? ' ok' : ' err') : ''); el.textContent = text || ''; }
-function cryptoNetworkButton(network){
-  return '<button type="button" class="crypto-network-btn' + (network.id === cryptoNetworkId ? ' active' : '') + '" data-crypto-network="' + esc(network.id) + '">' +
-    '<img src="' + esc(network.logo) + '" alt=""><span>' + esc(network.asset + ' · ' + network.network) + '</span></button>';
+function cryptoNetworkGroup(asset, networks){
+  const selected = networks.some((network) => network.id === cryptoNetworkId) ? cryptoNetworkId : networks[0]?.id;
+  if (!cryptoNetworkId && selected) cryptoNetworkId = selected;
+  return '<div class="crypto-network-group"><span class="crypto-network-group-title">' + esc(asset) + ' deposit</span>' +
+    '<select class="crypto-network-select" data-crypto-network-group="' + esc(asset) + '" size="3" aria-label="' + esc(asset + ' deposit network') + '">' +
+    networks.map((network) => '<option value="' + esc(network.id) + '"' + (network.id === selected ? ' selected' : '') + '>' + esc(network.network) + '</option>').join('') +
+    '</select></div>';
 }
 async function loadCryptoNetworks(){
   if (!cryptoNetworks.length) cryptoNetworks = (await getJSON('/api/crypto/networks')).networks || [];
   if (!cryptoNetworkId && cryptoNetworks[0]) cryptoNetworkId = cryptoNetworks[0].id;
   const wrap = document.getElementById('rwCryptoNetworks');
-  wrap.innerHTML = cryptoNetworks.map(cryptoNetworkButton).join('');
-  wrap.querySelectorAll('[data-crypto-network]').forEach((btn) => btn.addEventListener('click', () => {
-    cryptoNetworkId = btn.getAttribute('data-crypto-network');
-    loadCryptoNetworks();
+  const grouped = cryptoNetworks.reduce((map, network) => { (map[network.depositType || network.asset] ||= []).push(network); return map; }, {});
+  wrap.innerHTML = Object.entries(grouped).map(([asset, networks]) => cryptoNetworkGroup(asset, networks)).join('');
+  wrap.querySelectorAll('[data-crypto-network-group]').forEach((select) => select.addEventListener('change', () => {
+    cryptoNetworkId = select.value;
     updateCryptoQuote();
   }));
 }
@@ -5584,7 +5588,7 @@ function renderCryptoSend(){
   document.getElementById('rwCryptoSendSub').textContent = 'Send exactly ' + Number(d.cryptoAmount).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + d.asset + ' on ' + d.network + '.';
   document.getElementById('rwCryptoSendSummary').innerHTML = '<div class="crypto-summary-box"><span>Coins purchased</span><b>' + Number(d.coins).toLocaleString() + '</b></div><div class="crypto-summary-box"><span>Final crypto amount</span><b>' + Number(d.cryptoAmount).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + esc(d.asset) + '</b></div>';
   document.getElementById('rwCryptoAddress').textContent = d.destinationAddress;
-  document.getElementById('rwCryptoSendNote').textContent = 'Network: ' + d.network + '. Only send the selected asset on this network. Bybit must confirm the transaction before coins are credited.';
+  document.getElementById('rwCryptoSendNote').textContent = 'Network: ' + d.network + '. Only send the selected asset on this network. WEEX must confirm the transaction before coins are credited.';
 }
 async function openCryptoOverlay(){
   resetCryptoOverlay();
