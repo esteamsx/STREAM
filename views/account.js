@@ -557,6 +557,7 @@ input{font-family:inherit}
 .rw-deposit-asset{display:flex;align-items:center;gap:6px;min-width:125px;font-weight:800;font-size:.78rem}.rw-deposit-asset img{width:17px;height:17px;flex:0 0 17px}
 .rw-deposit-meta{margin-top:0;flex:1;min-width:0;font-size:.62rem;color:var(--muted);line-height:1.45;word-break:break-word}.rw-deposit-amount{font-family:var(--font-mono);font-size:.72rem;color:var(--text);margin-top:0;white-space:nowrap}
 .rw-deposit-status{display:inline-flex;margin-top:0;padding:3px 6px;border-radius:999px;font-size:.56rem;font-weight:800;letter-spacing:.04em;flex-shrink:0}.rw-deposit-status.pending{background:rgba(245,166,35,.15);color:#FFB020}.rw-deposit-status.successful{background:rgba(18,196,139,.15);color:var(--green)}.rw-deposit-status.hold{background:rgba(124,92,255,.15);color:#B9A7FF}.rw-deposit-status.declined{background:rgba(255,59,92,.15);color:var(--red)}
+.rw-deposit-countdown{display:inline-flex;align-items:center;justify-content:center;min-width:48px;padding:3px 6px;border:1px solid rgba(245,166,35,.3);border-radius:6px;background:rgba(245,166,35,.08);color:#FFB020;font:700 .66rem var(--font-mono);letter-spacing:.03em;flex-shrink:0}.rw-deposit-countdown.retry{border-color:rgba(124,92,255,.35);background:rgba(124,92,255,.1);color:#B9A7FF}
 .rw-crypto-link{display:inline-flex;align-items:center;gap:6px;margin-top:12px;border:0;background:transparent;color:var(--accent);font:600 .78rem var(--font-body);cursor:pointer;padding:3px 0}.rw-crypto-link:hover{text-decoration:underline}
 .crypto-network-grid{display:flex;flex-direction:column;gap:10px;margin:10px 0}.crypto-network-group{border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.035);overflow:hidden}.crypto-network-group-title{display:block;padding:8px 10px;color:var(--muted);font:800 .67rem var(--font-display);letter-spacing:.08em;text-transform:uppercase}.crypto-network-select{width:100%;min-height:78px;max-height:78px;padding:4px 6px;border:0;border-top:1px solid var(--border);outline:0;background:rgba(255,255,255,.025);color:var(--text);font:600 .76rem var(--font-body);overflow-y:auto}.crypto-network-select option{padding:8px 7px;border-radius:7px;background:var(--card);color:var(--text)}.crypto-network-select option:checked{background:rgba(0,224,255,.16);color:var(--text)}
 .crypto-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.crypto-summary-box{padding:9px;border-radius:10px;background:rgba(255,255,255,.045);border:1px solid var(--border)}.crypto-summary-box b{display:block;font-size:.82rem;margin-top:3px;word-break:break-word}.crypto-summary-box span{font-size:.62rem;color:var(--muted)}.crypto-address{display:flex;gap:7px;align-items:center;margin:10px 0;padding:10px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid var(--border);font:600 .68rem var(--font-mono);word-break:break-all}.crypto-address button{flex:0 0 auto;padding:6px 8px}
@@ -5508,9 +5509,11 @@ function renderCryptoDepositHistory(deposits){
       '<div class="rw-deposit-asset"><img src="' + esc(d.asset === 'BTC' ? 'https://cdn.simpleicons.org/bitcoin' : 'https://cdn.simpleicons.org/tether') + '" alt="">' + label + '</div>' +
       '<div class="rw-deposit-amount">' + Number(d.cryptoAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + esc(d.asset || '') + '</div>' +
       '<div class="rw-deposit-meta">' + Number(d.coins || 0).toLocaleString() + ' coins<br>' + fmtDateShort(d.createdAt) + '</div>' +
+      (status === 'pending' && d.txHash && d.verificationDeadlineAt ? '<span class="rw-deposit-countdown" data-deposit-countdown="' + esc(d.id) + '" data-deadline="' + Number(d.verificationDeadlineAt) + '" data-retry-at="' + Number(d.verificationRetryAt || 0) + '">15:00</span>' : '') +
       '<span class="rw-deposit-status ' + esc(status) + '">' + cryptoStatusLabel(status) + '</span></button>';
   }).join('');
   list.querySelectorAll('[data-crypto-deposit]').forEach((btn) => btn.addEventListener('click', () => openCryptoDetails(btn.getAttribute('data-crypto-deposit'))));
+  updateCryptoDepositCountdowns();
 }
 
 const rwSendOverlay = document.getElementById('rwSendOverlay');
@@ -5525,6 +5528,50 @@ let cryptoQuote = null;
 let cryptoDeposit = null;
 let cryptoDetailsTimer = null;
 let cryptoAssetId = 'USDT';
+const cryptoAutoVerifyPhases = new Set();
+const cryptoAutoVerifyBusy = new Set();
+function formatCryptoCountdown(ms){
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  return String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
+}
+async function autoVerifyCryptoDeposit(id, phase){
+  const key = id + ':' + phase;
+  if (cryptoAutoVerifyPhases.has(key) || cryptoAutoVerifyBusy.has(id)) return;
+  cryptoAutoVerifyPhases.add(key);
+  cryptoAutoVerifyBusy.add(id);
+  try {
+    const result = await postJSON('/api/crypto/deposits/' + encodeURIComponent(id) + '/verify', {});
+    if (result.deposit && result.deposit.status === 'successful') showToast('Verification complete. Coins have been added.');
+    await loadRewardsSummary();
+  } catch (err) {
+    // Keep the countdown visible; the next scheduled phase can retry safely.
+  } finally {
+    cryptoAutoVerifyBusy.delete(id);
+  }
+}
+function updateCryptoDepositCountdowns(){
+  const now = Date.now();
+  document.querySelectorAll('[data-deposit-countdown]').forEach((el) => {
+    const id = el.getAttribute('data-deposit-countdown');
+    const deadline = Number(el.getAttribute('data-deadline') || 0);
+    const retryAt = Number(el.getAttribute('data-retry-at') || 0);
+    if (now < deadline) {
+      el.textContent = formatCryptoCountdown(deadline - now);
+      el.className = 'rw-deposit-countdown';
+      return;
+    }
+    if (now < retryAt) {
+      el.textContent = 'Retry ' + formatCryptoCountdown(retryAt - now);
+      el.className = 'rw-deposit-countdown retry';
+      autoVerifyCryptoDeposit(id, 'deadline');
+      return;
+    }
+    el.textContent = 'Checking again…';
+    el.className = 'rw-deposit-countdown retry';
+    autoVerifyCryptoDeposit(id, 'retry');
+  });
+}
+setInterval(updateCryptoDepositCountdowns, 1000);
 function showHistoryPanel(panel){
   const deposits = panel === 'deposits';
   document.getElementById('rwWithdrawalsPanel').style.display = deposits ? 'none' : 'block';
@@ -5647,14 +5694,12 @@ document.getElementById('rwCryptoVerifyBtn').addEventListener('click', async () 
   if (!hash) { cryptoMsg(msg, 'Paste your transaction hash first.', false); return; }
   btn.disabled = true;
   try {
-    await postJSON('/api/crypto/deposits/' + encodeURIComponent(cryptoDeposit.id) + '/hash', { txHash: hash });
-    const result = await postJSON('/api/crypto/deposits/' + encodeURIComponent(cryptoDeposit.id) + '/verify', {});
-    cryptoDeposit = result.deposit;
-    if (cryptoDeposit.status === 'successful') cryptoMsg(msg, 'Deposit confirmed. Coins have been added.', true);
-    else if (cryptoDeposit.status === 'hold') cryptoMsg(msg, 'Verification is on HOLD. Your transaction details were saved for review.', false);
-    else cryptoMsg(msg, 'The transaction is not finalized yet. Your deposit is saved and can be checked again from Deposits.', false);
+    const depositId = cryptoDeposit.id;
+    await postJSON('/api/crypto/deposits/' + encodeURIComponent(depositId) + '/hash', { txHash: hash });
+    closeCryptoOverlay();
+    showToast('Verification in progress. We will check your deposit again automatically.');
     await loadRewardsSummary();
-    setTimeout(closeCryptoOverlay, 1400);
+    autoVerifyCryptoDeposit(depositId, 'submitted');
   } catch (err) { cryptoMsg(msg, err.message, false); }
   btn.disabled = false;
 });
