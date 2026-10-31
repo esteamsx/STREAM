@@ -921,6 +921,18 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div></div>
   </div>
 
+  <div class="ad-card accent-blue" id="cryptoDepositsCard">
+    <div class="ad-card-header" id="cryptoDepositsHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg>
+      <div class="ad-card-header-title">Crypto Deposits on Hold</div>
+      <div class="ad-card-count" id="cryptoDepositsCount" style="display:none">0</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="bonus-list" id="cryptoDepositsList"><div class="ad-empty">Loading...</div></div>
+    </div></div>
+  </div>
+
   <div class="ad-card accent-gold" id="faceIdsCard">
     <div class="ad-card-header" id="faceIdsHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><circle cx="9.5" cy="10" r=".6"/><circle cx="14.5" cy="10" r=".6"/><path stroke-linecap="round" d="M9.5 15c.7.6 1.4.9 2.5.9s1.8-.3 2.5-.9"/></svg>
@@ -1642,6 +1654,29 @@ function loadWithdrawals(){
     withdrawalsCount.textContent = String(list.length);
     renderWithdrawalsList(list);
   }).catch(() => { withdrawalsList.innerHTML = '<div class="ad-empty">Could not load withdrawal requests.</div>'; });
+}
+
+document.getElementById('cryptoDepositsHeader').addEventListener('click', () => document.getElementById('cryptoDepositsCard').classList.toggle('open'));
+const cryptoDepositsList = document.getElementById('cryptoDepositsList');
+const cryptoDepositsCount = document.getElementById('cryptoDepositsCount');
+function cryptoDepositAdminHtml(d){
+  const snapshot = d.verificationSnapshot || {};
+  return '<div class="withdrawal-item" data-crypto-admin-id="' + esc(d.id) + '">' +
+    '<div class="withdrawal-item-head"><div class="withdrawal-item-amount">' + Number(d.coins || 0).toLocaleString() + ' coins</div><span class="status-pill">' + esc(String(d.status || 'pending').toUpperCase()) + '</span></div>' +
+    '<div class="withdrawal-item-meta">' + esc(d.asset || '') + ' · ' + esc(d.network || '') + ' · ' + Number(d.cryptoAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' · created ' + esc(new Date(d.createdAt || Date.now()).toLocaleString()) + '<br>Hash: <b style="word-break:break-all">' + esc(d.txHash || 'not submitted') + '</b><br>Returned: ' + esc(snapshot.toAddress || 'not verified') + '</div>' +
+    '<button type="button" class="withdrawal-confirm-btn" data-crypto-decline="' + esc(d.id) + '" style="background:var(--red);color:#fff">Decline</button></div>';
+}
+function loadCryptoDeposits(){
+  getJSON('/api/admin/crypto-deposits').then((data) => {
+    const list = data.deposits || [];
+    cryptoDepositsCount.style.display = list.length ? '' : 'none'; cryptoDepositsCount.textContent = String(list.length);
+    cryptoDepositsList.innerHTML = list.length ? list.map(cryptoDepositAdminHtml).join('') : '<div class="ad-empty">No pending or held crypto deposits.</div>';
+    cryptoDepositsList.querySelectorAll('[data-crypto-decline]').forEach((btn) => btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try { await postJSON('/api/admin/crypto-deposits/' + encodeURIComponent(btn.getAttribute('data-crypto-decline')) + '/decision', { decision: 'declined' }); loadCryptoDeposits(); }
+      catch (err) { btn.disabled = false; showToast(err.message || 'Could not decline this deposit.'); }
+    }));
+  }).catch(() => { cryptoDepositsList.innerHTML = '<div class="ad-empty">Could not load crypto deposits.</div>'; });
 }
 
 document.getElementById('faceIdsHeader').addEventListener('click', () => {
@@ -4284,6 +4319,7 @@ loadPromotionalReviews();
 loadBonusCodes();
 loadTpCodes();
 loadWithdrawals();
+loadCryptoDeposits();
 loadDeviceBans();
 loadFaceIds();
 gvLoad();

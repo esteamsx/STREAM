@@ -134,6 +134,24 @@ export async function getAllInstruments(category, demo = false) {
   return { list: all };
 }
 
+export async function getCoinInfo(coin, demo = false, override) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
+  return signedGet(demo, apiKey, apiSecret, "/v5/asset/coin/query-info", { coin: String(coin || "").toUpperCase() });
+}
+
+export async function getDepositRecord(params = {}, demo = false, override) {
+  const { apiKey, apiSecret } = requireKeys(demo, override);
+  return signedGet(demo, apiKey, apiSecret, "/v5/asset/deposit/query-record", {
+    id: params.id,
+    txID: params.txID,
+    coin: params.coin ? String(params.coin).toUpperCase() : undefined,
+    startTime: params.startTime,
+    endTime: params.endTime,
+    limit: params.limit || 50,
+    cursor: params.cursor,
+  });
+}
+
 export async function getInstrumentInfo(category, symbol, demo = false) {
   const result = await publicGet(demo, "/v5/market/instruments-info", { category, symbol });
   const info = (result.list || [])[0];

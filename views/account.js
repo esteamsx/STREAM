@@ -547,6 +547,17 @@ input{font-family:inherit}
 .rw-store-item button,.rw-buy-item button{width:100%;margin-top:auto}
 
 .rw-withdrawal-list{display:flex;flex-direction:column;gap:8px;max-height:190px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-right:4px}
+.rw-deposit-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;max-height:250px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:2px 4px 2px 0}
+.rw-deposit-item{min-width:0;padding:10px;border-radius:12px;background:linear-gradient(155deg,rgba(255,255,255,.075),rgba(255,255,255,.025));border:1px solid var(--border);cursor:pointer;text-align:left;color:var(--text);font:inherit}
+.rw-deposit-item:active{transform:scale(.98)}
+.rw-deposit-asset{display:flex;align-items:center;gap:6px;font-weight:800;font-size:.78rem}.rw-deposit-asset img{width:17px;height:17px}
+.rw-deposit-meta{margin-top:5px;font-size:.62rem;color:var(--muted);line-height:1.45;word-break:break-word}.rw-deposit-amount{font-family:var(--font-mono);font-size:.72rem;color:var(--text);margin-top:3px}
+.rw-deposit-status{display:inline-flex;margin-top:6px;padding:3px 6px;border-radius:999px;font-size:.56rem;font-weight:800;letter-spacing:.04em}.rw-deposit-status.pending{background:rgba(245,166,35,.15);color:#FFB020}.rw-deposit-status.successful{background:rgba(18,196,139,.15);color:var(--green)}.rw-deposit-status.hold{background:rgba(124,92,255,.15);color:#B9A7FF}.rw-deposit-status.declined{background:rgba(255,59,92,.15);color:var(--red)}
+.rw-crypto-link{display:inline-flex;align-items:center;gap:6px;margin-top:12px;border:0;background:transparent;color:var(--accent);font:600 .78rem var(--font-body);cursor:pointer;padding:3px 0}.rw-crypto-link:hover{text-decoration:underline}
+.crypto-network-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.crypto-network-btn{display:flex;align-items:center;gap:8px;text-align:left;padding:10px;border-radius:12px;background:rgba(255,255,255,.045);border:1px solid var(--border);color:var(--text);font:600 .76rem var(--font-body)}.crypto-network-btn img{width:20px;height:20px}.crypto-network-btn.active{border-color:var(--accent);box-shadow:0 0 0 1px rgba(0,224,255,.18);background:rgba(0,224,255,.08)}
+.crypto-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.crypto-summary-box{padding:9px;border-radius:10px;background:rgba(255,255,255,.045);border:1px solid var(--border)}.crypto-summary-box b{display:block;font-size:.82rem;margin-top:3px;word-break:break-word}.crypto-summary-box span{font-size:.62rem;color:var(--muted)}.crypto-address{display:flex;gap:7px;align-items:center;margin:10px 0;padding:10px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid var(--border);font:600 .68rem var(--font-mono);word-break:break-all}.crypto-address button{flex:0 0 auto;padding:6px 8px}
+.crypto-note{font-size:.7rem;color:var(--muted);line-height:1.45;margin:8px 0}.crypto-note.warn{color:#FFB020}.crypto-note.hold{color:#B9A7FF}
+@media(max-width:500px){.rw-deposit-list{grid-template-columns:repeat(2,minmax(0,1fr))}.crypto-network-grid{grid-template-columns:1fr}}
 .rw-referral-list::-webkit-scrollbar,.rw-withdrawal-list::-webkit-scrollbar{width:4px}
 .rw-referral-list::-webkit-scrollbar-track,.rw-withdrawal-list::-webkit-scrollbar-track{background:transparent}
 .rw-referral-list::-webkit-scrollbar-thumb,.rw-withdrawal-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
@@ -1603,6 +1614,10 @@ body:has(.page-overlay.show){overflow:hidden}
         Buy Coins
       </div>
       <div class="rw-buy-grid" id="rwBuyCoinsGrid"></div>
+      <button type="button" class="rw-crypto-link" id="rwCryptoOpenBtn">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg>
+        Pay through Crypto
+      </button>
       <div class="acc-msg" id="rwBuyMsg"></div>
     </div>
 
@@ -1614,10 +1629,63 @@ body:has(.page-overlay.show){overflow:hidden}
       </div>
       <div class="rw-withdrawal-list" id="rwWithdrawalList"><div class="rw-empty">No withdrawals yet.</div></div>
     </div>
+
+    <div class="acc-card">
+      <div class="acc-card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v13H4z"/><path d="M7 4h10v3H7zM8 11h8M8 15h5"/></svg>
+        Deposit History
+      </div>
+      <div class="rw-deposit-list" id="rwDepositList"><div class="rw-empty">No crypto deposits yet.</div></div>
+    </div>
   </div>
   </div>
   </div>
 
+</div>
+
+<div class="page-overlay" id="rwCryptoOverlay">
+  <div class="overlay-card rw-tall" style="max-width:440px">
+    <div class="overlay-step active" id="rwCryptoStepChoose">
+      <div class="overlay-title">Pay with Crypto</div>
+      <div class="overlay-sub">Choose your coin amount and network. Your existing ES Teams coin pricing is used, plus a $1 deposit fee.</div>
+      <div class="field"><label for="rwCryptoCoins">Coins to purchase</label><input type="number" id="rwCryptoCoins" min="100" max="3000" step="1" placeholder="100"></div>
+      <div class="crypto-network-grid" id="rwCryptoNetworks"></div>
+      <div class="crypto-summary" id="rwCryptoSummary"><div class="crypto-summary-box"><span>Final crypto amount</span><b>Choose a network</b></div><div class="crypto-summary-box"><span>Naira value</span><b>—</b></div></div>
+      <div class="crypto-note" id="rwCryptoQuoteNote">Minimum 100 coins. Maximum 3,000 coins.</div>
+      <div class="acc-msg" id="rwCryptoMsg"></div>
+      <button class="acc-btn" id="rwCryptoStartBtn" type="button" style="width:100%;justify-content:center" disabled>Continue</button>
+      <button class="overlay-cancel" id="rwCryptoCloseBtn" type="button">Close</button>
+    </div>
+    <div class="overlay-step" id="rwCryptoStepSend">
+      <div class="overlay-title">Send the exact amount</div>
+      <div class="overlay-sub" id="rwCryptoSendSub">Send the displayed amount to this destination on the selected network.</div>
+      <div class="crypto-summary" id="rwCryptoSendSummary"></div>
+      <div class="crypto-address"><span id="rwCryptoAddress"></span><button type="button" class="acc-btn acc-btn-ghost" id="rwCryptoCopyBtn">Copy</button></div>
+      <div class="crypto-note" id="rwCryptoSendNote">Only send the selected asset on the selected network. Other assets or networks may be lost.</div>
+      <button class="acc-btn" id="rwCryptoSentBtn" type="button" style="width:100%;justify-content:center">I Have Sent the Money</button>
+      <button class="overlay-cancel" id="rwCryptoBackBtn" type="button">Back</button>
+    </div>
+    <div class="overlay-step" id="rwCryptoStepHash">
+      <div class="overlay-title">Verify your transaction</div>
+      <div class="overlay-sub">Enter the blockchain transaction hash. Coins are credited only after Bybit confirms an exact match.</div>
+      <div class="field"><label for="rwCryptoHash">Transaction hash</label><input type="text" id="rwCryptoHash" autocomplete="off" spellcheck="false" placeholder="Paste transaction hash"></div>
+      <div class="acc-msg" id="rwCryptoHashMsg"></div>
+      <button class="acc-btn" id="rwCryptoVerifyBtn" type="button" style="width:100%;justify-content:center">Verify Deposit</button>
+      <button class="overlay-cancel" id="rwCryptoHashBackBtn" type="button">Back</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-overlay" id="rwCryptoDetailsOverlay">
+  <div class="overlay-card rw-tall" style="max-width:400px">
+    <div class="overlay-title">Deposit Details</div>
+    <div class="overlay-sub" id="rwCryptoDetailsSub"></div>
+    <div class="crypto-summary" id="rwCryptoDetailsSummary"></div>
+    <div class="crypto-address"><span id="rwCryptoDetailsAddress"></span><button type="button" class="acc-btn acc-btn-ghost" id="rwCryptoDetailsCopyBtn">Copy</button></div>
+    <div class="crypto-note" id="rwCryptoDetailsNote"></div>
+    <button class="acc-btn" id="rwCryptoDetailsVerifyBtn" type="button" style="width:100%;justify-content:center">Check Again</button>
+    <button class="overlay-cancel" id="rwCryptoDetailsCloseBtn" type="button">Close</button>
+  </div>
 </div>
 
 <div class="page-overlay" id="howToEarnOverlay">
@@ -5407,13 +5475,156 @@ async function loadRewardsSummary(){
       btn.addEventListener('click', () => openWithdrawalCertificate(btn.getAttribute('data-cert-wd')));
     });
   }
+  renderCryptoDepositHistory(rewardsSummary.deposits || []);
   syncPanelHeight();
+}
+
+function cryptoStatusLabel(status){
+  return status === 'successful' ? 'SUCCESSFUL' : status === 'declined' ? 'DECLINED' : status === 'hold' ? 'HOLD' : 'PENDING';
+}
+function renderCryptoDepositHistory(deposits){
+  const list = document.getElementById('rwDepositList');
+  if (!list) return;
+  if (!deposits.length) { list.innerHTML = '<div class="rw-empty">No crypto deposits yet.</div>'; return; }
+  list.innerHTML = deposits.map((d) => {
+    const label = esc((d.asset || '') + ' · ' + (d.network || ''));
+    const status = d.status || 'pending';
+    return '<button type="button" class="rw-deposit-item" data-crypto-deposit="' + esc(d.id) + '">' +
+      '<div class="rw-deposit-asset"><img src="' + esc(d.asset === 'BTC' ? 'https://cdn.simpleicons.org/bitcoin' : 'https://cdn.simpleicons.org/tether') + '" alt="">' + label + '</div>' +
+      '<div class="rw-deposit-amount">' + Number(d.cryptoAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + esc(d.asset || '') + '</div>' +
+      '<div class="rw-deposit-meta">' + Number(d.coins || 0).toLocaleString() + ' coins<br>' + fmtDateShort(d.createdAt) + '</div>' +
+      '<span class="rw-deposit-status ' + esc(status) + '">' + cryptoStatusLabel(status) + '</span></button>';
+  }).join('');
+  list.querySelectorAll('[data-crypto-deposit]').forEach((btn) => btn.addEventListener('click', () => openCryptoDetails(btn.getAttribute('data-crypto-deposit'))));
 }
 
 const rwSendOverlay = document.getElementById('rwSendOverlay');
 const rwReceiveOverlay = document.getElementById('rwReceiveOverlay');
 const rwCardsOverlay = document.getElementById('rwCardsOverlay');
 const rwClaimOverlay = document.getElementById('rwClaimOverlay');
+const rwCryptoOverlay = document.getElementById('rwCryptoOverlay');
+const rwCryptoDetailsOverlay = document.getElementById('rwCryptoDetailsOverlay');
+let cryptoNetworks = [];
+let cryptoNetworkId = '';
+let cryptoQuote = null;
+let cryptoDeposit = null;
+let cryptoDetailsTimer = null;
+
+function setCryptoStep(id){
+  rwCryptoOverlay.querySelectorAll('.overlay-step').forEach((el) => el.classList.toggle('active', el.id === id));
+}
+function cryptoMsg(el, text, ok){ el.className = 'acc-msg' + (text ? (ok ? ' ok' : ' err') : ''); el.textContent = text || ''; }
+function cryptoNetworkButton(network){
+  return '<button type="button" class="crypto-network-btn' + (network.id === cryptoNetworkId ? ' active' : '') + '" data-crypto-network="' + esc(network.id) + '">' +
+    '<img src="' + esc(network.logo) + '" alt=""><span>' + esc(network.asset + ' · ' + network.network) + '</span></button>';
+}
+async function loadCryptoNetworks(){
+  if (!cryptoNetworks.length) cryptoNetworks = (await getJSON('/api/crypto/networks')).networks || [];
+  if (!cryptoNetworkId && cryptoNetworks[0]) cryptoNetworkId = cryptoNetworks[0].id;
+  const wrap = document.getElementById('rwCryptoNetworks');
+  wrap.innerHTML = cryptoNetworks.map(cryptoNetworkButton).join('');
+  wrap.querySelectorAll('[data-crypto-network]').forEach((btn) => btn.addEventListener('click', () => {
+    cryptoNetworkId = btn.getAttribute('data-crypto-network');
+    loadCryptoNetworks();
+    updateCryptoQuote();
+  }));
+}
+function resetCryptoOverlay(){
+  setCryptoStep('rwCryptoStepChoose');
+  cryptoQuote = null; cryptoDeposit = null;
+  document.getElementById('rwCryptoCoins').value = '';
+  document.getElementById('rwCryptoSummary').innerHTML = '<div class="crypto-summary-box"><span>Final crypto amount</span><b>Choose an amount</b></div><div class="crypto-summary-box"><span>Naira value</span><b>—</b></div>';
+  document.getElementById('rwCryptoQuoteNote').textContent = 'Minimum 100 coins. Maximum 3,000 coins.';
+  cryptoMsg(document.getElementById('rwCryptoMsg'), '', false);
+  document.getElementById('rwCryptoStartBtn').disabled = true;
+}
+async function updateCryptoQuote(){
+  const coins = Math.floor(Number(document.getElementById('rwCryptoCoins').value));
+  const startBtn = document.getElementById('rwCryptoStartBtn');
+  if (!Number.isFinite(coins) || coins < 100 || coins > 3000 || !cryptoNetworkId) { startBtn.disabled = true; return; }
+  startBtn.disabled = true;
+  try {
+    cryptoQuote = await postJSON('/api/crypto/quote', { coins, networkId: cryptoNetworkId });
+    document.getElementById('rwCryptoSummary').innerHTML =
+      '<div class="crypto-summary-box"><span>Final amount to send</span><b>' + Number(cryptoQuote.cryptoAmount).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + esc(cryptoQuote.network.asset) + '</b></div>' +
+      '<div class="crypto-summary-box"><span>Coin value + $1 fee</span><b>₦' + Number(cryptoQuote.priceNgn).toLocaleString() + ' + $1</b></div>';
+    const note = document.getElementById('rwCryptoQuoteNote');
+    note.className = 'crypto-note' + (cryptoQuote.network.warning ? ' warn' : '');
+    note.textContent = cryptoQuote.network.warning || (cryptoQuote.network.minimum !== null ? 'Bybit minimum: ' + cryptoQuote.network.minimum + ' ' + cryptoQuote.network.asset + '. Current rate is refreshed before you continue.' : 'Bybit minimum is unavailable right now; verification will remain on HOLD until reviewed.');
+    startBtn.disabled = false;
+  } catch (err) {
+    cryptoQuote = null;
+    cryptoMsg(document.getElementById('rwCryptoMsg'), err.message || 'Could not calculate this amount.', false);
+  }
+}
+function renderCryptoSend(){
+  const d = cryptoDeposit;
+  document.getElementById('rwCryptoSendSub').textContent = 'Send exactly ' + Number(d.cryptoAmount).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + d.asset + ' on ' + d.network + '.';
+  document.getElementById('rwCryptoSendSummary').innerHTML = '<div class="crypto-summary-box"><span>Coins purchased</span><b>' + Number(d.coins).toLocaleString() + '</b></div><div class="crypto-summary-box"><span>Final crypto amount</span><b>' + Number(d.cryptoAmount).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + esc(d.asset) + '</b></div>';
+  document.getElementById('rwCryptoAddress').textContent = d.destinationAddress;
+  document.getElementById('rwCryptoSendNote').textContent = 'Network: ' + d.network + '. Only send the selected asset on this network. Bybit must confirm the transaction before coins are credited.';
+}
+async function openCryptoOverlay(){
+  resetCryptoOverlay();
+  rwCryptoOverlay.classList.add('show');
+  try { await loadCryptoNetworks(); } catch (err) { cryptoMsg(document.getElementById('rwCryptoMsg'), err.message, false); }
+}
+document.getElementById('rwCryptoOpenBtn').addEventListener('click', openCryptoOverlay);
+document.getElementById('rwCryptoCloseBtn').addEventListener('click', () => rwCryptoOverlay.classList.remove('show'));
+rwCryptoOverlay.addEventListener('click', (e) => { if (e.target === rwCryptoOverlay) rwCryptoOverlay.classList.remove('show'); });
+document.getElementById('rwCryptoCoins').addEventListener('input', updateCryptoQuote);
+document.getElementById('rwCryptoStartBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('rwCryptoStartBtn');
+  btn.disabled = true;
+  try {
+    const data = await postJSON('/api/crypto/deposits', { coins: cryptoQuote.coins, networkId: cryptoNetworkId });
+    cryptoDeposit = data.deposit;
+    renderCryptoSend();
+    setCryptoStep('rwCryptoStepSend');
+  } catch (err) { cryptoMsg(document.getElementById('rwCryptoMsg'), err.message, false); btn.disabled = false; }
+});
+document.getElementById('rwCryptoBackBtn').addEventListener('click', () => setCryptoStep('rwCryptoStepChoose'));
+document.getElementById('rwCryptoCopyBtn').addEventListener('click', async () => {
+  await navigator.clipboard.writeText(document.getElementById('rwCryptoAddress').textContent).catch(() => {});
+  const btn = document.getElementById('rwCryptoCopyBtn'); const old = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = old; }, 1300);
+});
+document.getElementById('rwCryptoSentBtn').addEventListener('click', () => { document.getElementById('rwCryptoHash').value = ''; cryptoMsg(document.getElementById('rwCryptoHashMsg'), '', false); setCryptoStep('rwCryptoStepHash'); });
+document.getElementById('rwCryptoHashBackBtn').addEventListener('click', () => setCryptoStep('rwCryptoStepSend'));
+document.getElementById('rwCryptoVerifyBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('rwCryptoVerifyBtn'); const msg = document.getElementById('rwCryptoHashMsg'); const hash = document.getElementById('rwCryptoHash').value.trim();
+  if (!hash) { cryptoMsg(msg, 'Paste your transaction hash first.', false); return; }
+  btn.disabled = true;
+  try {
+    await postJSON('/api/crypto/deposits/' + encodeURIComponent(cryptoDeposit.id) + '/hash', { txHash: hash });
+    const result = await postJSON('/api/crypto/deposits/' + encodeURIComponent(cryptoDeposit.id) + '/verify', {});
+    cryptoDeposit = result.deposit;
+    if (cryptoDeposit.status === 'successful') { cryptoMsg(msg, 'Deposit confirmed. Coins have been added.', true); await loadRewardsSummary(); setTimeout(() => rwCryptoOverlay.classList.remove('show'), 900); }
+    else if (cryptoDeposit.status === 'hold') cryptoMsg(msg, 'Verification is on HOLD. Your transaction details were saved for Bybit confirmation or manual review.', false);
+    else cryptoMsg(msg, 'The transaction is not finalized yet. Your deposit is saved and can be checked again from Deposit History.', false);
+  } catch (err) { cryptoMsg(msg, err.message, false); }
+  btn.disabled = false;
+});
+function renderCryptoDetails(d){
+  cryptoDeposit = d;
+  const status = d.status || 'pending';
+  document.getElementById('rwCryptoDetailsSub').textContent = cryptoStatusLabel(status) + ' · ' + (d.asset || '') + ' on ' + (d.network || '');
+  document.getElementById('rwCryptoDetailsSummary').innerHTML = '<div class="crypto-summary-box"><span>Coins</span><b>' + Number(d.coins || 0).toLocaleString() + '</b></div><div class="crypto-summary-box"><span>Crypto sent</span><b>' + Number(d.cryptoAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + esc(d.asset || '') + '</b></div><div class="crypto-summary-box"><span>Naira value</span><b>₦' + Number(d.amountNgn || 0).toLocaleString() + '</b></div><div class="crypto-summary-box"><span>Date</span><b>' + esc(fmtDateShort(d.createdAt)) + '</b></div>';
+  document.getElementById('rwCryptoDetailsAddress').textContent = d.destinationAddress || '';
+  const note = document.getElementById('rwCryptoDetailsNote'); note.className = 'crypto-note' + (status === 'hold' ? ' hold' : '');
+  note.textContent = status === 'pending' ? '◷ Pending. Check again in 30 seconds. Your transaction details are saved.' : status === 'successful' ? '◷ Confirmed by Bybit and credited to your coin balance.' : status === 'declined' ? '◷ Declined by an administrator. Contact support if you need help.' : '◷ HOLD. Bybit verification is unavailable or the returned record needs manual review.';
+  document.getElementById('rwCryptoDetailsVerifyBtn').style.display = d.txHash && status !== 'successful' && status !== 'declined' ? 'block' : 'none';
+}
+async function openCryptoDetails(id){
+  let d = (rewardsSummary && rewardsSummary.deposits || []).find((item) => item.id === id);
+  try { d = (await getJSON('/api/crypto/deposits/' + encodeURIComponent(id))).deposit; } catch (err) { if (!d) return; }
+  renderCryptoDetails(d); rwCryptoDetailsOverlay.classList.add('show');
+  clearInterval(cryptoDetailsTimer);
+  cryptoDetailsTimer = setInterval(async () => { if (!rwCryptoDetailsOverlay.classList.contains('show')) return; try { renderCryptoDetails((await getJSON('/api/crypto/deposits/' + encodeURIComponent(id))).deposit); } catch (e) {} }, 30000);
+}
+document.getElementById('rwCryptoDetailsCloseBtn').addEventListener('click', () => { rwCryptoDetailsOverlay.classList.remove('show'); clearInterval(cryptoDetailsTimer); });
+rwCryptoDetailsOverlay.addEventListener('click', (e) => { if (e.target === rwCryptoDetailsOverlay) { rwCryptoDetailsOverlay.classList.remove('show'); clearInterval(cryptoDetailsTimer); } });
+document.getElementById('rwCryptoDetailsCopyBtn').addEventListener('click', async () => { await navigator.clipboard.writeText(document.getElementById('rwCryptoDetailsAddress').textContent).catch(() => {}); });
+document.getElementById('rwCryptoDetailsVerifyBtn').addEventListener('click', async () => { if (!cryptoDeposit || !cryptoDeposit.id) return; const btn = document.getElementById('rwCryptoDetailsVerifyBtn'); btn.disabled = true; try { const result = await postJSON('/api/crypto/deposits/' + encodeURIComponent(cryptoDeposit.id) + '/verify', {}); renderCryptoDetails(result.deposit); await loadRewardsSummary(); } catch (err) { document.getElementById('rwCryptoDetailsNote').textContent = err.message; } btn.disabled = false; });
 
 function openRwOverlay(overlay){ overlay.classList.add('show'); }
 function closeRwOverlay(overlay){ overlay.classList.remove('show'); }

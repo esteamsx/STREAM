@@ -39,6 +39,7 @@ import {
 import { findBankCode, resolveAccountNumber } from "../services/paystack.js";
 import { SimpleRateLimiter, requireSiteOrigin } from "../middleware/security-middleware.js";
 import { registerWeeklyActivityRoutes } from "./weekly-activity.js";
+import { listCryptoDeposits } from "../services/crypto-deposits.js";
 
 const router = express.Router();
 
@@ -95,11 +96,12 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
       ...item,
       coinCost: key === "verify3d" ? item.coinCost : discountedCoinCost(item.coinCost, profile),
     }]));
-    const [referralCode, referrals, withdrawals, claimCreditRef] = await Promise.all([
+    const [referralCode, referrals, withdrawals, claimCreditRef, deposits] = await Promise.all([
       ensureReferralCode(req.uid, profile),
       getReferralsForUser(req.uid),
       listWithdrawalRequestsForUser(req.uid),
       findUnusedClaimPayment(req.uid).catch(() => null),
+      listCryptoDeposits(req.uid),
     ]);
     res.json({
       referralCode,
@@ -137,6 +139,7 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
         completedAt: w.completedAt || null,
         certificateSerial: w.certificateSerial || null,
       })),
+      deposits,
       coinStoreItems,
       coinPackages,
     });

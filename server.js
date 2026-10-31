@@ -351,6 +351,7 @@ import {
 import { chargeAuthorization, VERIFICATION_PRICE_NGN, VERIFICATION_DAYS } from "./services/paystack.js";
 import { channelCoinCost } from "./services/coin-pricing.js";
 import { paymentsRouter } from "./routes/payments.js";
+import { cryptoDepositsRouter } from "./routes/crypto-deposits.js";
 import { promoteRouter } from "./routes/promote.js";
 import { injectPromoSlot } from "./middleware/promo-slot.js";
 import { flushAdStats } from "./services/ads.js";
@@ -745,6 +746,7 @@ app.use(toolsRouter);
 app.use(freeApiRouter);
 app.get("/s/:code", handleShortlinkRedirect);
 app.use(paymentsRouter);
+app.use(cryptoDepositsRouter);
 app.use(promoteRouter);
 app.use("/api/rewards", coinDeviceGuard);
 app.use(rewardsRouter);
