@@ -1,3 +1,5 @@
+import { analyzePromotionalText, legacyTextLooksPromotional } from "./promotional-text-signals.js";
+
 const FOLLOWING_UID_CHUNK_SIZE = 30;
 const FEED_PAGE_SIZE = 20;
 const FEED_SCAN_CAP_PER_CHUNK = 50;
@@ -8,6 +10,17 @@ const FEED_POST_FIELDS = [
   "reshareEnabled", "linksEnabled", "reshareCount", "pinnedAt", "editedAt", "taggedUids",
   "likedBy", "commentsCount", "commentsEnabled", "bonusLikes", "moderationStatus",
 ];
+
+function persistLegacyPromotionalBlock(db, post) {
+  const result = analyzePromotionalText(post.text);
+  return db.collection("posts").doc(String(post.id || "")).set({
+    moderationStatus: "blocked",
+    moderationScore: result.score,
+    moderationReasons: result.reasons,
+    moderationImageAnalysis: { status: "not_checked_legacy_text_block" },
+    moderationAt: Date.now(),
+  }, { merge: true }).catch(() => {});
+}
 
 function chunks(items, size) {
   const out = [];
@@ -79,6 +92,10 @@ export async function fetchVisibleFollowingPosts(db, followingUids, viewerUid, {
 
   async function postIsVisible(post) {
     if (post.moderationStatus && post.moderationStatus !== "allow") return false;
+    if (!post.moderationStatus && legacyTextLooksPromotional(post.text)) {
+      void persistLegacyPromotionalBlock(db, post);
+      return false;
+    }
     const visibility = post.visibility || "everyone";
     if (visibility === "only_me") return false;
     if (visibility !== "friends") return true;

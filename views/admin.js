@@ -1043,7 +1043,6 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
       <div class="ad-card-count" id="promoReviewsCount" style="display:none"></div>
     </div>
     <div class="ad-card-body" style="max-height:none"><div class="ad-card-body-inner">
-      <div style="font-size:.76rem;color:var(--muted);line-height:1.5;margin-bottom:10px">Posts at 70–89% are held for review and posts at 90% or higher are blocked. Decisions are enforced server-side. Text and attached images are checked with local rules and free Tesseract OCR; image-only promotions can still need human review when OCR is unavailable.</div>
       <div id="promoReviewsList"><div class="ad-empty">Loading...</div></div>
     </div></div>
   </div>

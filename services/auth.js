@@ -18,7 +18,7 @@ import { openDeviceSession, checkDeviceSession, touchDeviceSession, revokeDevice
 import { createWeeklyActivityService } from "./weekly-activity.js";
 import { fetchVisibleFollowingPosts } from "./following-feed-queries.js";
 import { fetchCommunityMessagePage } from "./community-chat-queries.js";
-import { analyzePromotionalContent } from "./promotional-moderation.js";
+import { analyzePromotionalContent, legacyTextLooksPromotional, blockLegacyPromotionalPost } from "./promotional-moderation.js";
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -2399,6 +2399,10 @@ async function getPostsByUser(targetUid, viewerUid, { limit = 30, before = null 
 
   const visiblePosts = posts.filter((p) => {
     if (p.moderationStatus && p.moderationStatus !== "allow") return false;
+    if (!p.moderationStatus && legacyTextLooksPromotional(p.text)) {
+      void blockLegacyPromotionalPost(p);
+      return false;
+    }
     if (isOwner) return true;
     if (!ownerIsPremium && looksLikePromotionalPost(p.text)) return false;
     const vis = p.visibility || "everyone";
@@ -2997,6 +3001,10 @@ async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
       const author = authorDocs.get(p.uid);
       if (!author || !author.username || author.banned || author.pendingDeletion) continue;
       if (p.moderationStatus && p.moderationStatus !== "allow") continue;
+      if (!p.moderationStatus && legacyTextLooksPromotional(p.text)) {
+        void blockLegacyPromotionalPost(p);
+        continue;
+      }
       if (p.uid !== uid) {
         const vis = p.visibility || "everyone";
         const rel = follow.get(p.uid) || { viewerFollows: false, authorFollows: false };
@@ -3052,6 +3060,10 @@ async function getPostImage(viewerUid, postId) {
   if (!snap.exists) return null;
   const post = snap.data();
   if (post.moderationStatus && post.moderationStatus !== "allow") return null;
+  if (!post.moderationStatus && legacyTextLooksPromotional(post.text)) {
+    await blockLegacyPromotionalPost({ id: snap.id, ...post });
+    return null;
+  }
   const match = POST_IMAGE_TYPES.exec(String(post.imageDataUrl || ""));
   if (!match) return null;
   if (post.uid !== viewerUid && looksLikePromotionalPost(post.text)) {
@@ -3146,7 +3158,7 @@ async function computeFollowingFeedUnseenCount(uid, cachedProfile) {
     if (Date.now() >= feedCountIndexRetryAt) {
       try {
         snap = await db.collection("posts").where("uid", "in", chunk).where("createdAt", ">", lastSeenFeedAt).limit(50)
-          .select("createdAt", "visibility", "moderationStatus").get();
+          .select("createdAt", "visibility", "moderationStatus", "text").get();
       } catch (err) {
         feedCountIndexRetryAt = Date.now() + 10 * 60 * 1000;
         console.warn("[quota] the new-posts badge reads the slow way until this index exists (open the link in the error): " + String(err.message || err).slice(0, 400));
@@ -3154,12 +3166,16 @@ async function computeFollowingFeedUnseenCount(uid, cachedProfile) {
     }
     if (!snap) {
       snap = await db.collection("posts").where("uid", "in", chunk).limit(50)
-        .select("createdAt", "visibility", "moderationStatus").get();
+        .select("createdAt", "visibility", "moderationStatus", "text").get();
     }
     snap.docs.forEach((d) => {
       const data = d.data();
       if (data.createdAt <= lastSeenFeedAt) return;
       if (data.moderationStatus && data.moderationStatus !== "allow") return;
+      if (!data.moderationStatus && legacyTextLooksPromotional(data.text)) {
+        void blockLegacyPromotionalPost({ id: d.id, ...data });
+        return;
+      }
       if ((data.visibility || "everyone") === "only_me") return;
       count++;
     });
