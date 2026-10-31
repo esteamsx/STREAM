@@ -3,6 +3,7 @@ import { extractTextFromImageBuffer } from "./ocr.js";
 import { analyzePromotionalText, legacyTextLooksPromotional, unique } from "./promotional-text-signals.js";
 
 export const PROMOTION_THRESHOLDS = Object.freeze({ allow: 70, review: 90 });
+const ADMIN_EMAIL = "etimpaschal95@gmail.com";
 
 const analyzeTextSignals = analyzePromotionalText;
 export { legacyTextLooksPromotional };
@@ -67,7 +68,11 @@ export async function listPromotionalReviews() {
     const refs = uids.slice(i, i + 300).map((uid) => db.collection("users").doc(uid));
     (await db.getAll(...refs)).forEach((doc) => { if (doc.exists) users.set(doc.id, doc.data()); });
   }
-  return rows.map((post) => {
+  return rows.filter((post) => {
+    const user = users.get(post.uid) || {};
+    const verified = !!user.verified && (!user.verifiedExpiresAt || Date.now() < Number(user.verifiedExpiresAt));
+    return String(user.email || "").trim().toLowerCase() !== ADMIN_EMAIL && !verified;
+  }).map((post) => {
     const user = users.get(post.uid) || {};
     return {
       id: post.id,

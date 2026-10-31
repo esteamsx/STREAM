@@ -205,6 +205,7 @@ input{font-family:inherit}
 @keyframes adSpin{to{transform:rotate(360deg)}}
 
 .ad-empty,.ad-hint{font-size:.8rem;color:var(--muted);text-align:center;padding:18px 8px}
+.promo-review-list{max-height:560px;overflow-y:auto;padding-right:4px;overscroll-behavior:contain;scrollbar-width:thin}
 .ad-loadmore{
   width:100%;padding:10px;border-radius:10px;border:1px solid var(--border-strong);background:transparent;
   color:var(--accent);font-size:.8rem;font-weight:700;margin-top:10px;
@@ -1044,7 +1045,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
       <div class="ad-card-count" id="promoReviewsCount" style="display:none"></div>
     </div>
     <div class="ad-card-body" style="max-height:none"><div class="ad-card-body-inner">
-      <div id="promoReviewsList"><div class="ad-empty">Loading...</div></div>
+      <div id="promoReviewsList" class="promo-review-list"><div class="ad-empty">Loading...</div></div>
     </div></div>
   </div>
   <div class="ad-card accent-purple" id="usersCard">

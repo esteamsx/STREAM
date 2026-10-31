@@ -37,6 +37,7 @@ function chunks(items, size) {
 export async function fetchVisibleFollowingPosts(db, followingUids, viewerUid, {
   limit = 20,
   isFollowing = async () => false,
+  isPromotionalExempt = async () => false,
   batchSize = FEED_PAGE_SIZE,
   scanCapPerChunk = FEED_SCAN_CAP_PER_CHUNK,
 } = {}) {
@@ -91,8 +92,9 @@ export async function fetchVisibleFollowingPosts(db, followingUids, viewerUid, {
   }
 
   async function postIsVisible(post) {
-    if (post.moderationStatus && post.moderationStatus !== "allow") return false;
-    if (!post.moderationStatus && legacyTextLooksPromotional(post.text)) {
+    const promotionalExempt = await isPromotionalExempt(post.uid);
+    if (post.moderationStatus && post.moderationStatus !== "allow" && !promotionalExempt) return false;
+    if (!post.moderationStatus && !promotionalExempt && legacyTextLooksPromotional(post.text)) {
       void persistLegacyPromotionalBlock(db, post);
       return false;
     }

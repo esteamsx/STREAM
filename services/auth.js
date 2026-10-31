@@ -41,6 +41,13 @@ function isVerificationActive(data) {
   return Date.now() < data.verifiedExpiresAt;
 }
 
+async function analyzePostPromotion(author, payload) {
+  if (isAdminEmail(author?.email) || isVerificationActive(author)) {
+    return { score: 0, status: "allow", reasons: [], imageAnalysis: { status: "exempt_verified_author", text: "", confidence: null } };
+  }
+  return analyzePromotionalContent(payload);
+}
+
 const PREMIUM_DISCOUNT_RATE = 0.15;
 function discountedCashPrice(priceNgn, profile) {
   const price = Math.max(0, Math.round(Number(priceNgn) || 0));
@@ -2264,7 +2271,7 @@ async function createPost(uid, { text, imageDataUrl, taggedUsernames }) {
   const author = await getUserProfile(uid);
   if (!author) throw new Error("Profile not found.");
 
-  const moderation = await analyzePromotionalContent({ text: cleanText, imageDataUrl: imageDataUrl || null });
+  const moderation = await analyzePostPromotion(author, { text: cleanText, imageDataUrl: imageDataUrl || null });
   const tagged = await resolveTaggedUsers(uid, taggedUsernames);
 
   const post = {
@@ -2398,8 +2405,8 @@ async function getPostsByUser(targetUid, viewerUid, { limit = 30, before = null 
   }
 
   const visiblePosts = posts.filter((p) => {
-    if (p.moderationStatus && p.moderationStatus !== "allow") return false;
-    if (!p.moderationStatus && legacyTextLooksPromotional(p.text)) {
+    if (p.moderationStatus && p.moderationStatus !== "allow" && !ownerIsPremium) return false;
+    if (!p.moderationStatus && !ownerIsPremium && legacyTextLooksPromotional(p.text)) {
       void blockLegacyPromotionalPost(p);
       return false;
     }
@@ -2487,7 +2494,7 @@ async function updatePost(uid, postId, { text, imageDataUrl, taggedUsernames }) 
 
   const author = await getUserProfile(uid);
   const tagged = await resolveTaggedUsers(uid, taggedUsernames);
-  const moderation = await analyzePromotionalContent({ text: cleanText, imageDataUrl: finalImage || null });
+  const moderation = await analyzePostPromotion(author, { text: cleanText, imageDataUrl: finalImage || null });
   const newUids = tagged.map((t) => t.uid);
   const oldUids = new Set(post.taggedUids || []);
   const newlyTagged = tagged.filter((t) => !oldUids.has(t.uid));
@@ -2584,7 +2591,7 @@ async function resharePost(uid, postId) {
 
   const [author, resharer] = await Promise.all([getUserProfile(original.uid), getUserProfile(uid)]);
   if (!author || !resharer) throw new Error("Profile not found.");
-  const moderation = await analyzePromotionalContent({ text: original.text || "", imageDataUrl: original.imageDataUrl || null });
+  const moderation = await analyzePostPromotion(resharer, { text: original.text || "", imageDataUrl: original.imageDataUrl || null });
 
   const newPost = {
     uid,
@@ -2888,9 +2895,16 @@ async function getFollowingFeed(uid, { limit = 20, markSeen = false } = {}) {
     return [];
   }
 
+  const promoExemptionCache = new Map();
   const visible = await fetchVisibleFollowingPosts(db, followingUids, uid, {
     limit,
     isFollowing: (authorUid, viewerUid) => isFollowing(authorUid, viewerUid),
+    isPromotionalExempt: async (authorUid) => {
+      if (!promoExemptionCache.has(authorUid)) {
+        promoExemptionCache.set(authorUid, getUserProfile(authorUid).then((profile) => !!profile && (isVerificationActive(profile) || isAdminEmail(profile.email))));
+      }
+      return promoExemptionCache.get(authorUid);
+    },
   });
 
   const authorUids = [...new Set(visible.map((p) => p.uid))];
@@ -3000,8 +3014,9 @@ async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
       lastConsidered = p;
       const author = authorDocs.get(p.uid);
       if (!author || !author.username || author.banned || author.pendingDeletion) continue;
-      if (p.moderationStatus && p.moderationStatus !== "allow") continue;
-      if (!p.moderationStatus && legacyTextLooksPromotional(p.text)) {
+      const authorIsPremium = isVerificationActive(author) || isAdminEmail(author.email);
+      if (p.moderationStatus && p.moderationStatus !== "allow" && !authorIsPremium) continue;
+      if (!p.moderationStatus && !authorIsPremium && legacyTextLooksPromotional(p.text)) {
         void blockLegacyPromotionalPost(p);
         continue;
       }
@@ -3059,16 +3074,16 @@ async function getPostImage(viewerUid, postId) {
   const snap = await db.collection("posts").doc(String(postId || "")).get();
   if (!snap.exists) return null;
   const post = snap.data();
-  if (post.moderationStatus && post.moderationStatus !== "allow") return null;
-  if (!post.moderationStatus && legacyTextLooksPromotional(post.text)) {
+  const author = await getUserProfile(post.uid);
+  const authorIsPremium = !!(author && (isVerificationActive(author) || isAdminEmail(author.email)));
+  if (post.moderationStatus && post.moderationStatus !== "allow" && !authorIsPremium) return null;
+  if (!post.moderationStatus && !authorIsPremium && legacyTextLooksPromotional(post.text)) {
     await blockLegacyPromotionalPost({ id: snap.id, ...post });
     return null;
   }
   const match = POST_IMAGE_TYPES.exec(String(post.imageDataUrl || ""));
   if (!match) return null;
   if (post.uid !== viewerUid && looksLikePromotionalPost(post.text)) {
-    const author = await getUserProfile(post.uid);
-    const authorIsPremium = !!(author && (isVerificationActive(author) || isAdminEmail(author.email)));
     if (!authorIsPremium) return null;
   }
   if (post.uid !== viewerUid) {
