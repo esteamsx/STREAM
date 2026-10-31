@@ -101,5 +101,60 @@ export async function verifyCryptoDeposit(uid, id) {
   if (credited) await addNotification(uid, "crypto_deposit", `+${current.coins} coins added from your crypto deposit`, { coins: current.coins, depositId: id }).catch(() => {}); return { ...(await getCryptoDeposit(uid, id)), credited };
 }
 
-export async function adminListCryptoDeposits() { const snap = await db.collection("cryptoDeposits").where("status", "in", ["pending", "hold"]).get(); return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); }
-export async function adminDecideCryptoDeposit(adminUid, id, decision) { const status = decision === "successful" ? "successful" : decision === "declined" ? "declined" : "hold"; if (status === "successful") fail("Successful credits must come from a confirmed WEEX verification."); const ref = db.collection("cryptoDeposits").doc(String(id || "")); await db.runTransaction(async (tx) => { const snap = await tx.get(ref); if (!snap.exists) fail("Deposit not found.", 404); if (snap.data().status === "successful") fail("This deposit has already been credited."); tx.update(ref, { status, adminDecision: status, adminUid, adminDecidedAt: Date.now(), updatedAt: Date.now() }); }); return getCryptoDeposit((await db.collection("cryptoDeposits").doc(String(id)).get()).data().uid, id); }
+export async function adminListCryptoDeposits() {
+  const snap = await db.collection("cryptoDeposits").where("status", "in", ["pending", "hold"]).get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+}
+
+export async function adminDecideCryptoDeposit(adminUid, id, decision) {
+  const accepted = decision === "successful" || decision === "accepted";
+  const status = accepted ? "successful" : decision === "declined" ? "declined" : "hold";
+  const ref = db.collection("cryptoDeposits").doc(String(id || ""));
+  let uid = null;
+  let coins = 0;
+  let credited = false;
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) fail("Deposit not found.", 404);
+    const deposit = snap.data();
+    uid = deposit.uid;
+    coins = Number(deposit.coins || 0);
+    if (deposit.status === "successful") return;
+    if (deposit.status === "declined") fail("This deposit has already been declined.");
+
+    if (accepted) {
+      const userRef = db.collection("users").doc(deposit.uid);
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists) fail("User account not found.", 404);
+      const user = userSnap.data();
+      const ledger = appendCoinLedger(tx, userRef, user, coins, "crypto_deposit", {
+        depositId: ref.id,
+        txHash: deposit.txHash || null,
+        asset: deposit.asset,
+        network: deposit.network,
+        approvedBy: adminUid,
+      });
+      tx.set(userRef, { coinBalance: admin.firestore.FieldValue.increment(coins), ...ledger }, { merge: true });
+      credited = true;
+    }
+
+    tx.update(ref, {
+      status,
+      adminDecision: accepted ? "accepted" : "declined",
+      adminUid,
+      adminDecidedAt: Date.now(),
+      ...(accepted ? { verifiedAt: Date.now(), creditedByAdmin: true } : {}),
+      updatedAt: Date.now(),
+    });
+  });
+
+  if (uid && credited) {
+    await addNotification(uid, "crypto_deposit", `+${coins} coins added from your crypto deposit`, { coins, depositId: String(id), approvedByAdmin: true }).catch(() => {});
+  } else if (uid && status === "declined") {
+    await addNotification(uid, "crypto_deposit_declined", "Your crypto deposit was declined by an administrator.", { depositId: String(id) }).catch(() => {});
+  }
+
+  const updated = await db.collection("cryptoDeposits").doc(String(id)).get();
+  return { id: updated.id, ...updated.data(), credited };
+}

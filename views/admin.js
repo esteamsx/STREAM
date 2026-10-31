@@ -536,6 +536,7 @@ body:has(.ad-overlay.show){overflow:hidden}
   background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04141a;
 }
 .withdrawal-confirm-btn:disabled{opacity:.55}
+.withdrawal-actions{display:flex;gap:8px}.withdrawal-actions .withdrawal-confirm-btn{flex:1}
 
 .cs-box{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card2);margin-bottom:12px}
 .cs-label{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -1662,17 +1663,22 @@ function cryptoDepositAdminHtml(d){
   const snapshot = d.verificationSnapshot || {};
   return '<div class="withdrawal-item" data-crypto-admin-id="' + esc(d.id) + '">' +
     '<div class="withdrawal-item-head"><div class="withdrawal-item-amount">' + Number(d.coins || 0).toLocaleString() + ' coins</div><span class="status-pill">' + esc(String(d.status || 'pending').toUpperCase()) + '</span></div>' +
-    '<div class="withdrawal-item-meta">' + esc(d.asset || '') + ' · ' + esc(d.network || '') + ' · ' + Number(d.cryptoAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' · created ' + esc(new Date(d.createdAt || Date.now()).toLocaleString()) + '<br>Hash: <b style="word-break:break-all">' + esc(d.txHash || 'not submitted') + '</b><br>Returned: ' + esc(snapshot.toAddress || 'not verified') + '</div>' +
-    '<button type="button" class="withdrawal-confirm-btn" data-crypto-decline="' + esc(d.id) + '" style="background:var(--red);color:#fff">Decline</button></div>';
+    '<div class="withdrawal-item-meta">' + esc(d.asset || '') + ' · ' + esc(d.network || '') + ' · ' + Number(d.cryptoAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' · created ' + esc(new Date(d.createdAt || Date.now()).toLocaleString()) + '<br>Hash: <b style="word-break:break-all">' + esc(d.txHash || 'not submitted') + '</b><br>Returned: ' + esc(snapshot.address || snapshot.toAddress || 'not verified') + '</div>' +
+    '<div class="withdrawal-actions"><button type="button" class="withdrawal-confirm-btn" data-crypto-accept="' + esc(d.id) + '" style="background:#3DDC84;color:#04141a">Accept</button><button type="button" class="withdrawal-confirm-btn" data-crypto-decline="' + esc(d.id) + '" style="background:var(--red);color:#fff">Decline</button></div></div>';
 }
 function loadCryptoDeposits(){
   getJSON('/api/admin/crypto-deposits').then((data) => {
     const list = data.deposits || [];
     cryptoDepositsCount.style.display = list.length ? '' : 'none'; cryptoDepositsCount.textContent = String(list.length);
     cryptoDepositsList.innerHTML = list.length ? list.map(cryptoDepositAdminHtml).join('') : '<div class="ad-empty">No pending or held crypto deposits.</div>';
+    cryptoDepositsList.querySelectorAll('[data-crypto-accept]').forEach((btn) => btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try { await postJSON('/api/admin/crypto-deposits/' + encodeURIComponent(btn.getAttribute('data-crypto-accept')) + '/decision', { decision: 'accepted' }); showToast('Deposit accepted and coins credited.'); loadCryptoDeposits(); }
+      catch (err) { btn.disabled = false; showToast(err.message || 'Could not accept this deposit.'); }
+    }));
     cryptoDepositsList.querySelectorAll('[data-crypto-decline]').forEach((btn) => btn.addEventListener('click', async () => {
       btn.disabled = true;
-      try { await postJSON('/api/admin/crypto-deposits/' + encodeURIComponent(btn.getAttribute('data-crypto-decline')) + '/decision', { decision: 'declined' }); loadCryptoDeposits(); }
+      try { await postJSON('/api/admin/crypto-deposits/' + encodeURIComponent(btn.getAttribute('data-crypto-decline')) + '/decision', { decision: 'declined' }); showToast('Deposit declined.'); loadCryptoDeposits(); }
       catch (err) { btn.disabled = false; showToast(err.message || 'Could not decline this deposit.'); }
     }));
   }).catch(() => { cryptoDepositsList.innerHTML = '<div class="ad-empty">Could not load crypto deposits.</div>'; });

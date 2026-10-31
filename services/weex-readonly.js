@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 const BASE_URL = "https://api-contract.weex.com";
+const SPOT_BASE_URL = "https://api-spot.weex.com";
 
 function sign(secret, message) {
   return crypto.createHmac("sha256", secret).update(message).digest("base64");
@@ -45,9 +46,9 @@ async function readBody(res) {
   return data && typeof data === "object" && "data" in data ? data.data : data;
 }
 
-async function publicGet(path, params = {}) {
+async function publicGet(path, params = {}, baseUrl = BASE_URL) {
   const qs = buildQueryString(params);
-  const url = `${BASE_URL}${path}${qs ? `?${qs}` : ""}`;
+  const url = `${baseUrl}${path}${qs ? `?${qs}` : ""}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   let res;
@@ -70,7 +71,7 @@ function requireKeys(demo, override) {
   return { apiKey, apiSecret, passphrase };
 }
 
-async function signedGet(demo, path, params = {}, override) {
+async function signedGet(demo, path, params = {}, override, baseUrl = BASE_URL) {
   const { apiKey, apiSecret, passphrase } = requireKeys(demo, override);
   const qs = buildQueryString(params);
   const timestamp = Date.now().toString();
@@ -83,7 +84,7 @@ async function signedGet(demo, path, params = {}, override) {
     "locale": "en-US",
     "Content-Type": "application/json",
   };
-  const url = `${BASE_URL}${path}${qs ? `?${qs}` : ""}`;
+  const url = `${baseUrl}${path}${qs ? `?${qs}` : ""}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   let res;
@@ -198,11 +199,11 @@ export function getPublicTicker(category, symbol, demo = false) {
 }
 
 export function getSpotTicker(symbol) {
-  return publicGet("/api/v3/market/ticker/price", { symbol: toWeexSymbol(symbol) });
+  return publicGet("/api/v3/market/ticker/price", { symbol: toWeexSymbol(symbol) }, SPOT_BASE_URL);
 }
 
 export function getSpotCoins() {
-  return publicGet("/api/v3/coins");
+  return publicGet("/api/v3/coins", {}, SPOT_BASE_URL);
 }
 
 export function getSpotDepositHistory(params = {}, override) {
@@ -216,7 +217,7 @@ export function getSpotDepositHistory(params = {}, override) {
     endTime: params.endTime,
     pageNo: params.pageNo || 1,
     pageSize: params.pageSize || 50,
-  }, override);
+  }, override, SPOT_BASE_URL);
 }
 
 export async function getPublicInstruments(category, demo = false) {
