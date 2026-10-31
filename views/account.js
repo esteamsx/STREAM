@@ -5652,7 +5652,7 @@ function renderCryptoSend(){
   document.getElementById('rwCryptoSendSub').textContent = 'Send exactly ' + Number(d.cryptoAmount).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + d.asset + ' on ' + d.network + '.';
   document.getElementById('rwCryptoSendSummary').innerHTML = '<div class="crypto-summary-box"><span>Coins purchased</span><b>' + Number(d.coins).toLocaleString() + '</b></div><div class="crypto-summary-box"><span>Final crypto amount</span><b>' + Number(d.cryptoAmount).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + esc(d.asset) + '</b></div>';
   document.getElementById('rwCryptoAddress').textContent = d.destinationAddress;
-  document.getElementById('rwCryptoSendNote').textContent = 'Network: ' + d.network + '. Only send the selected asset on this network. WEEX must confirm the transaction before coins are credited.';
+  document.getElementById('rwCryptoSendNote').textContent = 'Network: ' + d.network + '. Only send the selected asset on this network. The transaction must be confirmed before coins are credited.';
 }
 async function openCryptoOverlay(){
   resetCryptoOverlay();
