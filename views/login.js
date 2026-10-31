@@ -269,7 +269,7 @@ body:has(.page-overlay.show){overflow:hidden}
   animation:ssRevLogin .85s linear infinite;
 }
 @keyframes ssRevLogin{to{transform:rotate(-360deg)}}
-#pageOverlay .overlay-card{background:none;border:none;box-shadow:none;backdrop-filter:none;padding:0}
+#pageOverlay > .overlay-card{background:none!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;padding:0!important}
 .overlay-text{font-size:.85rem;color:var(--text);font-weight:600}
 .overlay-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem}
 .overlay-sub{font-size:.82rem;color:var(--muted);line-height:1.5;text-align:center}
