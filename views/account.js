@@ -1678,7 +1678,6 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="acc-msg" id="rwCryptoHashMsg"></div>
       <button class="acc-btn" id="rwCryptoVerifyBtn" type="button" style="width:100%;justify-content:center">Verify Deposit</button>
       <button class="overlay-cancel" id="rwCryptoHashCloseBtn" type="button">Close</button>
-      <button class="overlay-cancel" id="rwCryptoHashBackBtn" type="button">Back</button>
     </div>
   </div>
 </div>
@@ -5612,7 +5611,6 @@ document.getElementById('rwCryptoCopyBtn').addEventListener('click', async () =>
   const btn = document.getElementById('rwCryptoCopyBtn'); const old = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = old; }, 1300);
 });
 document.getElementById('rwCryptoSentBtn').addEventListener('click', () => { document.getElementById('rwCryptoHash').value = ''; cryptoMsg(document.getElementById('rwCryptoHashMsg'), '', false); setCryptoStep('rwCryptoStepHash'); });
-document.getElementById('rwCryptoHashBackBtn').addEventListener('click', () => setCryptoStep('rwCryptoStepSend'));
 document.getElementById('rwCryptoHashCloseBtn').addEventListener('click', closeCryptoOverlay);
 document.getElementById('rwCryptoVerifyBtn').addEventListener('click', async () => {
   const btn = document.getElementById('rwCryptoVerifyBtn'); const msg = document.getElementById('rwCryptoHashMsg'); const hash = document.getElementById('rwCryptoHash').value.trim();
