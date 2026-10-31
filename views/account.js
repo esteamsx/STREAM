@@ -5697,7 +5697,7 @@ document.getElementById('rwCryptoVerifyBtn').addEventListener('click', async () 
     const depositId = cryptoDeposit.id;
     await postJSON('/api/crypto/deposits/' + encodeURIComponent(depositId) + '/hash', { txHash: hash });
     closeCryptoOverlay();
-    showToast('Verification in progress. We will check your deposit again automatically.');
+    showToast('Verification in Progress');
     await loadRewardsSummary();
     autoVerifyCryptoDeposit(depositId, 'submitted');
   } catch (err) { cryptoMsg(msg, err.message, false); }
