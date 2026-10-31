@@ -924,7 +924,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
   <div class="ad-card accent-blue" id="cryptoDepositsCard">
     <div class="ad-card-header" id="cryptoDepositsHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg>
-      <div class="ad-card-header-title">Crypto Deposits on Hold</div>
+      <div class="ad-card-header-title">Crypto Deposit</div>
       <div class="ad-card-count" id="cryptoDepositsCount" style="display:none">0</div>
       <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
     </div>

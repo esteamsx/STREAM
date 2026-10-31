@@ -2,10 +2,9 @@ import crypto from "crypto";
 import admin from "firebase-admin";
 import { db } from "../config/firebase.js";
 import { appendCoinLedger } from "./coin-ledger.js";
-import { addNotification, discountedCashPrice, getAdminUid, getUserProfile, COIN_PACKAGES } from "./auth.js";
+import { addNotification, discountedCashPrice, getUserProfile, COIN_PACKAGES } from "./auth.js";
 import { getPublicTicker, getCoinInfo, getDepositRecord } from "./bybit-readonly.js";
 import { NGN_PER_USD } from "./paystack.js";
-import { getDecryptedCredentials } from "./trading-credentials.js";
 
 export const CRYPTO_DEPOSIT_MIN_COINS = 100;
 export const CRYPTO_DEPOSIT_MAX_COINS = 3000;
@@ -43,14 +42,7 @@ const COIN_PRICE_POINTS = Object.values(COIN_PACKAGES)
   .map((item) => ({ coins: Number(item.coins), priceNgn: Number(item.priceNgn) }))
   .sort((a, b) => a.coins - b.coins);
 
-async function getBybitCredentials() {
-  try {
-    const adminUid = await getAdminUid();
-    if (adminUid) {
-      const stored = await getDecryptedCredentials(adminUid, "bybit", "live");
-      if (stored?.apiKey && stored?.apiSecret) return stored;
-    }
-  } catch (err) {}
+function getBybitCredentials() {
   if (process.env.BYBIT_API_KEY && process.env.BYBIT_API_SECRET) {
     return { apiKey: process.env.BYBIT_API_KEY, apiSecret: process.env.BYBIT_API_SECRET };
   }
@@ -170,7 +162,7 @@ export async function getCryptoQuote(rawCoins, networkId, profile = null) {
   const totalUsd = amountUsd + CRYPTO_DEPOSIT_FEE_USD;
   const rateUsd = await tickerRate(network);
   const cryptoAmount = roundCrypto(totalUsd / rateUsd);
-  const credentials = await getBybitCredentials();
+  const credentials = getBybitCredentials();
   const limits = await chainMinimum(network.asset, network, credentials);
   return {
     coins, priceNgn, feeUsd: CRYPTO_DEPOSIT_FEE_USD, amountUsd, totalUsd, rateUsd, cryptoAmount,
@@ -249,7 +241,7 @@ export async function verifyCryptoDeposit(uid, id) {
   if (current.status === "successful") return current;
   if (!current.txHash) fail("Submit your transaction hash first.");
   const attempts = Number(current.verificationAttempts || 0) + 1;
-  const credentials = await getBybitCredentials();
+  const credentials = getBybitCredentials();
   if (!credentials) {
     await updateDeposit(id, { status: "hold", verificationAttempts: attempts, verificationError: "Bybit verification is not configured. Awaiting manual review." });
     return { ...current, status: "hold", verificationAttempts: attempts };

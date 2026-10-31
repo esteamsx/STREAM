@@ -5572,8 +5572,8 @@ async function updateCryptoQuote(){
       '<div class="crypto-summary-box"><span>Final amount to send</span><b>' + Number(cryptoQuote.cryptoAmount).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + esc(cryptoQuote.network.asset) + '</b></div>' +
       '<div class="crypto-summary-box"><span>Coin value + $1 fee</span><b>₦' + Number(cryptoQuote.priceNgn).toLocaleString() + ' + $1</b></div>';
     const note = document.getElementById('rwCryptoQuoteNote');
-    note.className = 'crypto-note' + (cryptoQuote.network.warning ? ' warn' : '');
-    note.textContent = cryptoQuote.network.warning || (cryptoQuote.network.minimum !== null ? 'Bybit minimum: ' + cryptoQuote.network.minimum + ' ' + cryptoQuote.network.asset + '. Current rate is refreshed before you continue.' : 'Bybit minimum is unavailable right now; verification will remain on HOLD until reviewed.');
+    note.className = 'crypto-note';
+    note.textContent = cryptoQuote.network.minimum !== null ? 'Minimum: ' + cryptoQuote.network.minimum + ' ' + cryptoQuote.network.asset + '. Current rate is refreshed before you continue.' : 'Current rate is refreshed before you continue.';
     startBtn.disabled = false;
   } catch (err) {
     cryptoQuote = null;
@@ -5623,8 +5623,8 @@ document.getElementById('rwCryptoVerifyBtn').addEventListener('click', async () 
     const result = await postJSON('/api/crypto/deposits/' + encodeURIComponent(cryptoDeposit.id) + '/verify', {});
     cryptoDeposit = result.deposit;
     if (cryptoDeposit.status === 'successful') cryptoMsg(msg, 'Deposit confirmed. Coins have been added.', true);
-    else if (cryptoDeposit.status === 'hold') cryptoMsg(msg, 'Verification is on HOLD. Your transaction details were saved for Bybit confirmation or manual review.', false);
-    else cryptoMsg(msg, 'The transaction is not finalized yet. Your deposit is saved and can be checked again from Deposit History.', false);
+    else if (cryptoDeposit.status === 'hold') cryptoMsg(msg, 'Verification is on HOLD. Your transaction details were saved for review.', false);
+    else cryptoMsg(msg, 'The transaction is not finalized yet. Your deposit is saved and can be checked again from Deposits.', false);
     await loadRewardsSummary();
     setTimeout(closeCryptoOverlay, 1400);
   } catch (err) { cryptoMsg(msg, err.message, false); }
@@ -5637,7 +5637,7 @@ function renderCryptoDetails(d){
   document.getElementById('rwCryptoDetailsSummary').innerHTML = '<div class="crypto-summary-box"><span>Coins</span><b>' + Number(d.coins || 0).toLocaleString() + '</b></div><div class="crypto-summary-box"><span>Crypto sent</span><b>' + Number(d.cryptoAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 10 }) + ' ' + esc(d.asset || '') + '</b></div><div class="crypto-summary-box"><span>Naira value</span><b>₦' + Number(d.amountNgn || 0).toLocaleString() + '</b></div><div class="crypto-summary-box"><span>Date</span><b>' + esc(fmtDateShort(d.createdAt)) + '</b></div>';
   document.getElementById('rwCryptoDetailsAddress').textContent = d.destinationAddress || '';
   const note = document.getElementById('rwCryptoDetailsNote'); note.className = 'crypto-note' + (status === 'hold' ? ' hold' : '');
-  note.textContent = status === 'pending' ? '◷ Pending. Check again in 30 seconds. Your transaction details are saved.' : status === 'successful' ? '◷ Confirmed by Bybit and credited to your coin balance.' : status === 'declined' ? '◷ Declined by an administrator. Contact support if you need help.' : '◷ HOLD. Bybit verification is unavailable or the returned record needs manual review.';
+  note.textContent = status === 'pending' ? '◷ Pending. Check again in 30 seconds. Your transaction details are saved.' : status === 'successful' ? '◷ Confirmed and credited to your coin balance.' : status === 'declined' ? '◷ Declined by an administrator. Contact support if you need help.' : '◷ HOLD. Your deposit is saved for review.';
   document.getElementById('rwCryptoDetailsVerifyBtn').style.display = d.txHash && status !== 'successful' && status !== 'declined' ? 'block' : 'none';
 }
 async function openCryptoDetails(id){
