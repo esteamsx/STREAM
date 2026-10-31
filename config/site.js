@@ -415,6 +415,57 @@ const SKELETON_CSS = `<style>
 }
 </style>`;
 
+const GLASS_OVERLAY_CSS = `<style>
+/* Shared ES Teams glass treatment for modal and overlay surfaces. */
+.page-overlay,.ad-overlay,.ad-analytics-overlay,.pm-overlay,.cr-verify-overlay,.cr-premium-overlay,.db-overlay,.tr-overlay,
+.tr-lock-overlay,.tr-admin-lock-overlay,.tr-comm-menu-overlay,.signup-lock-overlay,.sc-msg-menu-overlay,
+.comments-overlay,.img-lightbox-overlay,.sp-ov,.cx-ov,.es-pay-overlay,
+.es-weekly-overlay,.st-full,.ch-down-overlay,.connecting-overlay,
+.countdown-overlay,.idle-overlay,.err-overlay{
+  background:rgba(10,10,15,.72)!important;
+  -webkit-backdrop-filter:blur(14px) saturate(1.25)!important;
+  backdrop-filter:blur(14px) saturate(1.25)!important;
+}
+.page-overlay> .overlay-card,.page-overlay> .flist-card,.page-overlay> .mpv-card,
+.page-overlay> .comments-card,.page-overlay> [class$="-card"],
+.page-overlay> [class$="-panel"],.page-overlay> [class$="-modal"],
+.ad-overlay> [class$="-card"],.ad-overlay> [class$="-panel"],.ad-overlay> [class$="-modal"],
+.ad-analytics-overlay> .aa-modal,.cr-premium-overlay> .cr-premium-card,
+.pm-overlay> .pm-modal,.cr-verify-overlay> .cr-verify-card,
+.db-overlay> .db-overlay-card,.tr-overlay> [class$="-panel"],
+.tr-overlay> [class$="-card"],.tr-overlay> [class$="-modal"],
+.sp-ov> .sp-card,.cx-ov> .cx-modal,.es-pay-overlay> [class$="-card"],
+.es-pay-overlay> [class$="-panel"],.es-weekly-overlay> .es-weekly-panel,
+.st-full> .st-panel,.ch-down-overlay> .ch-down-card,
+.connecting-overlay> [class$="-card"],.countdown-overlay> [class$="-card"],
+.idle-overlay> [class$="-card"],.err-overlay> [class$="-card"]{
+  background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 42%,rgba(255,255,255,.06) 100%),rgba(255,255,255,.055)!important;
+  border:1px solid rgba(255,255,255,.22)!important;
+  -webkit-backdrop-filter:blur(24px) saturate(1.35)!important;
+  backdrop-filter:blur(24px) saturate(1.35)!important;
+  box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.28)!important;
+}
+:root[data-theme="light"] .page-overlay> .overlay-card,:root[data-theme="light"] .page-overlay> .flist-card,
+:root[data-theme="light"] .page-overlay> .mpv-card,:root[data-theme="light"] .page-overlay> .comments-card,
+:root[data-theme="light"] .page-overlay> [class$="-card"],:root[data-theme="light"] .page-overlay> [class$="-panel"],
+:root[data-theme="light"] .page-overlay> [class$="-modal"],:root[data-theme="light"] .ad-overlay> [class$="-card"],
+:root[data-theme="light"] .ad-overlay> [class$="-panel"],:root[data-theme="light"] .ad-overlay> [class$="-modal"],
+:root[data-theme="light"] .ad-analytics-overlay> .aa-modal,:root[data-theme="light"] .cr-premium-overlay> .cr-premium-card,
+:root[data-theme="light"] .pm-overlay> .pm-modal,:root[data-theme="light"] .cr-verify-overlay> .cr-verify-card,
+:root[data-theme="light"] .db-overlay> .db-overlay-card,:root[data-theme="light"] .tr-overlay> [class$="-panel"],
+:root[data-theme="light"] .tr-overlay> [class$="-card"],:root[data-theme="light"] .tr-overlay> [class$="-modal"],
+:root[data-theme="light"] .sp-ov> .sp-card,:root[data-theme="light"] .cx-ov> .cx-modal,
+:root[data-theme="light"] .es-pay-overlay> [class$="-card"],:root[data-theme="light"] .es-pay-overlay> [class$="-panel"],
+:root[data-theme="light"] .es-weekly-overlay> .es-weekly-panel,:root[data-theme="light"] .st-full> .st-panel,
+:root[data-theme="light"] .ch-down-overlay> .ch-down-card,:root[data-theme="light"] .connecting-overlay> [class$="-card"],
+:root[data-theme="light"] .countdown-overlay> [class$="-card"],:root[data-theme="light"] .idle-overlay> [class$="-card"],
+:root[data-theme="light"] .err-overlay> [class$="-card"]{
+  background:linear-gradient(155deg,rgba(255,255,255,.72),rgba(255,255,255,.3) 42%,rgba(255,255,255,.48) 100%),rgba(255,255,255,.42)!important;
+  border-color:rgba(255,255,255,.72)!important;
+  box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.78)!important;
+}
+</style>`;
+
 export const ASSET_VERSION = Date.now().toString("36");
 
 export function siteHead({ title, description, path = "/", image = "/og.png", type = "website" } = {}) {
@@ -449,7 +500,8 @@ export function siteHead({ title, description, path = "/", image = "/og.png", ty
 <meta name="twitter:title" content="${escapeAttr(finalTitle)}">
 <meta name="twitter:description" content="${escapeAttr(finalDescription)}">
 <meta name="twitter:image" content="${escapeAttr(absoluteImage)}">
-${SKELETON_CSS}`;
+  ${SKELETON_CSS}
+${GLASS_OVERLAY_CSS}`;
 }
 
 export function siteHeadFor(key, overrides = {}) {

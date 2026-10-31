@@ -8,7 +8,12 @@ function extractSessionCookie(req) {
   const header = req.headers?.cookie;
   if (!header) return null;
   const match = header.match(/(?:^|;\s*)session=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
 }
 
 function sessionUid(req) {
@@ -57,6 +62,9 @@ export const securityHeaders = (req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-XSS-Protection", "0");
+  res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  res.setHeader("Origin-Agent-Cluster", "?1");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   const nonce = String(res.locals?.nonce || "");
   const proto = String(req.get?.("x-forwarded-proto") || "").split(",")[0].trim().toLowerCase();
