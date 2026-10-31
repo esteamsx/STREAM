@@ -1655,7 +1655,16 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="overlay-title">Pay with Crypto</div>
       <div class="overlay-sub">Choose your coin amount and network. Your existing ES Teams coin pricing is used, plus a $1 deposit fee.</div>
       <div class="field"><label for="rwCryptoCoins">Coins to purchase</label><input type="number" id="rwCryptoCoins" min="100" max="3000" step="1" placeholder="100"></div>
-      <div class="crypto-network-grid" id="rwCryptoNetworks"></div>
+      <div class="field"><label>Deposit type</label><div class="custom-select" id="rwCryptoAssetWrap">
+        <button type="button" class="custom-select-btn"><span>USDT</span><svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg></button>
+        <input type="hidden" id="rwCryptoAsset" value="USDT">
+        <div class="custom-select-list" id="rwCryptoAssetList"><div class="custom-select-option active" data-value="USDT">USDT</div><div class="custom-select-option" data-value="BTC">Bitcoin</div></div>
+      </div></div>
+      <div class="field"><label>Network type</label><div class="custom-select" id="rwCryptoNetworkWrap">
+        <button type="button" class="custom-select-btn"><span>Select network</span><svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg></button>
+        <input type="hidden" id="rwCryptoNetwork" value="">
+        <div class="custom-select-list" id="rwCryptoNetworkList"></div>
+      </div></div>
       <div class="crypto-summary" id="rwCryptoSummary"><div class="crypto-summary-box"><span>Final crypto amount</span><b>Choose a network</b></div><div class="crypto-summary-box"><span>Naira value</span><b>—</b></div></div>
       <div class="crypto-note" id="rwCryptoQuoteNote">Minimum 100 coins. Maximum 3,000 coins.</div>
       <div class="acc-msg" id="rwCryptoMsg"></div>
@@ -5515,6 +5524,7 @@ let cryptoNetworkId = '';
 let cryptoQuote = null;
 let cryptoDeposit = null;
 let cryptoDetailsTimer = null;
+let cryptoAssetId = 'USDT';
 function showHistoryPanel(panel){
   const deposits = panel === 'deposits';
   document.getElementById('rwWithdrawalsPanel').style.display = deposits ? 'none' : 'block';
@@ -5530,28 +5540,35 @@ function setCryptoStep(id){
   rwCryptoOverlay.querySelectorAll('.overlay-step').forEach((el) => el.classList.toggle('active', el.id === id));
 }
 function cryptoMsg(el, text, ok){ el.className = 'acc-msg' + (text ? (ok ? ' ok' : ' err') : ''); el.textContent = text || ''; }
-function cryptoNetworkGroup(asset, networks){
-  const selected = networks.some((network) => network.id === cryptoNetworkId) ? cryptoNetworkId : networks[0]?.id;
-  if (!cryptoNetworkId && selected) cryptoNetworkId = selected;
-  return '<div class="crypto-network-group"><span class="crypto-network-group-title">' + esc(asset) + ' deposit</span>' +
-    '<select class="crypto-network-select" data-crypto-network-group="' + esc(asset) + '" size="3" aria-label="' + esc(asset + ' deposit network') + '">' +
-    networks.map((network) => '<option value="' + esc(network.id) + '"' + (network.id === selected ? ' selected' : '') + '>' + esc(network.network) + '</option>').join('') +
-    '</select></div>';
+function setCryptoSelect(wrapId, value, label){
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const hidden = wrap.querySelector('input[type="hidden"]');
+  const text = wrap.querySelector('.custom-select-btn span');
+  hidden.value = value || '';
+  text.textContent = label || 'Select network';
+  wrap.querySelectorAll('.custom-select-option').forEach((option) => option.classList.toggle('active', option.getAttribute('data-value') === value));
+}
+function renderCryptoNetworkOptions(){
+  const list = document.getElementById('rwCryptoNetworkList');
+  const networks = cryptoNetworks.filter((network) => (network.depositType || network.asset) === cryptoAssetId);
+  if (!networks.some((network) => network.id === cryptoNetworkId)) cryptoNetworkId = networks[0]?.id || '';
+  list.innerHTML = networks.map((network) => '<div class="custom-select-option' + (network.id === cryptoNetworkId ? ' active' : '') + '" data-value="' + esc(network.id) + '">' + esc(network.network) + '</div>').join('');
+  const selected = networks.find((network) => network.id === cryptoNetworkId);
+  setCryptoSelect('rwCryptoNetworkWrap', cryptoNetworkId, selected ? selected.network : 'Select network');
 }
 async function loadCryptoNetworks(){
   if (!cryptoNetworks.length) cryptoNetworks = (await getJSON('/api/crypto/networks')).networks || [];
-  if (!cryptoNetworkId && cryptoNetworks[0]) cryptoNetworkId = cryptoNetworks[0].id;
-  const wrap = document.getElementById('rwCryptoNetworks');
-  const grouped = cryptoNetworks.reduce((map, network) => { (map[network.depositType || network.asset] ||= []).push(network); return map; }, {});
-  wrap.innerHTML = Object.entries(grouped).map(([asset, networks]) => cryptoNetworkGroup(asset, networks)).join('');
-  wrap.querySelectorAll('[data-crypto-network-group]').forEach((select) => select.addEventListener('change', () => {
-    cryptoNetworkId = select.value;
-    updateCryptoQuote();
-  }));
+  const assetOptions = [...new Set(cryptoNetworks.map((network) => network.depositType || network.asset))];
+  if (!assetOptions.includes(cryptoAssetId)) cryptoAssetId = assetOptions[0] || 'USDT';
+  const assetLabel = cryptoAssetId === 'BTC' ? 'Bitcoin' : cryptoAssetId;
+  setCryptoSelect('rwCryptoAssetWrap', cryptoAssetId, assetLabel);
+  renderCryptoNetworkOptions();
 }
 function resetCryptoOverlay(){
   setCryptoStep('rwCryptoStepChoose');
   cryptoQuote = null; cryptoDeposit = null;
+  document.querySelectorAll('#rwCryptoAssetWrap,#rwCryptoNetworkWrap').forEach((wrap) => wrap.classList.remove('open'));
   document.getElementById('rwCryptoCoins').value = '';
   document.getElementById('rwCryptoSummary').innerHTML = '<div class="crypto-summary-box"><span>Final crypto amount</span><b>Choose an amount</b></div><div class="crypto-summary-box"><span>Naira value</span><b>—</b></div>';
   document.getElementById('rwCryptoQuoteNote').textContent = 'Minimum 100 coins. Maximum 3,000 coins.';
@@ -5598,6 +5615,15 @@ async function openCryptoOverlay(){
 document.getElementById('rwCryptoOpenBtn').addEventListener('click', openCryptoOverlay);
 document.getElementById('rwCryptoCloseBtn').addEventListener('click', closeCryptoOverlay);
 rwCryptoOverlay.addEventListener('click', (e) => { if (e.target === rwCryptoOverlay) closeCryptoOverlay(); });
+document.getElementById('rwCryptoAsset').addEventListener('change', () => {
+  cryptoAssetId = document.getElementById('rwCryptoAsset').value || 'USDT';
+  renderCryptoNetworkOptions();
+  updateCryptoQuote();
+});
+document.getElementById('rwCryptoNetwork').addEventListener('change', () => {
+  cryptoNetworkId = document.getElementById('rwCryptoNetwork').value || '';
+  updateCryptoQuote();
+});
 document.getElementById('rwCryptoCoins').addEventListener('input', updateCryptoQuote);
 document.getElementById('rwCryptoStartBtn').addEventListener('click', async () => {
   const btn = document.getElementById('rwCryptoStartBtn');
