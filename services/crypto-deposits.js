@@ -110,6 +110,17 @@ export async function adminListCryptoDeposits() {
 
 export async function adminDecideCryptoDeposit(adminUid, id, decision) {
   const accepted = decision === "successful" || decision === "accepted";
+  if (accepted) {
+    const ref = db.collection("cryptoDeposits").doc(String(id || ""));
+    const snap = await ref.get();
+    if (!snap.exists) fail("Deposit not found.", 404);
+    const deposit = snap.data();
+    if (deposit.status === "successful") return { id: snap.id, ...deposit, credited: false };
+    const verified = await verifyCryptoDeposit(deposit.uid, snap.id);
+    if (verified.status !== "successful") fail("This deposit cannot be accepted until WEEX confirms the exact transaction.", 409);
+    await updateDeposit(snap.id, { adminDecision: "accepted", adminUid, adminDecidedAt: Date.now(), creditedByAdmin: true });
+    return { ...(await getCryptoDeposit(deposit.uid, snap.id)), credited: false };
+  }
   const status = accepted ? "successful" : decision === "declined" ? "declined" : "hold";
   const ref = db.collection("cryptoDeposits").doc(String(id || ""));
   let uid = null;
