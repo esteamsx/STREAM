@@ -1683,7 +1683,7 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
     <div class="overlay-step" id="rwCryptoStepHash">
       <div class="overlay-title">Verify your transaction</div>
-      <div class="overlay-sub">Enter the blockchain transaction hash. Coins are credited only after WEEX confirms an exact match.</div>
+      <div class="overlay-sub">Enter the blockchain transaction hash.</div>
       <div class="field"><label for="rwCryptoHash">Transaction hash</label><input type="text" id="rwCryptoHash" autocomplete="off" spellcheck="false" placeholder="Paste transaction hash"></div>
       <div class="acc-msg" id="rwCryptoHashMsg"></div>
       <button class="acc-btn" id="rwCryptoVerifyBtn" type="button" style="width:100%;justify-content:center">Verify Deposit</button>
