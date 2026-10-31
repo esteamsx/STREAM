@@ -2,9 +2,10 @@ import crypto from "crypto";
 import admin from "firebase-admin";
 import { db } from "../config/firebase.js";
 import { appendCoinLedger } from "./coin-ledger.js";
-import { addNotification, discountedCashPrice, getUserProfile, COIN_PACKAGES } from "./auth.js";
+import { addNotification, discountedCashPrice, getAdminUid, getUserProfile, COIN_PACKAGES } from "./auth.js";
 import { getPublicTicker, getCoinInfo, getDepositRecord } from "./bybit-readonly.js";
 import { NGN_PER_USD } from "./paystack.js";
+import { getDecryptedCredentials } from "./trading-credentials.js";
 
 export const CRYPTO_DEPOSIT_MIN_COINS = 100;
 export const CRYPTO_DEPOSIT_MAX_COINS = 3000;
@@ -41,6 +42,20 @@ const NETWORKS = {
 const COIN_PRICE_POINTS = Object.values(COIN_PACKAGES)
   .map((item) => ({ coins: Number(item.coins), priceNgn: Number(item.priceNgn) }))
   .sort((a, b) => a.coins - b.coins);
+
+async function getBybitCredentials() {
+  try {
+    const adminUid = await getAdminUid();
+    if (adminUid) {
+      const stored = await getDecryptedCredentials(adminUid, "bybit", "live");
+      if (stored?.apiKey && stored?.apiSecret) return stored;
+    }
+  } catch (err) {}
+  if (process.env.BYBIT_API_KEY && process.env.BYBIT_API_SECRET) {
+    return { apiKey: process.env.BYBIT_API_KEY, apiSecret: process.env.BYBIT_API_SECRET };
+  }
+  return null;
+}
 
 function fail(message, status = 400) {
   throw Object.assign(new Error(message), { status });
@@ -87,8 +102,13 @@ function normalizeChain(value) {
 }
 
 function chainMatches(network, rowChain) {
+  if (!network) return false;
   const actual = normalizeChain(rowChain);
-  return network.chainAliases.some((alias) => normalizeChain(alias) === actual || actual.includes(normalizeChain(alias)) || normalizeChain(alias).includes(actual));
+  if (!actual) return false;
+  return network.chainAliases.some((alias) => {
+    const normalized = normalizeChain(alias);
+    return normalized === actual || actual.includes(normalized) || normalized.includes(actual);
+  });
 }
 
 function roundCrypto(value) {
@@ -106,18 +126,19 @@ async function tickerRate(network) {
   return 1;
 }
 
-async function chainMinimum(asset, network) {
+async function chainMinimum(asset, network, credentials) {
   try {
-    const info = await getCoinInfo(asset);
+    const info = await getCoinInfo(asset, false, credentials);
     const row = (info?.rows || []).find((item) => String(item.coin || "").toUpperCase() === asset);
     const chain = (row?.chains || []).find((item) => chainMatches(network, item.chain) || chainMatches(network, item.chainType));
     if (!chain) return { minimum: null, chain: null, available: false, warning: "Bybit did not return this network's deposit settings." };
     const minimum = Number(chain.depositMin);
+    const available = chain.chainDeposit === true || String(chain.chainDeposit).toLowerCase() === "1" || String(chain.chainDeposit).toLowerCase() === "true";
     return {
       minimum: Number.isFinite(minimum) && minimum >= 0 ? minimum : null,
       chain: chain.chain || chain.chainType || null,
-      available: String(chain.chainDeposit) === "1",
-      warning: String(chain.chainDeposit) === "1" ? "" : "This network is currently unavailable for Bybit deposits.",
+      available,
+      warning: available ? "" : "This network is currently unavailable for Bybit deposits.",
     };
   } catch (err) {
     return { minimum: null, chain: null, available: false, warning: "Bybit deposit limits are temporarily unavailable. Verification will remain on HOLD." };
@@ -133,11 +154,12 @@ export async function getCryptoQuote(rawCoins, networkId, profile = null) {
   const totalUsd = amountUsd + CRYPTO_DEPOSIT_FEE_USD;
   const rateUsd = await tickerRate(network);
   const cryptoAmount = roundCrypto(totalUsd / rateUsd);
-  const limits = await chainMinimum(network.asset, network);
+  const credentials = await getBybitCredentials();
+  const limits = await chainMinimum(network.asset, network, credentials);
   return {
     coins, priceNgn, feeUsd: CRYPTO_DEPOSIT_FEE_USD, amountUsd, totalUsd, rateUsd, cryptoAmount,
     network: { ...network, chain: limits.chain, minimum: limits.minimum, available: limits.available, warning: limits.warning },
-    verificationAvailable: !!process.env.BYBIT_API_KEY && !!process.env.BYBIT_API_SECRET,
+    verificationAvailable: !!credentials,
   };
 }
 
@@ -211,13 +233,14 @@ export async function verifyCryptoDeposit(uid, id) {
   if (current.status === "successful") return current;
   if (!current.txHash) fail("Submit your transaction hash first.");
   const attempts = Number(current.verificationAttempts || 0) + 1;
-  if (!process.env.BYBIT_API_KEY || !process.env.BYBIT_API_SECRET) {
+  const credentials = await getBybitCredentials();
+  if (!credentials) {
     await updateDeposit(id, { status: "hold", verificationAttempts: attempts, verificationError: "Bybit verification is not configured. Awaiting manual review." });
     return { ...current, status: "hold", verificationAttempts: attempts };
   }
   let result;
   try {
-    result = await getDepositRecord({ txID: current.txHash, coin: current.asset, limit: 50 });
+    result = await getDepositRecord({ txID: current.txHash, coin: current.asset, limit: 50 }, false, credentials);
   } catch (err) {
     await updateDeposit(id, { status: "hold", verificationAttempts: attempts, verificationError: "Bybit verification failed. The transaction was preserved for later review." });
     return { ...current, status: "hold", verificationAttempts: attempts };

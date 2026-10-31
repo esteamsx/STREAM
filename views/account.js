@@ -547,17 +547,21 @@ input{font-family:inherit}
 .rw-store-item button,.rw-buy-item button{width:100%;margin-top:auto}
 
 .rw-withdrawal-list{display:flex;flex-direction:column;gap:8px;max-height:190px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-right:4px}
-.rw-deposit-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;max-height:250px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:2px 4px 2px 0}
-.rw-deposit-item{min-width:0;padding:10px;border-radius:12px;background:linear-gradient(155deg,rgba(255,255,255,.075),rgba(255,255,255,.025));border:1px solid var(--border);cursor:pointer;text-align:left;color:var(--text);font:inherit}
+.rw-history-tabs{display:flex;gap:6px;padding:3px;margin:-2px 0 12px;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.025)}
+.rw-history-tab{flex:1;border:0;border-radius:8px;padding:9px 10px;background:transparent;color:var(--muted);font:700 .72rem var(--font-display);cursor:pointer;transition:background .18s var(--ease),color .18s var(--ease)}
+.rw-history-tab.active{background:var(--card2);color:var(--accent);box-shadow:0 0 0 1px var(--border-strong)}
+.rw-history-panel{min-width:0}
+.rw-deposit-list{display:flex;flex-direction:column;gap:8px;max-height:250px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:2px 4px 2px 0}
+.rw-deposit-item{width:100%;min-width:0;display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:linear-gradient(155deg,rgba(255,255,255,.075),rgba(255,255,255,.025));border:1px solid var(--border);cursor:pointer;text-align:left;color:var(--text);font:inherit}
 .rw-deposit-item:active{transform:scale(.98)}
-.rw-deposit-asset{display:flex;align-items:center;gap:6px;font-weight:800;font-size:.78rem}.rw-deposit-asset img{width:17px;height:17px}
-.rw-deposit-meta{margin-top:5px;font-size:.62rem;color:var(--muted);line-height:1.45;word-break:break-word}.rw-deposit-amount{font-family:var(--font-mono);font-size:.72rem;color:var(--text);margin-top:3px}
-.rw-deposit-status{display:inline-flex;margin-top:6px;padding:3px 6px;border-radius:999px;font-size:.56rem;font-weight:800;letter-spacing:.04em}.rw-deposit-status.pending{background:rgba(245,166,35,.15);color:#FFB020}.rw-deposit-status.successful{background:rgba(18,196,139,.15);color:var(--green)}.rw-deposit-status.hold{background:rgba(124,92,255,.15);color:#B9A7FF}.rw-deposit-status.declined{background:rgba(255,59,92,.15);color:var(--red)}
+.rw-deposit-asset{display:flex;align-items:center;gap:6px;min-width:125px;font-weight:800;font-size:.78rem}.rw-deposit-asset img{width:17px;height:17px;flex:0 0 17px}
+.rw-deposit-meta{margin-top:0;flex:1;min-width:0;font-size:.62rem;color:var(--muted);line-height:1.45;word-break:break-word}.rw-deposit-amount{font-family:var(--font-mono);font-size:.72rem;color:var(--text);margin-top:0;white-space:nowrap}
+.rw-deposit-status{display:inline-flex;margin-top:0;padding:3px 6px;border-radius:999px;font-size:.56rem;font-weight:800;letter-spacing:.04em;flex-shrink:0}.rw-deposit-status.pending{background:rgba(245,166,35,.15);color:#FFB020}.rw-deposit-status.successful{background:rgba(18,196,139,.15);color:var(--green)}.rw-deposit-status.hold{background:rgba(124,92,255,.15);color:#B9A7FF}.rw-deposit-status.declined{background:rgba(255,59,92,.15);color:var(--red)}
 .rw-crypto-link{display:inline-flex;align-items:center;gap:6px;margin-top:12px;border:0;background:transparent;color:var(--accent);font:600 .78rem var(--font-body);cursor:pointer;padding:3px 0}.rw-crypto-link:hover{text-decoration:underline}
 .crypto-network-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.crypto-network-btn{display:flex;align-items:center;gap:8px;text-align:left;padding:10px;border-radius:12px;background:rgba(255,255,255,.045);border:1px solid var(--border);color:var(--text);font:600 .76rem var(--font-body)}.crypto-network-btn img{width:20px;height:20px}.crypto-network-btn.active{border-color:var(--accent);box-shadow:0 0 0 1px rgba(0,224,255,.18);background:rgba(0,224,255,.08)}
 .crypto-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.crypto-summary-box{padding:9px;border-radius:10px;background:rgba(255,255,255,.045);border:1px solid var(--border)}.crypto-summary-box b{display:block;font-size:.82rem;margin-top:3px;word-break:break-word}.crypto-summary-box span{font-size:.62rem;color:var(--muted)}.crypto-address{display:flex;gap:7px;align-items:center;margin:10px 0;padding:10px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid var(--border);font:600 .68rem var(--font-mono);word-break:break-all}.crypto-address button{flex:0 0 auto;padding:6px 8px}
 .crypto-note{font-size:.7rem;color:var(--muted);line-height:1.45;margin:8px 0}.crypto-note.warn{color:#FFB020}.crypto-note.hold{color:#B9A7FF}
-@media(max-width:500px){.rw-deposit-list{grid-template-columns:repeat(2,minmax(0,1fr))}.crypto-network-grid{grid-template-columns:1fr}}
+@media(max-width:500px){.rw-deposit-item{align-items:flex-start;flex-wrap:wrap;gap:7px}.rw-deposit-asset{min-width:calc(50% - 7px)}.rw-deposit-amount{margin-left:auto}.rw-deposit-meta{flex-basis:100%;order:3}.rw-deposit-status{order:2}.crypto-network-grid{grid-template-columns:1fr}}
 .rw-referral-list::-webkit-scrollbar,.rw-withdrawal-list::-webkit-scrollbar{width:4px}
 .rw-referral-list::-webkit-scrollbar-track,.rw-withdrawal-list::-webkit-scrollbar-track{background:transparent}
 .rw-referral-list::-webkit-scrollbar-thumb,.rw-withdrawal-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
@@ -1622,21 +1626,23 @@ body:has(.page-overlay.show){overflow:hidden}
     </div>
 
 
-    <div class="acc-card">
+    <div class="acc-card rw-history-card">
       <div class="acc-card-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        Withdrawal History
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18v15H3z"/><path d="M7 3h10v3H7zM7 10h10M7 14h7M7 18h5"/></svg>
+        History
       </div>
-      <div class="rw-withdrawal-list" id="rwWithdrawalList"><div class="rw-empty">No withdrawals yet.</div></div>
+      <div class="rw-history-tabs" role="tablist" aria-label="Account history">
+        <button type="button" class="rw-history-tab active" id="rwWithdrawalsTab" role="tab" aria-selected="true" aria-controls="rwWithdrawalsPanel">Withdrawals</button>
+        <button type="button" class="rw-history-tab" id="rwDepositsTab" role="tab" aria-selected="false" aria-controls="rwDepositsPanel">Crypto Deposits</button>
+      </div>
+      <div class="rw-history-panel" id="rwWithdrawalsPanel" role="tabpanel" aria-labelledby="rwWithdrawalsTab">
+        <div class="rw-withdrawal-list" id="rwWithdrawalList"><div class="rw-empty">No withdrawals yet.</div></div>
+      </div>
+      <div class="rw-history-panel" id="rwDepositsPanel" role="tabpanel" aria-labelledby="rwDepositsTab" style="display:none">
+        <div class="rw-deposit-list" id="rwDepositList"><div class="rw-empty">No crypto deposits yet.</div></div>
+      </div>
     </div>
 
-    <div class="acc-card">
-      <div class="acc-card-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v13H4z"/><path d="M7 4h10v3H7zM8 11h8M8 15h5"/></svg>
-        Deposit History
-      </div>
-      <div class="rw-deposit-list" id="rwDepositList"><div class="rw-empty">No crypto deposits yet.</div></div>
-    </div>
   </div>
   </div>
   </div>
@@ -1671,6 +1677,7 @@ body:has(.page-overlay.show){overflow:hidden}
       <div class="field"><label for="rwCryptoHash">Transaction hash</label><input type="text" id="rwCryptoHash" autocomplete="off" spellcheck="false" placeholder="Paste transaction hash"></div>
       <div class="acc-msg" id="rwCryptoHashMsg"></div>
       <button class="acc-btn" id="rwCryptoVerifyBtn" type="button" style="width:100%;justify-content:center">Verify Deposit</button>
+      <button class="overlay-cancel" id="rwCryptoHashCloseBtn" type="button">Close</button>
       <button class="overlay-cancel" id="rwCryptoHashBackBtn" type="button">Back</button>
     </div>
   </div>
@@ -5509,7 +5516,17 @@ let cryptoNetworkId = '';
 let cryptoQuote = null;
 let cryptoDeposit = null;
 let cryptoDetailsTimer = null;
-
+function showHistoryPanel(panel){
+  const deposits = panel === 'deposits';
+  document.getElementById('rwWithdrawalsPanel').style.display = deposits ? 'none' : 'block';
+  document.getElementById('rwDepositsPanel').style.display = deposits ? 'block' : 'none';
+  document.getElementById('rwWithdrawalsTab').classList.toggle('active', !deposits);
+  document.getElementById('rwDepositsTab').classList.toggle('active', deposits);
+  document.getElementById('rwWithdrawalsTab').setAttribute('aria-selected', deposits ? 'false' : 'true');
+  document.getElementById('rwDepositsTab').setAttribute('aria-selected', deposits ? 'true' : 'false');
+}
+document.getElementById('rwWithdrawalsTab').addEventListener('click', () => showHistoryPanel('withdrawals'));
+document.getElementById('rwDepositsTab').addEventListener('click', () => showHistoryPanel('deposits'));
 function setCryptoStep(id){
   rwCryptoOverlay.querySelectorAll('.overlay-step').forEach((el) => el.classList.toggle('active', el.id === id));
 }
@@ -5537,6 +5554,12 @@ function resetCryptoOverlay(){
   document.getElementById('rwCryptoQuoteNote').textContent = 'Minimum 100 coins. Maximum 3,000 coins.';
   cryptoMsg(document.getElementById('rwCryptoMsg'), '', false);
   document.getElementById('rwCryptoStartBtn').disabled = true;
+  document.getElementById('rwCryptoHash').value = '';
+  cryptoMsg(document.getElementById('rwCryptoHashMsg'), '', false);
+}
+function closeCryptoOverlay(){
+  rwCryptoOverlay.classList.remove('show');
+  resetCryptoOverlay();
 }
 async function updateCryptoQuote(){
   const coins = Math.floor(Number(document.getElementById('rwCryptoCoins').value));
@@ -5570,8 +5593,8 @@ async function openCryptoOverlay(){
   try { await loadCryptoNetworks(); } catch (err) { cryptoMsg(document.getElementById('rwCryptoMsg'), err.message, false); }
 }
 document.getElementById('rwCryptoOpenBtn').addEventListener('click', openCryptoOverlay);
-document.getElementById('rwCryptoCloseBtn').addEventListener('click', () => rwCryptoOverlay.classList.remove('show'));
-rwCryptoOverlay.addEventListener('click', (e) => { if (e.target === rwCryptoOverlay) rwCryptoOverlay.classList.remove('show'); });
+document.getElementById('rwCryptoCloseBtn').addEventListener('click', closeCryptoOverlay);
+rwCryptoOverlay.addEventListener('click', (e) => { if (e.target === rwCryptoOverlay) closeCryptoOverlay(); });
 document.getElementById('rwCryptoCoins').addEventListener('input', updateCryptoQuote);
 document.getElementById('rwCryptoStartBtn').addEventListener('click', async () => {
   const btn = document.getElementById('rwCryptoStartBtn');
@@ -5590,6 +5613,7 @@ document.getElementById('rwCryptoCopyBtn').addEventListener('click', async () =>
 });
 document.getElementById('rwCryptoSentBtn').addEventListener('click', () => { document.getElementById('rwCryptoHash').value = ''; cryptoMsg(document.getElementById('rwCryptoHashMsg'), '', false); setCryptoStep('rwCryptoStepHash'); });
 document.getElementById('rwCryptoHashBackBtn').addEventListener('click', () => setCryptoStep('rwCryptoStepSend'));
+document.getElementById('rwCryptoHashCloseBtn').addEventListener('click', closeCryptoOverlay);
 document.getElementById('rwCryptoVerifyBtn').addEventListener('click', async () => {
   const btn = document.getElementById('rwCryptoVerifyBtn'); const msg = document.getElementById('rwCryptoHashMsg'); const hash = document.getElementById('rwCryptoHash').value.trim();
   if (!hash) { cryptoMsg(msg, 'Paste your transaction hash first.', false); return; }
@@ -5598,9 +5622,11 @@ document.getElementById('rwCryptoVerifyBtn').addEventListener('click', async () 
     await postJSON('/api/crypto/deposits/' + encodeURIComponent(cryptoDeposit.id) + '/hash', { txHash: hash });
     const result = await postJSON('/api/crypto/deposits/' + encodeURIComponent(cryptoDeposit.id) + '/verify', {});
     cryptoDeposit = result.deposit;
-    if (cryptoDeposit.status === 'successful') { cryptoMsg(msg, 'Deposit confirmed. Coins have been added.', true); await loadRewardsSummary(); setTimeout(() => rwCryptoOverlay.classList.remove('show'), 900); }
+    if (cryptoDeposit.status === 'successful') cryptoMsg(msg, 'Deposit confirmed. Coins have been added.', true);
     else if (cryptoDeposit.status === 'hold') cryptoMsg(msg, 'Verification is on HOLD. Your transaction details were saved for Bybit confirmation or manual review.', false);
     else cryptoMsg(msg, 'The transaction is not finalized yet. Your deposit is saved and can be checked again from Deposit History.', false);
+    await loadRewardsSummary();
+    setTimeout(closeCryptoOverlay, 1400);
   } catch (err) { cryptoMsg(msg, err.message, false); }
   btn.disabled = false;
 });
