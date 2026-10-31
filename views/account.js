@@ -1633,13 +1633,13 @@ body:has(.page-overlay.show){overflow:hidden}
       </div>
       <div class="rw-history-tabs" role="tablist" aria-label="Account history">
         <button type="button" class="rw-history-tab active" id="rwWithdrawalsTab" role="tab" aria-selected="true" aria-controls="rwWithdrawalsPanel">Withdrawals</button>
-        <button type="button" class="rw-history-tab" id="rwDepositsTab" role="tab" aria-selected="false" aria-controls="rwDepositsPanel">Crypto Deposits</button>
+        <button type="button" class="rw-history-tab" id="rwDepositsTab" role="tab" aria-selected="false" aria-controls="rwDepositsPanel">Deposits</button>
       </div>
       <div class="rw-history-panel" id="rwWithdrawalsPanel" role="tabpanel" aria-labelledby="rwWithdrawalsTab">
         <div class="rw-withdrawal-list" id="rwWithdrawalList"><div class="rw-empty">No withdrawals yet.</div></div>
       </div>
       <div class="rw-history-panel" id="rwDepositsPanel" role="tabpanel" aria-labelledby="rwDepositsTab" style="display:none">
-        <div class="rw-deposit-list" id="rwDepositList"><div class="rw-empty">No crypto deposits yet.</div></div>
+        <div class="rw-deposit-list" id="rwDepositList"><div class="rw-empty">No deposits yet.</div></div>
       </div>
     </div>
 
@@ -5492,7 +5492,7 @@ function cryptoStatusLabel(status){
 function renderCryptoDepositHistory(deposits){
   const list = document.getElementById('rwDepositList');
   if (!list) return;
-  if (!deposits.length) { list.innerHTML = '<div class="rw-empty">No crypto deposits yet.</div>'; return; }
+  if (!deposits.length) { list.innerHTML = '<div class="rw-empty">No deposits yet.</div>'; return; }
   list.innerHTML = deposits.map((d) => {
     const label = esc((d.asset || '') + ' · ' + (d.network || ''));
     const status = d.status || 'pending';

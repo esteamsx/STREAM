@@ -127,21 +127,37 @@ async function tickerRate(network) {
 }
 
 async function chainMinimum(asset, network, credentials) {
+  if (!credentials) {
+    return {
+      minimum: null,
+      chain: null,
+      available: false,
+      credentialsValid: false,
+      warning: "No active Bybit credentials were found. Add the live Bybit key on the Admin Trading page.",
+    };
+  }
   try {
     const info = await getCoinInfo(asset, false, credentials);
     const row = (info?.rows || []).find((item) => String(item.coin || "").toUpperCase() === asset);
     const chain = (row?.chains || []).find((item) => chainMatches(network, item.chain) || chainMatches(network, item.chainType));
-    if (!chain) return { minimum: null, chain: null, available: false, warning: "Bybit did not return this network's deposit settings." };
+    if (!chain) return { minimum: null, chain: null, available: false, credentialsValid: true, warning: "Bybit returned no deposit settings for this asset and network." };
     const minimum = Number(chain.depositMin);
     const available = chain.chainDeposit === true || String(chain.chainDeposit).toLowerCase() === "1" || String(chain.chainDeposit).toLowerCase() === "true";
     return {
       minimum: Number.isFinite(minimum) && minimum >= 0 ? minimum : null,
       chain: chain.chain || chain.chainType || null,
       available,
+      credentialsValid: true,
       warning: available ? "" : "This network is currently unavailable for Bybit deposits.",
     };
   } catch (err) {
-    return { minimum: null, chain: null, available: false, warning: "Bybit deposit limits are temporarily unavailable. Verification will remain on HOLD." };
+    return {
+      minimum: null,
+      chain: null,
+      available: false,
+      credentialsValid: false,
+      warning: "Bybit credentials were found, but the Asset/Wallet read failed. The key may be expired, revoked, or missing deposit-read permission.",
+    };
   }
 }
 
@@ -159,7 +175,7 @@ export async function getCryptoQuote(rawCoins, networkId, profile = null) {
   return {
     coins, priceNgn, feeUsd: CRYPTO_DEPOSIT_FEE_USD, amountUsd, totalUsd, rateUsd, cryptoAmount,
     network: { ...network, chain: limits.chain, minimum: limits.minimum, available: limits.available, warning: limits.warning },
-    verificationAvailable: !!credentials,
+    verificationAvailable: !!limits.credentialsValid,
   };
 }
 
