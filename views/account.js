@@ -5726,7 +5726,10 @@ document.getElementById('rwCryptoDetailsCopyBtn').addEventListener('click', asyn
 document.getElementById('rwCryptoDetailsVerifyBtn').addEventListener('click', async () => { if (!cryptoDeposit || !cryptoDeposit.id) return; const btn = document.getElementById('rwCryptoDetailsVerifyBtn'); btn.disabled = true; try { const result = await postJSON('/api/crypto/deposits/' + encodeURIComponent(cryptoDeposit.id) + '/verify', {}); renderCryptoDetails(result.deposit); await loadRewardsSummary(); } catch (err) { document.getElementById('rwCryptoDetailsNote').textContent = err.message; } btn.disabled = false; });
 
 function openRwOverlay(overlay){ overlay.classList.add('show'); }
-function closeRwOverlay(overlay){ overlay.classList.remove('show'); }
+function closeRwOverlay(overlay){
+  overlay.classList.remove('show');
+  if (overlay === rwClaimOverlay) resetClaimCaptcha();
+}
 
 function bindRwOverlay(overlay, closeBtnId){
   document.getElementById(closeBtnId).addEventListener('click', () => closeRwOverlay(overlay));
@@ -5854,6 +5857,16 @@ const claimContinueBtn = document.getElementById('rwClaimContinueBtn');
 const claimMsg = document.getElementById('rwClaimMsg');
 let claimCaptchaPassed = false;
 let claimCaptchaValue = '';
+
+function resetClaimCaptcha(){
+  claimCaptchaPassed = false;
+  claimCaptchaValue = '';
+  claimContinueBtn.disabled = true;
+  const widget = document.getElementById('rwClaimAltcha');
+  if (widget && typeof widget.reset === 'function') {
+    try { widget.reset(); } catch (e) {}
+  }
+}
 
 document.getElementById('rwClaimAltcha').addEventListener('statechange', (ev) => {
   claimCaptchaPassed = ev.detail.state === 'verified';
@@ -6024,7 +6037,7 @@ claimContinueBtn.addEventListener('click', async () => {
     });
   } catch (err) {
     claimContinueBtn.innerHTML = original;
-    claimContinueBtn.disabled = !claimCaptchaPassed;
+    resetClaimCaptcha();
     if (await claimWasRecordedToday()) {
       closeRwOverlay(rwClaimOverlay);
       await loadRewardsSummary();
