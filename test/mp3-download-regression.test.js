@@ -15,6 +15,7 @@ test("MP3 downloads preserve a direct audio fallback and normalize chunked provi
   assert.match(proxy, /!upstream\.headers\.get\("content-length"\)/);
   assert.match(proxy, /transcodeRemoteAudioToMp3\(payload\.audioFallbackUrl\)/);
   assert.match(proxy, /res\.set\("Content-Length", String\(out\.length\)\)/);
+  assert.ok(proxy.indexOf("transcodeRemoteAudioToMp3(payload.audioFallbackUrl)") < proxy.indexOf("if (!upstream.ok && upstream.status !== 416)"));
   assert.match(avMux, /audioCodec\("libmp3lame"\)/);
   assert.match(avMux, /if \(!output\.length\) throw new Error\("FFmpeg produced an empty MP3\."\)/);
 });

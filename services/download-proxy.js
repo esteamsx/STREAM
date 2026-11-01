@@ -111,6 +111,31 @@ export async function streamProxiedFile(payload, req, res) {
     if (req.headers.range) headers.Range = req.headers.range;
     const upstream = await fetchWithRetry(payload.url, headers, 3);
 
+    const ct = payload.mime || upstream.headers.get("content-type");
+
+    // SilvaTech may return HTTP 500 from dl_link even though its signed
+    // direct audio URL is still usable. Try that source before rejecting the
+    // provider response, and also use it for successful chunked responses.
+    if (payload.audioFallbackUrl && payload.mime === "audio/mpeg" &&
+        (!upstream.ok || !upstream.headers.get("content-length"))) {
+      if (upstream.body) upstream.body.cancel().catch(() => {});
+      try {
+        let out = await transcodeRemoteAudioToMp3(payload.audioFallbackUrl);
+        if (payload.watermark) out = await watermarkAudioBuffer(out, payload.watermarkText || "ES TEAMS TV");
+        res.status(200);
+        res.set("Content-Type", "audio/mpeg");
+        res.set("Content-Length", String(out.length));
+        res.set("Accept-Ranges", "none");
+        res.set("Cache-Control", "no-store");
+        if (payload.filename) {
+          res.set("Content-Disposition", `attachment; filename="${payload.filename.replace(/[^\w.\-]/g, "_")}"`);
+        }
+        return res.end(out);
+      } catch (audioErr) {
+        logDlError("audio normalization", audioErr, payload);
+      }
+    }
+
     if (!upstream.ok && payload.fallbackVideoUrl && payload.fallbackAudioUrl) {
       try {
         const muxed = await muxRemoteAvToBuffer(payload.fallbackVideoUrl, payload.fallbackAudioUrl);
@@ -142,32 +167,6 @@ export async function streamProxiedFile(payload, req, res) {
             ? "Source rejected the request, source link may have expired"
             : "Source returned an error";
       return res.status(outStatus).json({ error: message, upstream_status: upstream.status });
-    }
-
-    const ct = payload.mime || upstream.headers.get("content-type");
-
-    // SilvaTech's MP3 endpoint returns a chunked proxy stream without a
-    // Content-Length. Some clients save that response before MP3 duration
-    // metadata is finalized. Normalize from its signed direct audio source
-    // so the API always returns a complete, seekable MP3 file.
-    if (payload.audioFallbackUrl && payload.mime === "audio/mpeg" && upstream.ok && !upstream.headers.get("content-length")) {
-      if (upstream.body) upstream.body.cancel().catch(() => {});
-      try {
-        let out = await transcodeRemoteAudioToMp3(payload.audioFallbackUrl);
-        if (payload.watermark) out = await watermarkAudioBuffer(out, payload.watermarkText || "ES TEAMS TV");
-        res.status(200);
-        res.set("Content-Type", "audio/mpeg");
-        res.set("Content-Length", String(out.length));
-        res.set("Accept-Ranges", "none");
-        res.set("Cache-Control", "no-store");
-        if (payload.filename) {
-          res.set("Content-Disposition", `attachment; filename="${payload.filename.replace(/[^\w.\-]/g, "_")}"`);
-        }
-        return res.end(out);
-      } catch (audioErr) {
-        logDlError("audio normalization", audioErr, payload);
-        // Fall through to the original stream if normalization is unavailable.
-      }
     }
 
     if (payload.watermark && upstream.ok && ct && ct.startsWith("image/")) {
