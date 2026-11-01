@@ -60,7 +60,7 @@ export async function listPromotionalReviews() {
   const snap = await db.collection("posts").limit(500).get();
   const rows = snap.docs
     .map((doc) => ({ id: doc.id, ...doc.data() }))
-    .filter((post) => post.moderationStatus === "review" || post.moderationStatus === "blocked")
+    .filter((post) => (post.moderationStatus === "review" || post.moderationStatus === "blocked") && !post.moderationReviewedAt)
     .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
     .slice(0, 100);
   const uids = [...new Set(rows.map((post) => post.uid).filter(Boolean))];

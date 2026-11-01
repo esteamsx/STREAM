@@ -125,7 +125,7 @@ input{font-family:inherit}
 .api-aa-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:.67rem}
 .api-aa-row:last-child{border-bottom:0}.api-aa-path{min-width:0;overflow-wrap:anywhere;color:var(--muted)}
 .api-aa-count{flex-shrink:0;color:var(--accent);font-weight:800;font-variant-numeric:tabular-nums}
-.api-aa-error{color:#ff758d}.api-aa-activity{margin-top:4px}
+.api-aa-error{color:#ff758d}.api-aa-activity{margin-top:4px}.api-aa-scroll{max-height:144px;overflow-y:auto;overscroll-behavior:contain}
 .api-aa-load{width:100%;margin-top:9px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:10px;background:var(--card2);color:var(--text);font-weight:700;font-size:.72rem}
 @media(max-width:430px){.api-aa-product-grid,.api-aa-columns{grid-template-columns:1fr}.api-aa-stat-value{font-size:1rem}}
 :root[data-theme="light"] .ad-card{
@@ -1295,8 +1295,8 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
         <div class="api-aa-list"><div class="api-aa-list-title">Most-used Live TV API endpoints</div><div id="apiAnalyticsTopTv"></div></div>
       </div>
       <div class="api-aa-columns">
-        <div class="api-aa-list"><div class="api-aa-list-title">Recent errors</div><div id="apiAnalyticsErrors"></div></div>
-        <div class="api-aa-list"><div class="api-aa-list-title">Recent API activity</div><div class="api-aa-activity" id="apiAnalyticsActivity"></div><button type="button" class="api-aa-load" id="apiAnalyticsMore" style="display:none">Load older activity</button></div>
+        <div class="api-aa-list"><div class="api-aa-list-title">Recent errors</div><div class="api-aa-scroll" id="apiAnalyticsErrors"></div></div>
+        <div class="api-aa-list"><div class="api-aa-list-title">Recent API activity</div><div class="api-aa-scroll api-aa-activity" id="apiAnalyticsActivity"></div><button type="button" class="api-aa-load" id="apiAnalyticsMore" style="display:none">Load older activity</button></div>
       </div>
     </div>
 
@@ -4314,7 +4314,7 @@ async function loadPromotionalReviews(){
       const actions = document.createElement('div'); actions.style.cssText = 'display:flex;gap:7px;margin-top:10px';
       ['allow','block'].forEach(function(decision){
         const button = document.createElement('button'); button.type='button'; button.className='cn-refund'; button.style.cssText='padding:8px 12px;border-radius:9px;flex:1'; button.textContent=decision === 'allow' ? 'Allow post' : 'Keep blocked';
-        button.addEventListener('click', async function(){ button.disabled=true; try { await postJSON('/api/admin/promotional-reviews/' + encodeURIComponent(row.id), { decision: decision }); loadPromotionalReviews(); } catch(err) { button.disabled=false; showToast(err.message || 'Could not update review.'); } }); actions.appendChild(button);
+        button.addEventListener('click', async function(){ button.disabled=true; try { await postJSON('/api/admin/promotional-reviews/' + encodeURIComponent(row.id), { decision: decision }); await loadPromotionalReviews(); showToast(decision === 'allow' ? 'Post allowed.' : 'Post blocked.'); } catch(err) { button.disabled=false; showToast(err.message || 'Could not update review.'); } }); actions.appendChild(button);
       });
       card.appendChild(actions); list.appendChild(card);
     });
