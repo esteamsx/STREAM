@@ -708,41 +708,6 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
 
           workCtx.drawImage(video, 0, 0, work.width, work.height);
 
-          if (!requireLiveness) {
-            const result = await runDetect(true, true);
-            if (cancelled) return;
-            if (result === DETECT_FAILED) {
-              again(safeTick, ERROR_BACKOFF_MS);
-              return;
-            }
-            const box = result && result.detection && result.detection.box;
-            if (!result || !box) {
-              noFaceCount++;
-              setStatus(showCamera ? 'Position your face in the frame' : 'Center your face in the circle');
-              again(safeTick);
-              return;
-            }
-            if (box.width < work.width * MIN_FACE_RATIO) {
-              tooSmallCount++;
-              setStatus('Move a little closer');
-              again(safeTick);
-              return;
-            }
-            const descriptor = result.descriptor ? Array.from(result.descriptor) : null;
-            if (!descriptor || descriptor.length !== DESCRIPTOR_LENGTH) {
-              again(safeTick);
-              return;
-            }
-            setStatus('Hold still');
-            collected.push(descriptor);
-            if (collected.length >= sampleTarget) {
-              finishCapture(collected);
-              return;
-            }
-            again(safeTick);
-            return;
-          }
-
           const probe = await runDetect(false, false);
           if (cancelled) return;
           if (probe === DETECT_FAILED) {
@@ -763,7 +728,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           }
           if (!requireLiveness) setStatus('Hold still');
 
-          const result = await runDetect(true, true);
+          const result = await runDetect(true, !requireLiveness);
           if (cancelled) return;
           if (result === DETECT_FAILED) {
             again(safeTick, ERROR_BACKOFF_MS);
@@ -771,6 +736,21 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
           }
           if (!result) {
             noFaceCount++;
+            again(safeTick);
+            return;
+          }
+
+          if (!requireLiveness) {
+            const descriptor = result.descriptor ? Array.from(result.descriptor) : null;
+            if (!descriptor || descriptor.length !== DESCRIPTOR_LENGTH) {
+              again(safeTick);
+              return;
+            }
+            collected.push(descriptor);
+            if (collected.length >= sampleTarget) {
+              finishCapture(collected);
+              return;
+            }
             again(safeTick);
             return;
           }

@@ -23,7 +23,10 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.match(loginScanner, /fs-step-check-path/);
   assert.match(loginScanner, /Hold still — capturing /);
   assert.match(loginScanner, /fs-enrollment-mode \.fs-frame-outline-bg\{stroke:rgba\(0,224,255,\.62\)/);
-  assert.match(loginScanner, /if \(!requireLiveness\) \{\s*const result = await runDetect\(true, true\)/);
+  assert.match(loginScanner, /const probe = await runDetect\(false, false\)/);
+  assert.match(loginScanner, /if \(!requireLiveness\) setStatus\('Hold still'\)/);
+  assert.match(loginScanner, /const result = await runDetect\(true, !requireLiveness\)/);
+  assert.ok(loginScanner.indexOf("const probe = await runDetect(false, false)") < loginScanner.indexOf("const result = await runDetect(true, !requireLiveness)"));
   assert.match(loginScanner, /const descriptorResult = await runDetect\(true, true\)/);
   assert.match(loginScanner, /function stopCaptureWatchdog\(\)/);
   assert.match(loginScanner, /if \(elapsed > captureTimeout\)/);
