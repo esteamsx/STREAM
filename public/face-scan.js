@@ -392,7 +392,7 @@ function headPitchRatio(landmarks) {
   return (chin.y - eyeMidY) / eyeDist;
 }
 
-export function captureFaceDescriptor({ requireLiveness = true, showCamera = true, verify = null, voice = true, samples = DEFAULT_SAMPLES, returnSamples = false, timeoutMs = CAPTURE_TIMEOUT_MS } = {}) {
+export function captureFaceDescriptor({ requireLiveness = true, showCamera = true, verify = null, voice = true, samples = DEFAULT_SAMPLES, returnSamples = false, timeoutMs = CAPTURE_TIMEOUT_MS, sampleIntervalMs = 0 } = {}) {
   const sampleTarget = Math.max(1, samples);
   const enrollmentMode = showCamera && requireLiveness && window.location.pathname === '/account';
   const requestedTimeout = Number(timeoutMs);
@@ -751,7 +751,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
               finishCapture(collected);
               return;
             }
-            again(safeTick);
+            again(safeTick, Math.max(0, Number(sampleIntervalMs) || 0));
             return;
           }
 

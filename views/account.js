@@ -6014,12 +6014,13 @@ claimContinueBtn.addEventListener('click', async () => {
     claimModule = await loadClaimFaceModule();
     capture = await claimModule.captureFaceDescriptor({
       requireLiveness: false,
-      // Keep the real camera frame visible so Daily Claim uses the same
-      // working capture surface and positioning flow as Login Face ID.
-      showCamera: true,
+      // Keep the Login Face ID iOS-style presentation; detection still runs
+      // against the live camera video underneath the animation.
+      showCamera: false,
       voice: false,
       samples: 2,
       timeoutMs: 120000,
+      sampleIntervalMs: 600,
       verify: async (descriptor, samples) => {
         claimContinueBtn.innerHTML = '<span class="btn-spinner"></span>Verifying Face ID…';
         const faceDescriptor = [descriptor, ...(samples || [])]
