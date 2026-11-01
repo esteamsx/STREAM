@@ -313,7 +313,13 @@ router.get("/api/v1/dev/mp3", requireDevApiKey, mp3Limiter, async (req, res) => 
     const song = await fetchMp3ByQuery(query);
     if (!song.audioUrl) throw Object.assign(new Error("No audio found for that search."), { status: 404 });
     const filename = `${sanitizeFilename(song.title)}.mp3`;
-    const token = signDownloadToken({ url: song.audioUrl, mime: "audio/mpeg", filename, watermark: !req.devApiNoAds }, DL_TTL_MS);
+    const token = signDownloadToken({
+      url: song.audioUrl,
+      mime: "audio/mpeg",
+      filename,
+      watermark: !req.devApiNoAds,
+      audioFallbackUrl: song.audioFallbackUrl || null,
+    }, DL_TTL_MS);
     res.json({
       title: song.title,
       thumbnail: song.thumbnail,

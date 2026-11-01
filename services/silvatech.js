@@ -24,6 +24,7 @@ export async function fetchYoutubeMp3(videoUrl) {
     thumbnail: result.thumbnail || null,
     duration: Number(result.duration || 0),
     audioUrl,
+    directAudioUrl: result.direct_audio_url || null,
   };
 }
 

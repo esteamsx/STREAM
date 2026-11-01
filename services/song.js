@@ -17,6 +17,7 @@ export async function fetchMp3ByQuery(query) {
     title: result.title || video.title || "Untitled",
     thumbnail: result.thumbnail || video.thumbnail || null,
     audioUrl: result.audioUrl,
+    audioFallbackUrl: result.directAudioUrl || null,
   };
 }
 

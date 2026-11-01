@@ -4,7 +4,7 @@ import path from "path";
 import { Readable } from "stream";
 import { watermarkImageBuffer } from "./image-watermark.js";
 import { watermarkVideoBuffer, watermarkAudioBuffer, canWatermarkSize } from "./video-watermark.js";
-import { muxRemoteAvToBuffer } from "./av-mux.js";
+import { muxRemoteAvToBuffer, transcodeRemoteAudioToMp3 } from "./av-mux.js";
 
 function getDlTokenSecret() {
   if (process.env.STREAM_TOKEN_SECRET) return process.env.STREAM_TOKEN_SECRET;
@@ -145,6 +145,30 @@ export async function streamProxiedFile(payload, req, res) {
     }
 
     const ct = payload.mime || upstream.headers.get("content-type");
+
+    // SilvaTech's MP3 endpoint returns a chunked proxy stream without a
+    // Content-Length. Some clients save that response before MP3 duration
+    // metadata is finalized. Normalize from its signed direct audio source
+    // so the API always returns a complete, seekable MP3 file.
+    if (payload.audioFallbackUrl && payload.mime === "audio/mpeg" && upstream.ok && !upstream.headers.get("content-length")) {
+      if (upstream.body) upstream.body.cancel().catch(() => {});
+      try {
+        let out = await transcodeRemoteAudioToMp3(payload.audioFallbackUrl);
+        if (payload.watermark) out = await watermarkAudioBuffer(out, payload.watermarkText || "ES TEAMS TV");
+        res.status(200);
+        res.set("Content-Type", "audio/mpeg");
+        res.set("Content-Length", String(out.length));
+        res.set("Accept-Ranges", "none");
+        res.set("Cache-Control", "no-store");
+        if (payload.filename) {
+          res.set("Content-Disposition", `attachment; filename="${payload.filename.replace(/[^\w.\-]/g, "_")}"`);
+        }
+        return res.end(out);
+      } catch (audioErr) {
+        logDlError("audio normalization", audioErr, payload);
+        // Fall through to the original stream if normalization is unavailable.
+      }
+    }
 
     if (payload.watermark && upstream.ok && ct && ct.startsWith("image/")) {
       const raw = Buffer.from(await upstream.arrayBuffer());

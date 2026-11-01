@@ -61,3 +61,28 @@ export async function muxRemoteAvToBuffer(videoUrl, audioUrl) {
     await cleanup(videoPath, audioPath, outPath);
   }
 }
+
+export async function transcodeRemoteAudioToMp3(audioUrl) {
+  const inputPath = tempFile("m4a");
+  const outputPath = tempFile("mp3");
+
+  try {
+    await downloadToFile(audioUrl, inputPath, MAX_MUX_BYTES);
+    await new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .noVideo()
+        .audioCodec("libmp3lame")
+        .audioBitrate("128k")
+        .outputOptions(["-map 0:a:0"])
+        .format("mp3")
+        .on("end", resolve)
+        .on("error", reject)
+        .save(outputPath);
+    });
+    const output = await fs.promises.readFile(outputPath);
+    if (!output.length) throw new Error("FFmpeg produced an empty MP3.");
+    return output;
+  } finally {
+    await cleanup(inputPath, outputPath);
+  }
+}
