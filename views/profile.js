@@ -2580,7 +2580,7 @@ async function openFlist(type, username){
   document.getElementById('flistSearch').value = '';
   document.getElementById('flistList').innerHTML = '<div class="sk-stack"><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div></div>';
   const fa = document.getElementById('flistFollowAll');
-  fa.hidden = !(type === 'followers' && !username);
+  fa.hidden = !(type === 'followers' && !username && ownProfile?.isAdmin);
   fa.querySelector('.fa-t').textContent = 'Follow All';
   overlay.classList.add('show');
   try {

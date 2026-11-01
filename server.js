@@ -4058,7 +4058,7 @@ app.post("/api/notifications/mark-all-read", requireAuth, async (req, res) => {
 });
 
 const followAllLimiter = new SimpleRateLimiter(60, 60 * 1000, (req) => req.uid, "Slow down a little.").middleware();
-app.post("/api/follow-all", requireAuth, requireSiteOrigin, followAllLimiter, async (req, res) => {
+app.post("/api/follow-all", requireAuth, requireSiteOrigin, requireAdmin, followAllLimiter, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store").json({ ok: true, ...(await followAllUsers(req.uid, !!(req.body && req.body.restart))) });
   } catch (err) {
