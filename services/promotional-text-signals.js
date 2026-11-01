@@ -7,6 +7,7 @@ const PROMO_RE = /\b(?:ad(?:s|vert(?:ise|isement|ising|ed)?)?|sponsor(?:ed|ship)
 const PRICE_RE = /(?:[$€£₦]\s*[\d,.]+|\b\d+[,.]?\d*\s*(?:ngn|naira|usd|dollars?|euros?|pounds?|kobo)\b|\b\d+%\s*off\b)/i;
 const CONTACT_RE = /(?:\+?\d[\d\s().-]{7,}\d|@[a-z\d_]{3,}|\b(?:whatsapp|telegram)\s*(?:me|us|number|channel)\b)/i;
 const REDIRECT_RE = /\b(?:link\s*in\s*bio|link\s*below|click\s*(?:here|the\s*link)|redirect|go\s*to|follow\s*the\s*link|send\s*proof|use\s*my\s*link)\b/i;
+const FOLLOW_SITE_RE = /\bfollow\s+(?:this|our|my|the)\s+(?:site|website|page|account|profile|channel)\b/i;
 
 export function unique(items) {
   return [...new Set(items.filter(Boolean))];
@@ -18,6 +19,7 @@ export function analyzePromotionalText(text, source = "post text") {
   const reasons = [];
   let score = 0;
   const urls = value.match(URL_RE) || [];
+  if (FOLLOW_SITE_RE.test(value)) { score += 90; reasons.push(`${source} asks users to follow a site or account`); }
   if (urls.length) { score += 35; reasons.push(`${source} contains an external link`); }
   if (REFERRAL_RE.test(value)) { score += 25; reasons.push(`${source} contains a referral, affiliate, or promo-code signal`); }
   if (SHORTENER_RE.test(value)) { score += 18; reasons.push(`${source} contains a link-shortener domain`); }

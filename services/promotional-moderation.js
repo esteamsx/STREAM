@@ -9,7 +9,8 @@ const analyzeTextSignals = analyzePromotionalText;
 export { legacyTextLooksPromotional };
 
 export async function blockLegacyPromotionalPost(post) {
-  if (!post || post.moderationStatus || !legacyTextLooksPromotional(post.text)) return false;
+  const unreviewedAllow = post?.moderationStatus === "allow" && !post.moderationReviewedAt;
+  if (!post || (post.moderationStatus && !unreviewedAllow) || !legacyTextLooksPromotional(post.text)) return false;
   const result = analyzeTextSignals(post.text);
   const ref = db.collection("posts").doc(String(post.id || ""));
   await ref.set({

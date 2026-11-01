@@ -2406,7 +2406,7 @@ async function getPostsByUser(targetUid, viewerUid, { limit = 30, before = null 
 
   const visiblePosts = posts.filter((p) => {
     if (p.moderationStatus && p.moderationStatus !== "allow" && !ownerIsPremium) return false;
-    if (!p.moderationStatus && !ownerIsPremium && legacyTextLooksPromotional(p.text)) {
+    if ((!p.moderationStatus || (p.moderationStatus === "allow" && !p.moderationReviewedAt)) && !ownerIsPremium && legacyTextLooksPromotional(p.text)) {
       void blockLegacyPromotionalPost(p);
       return false;
     }
@@ -3016,7 +3016,7 @@ async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
       if (!author || !author.username || author.banned || author.pendingDeletion) continue;
       const authorIsPremium = isVerificationActive(author) || isAdminEmail(author.email);
       if (p.moderationStatus && p.moderationStatus !== "allow" && !authorIsPremium) continue;
-      if (!p.moderationStatus && !authorIsPremium && legacyTextLooksPromotional(p.text)) {
+      if ((!p.moderationStatus || (p.moderationStatus === "allow" && !p.moderationReviewedAt)) && !authorIsPremium && legacyTextLooksPromotional(p.text)) {
         void blockLegacyPromotionalPost(p);
         continue;
       }
@@ -3077,7 +3077,7 @@ async function getPostImage(viewerUid, postId) {
   const author = await getUserProfile(post.uid);
   const authorIsPremium = !!(author && (isVerificationActive(author) || isAdminEmail(author.email)));
   if (post.moderationStatus && post.moderationStatus !== "allow" && !authorIsPremium) return null;
-  if (!post.moderationStatus && !authorIsPremium && legacyTextLooksPromotional(post.text)) {
+  if ((!post.moderationStatus || (post.moderationStatus === "allow" && !post.moderationReviewedAt)) && !authorIsPremium && legacyTextLooksPromotional(post.text)) {
     await blockLegacyPromotionalPost({ id: snap.id, ...post });
     return null;
   }
@@ -3173,7 +3173,7 @@ async function computeFollowingFeedUnseenCount(uid, cachedProfile) {
     if (Date.now() >= feedCountIndexRetryAt) {
       try {
         snap = await db.collection("posts").where("uid", "in", chunk).where("createdAt", ">", lastSeenFeedAt).limit(50)
-          .select("createdAt", "visibility", "moderationStatus", "text").get();
+          .select("createdAt", "visibility", "moderationStatus", "moderationReviewedAt", "text").get();
       } catch (err) {
         feedCountIndexRetryAt = Date.now() + 10 * 60 * 1000;
         console.warn("[quota] the new-posts badge reads the slow way until this index exists (open the link in the error): " + String(err.message || err).slice(0, 400));
@@ -3181,13 +3181,13 @@ async function computeFollowingFeedUnseenCount(uid, cachedProfile) {
     }
     if (!snap) {
       snap = await db.collection("posts").where("uid", "in", chunk).limit(50)
-        .select("createdAt", "visibility", "moderationStatus", "text").get();
+        .select("createdAt", "visibility", "moderationStatus", "moderationReviewedAt", "text").get();
     }
     snap.docs.forEach((d) => {
       const data = d.data();
       if (data.createdAt <= lastSeenFeedAt) return;
       if (data.moderationStatus && data.moderationStatus !== "allow") return;
-      if (!data.moderationStatus && legacyTextLooksPromotional(data.text)) {
+      if ((!data.moderationStatus || (data.moderationStatus === "allow" && !data.moderationReviewedAt)) && legacyTextLooksPromotional(data.text)) {
         void blockLegacyPromotionalPost({ id: d.id, ...data });
         return;
       }
