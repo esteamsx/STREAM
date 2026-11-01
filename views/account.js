@@ -6014,7 +6014,9 @@ claimContinueBtn.addEventListener('click', async () => {
     claimModule = await loadClaimFaceModule();
     capture = await claimModule.captureFaceDescriptor({
       requireLiveness: false,
-      showCamera: false,
+      // Keep the real camera frame visible so Daily Claim uses the same
+      // working capture surface and positioning flow as Login Face ID.
+      showCamera: true,
       voice: false,
       samples: 2,
       timeoutMs: 120000,
