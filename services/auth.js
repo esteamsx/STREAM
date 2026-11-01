@@ -19,6 +19,7 @@ import { createWeeklyActivityService } from "./weekly-activity.js";
 import { fetchVisibleFollowingPosts } from "./following-feed-queries.js";
 import { fetchCommunityMessagePage } from "./community-chat-queries.js";
 import { analyzePromotionalContent, legacyTextLooksPromotional, blockLegacyPromotionalPost } from "./promotional-moderation.js";
+import { isFollowSitePromotion, isFollowSiteRuleBlock } from "./promotional-text-signals.js";
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -2405,7 +2406,7 @@ async function getPostsByUser(targetUid, viewerUid, { limit = 30, before = null 
   }
 
   const visiblePosts = posts.filter((p) => {
-    if (p.moderationStatus && p.moderationStatus !== "allow" && !ownerIsPremium) return false;
+    if (p.moderationStatus && p.moderationStatus !== "allow" && !ownerIsPremium && !isFollowSiteRuleBlock(p)) return false;
     if ((!p.moderationStatus || (p.moderationStatus === "allow" && !p.moderationReviewedAt)) && !ownerIsPremium && legacyTextLooksPromotional(p.text)) {
       void blockLegacyPromotionalPost(p);
       return false;
@@ -2949,6 +2950,7 @@ const POST_IMAGE_TYPES = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0
 
 function looksLikePromotionalPost(text) {
   const value = String(text || "");
+  if (isFollowSitePromotion(value)) return true;
   if (/https?:\/\/|www\.|\[[^\]]+\]\(https?:\/\//i.test(value)) return true;
   if (/\b(advertis(?:e|ed|ing|ement)?|promotion|promotional|sponsor(?:ed)?|affiliate|sale|discount|deal|offer|shop|order now|buy now|free trial|link in bio|dm to order)\b/i.test(value)) return true;
   const advertisingMarkers = [
@@ -3015,7 +3017,7 @@ async function getDiscoverFeed(uid, { limit = 12, before = null } = {}) {
       const author = authorDocs.get(p.uid);
       if (!author || !author.username || author.banned || author.pendingDeletion) continue;
       const authorIsPremium = isVerificationActive(author) || isAdminEmail(author.email);
-      if (p.moderationStatus && p.moderationStatus !== "allow" && !authorIsPremium) continue;
+      if (p.moderationStatus && p.moderationStatus !== "allow" && !authorIsPremium && !isFollowSiteRuleBlock(p)) continue;
       if ((!p.moderationStatus || (p.moderationStatus === "allow" && !p.moderationReviewedAt)) && !authorIsPremium && legacyTextLooksPromotional(p.text)) {
         void blockLegacyPromotionalPost(p);
         continue;
@@ -3076,7 +3078,7 @@ async function getPostImage(viewerUid, postId) {
   const post = snap.data();
   const author = await getUserProfile(post.uid);
   const authorIsPremium = !!(author && (isVerificationActive(author) || isAdminEmail(author.email)));
-  if (post.moderationStatus && post.moderationStatus !== "allow" && !authorIsPremium) return null;
+  if (post.moderationStatus && post.moderationStatus !== "allow" && !authorIsPremium && !isFollowSiteRuleBlock(post)) return null;
   if ((!post.moderationStatus || (post.moderationStatus === "allow" && !post.moderationReviewedAt)) && !authorIsPremium && legacyTextLooksPromotional(post.text)) {
     await blockLegacyPromotionalPost({ id: snap.id, ...post });
     return null;
@@ -3084,7 +3086,9 @@ async function getPostImage(viewerUid, postId) {
   const match = POST_IMAGE_TYPES.exec(String(post.imageDataUrl || ""));
   if (!match) return null;
   if (post.uid !== viewerUid && looksLikePromotionalPost(post.text)) {
-    if (!authorIsPremium) return null;
+    const viewer = await getUserProfile(viewerUid);
+    const viewerIsPremium = !!(viewer && (isVerificationActive(viewer) || isAdminEmail(viewer.email)));
+    if (!authorIsPremium && !viewerIsPremium) return null;
   }
   if (post.uid !== viewerUid) {
     const vis = post.visibility || "everyone";

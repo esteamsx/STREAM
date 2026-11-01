@@ -9,6 +9,17 @@ const CONTACT_RE = /(?:\+?\d[\d\s().-]{7,}\d|@[a-z\d_]{3,}|\b(?:whatsapp|telegra
 const REDIRECT_RE = /\b(?:link\s*in\s*bio|link\s*below|click\s*(?:here|the\s*link)|redirect|go\s*to|follow\s*the\s*link|send\s*proof|use\s*my\s*link)\b/i;
 const FOLLOW_SITE_RE = /\bfollow\s+(?:this|our|my|the)\s+(?:site|website|page|account|profile|channel)\b/i;
 
+export function isFollowSitePromotion(text) {
+  return FOLLOW_SITE_RE.test(String(text || ""));
+}
+
+export function isFollowSiteRuleBlock(post) {
+  return post?.moderationStatus === "blocked" && !post.moderationReviewedAt &&
+    isFollowSitePromotion(post.text) &&
+    Array.isArray(post.moderationReasons) &&
+    post.moderationReasons.some((reason) => String(reason).includes("asks users to follow a site or account"));
+}
+
 export function unique(items) {
   return [...new Set(items.filter(Boolean))];
 }
@@ -19,7 +30,6 @@ export function analyzePromotionalText(text, source = "post text") {
   const reasons = [];
   let score = 0;
   const urls = value.match(URL_RE) || [];
-  if (FOLLOW_SITE_RE.test(value)) { score += 90; reasons.push(`${source} asks users to follow a site or account`); }
   if (urls.length) { score += 35; reasons.push(`${source} contains an external link`); }
   if (REFERRAL_RE.test(value)) { score += 25; reasons.push(`${source} contains a referral, affiliate, or promo-code signal`); }
   if (SHORTENER_RE.test(value)) { score += 18; reasons.push(`${source} contains a link-shortener domain`); }
