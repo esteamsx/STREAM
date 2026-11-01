@@ -79,6 +79,12 @@ The audit examined application routes, services, page clients, polling/listener 
 4. Exercise privacy combinations (`everyone`, `friends`, `only_me`), equal timestamps, more than 500 followees, >50 hidden posts, high-degree profiles, chat bursts, deletions, reconnect/hidden tabs, and missing-index fallback behavior.
 5. Reconcile API daily counters and endpoint counts against `apiRequestEvents`, including failed/aborted requests and concurrent writes. Reconcile coin totals against the transaction ledger; the ledger remains the source of truth.
 
+## Follow-up optimization (1 November 2026)
+
+The status feed previously performed a document lookup for every candidate status-view record that was not already cached, up to the 3,000-item active-status index cap. It now queries `statusViews` by `viewerUid` and batches candidate `statusId` values in groups of 30, so the query returns only view documents that exist. Under the all-unseen, 3,000-candidate case, that changes up to 3,000 direct document lookups into about 100 empty queries; Firestore charges at least one read for each empty query, so this is a code-derived upper-bound comparison, not measured production savings. Existing in-memory seen/unseen caching is retained.
+
+The new query needs the `statusViews(viewerUid ASC, statusId ASC)` composite index added to `firestore.indexes.json`. If the index query fails, the service falls back to the previous document lookups and avoids retrying the unavailable index for 10 minutes per process. Production savings therefore require deploying the index and confirming that it reaches **READY**. Three focused mock tests cover empty batches, existing/hidden views, and fallback behavior. No live Firestore metrics or project credentials were available for this follow-up.
+
 ## References
 
 - [Firestore pricing and free quota](https://firebase.google.com/docs/firestore/pricing)

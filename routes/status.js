@@ -1,5 +1,6 @@
 import express from "express";
 import { db } from "../config/firebase.js";
+import { fetchSeenStatusViews } from "../services/status-seen-queries.js";
 import {
   requireAuth,
   getUserProfile,
@@ -101,14 +102,10 @@ async function seenIdSet(viewerUid, statusIds) {
     if (e.seen.has(id)) seen.add(id);
     else if (now - (e.unseenAt.get(id) || 0) >= UNSEEN_RECHECK_MS) toCheck.push(id);
   }
-  for (let i = 0; i < toCheck.length; i += 300) {
-    const chunk = toCheck.slice(i, i + 300);
-    const refs = chunk.map((id) => db.collection("statusViews").doc(id + "_" + viewerUid));
-    const snaps = await db.getAll(...refs);
-    snaps.forEach((s, idx) => {
-      if (s.exists) { seen.add(chunk[idx]); e.seen.set(chunk[idx], !!(s.data() || {}).hidden); e.unseenAt.delete(chunk[idx]); }
-      else e.unseenAt.set(chunk[idx], now);
-    });
+  const storedSeen = await fetchSeenStatusViews(db, viewerUid, toCheck);
+  for (const id of toCheck) {
+    if (storedSeen.has(id)) { seen.add(id); e.seen.set(id, storedSeen.get(id)); e.unseenAt.delete(id); }
+    else e.unseenAt.set(id, now);
   }
   return seen;
 }

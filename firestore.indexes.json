@@ -75,6 +75,14 @@
         { "fieldPath": "type", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "statusViews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "viewerUid", "order": "ASCENDING" },
+        { "fieldPath": "statusId", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
