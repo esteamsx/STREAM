@@ -37,7 +37,8 @@
       const y = 13 + Math.sin(i * 0.9) * 3;
       return '<circle cx="' + x + '" cy="' + y.toFixed(1) + '" r="1.35"/>';
     }).join("");
-    return '<svg viewBox="0 0 108 24" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M0 7c15 15 29-3 43 8s28 4 38 0 18 7 27-4"/><g>' + bulbs + '</g></svg>';
+    const baubles = [12, 34, 56, 78, 98].map((x, i) => '<path d="M' + x + ' 22v-5"/><circle class="garland-bauble garland-bauble-' + (i % 3) + '" cx="' + x + '" cy="28" r="4.2"/>').join("");
+    return '<svg viewBox="0 0 108 36" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M0 7c15 15 29-3 43 8s28 4 38 0 18 7 27-4"/><g class="garland-lights">' + bulbs + '</g><g class="garland-baubles">' + baubles + '</g></svg>';
   }
 
   function buildLayer() {
@@ -99,22 +100,24 @@
     if (!document.body) return;
     document.body.classList.add("esxmas-active");
     buildLayer();
-    decorateBrands();
+    const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 180));
+    schedule(decorateBrands, { timeout: 1200 });
     playDailyGreeting();
   }
 
   const style = document.createElement("style");
   style.textContent = `
     :root{--esxmas-red:#e84b5f;--esxmas-green:#35c98b;--esxmas-deep:#0c5b4e;--esxmas-gold:#ffd166;--esxmas-ice:#d9f5ff}
-    .esxmas-layer{position:fixed;inset:0;z-index:2;pointer-events:none;overflow:hidden;isolation:isolate}
-    .esxmas-snow{position:absolute;inset:-12vh -8vw;opacity:.52;will-change:transform;background-repeat:repeat;background-size:180px 180px;background-image:radial-gradient(circle at 12px 22px,rgba(255,255,255,.95) 0 1.7px,transparent 2.1px),radial-gradient(circle at 78px 86px,rgba(225,247,255,.8) 0 2.1px,transparent 2.7px),radial-gradient(circle at 142px 42px,rgba(255,255,255,.7) 0 1.2px,transparent 1.8px),radial-gradient(circle at 45px 150px,rgba(217,243,255,.8) 0 1.4px,transparent 2px);animation:esxmas-snowfall 20s linear infinite}
-    .esxmas-snow-b{opacity:.28;background-size:280px 280px;filter:blur(.35px);animation-duration:32s;animation-direction:reverse}
+    .esxmas-layer{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;isolation:isolate}
+    .esxmas-snow{position:absolute;inset:-12vh -8vw;opacity:.34;will-change:transform;background-repeat:repeat;background-size:180px 180px;background-image:radial-gradient(circle at 12px 22px,rgba(255,255,255,.9) 0 1.7px,transparent 2.1px),radial-gradient(circle at 78px 86px,rgba(225,247,255,.72) 0 2.1px,transparent 2.7px),radial-gradient(circle at 142px 42px,rgba(255,255,255,.62) 0 1.2px,transparent 1.8px),radial-gradient(circle at 45px 150px,rgba(217,243,255,.68) 0 1.4px,transparent 2px);animation:esxmas-snowfall 24s linear infinite;mix-blend-mode:screen}
+    .esxmas-snow-b{opacity:.16;background-size:280px 280px;filter:blur(.25px);animation-duration:36s;animation-direction:reverse}
     @keyframes esxmas-snowfall{from{transform:translate3d(-2vw,-10vh,0)}to{transform:translate3d(5vw,14vh,0)}}
-    .esxmas-garland{position:absolute;z-index:0;top:calc(var(--nav-h,0px) + env(safe-area-inset-top,0px));left:0;width:100%;height:34px;opacity:.96;filter:drop-shadow(0 0 6px rgba(255,209,102,.4))}
-    .esxmas-garland svg{width:100%;height:100%;display:block;overflow:visible;fill:none;stroke:rgba(255,255,255,.65);stroke-width:.55}
-    .esxmas-garland g{fill:var(--esxmas-gold);stroke:none;filter:drop-shadow(0 0 3px var(--esxmas-gold));animation:esxmas-twinkle 2.2s ease-in-out infinite}
-    .esxmas-garland g circle:nth-child(3n){fill:var(--esxmas-red)}.esxmas-garland g circle:nth-child(3n+1){fill:var(--esxmas-green)}
-    .esxmas-brand{position:relative;isolation:isolate;filter:drop-shadow(0 0 8px rgba(232,75,95,.4))}
+    .esxmas-garland{position:absolute;z-index:0;top:calc(var(--nav-h,0px) + env(safe-area-inset-top,0px));left:0;width:100%;height:50px;opacity:.95;filter:drop-shadow(0 0 5px rgba(255,209,102,.35))}
+    .esxmas-garland svg{width:100%;height:100%;display:block;overflow:visible;fill:none;stroke:rgba(255,255,255,.62);stroke-width:.55}
+    .esxmas-garland .garland-lights{fill:var(--esxmas-gold);stroke:none;animation:esxmas-twinkle 2.8s ease-in-out infinite}
+    .esxmas-garland .garland-lights circle:nth-child(3n){fill:var(--esxmas-red)}.esxmas-garland .garland-lights circle:nth-child(3n+1){fill:var(--esxmas-green)}
+    .esxmas-garland .garland-baubles path{stroke:rgba(255,255,255,.7);stroke-width:.8}.esxmas-garland .garland-bauble{stroke:rgba(255,255,255,.8);stroke-width:.8;filter:drop-shadow(0 0 3px currentColor)}.esxmas-garland .garland-bauble-0{fill:var(--esxmas-red);color:var(--esxmas-red)}.esxmas-garland .garland-bauble-1{fill:var(--esxmas-gold);color:var(--esxmas-gold)}.esxmas-garland .garland-bauble-2{fill:var(--esxmas-green);color:var(--esxmas-green)}
+    .esxmas-brand{position:relative;z-index:4;isolation:isolate;filter:drop-shadow(0 0 8px rgba(232,75,95,.3))}
     .esxmas-brand-art{position:absolute;z-index:0;inset:-15px -18px;pointer-events:none;overflow:visible;display:block}
     .esxmas-brand> :not(.esxmas-brand-art){position:relative;z-index:1}
     .esxmas-brand-svg{width:100%;height:100%;overflow:visible;display:block}
@@ -125,7 +128,7 @@
     .esxmas-baubles path{stroke:rgba(255,255,255,.68);stroke-width:1.2}.esxmas-baubles circle{fill:var(--esxmas-red);stroke:rgba(255,255,255,.75);stroke-width:1.2;filter:drop-shadow(0 0 4px rgba(232,75,95,.85))}.esxmas-baubles circle:nth-of-type(2){fill:var(--esxmas-gold);filter:drop-shadow(0 0 4px rgba(255,209,102,.85))}.esxmas-baubles circle:nth-of-type(3){fill:var(--esxmas-green);filter:drop-shadow(0 0 4px rgba(53,201,139,.85))}
     @keyframes esxmas-twinkle{0%,100%{opacity:.68}50%{opacity:1}}
     .esxmas-float{position:absolute;animation:esxmas-drift 16s ease-in-out infinite;opacity:.92}
-    .esxmas-float svg{width:100%;height:auto;display:block;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 12px rgba(255,209,102,.35))}
+    .esxmas-float svg{width:100%;height:auto;display:block;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 8px rgba(255,209,102,.28))}
     .esxmas-santa{top:calc(var(--nav-h,0px) + 52px);right:5vw;width:116px;transform:rotate(6deg)}
     .esxmas-santa svg{stroke:var(--esxmas-red)}.esxmas-santa .santa-face{fill:#f2b58f;stroke:var(--esxmas-red)}.esxmas-santa .santa-hat{fill:var(--esxmas-red);stroke:var(--esxmas-red)}.esxmas-santa .santa-white,.esxmas-santa .santa-trim,.esxmas-santa .santa-beard{fill:#fff;stroke:#fff}.esxmas-santa .santa-eye{fill:#251b2d;stroke:#251b2d}.esxmas-santa .santa-nose{fill:#e84b5f;stroke:#e84b5f}.esxmas-santa .santa-smile{fill:none;stroke:#8c3a3a}
     .esxmas-reindeer{bottom:18vh;left:3vw;width:142px;animation-delay:-7s;transform:rotate(-4deg)}
@@ -134,7 +137,7 @@
     .esxmas-tree svg{width:100%;display:block;overflow:visible;stroke-linecap:round;stroke-linejoin:round}
     .esxmas-tree .tree-tier{fill:var(--esxmas-deep);stroke:var(--esxmas-green);stroke-width:2}.esxmas-tree .tree-trunk{fill:#855332;stroke:#b97842;stroke-width:2}.esxmas-tree .tree-star{fill:var(--esxmas-gold);stroke:#fff2b0;stroke-width:1.5;filter:drop-shadow(0 0 7px var(--esxmas-gold))}.esxmas-tree .tree-garland{fill:none;stroke:var(--esxmas-gold);stroke-width:2}.esxmas-tree .tree-lights{fill:none;stroke:var(--esxmas-ice);stroke-width:3;stroke-dasharray:1 9;filter:drop-shadow(0 0 4px var(--esxmas-ice))}.esxmas-tree .tree-baubles circle{stroke:#fff;stroke-width:1.2;filter:drop-shadow(0 0 4px currentColor)}.esxmas-tree .tree-baubles circle:nth-child(3n){fill:var(--esxmas-red);color:var(--esxmas-red)}.esxmas-tree .tree-baubles circle:nth-child(3n+1){fill:var(--esxmas-gold);color:var(--esxmas-gold)}.esxmas-tree .tree-baubles circle:nth-child(3n+2){fill:var(--esxmas-green);color:var(--esxmas-green)}
     @keyframes esxmas-drift{0%,100%{translate:0 0}50%{translate:0 12px}}
-    @media(max-width:700px){.esxmas-garland{height:26px}.esxmas-santa{top:calc(var(--nav-h,0px) + 38px);right:-10px;width:82px}.esxmas-reindeer{left:-24px;bottom:20vh;width:100px}.esxmas-tree{right:-17px;width:104px;bottom:0}.esxmas-brand-art{inset:-11px -12px}.esxmas-float{opacity:.72}}
+    @media(max-width:700px){.esxmas-garland{height:38px}.esxmas-santa{top:calc(var(--nav-h,0px) + 38px);right:-10px;width:82px}.esxmas-reindeer{left:-24px;bottom:20vh;width:100px}.esxmas-tree{right:-17px;width:104px;bottom:0}.esxmas-brand-art{inset:-11px -12px}.esxmas-float{opacity:.72}.esxmas-snow{opacity:.25}.esxmas-snow-b{display:none}}
     @media(prefers-reduced-motion:reduce){.esxmas-snow,.esxmas-float,.esxmas-lights circle,.esxmas-garland g{animation:none}.esxmas-snow{transform:none}}
   `;
   document.head.appendChild(style);
