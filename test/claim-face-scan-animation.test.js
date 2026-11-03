@@ -33,7 +33,7 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.doesNotMatch(loginScanner, /if \(enrollmentMode\) stopCaptureWatchdog\(\);/);
   assert.doesNotMatch(loginScanner, /flashEnrollmentCapture|fs-capture-flash|fsCaptureFlash/);
   assert.match(account, /try \{ return await import\('\/face-scan\.js'\);/);
-  assert.match(account, /capture = await claimModule\.captureFaceDescriptor\(\{[\s\S]*?requireLiveness: false,[\s\S]*?showCamera: false,[\s\S]*?samples: 2,[\s\S]*?timeoutMs: 120000,[\s\S]*?sampleIntervalMs: 600,[\s\S]*?verify: async \(descriptor, samples\) => \{[\s\S]*?postJSON\('\/api\/rewards\/daily-claim'/);
+  assert.match(account, /capture = await claimModule\.captureFaceDescriptor\(\{[\s\S]*?requireLiveness: false,[\s\S]*?showCamera: true,[\s\S]*?samples: 1,[\s\S]*?timeoutMs: 45000,[\s\S]*?sampleIntervalMs: 0,[\s\S]*?verify: async \(descriptor, samples\) => \{[\s\S]*?postJSON\('\/api\/rewards\/daily-claim'/);
   assert.match(loginScanner, /sampleIntervalMs = 0/);
   assert.match(loginScanner, /again\(safeTick, Math\.max\(0, Number\(sampleIntervalMs\) \|\| 0\)\)/);
   assert.equal((account.match(/postJSON\('\/api\/rewards\/daily-claim'/g) || []).length, 1);
