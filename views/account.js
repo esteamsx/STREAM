@@ -6014,8 +6014,8 @@ claimContinueBtn.addEventListener('click', async () => {
     claimModule = await loadClaimFaceModule();
     capture = await claimModule.captureFaceDescriptor({
       requireLiveness: false,
-      // Keep the live camera visible so the user can correct framing immediately.
-      showCamera: true,
+      // Keep the compact iOS-style Face ID presentation used by Login Face ID.
+      showCamera: false,
       voice: false,
       samples: 1,
       timeoutMs: 45000,
