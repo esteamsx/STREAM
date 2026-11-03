@@ -3043,6 +3043,9 @@ document.getElementById('notifList').addEventListener('click', async (e) => {
     btn.disabled = false;
   }
 });
+function isFaceScanActive(){
+  return document.documentElement.classList.contains('face-scan-active') || !!document.getElementById('faceScanOverlay');
+}
 async function loadNotifDot(){
   try {
     const data = await getJSON('/api/notifications/unread');
@@ -3120,9 +3123,9 @@ document.getElementById('notifMarkReadBtn').addEventListener('click', async () =
   btn.disabled = false;
 });
 loadNotifDot();
-setInterval(() => { if (!document.hidden) loadNotifDot(); }, 20000);
+setInterval(() => { if (!document.hidden && !isFaceScanActive()) loadNotifDot(); }, 20000);
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) loadNotifDot();
+  if (!document.hidden && !isFaceScanActive()) loadNotifDot();
 });
 
 function flashMsg(el, msg, ok){
@@ -4905,7 +4908,7 @@ async function openSupportChat(uid, title, isAdminView, verified, lastActiveAt, 
   document.getElementById('supportChatOverlay').classList.add('show');
   await loadSupportChatMessages(true);
   if (supportChatPollTimer) clearInterval(supportChatPollTimer);
-  supportChatPollTimer = setInterval(() => { if (!document.hidden) loadSupportChatMessages(false); }, 4000);
+  supportChatPollTimer = setInterval(() => { if (!document.hidden && !isFaceScanActive()) loadSupportChatMessages(false); }, 4000);
 }
 
 function closeSupportChat(){
@@ -5103,7 +5106,7 @@ async function finishVoiceRecording(){
 
 function initSupportFab(){
   refreshSupportUnread();
-  setInterval(() => { if (!document.hidden) refreshSupportUnread(); }, 20000);
+  setInterval(() => { if (!document.hidden && !isFaceScanActive()) refreshSupportUnread(); }, 20000);
   document.getElementById('supportFab').addEventListener('click', () => {
     if (profile.isAdmin) openSupportInbox();
     else openSupportChat(profile.uid, 'Customer Care', false);
@@ -5550,6 +5553,7 @@ async function autoVerifyCryptoDeposit(id, phase){
   }
 }
 function updateCryptoDepositCountdowns(){
+  if (isFaceScanActive()) return;
   const now = Date.now();
   document.querySelectorAll('[data-deposit-countdown]').forEach((el) => {
     const id = el.getAttribute('data-deposit-countdown');

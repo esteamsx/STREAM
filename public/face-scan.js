@@ -220,8 +220,7 @@ function ensureOverlayStyles() {
   style.textContent = `
 #${OVERLAY_ID}{position:fixed;inset:0;z-index:2000;background:rgba(5,5,8,.92);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px}
-#${OVERLAY_ID}.fs-account-mode{background:rgba(5,5,8,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
-#${OVERLAY_ID}.fs-account-mode.fs-top-mode{background:rgba(5,5,8,.72);justify-content:center;padding:24px;gap:18px}
+#${OVERLAY_ID}.fs-account-mode{background:rgba(5,5,8,.92)}
 #${OVERLAY_ID}.fs-account-mode .fs-frame{width:min(320px,82vw);height:min(420px,96vw)}
 #${OVERLAY_ID}.fs-enrollment-mode .fs-frame{width:min(320px,82vw);height:min(420px,96vw)}
 #${OVERLAY_ID} .fs-enrollment-steps{display:flex;align-items:center;justify-content:center;gap:12px;margin:2px 0 0}
@@ -237,10 +236,6 @@ function ensureOverlayStyles() {
 #${OVERLAY_ID} .fs-step.fs-complete .fs-step-check{display:block}
 #${OVERLAY_ID} .fs-step.fs-complete .fs-step-check-path{stroke-dashoffset:0}
 #${OVERLAY_ID} .fs-enrollment-mode .fs-status{max-width:310px}
-#${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-abstract{width:min(220px,58vw);height:min(220px,58vw)}
-#${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-abstract-face{width:104px;height:104px}
-#${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-abstract-cross{width:84px;height:84px}
-#${OVERLAY_ID}.fs-account-mode.fs-top-mode .fs-status{background:rgba(20,20,28,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:8px 16px;border-radius:16px;font-size:.88rem}
 #${OVERLAY_ID}.fs-top-mode{background:transparent;justify-content:flex-start;pointer-events:none;
   padding-top:max(28px,env(safe-area-inset-top));gap:10px}
 #${OVERLAY_ID}.fs-top-mode .fs-abstract,#${OVERLAY_ID}.fs-top-mode .fs-status,#${OVERLAY_ID}.fs-top-mode .fs-cancel{
@@ -355,6 +350,8 @@ function ensureOverlayStyles() {
 #${OVERLAY_ID} .fs-cancel{background:transparent;border:1px solid rgba(255,255,255,.2);
   color:rgba(255,255,255,.7);padding:8px 20px;border-radius:20px;font-size:.78rem;
   font-weight:600;cursor:pointer;font-family:inherit}
+html.face-scan-active body > *:not(#${OVERLAY_ID}),
+html.face-scan-active body > *:not(#${OVERLAY_ID}) *{animation-play-state:paused!important;transition:none!important}
 `;
   document.head.appendChild(style);
 }
@@ -447,6 +444,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
   }
 
   document.body.appendChild(overlay);
+  document.documentElement.classList.add('face-scan-active');
 
   const video = overlay.querySelector('video');
   const statusEl = overlay.querySelector('.fs-status');
@@ -495,6 +493,7 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
     if (stream) stream.getTracks().forEach((t) => t.stop());
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     lastSpoken = '';
+    document.documentElement.classList.remove('face-scan-active');
     overlay.remove();
   }
 

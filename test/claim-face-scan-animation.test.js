@@ -12,9 +12,9 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.match(loginScanner, /setStatus\('Now nod your head'\)/);
   assert.match(loginScanner, /setStatus\('Hold still'\)/);
   assert.match(loginScanner, /if \(stream\) stream\.getTracks\(\)\.forEach\(\(t\) => t\.stop\(\)\)/);
-  assert.match(loginScanner, /fs-account-mode\.fs-top-mode\{background:rgba\(5,5,8,\.72\);justify-content:center/);
-  assert.match(loginScanner, /fs-account-mode\.fs-top-mode \.fs-abstract\{width:min\(220px,58vw\)/);
-  assert.match(loginScanner, /backdrop-filter:blur\(18px\)/);
+  assert.doesNotMatch(loginScanner, /fs-account-mode\{background:rgba\(5,5,8,\.72\);backdrop-filter:blur\(18px\)/);
+  assert.doesNotMatch(loginScanner, /fs-account-mode\.fs-top-mode \.fs-status\{[^}]*backdrop-filter/);
+  assert.match(loginScanner, /html\.face-scan-active body > \*:not\(#\$\{OVERLAY_ID\}\)/);
   assert.match(loginScanner, /window\.location\.pathname === '\/account'/);
   assert.match(loginScanner, /const ENROLLMENT_TIMEOUT_MS = 180000/);
   assert.match(loginScanner, /const enrollmentMode = showCamera && requireLiveness && window\.location\.pathname === '\/account'/);
@@ -36,6 +36,9 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.match(loginScanner, /sampleIntervalMs = 0/);
   assert.match(loginScanner, /again\(safeTick, Math\.max\(0, Number\(sampleIntervalMs\) \|\| 0\)\)/);
   assert.equal((account.match(/postJSON\('\/api\/rewards\/daily-claim'/g) || []).length, 1);
+  assert.match(account, /function isFaceScanActive\(\)/);
+  assert.match(account, /!document\.hidden && !isFaceScanActive\(\)/);
+  assert.match(account, /if \(isFaceScanActive\(\)\) return;/);
   assert.match(account, /const claimWasRecordedToday = async \(\) =>/);
   assert.match(account, /latest\.lastDailyCoinClaimDay === new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);
   assert.match(account, /if \(await claimWasRecordedToday\(\)\) return \{ ok: true, alreadyClaimed: true \}/);
