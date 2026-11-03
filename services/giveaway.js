@@ -20,7 +20,6 @@ const CONFIG_REF = db.collection("giveaway_config").doc("current");
 const ENTRIES = db.collection("giveaway_entries");
 const HISTORY = db.collection("giveaway_history");
 
-const MAX_OPEN_MINUTES = 7 * 24 * 60;
 const MAX_DRAW_DELAY_MINUTES = 24 * 60;
 const STUCK_DRAW_MS = 2 * 60 * 1000;
 const SNAPSHOT_MAX_BYTES = 150 * 1024;
@@ -202,7 +201,7 @@ export async function startGiveaway({ title, prize, pin, openMinutes, drawDelayM
   const delay = Math.floor(Number(drawDelayMinutes) || 0);
   if (!cleanPrize) throw fail("Enter the prize, for example: ₦500 MTN airtime.");
   if (cleanPin.length < 4) throw fail("Enter the recharge card PIN.");
-  if (!Number.isFinite(open) || open < 1 || open > MAX_OPEN_MINUTES) throw fail("Entry time must be between 1 minute and 7 days.");
+  if (!Number.isSafeInteger(open) || open < 1) throw fail("Entry time must be at least 1 minute.");
   if (delay < 0 || delay > MAX_DRAW_DELAY_MINUTES) throw fail("Draw delay must be between 0 and 1440 minutes.");
 
   const now = Date.now();
