@@ -11,20 +11,33 @@
     ".tr-share-footer-brand", ".sc-brand-info .flist-title", "[aria-label*='ES TEAMS TV']"
   ];
 
-  const LIGHTS = '<path class="esxmas-light-wire" d="M5 15 C 34 2, 61 27, 91 14 S 151 3, 215 16"/><g class="esxmas-lights">' +
-    '<circle cx="16" cy="13" r="2.5"/><circle cx="37" cy="14" r="2.5"/><circle cx="60" cy="17" r="2.5"/><circle cx="83" cy="17" r="2.5"/><circle cx="106" cy="12" r="2.5"/><circle cx="130" cy="10" r="2.5"/><circle cx="153" cy="12" r="2.5"/><circle cx="177" cy="15" r="2.5"/><circle cx="201" cy="15" r="2.5"/></g>';
-  const BAUBLES = '<g class="esxmas-baubles"><path d="M27 32v-3"/><circle cx="27" cy="36" r="4"/><path d="M112 35v-3"/><circle cx="112" cy="39" r="4"/><path d="M190 30v-3"/><circle cx="190" cy="34" r="4"/></g>';
+  const LIGHTS = '<path class="esxmas-light-wire" d="M4 16 C 28 3, 51 29, 76 16 S 126 4, 153 16 S 190 29, 216 13"/><g class="esxmas-lights">' +
+    '<circle cx="12" cy="14" r="3.2"/><circle cx="30" cy="13" r="3.2"/><circle cx="49" cy="18" r="3.2"/><circle cx="69" cy="19" r="3.2"/><circle cx="91" cy="13" r="3.2"/><circle cx="111" cy="10" r="3.2"/><circle cx="132" cy="13" r="3.2"/><circle cx="153" cy="18" r="3.2"/><circle cx="174" cy="20" r="3.2"/><circle cx="195" cy="17" r="3.2"/><circle cx="211" cy="12" r="3.2"/></g>';
+  const BAUBLES = '<g class="esxmas-baubles"><path d="M23 30v-5"/><circle cx="23" cy="36" r="5"/><path d="M109 28v-5"/><circle cx="109" cy="35" r="5"/><path d="M191 28v-5"/><circle cx="191" cy="35" r="5"/></g>';
 
   function brandSvg() {
     return '<svg class="esxmas-brand-svg" viewBox="0 0 220 48" preserveAspectRatio="none" aria-hidden="true" focusable="false">' + LIGHTS + BAUBLES + '</svg>';
   }
 
   function santaSvg() {
-    return '<svg viewBox="0 0 96 96" aria-hidden="true" focusable="false"><path d="M26 45c1-17 12-28 29-28s28 11 29 28"/><path d="M24 45h62l-5 28H29z"/><path d="M30 30c8-8 25-12 39-4"/><path d="M35 57c5 7 20 9 28 0"/><circle cx="44" cy="45" r="2.5" fill="currentColor"/><circle cx="61" cy="45" r="2.5" fill="currentColor"/><path d="M47 52c4 3 8 3 12 0"/><path d="M28 22c9-10 24-11 36-4l-8 10c-8-4-17-3-25 1z" fill="currentColor"/><circle cx="64" cy="19" r="5" fill="currentColor"/><path d="M31 71c9 7 26 9 37 0"/></svg>';
+    return '<svg viewBox="0 0 128 132" aria-hidden="true" focusable="false"><path class="santa-hat" d="M33 37c8-21 31-31 57-20l18 8-22 13c-16-7-35-5-53 3z"/><circle class="santa-white" cx="105" cy="25" r="8"/><path class="santa-face" d="M29 52c2-18 16-29 37-29s35 11 37 29v29c-7 17-22 26-37 26S36 98 29 81z"/><path class="santa-trim" d="M29 55c18 8 54 8 74 0M35 87c12 13 39 17 57 0"/><circle class="santa-eye" cx="51" cy="59" r="3"/><circle class="santa-eye" cx="76" cy="59" r="3"/><path class="santa-beard" d="M38 70c8 11 19 17 29 17s21-6 29-17c-9 3-19 3-29 0-10 3-20 3-29 0z"/><circle class="santa-nose" cx="64" cy="69" r="4"/><path class="santa-smile" d="M56 78c5 4 11 4 16 0"/></svg>';
   }
 
   function reindeerSvg() {
-    return '<svg viewBox="0 0 120 86" aria-hidden="true" focusable="false"><path d="M25 55c0-18 14-29 33-29 15 0 22 7 28 17l18 3c8 1 12 7 10 13-2 6-10 8-17 5l-12-6-13 15H43c-8 0-18-7-18-18z"/><path d="M86 42l8-13m-8 14 15-8M50 26l-6-14m7 14 7-15"/><circle cx="88" cy="44" r="2" fill="currentColor"/><circle cx="103" cy="51" r="3.5" fill="#e84b5f"/><path d="M42 71l-4 11m30-11 4 11"/></svg>';
+    return '<svg viewBox="0 0 150 105" aria-hidden="true" focusable="false"><path d="M29 67c0-22 17-35 42-35 19 0 29 9 37 22l22 4c10 2 15 9 12 17-3 8-13 10-22 6l-15-8-17 18H51c-11 0-22-9-22-24z"/><path d="M105 49l10-21m-9 22 19-11M60 32l-8-18m9 18 9-20"/><circle class="deer-eye" cx="107" cy="52" r="3"/><circle class="deer-nose" cx="126" cy="59" r="5"/><path d="M52 90l-5 12m38-12 5 12"/></svg>';
+  }
+
+  function treeSvg() {
+    return '<svg viewBox="0 0 150 205" aria-hidden="true" focusable="false"><path class="tree-star" d="M75 7l6 18 19 1-15 12 5 19-15-10-15 10 5-19-15-12 19-1z"/><path class="tree-tier tree-tier-a" d="M75 31L43 80h18L31 123h25l-35 51h108l-35-51h25L89 80h18z"/><path class="tree-trunk" d="M65 174h20v25H65z"/><path class="tree-garland" d="M48 92c20 13 41 13 57 0M37 132c26 14 49 14 76 0M27 166c31 14 64 14 96 0"/><g class="tree-baubles"><circle cx="59" cy="78" r="5"/><circle cx="88" cy="75" r="5"/><circle cx="48" cy="121" r="5"/><circle cx="77" cy="112" r="5"/><circle cx="101" cy="126" r="5"/><circle cx="38" cy="158" r="5"/><circle cx="69" cy="150" r="5"/><circle cx="111" cy="161" r="5"/></g><path class="tree-lights" d="M47 102c18 9 38 9 58 0M38 145c25 11 52 11 76 0"/></svg>';
+  }
+
+  function garlandSvg() {
+    const bulbs = Array.from({ length: 21 }, (_, i) => {
+      const x = 2 + i * 5;
+      const y = 13 + Math.sin(i * 0.9) * 3;
+      return '<circle cx="' + x + '" cy="' + y.toFixed(1) + '" r="1.35"/>';
+    }).join("");
+    return '<svg viewBox="0 0 108 24" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M0 7c15 15 29-3 43 8s28 4 38 0 18 7 27-4"/><g>' + bulbs + '</g></svg>';
   }
 
   function buildLayer() {
@@ -32,9 +45,11 @@
     layer.id = "esChristmasLayer";
     layer.className = "esxmas-layer";
     layer.setAttribute("aria-hidden", "true");
-    layer.innerHTML = '<div class="esxmas-snow esxmas-snow-a"></div><div class="esxmas-snow esxmas-snow-b"></div>' +
+    layer.innerHTML = '<div class="esxmas-garland">' + garlandSvg() + '</div>' +
+      '<div class="esxmas-snow esxmas-snow-a"></div><div class="esxmas-snow esxmas-snow-b"></div>' +
       '<div class="esxmas-float esxmas-santa">' + santaSvg() + '</div>' +
-      '<div class="esxmas-float esxmas-reindeer">' + reindeerSvg() + '</div>';
+      '<div class="esxmas-float esxmas-reindeer">' + reindeerSvg() + '</div>' +
+      '<div class="esxmas-tree">' + treeSvg() + '</div>';
     document.body.appendChild(layer);
   }
 
@@ -55,38 +70,29 @@
     });
   }
 
-  function addSoundToggle() {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.id = "esChristmasSoundToggle";
-    button.className = "esxmas-sound-toggle";
-    button.setAttribute("aria-pressed", "false");
-    button.setAttribute("aria-label", "Play Santa greeting");
-    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 10v4h4l5 4V6l-5 4H4z"/><path d="M17 9c2 2 2 4 0 6"/><path d="M19.5 6.5c4 3.2 4 7.8 0 11"/></svg><span>Santa greeting</span>';
-    let muted = true;
-    const update = () => {
-      button.setAttribute("aria-pressed", String(!muted));
-      button.setAttribute("aria-label", muted ? "Play Santa greeting" : "Mute Santa greeting");
-      button.classList.toggle("is-playing", !muted);
-    };
-    button.addEventListener("click", () => {
-      muted = !muted;
-      if (!muted && "speechSynthesis" in window && "SpeechSynthesisUtterance" in window) {
+  function playDailyGreeting() {
+    if (window.location.pathname !== "/" || !("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) return;
+    const key = "esxmas-santa-greeting-date";
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      if (localStorage.getItem(key) === today) return;
+      localStorage.setItem(key, today);
+    } catch (_) {
+      return;
+    }
+    window.setTimeout(() => {
+      try {
         window.speechSynthesis.cancel();
         const greeting = new SpeechSynthesisUtterance("Ho ho ho!");
         greeting.lang = "en-US";
         greeting.pitch = 0.55;
         greeting.rate = 0.78;
         greeting.volume = 0.7;
-        greeting.onend = () => { muted = true; update(); };
         window.speechSynthesis.speak(greeting);
-      } else if (muted && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
+      } catch (_) {
+        // Browser autoplay policy may reject speech; never interrupt the page.
       }
-      update();
-    });
-    document.body.appendChild(button);
-    update();
+    }, 900);
   }
 
   function start() {
@@ -94,47 +100,42 @@
     document.body.classList.add("esxmas-active");
     buildLayer();
     decorateBrands();
-    addSoundToggle();
+    playDailyGreeting();
   }
 
   const style = document.createElement("style");
   style.textContent = `
-    :root{--esxmas-red:#e84b5f;--esxmas-green:#35c98b;--esxmas-gold:#ffd166;--esxmas-ice:#bfeeff}
+    :root{--esxmas-red:#e84b5f;--esxmas-green:#35c98b;--esxmas-deep:#0c5b4e;--esxmas-gold:#ffd166;--esxmas-ice:#d9f5ff}
     .esxmas-layer{position:fixed;inset:0;z-index:2;pointer-events:none;overflow:hidden;isolation:isolate}
-    .esxmas-snow{position:absolute;inset:-12vh -8vw;opacity:.45;will-change:transform;background-repeat:repeat;background-size:180px 180px;background-image:radial-gradient(circle at 12px 22px,rgba(255,255,255,.88) 0 1.4px,transparent 1.8px),radial-gradient(circle at 78px 86px,rgba(225,247,255,.75) 0 1.8px,transparent 2.2px),radial-gradient(circle at 142px 42px,rgba(255,255,255,.58) 0 1px,transparent 1.5px),radial-gradient(circle at 45px 150px,rgba(217,243,255,.7) 0 1.2px,transparent 1.8px);animation:esxmas-snowfall 20s linear infinite}
-    .esxmas-snow-b{opacity:.24;background-size:280px 280px;filter:blur(.35px);animation-duration:32s;animation-direction:reverse}
+    .esxmas-snow{position:absolute;inset:-12vh -8vw;opacity:.52;will-change:transform;background-repeat:repeat;background-size:180px 180px;background-image:radial-gradient(circle at 12px 22px,rgba(255,255,255,.95) 0 1.7px,transparent 2.1px),radial-gradient(circle at 78px 86px,rgba(225,247,255,.8) 0 2.1px,transparent 2.7px),radial-gradient(circle at 142px 42px,rgba(255,255,255,.7) 0 1.2px,transparent 1.8px),radial-gradient(circle at 45px 150px,rgba(217,243,255,.8) 0 1.4px,transparent 2px);animation:esxmas-snowfall 20s linear infinite}
+    .esxmas-snow-b{opacity:.28;background-size:280px 280px;filter:blur(.35px);animation-duration:32s;animation-direction:reverse}
     @keyframes esxmas-snowfall{from{transform:translate3d(-2vw,-10vh,0)}to{transform:translate3d(5vw,14vh,0)}}
-    .esxmas-brand{position:relative;isolation:isolate;filter:drop-shadow(0 0 7px rgba(232,75,95,.24))}
-    .esxmas-brand-art{position:absolute;z-index:0;inset:-11px -14px;pointer-events:none;overflow:visible;display:block}
+    .esxmas-garland{position:absolute;z-index:0;top:calc(var(--nav-h,0px) + env(safe-area-inset-top,0px));left:0;width:100%;height:34px;opacity:.96;filter:drop-shadow(0 0 6px rgba(255,209,102,.4))}
+    .esxmas-garland svg{width:100%;height:100%;display:block;overflow:visible;fill:none;stroke:rgba(255,255,255,.65);stroke-width:.55}
+    .esxmas-garland g{fill:var(--esxmas-gold);stroke:none;filter:drop-shadow(0 0 3px var(--esxmas-gold));animation:esxmas-twinkle 2.2s ease-in-out infinite}
+    .esxmas-garland g circle:nth-child(3n){fill:var(--esxmas-red)}.esxmas-garland g circle:nth-child(3n+1){fill:var(--esxmas-green)}
+    .esxmas-brand{position:relative;isolation:isolate;filter:drop-shadow(0 0 8px rgba(232,75,95,.4))}
+    .esxmas-brand-art{position:absolute;z-index:0;inset:-15px -18px;pointer-events:none;overflow:visible;display:block}
     .esxmas-brand> :not(.esxmas-brand-art){position:relative;z-index:1}
     .esxmas-brand-svg{width:100%;height:100%;overflow:visible;display:block}
-    .esxmas-light-wire{fill:none;stroke:rgba(255,255,255,.38);stroke-width:1.15;stroke-linecap:round}
-    .esxmas-lights circle{fill:var(--esxmas-gold);filter:drop-shadow(0 0 3px var(--esxmas-gold));animation:esxmas-twinkle 2.4s ease-in-out infinite}
-    .esxmas-lights circle:nth-child(3n){fill:var(--esxmas-red);filter:drop-shadow(0 0 3px var(--esxmas-red));animation-delay:-.8s}
-    .esxmas-lights circle:nth-child(3n+1){fill:var(--esxmas-green);filter:drop-shadow(0 0 3px var(--esxmas-green));animation-delay:-1.5s}
-    .esxmas-baubles path{stroke:rgba(255,255,255,.5);stroke-width:1}
-    .esxmas-baubles circle{fill:var(--esxmas-red);stroke:rgba(255,255,255,.65);stroke-width:1;filter:drop-shadow(0 0 3px rgba(232,75,95,.75))}
-    .esxmas-baubles circle:nth-of-type(2){fill:var(--esxmas-gold);filter:drop-shadow(0 0 3px rgba(255,209,102,.75))}
-    .esxmas-baubles circle:nth-of-type(3){fill:var(--esxmas-green);filter:drop-shadow(0 0 3px rgba(53,201,139,.75))}
-    @keyframes esxmas-twinkle{0%,100%{opacity:.65}50%{opacity:1}}
-    .esxmas-float{position:absolute;color:rgba(191,238,255,.28);filter:drop-shadow(0 0 12px rgba(191,238,255,.2));animation:esxmas-drift 16s ease-in-out infinite;opacity:.7}
-    .esxmas-float svg{width:100%;height:auto;display:block;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-    .esxmas-santa{top:16vh;right:5vw;width:74px;transform:rotate(7deg)}
-    .esxmas-santa svg{stroke:var(--esxmas-red)}
-    .esxmas-santa svg circle{fill:currentColor}
-    .esxmas-reindeer{bottom:18vh;left:4vw;width:96px;animation-delay:-7s;transform:rotate(-4deg)}
-    .esxmas-reindeer svg{stroke:var(--esxmas-gold)}
-    .esxmas-reindeer svg circle:first-of-type{fill:currentColor}.esxmas-reindeer svg circle:last-of-type{fill:var(--esxmas-red)}
+    .esxmas-light-wire{fill:none;stroke:rgba(255,255,255,.56);stroke-width:1.35;stroke-linecap:round}
+    .esxmas-lights circle{fill:var(--esxmas-gold);filter:drop-shadow(0 0 4px var(--esxmas-gold));animation:esxmas-twinkle 2.4s ease-in-out infinite}
+    .esxmas-lights circle:nth-child(3n){fill:var(--esxmas-red);filter:drop-shadow(0 0 4px var(--esxmas-red));animation-delay:-.8s}
+    .esxmas-lights circle:nth-child(3n+1){fill:var(--esxmas-green);filter:drop-shadow(0 0 4px var(--esxmas-green));animation-delay:-1.5s}
+    .esxmas-baubles path{stroke:rgba(255,255,255,.68);stroke-width:1.2}.esxmas-baubles circle{fill:var(--esxmas-red);stroke:rgba(255,255,255,.75);stroke-width:1.2;filter:drop-shadow(0 0 4px rgba(232,75,95,.85))}.esxmas-baubles circle:nth-of-type(2){fill:var(--esxmas-gold);filter:drop-shadow(0 0 4px rgba(255,209,102,.85))}.esxmas-baubles circle:nth-of-type(3){fill:var(--esxmas-green);filter:drop-shadow(0 0 4px rgba(53,201,139,.85))}
+    @keyframes esxmas-twinkle{0%,100%{opacity:.68}50%{opacity:1}}
+    .esxmas-float{position:absolute;animation:esxmas-drift 16s ease-in-out infinite;opacity:.92}
+    .esxmas-float svg{width:100%;height:auto;display:block;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 12px rgba(255,209,102,.35))}
+    .esxmas-santa{top:calc(var(--nav-h,0px) + 52px);right:5vw;width:116px;transform:rotate(6deg)}
+    .esxmas-santa svg{stroke:var(--esxmas-red)}.esxmas-santa .santa-face{fill:#f2b58f;stroke:var(--esxmas-red)}.esxmas-santa .santa-hat{fill:var(--esxmas-red);stroke:var(--esxmas-red)}.esxmas-santa .santa-white,.esxmas-santa .santa-trim,.esxmas-santa .santa-beard{fill:#fff;stroke:#fff}.esxmas-santa .santa-eye{fill:#251b2d;stroke:#251b2d}.esxmas-santa .santa-nose{fill:#e84b5f;stroke:#e84b5f}.esxmas-santa .santa-smile{fill:none;stroke:#8c3a3a}
+    .esxmas-reindeer{bottom:18vh;left:3vw;width:142px;animation-delay:-7s;transform:rotate(-4deg)}
+    .esxmas-reindeer svg{stroke:#b9763a}.esxmas-reindeer .deer-eye{fill:#211a1a;stroke:#211a1a}.esxmas-reindeer .deer-nose{fill:var(--esxmas-red);stroke:var(--esxmas-red);filter:drop-shadow(0 0 5px var(--esxmas-red))}
+    .esxmas-tree{position:absolute;right:4vw;bottom:-6px;width:156px;opacity:.96;filter:drop-shadow(0 0 16px rgba(53,201,139,.25))}
+    .esxmas-tree svg{width:100%;display:block;overflow:visible;stroke-linecap:round;stroke-linejoin:round}
+    .esxmas-tree .tree-tier{fill:var(--esxmas-deep);stroke:var(--esxmas-green);stroke-width:2}.esxmas-tree .tree-trunk{fill:#855332;stroke:#b97842;stroke-width:2}.esxmas-tree .tree-star{fill:var(--esxmas-gold);stroke:#fff2b0;stroke-width:1.5;filter:drop-shadow(0 0 7px var(--esxmas-gold))}.esxmas-tree .tree-garland{fill:none;stroke:var(--esxmas-gold);stroke-width:2}.esxmas-tree .tree-lights{fill:none;stroke:var(--esxmas-ice);stroke-width:3;stroke-dasharray:1 9;filter:drop-shadow(0 0 4px var(--esxmas-ice))}.esxmas-tree .tree-baubles circle{stroke:#fff;stroke-width:1.2;filter:drop-shadow(0 0 4px currentColor)}.esxmas-tree .tree-baubles circle:nth-child(3n){fill:var(--esxmas-red);color:var(--esxmas-red)}.esxmas-tree .tree-baubles circle:nth-child(3n+1){fill:var(--esxmas-gold);color:var(--esxmas-gold)}.esxmas-tree .tree-baubles circle:nth-child(3n+2){fill:var(--esxmas-green);color:var(--esxmas-green)}
     @keyframes esxmas-drift{0%,100%{translate:0 0}50%{translate:0 12px}}
-    .esxmas-sound-toggle{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:3;pointer-events:auto;display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid rgba(255,209,102,.36);border-radius:999px;background:rgba(18,18,28,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--esxmas-gold);font:600 .68rem var(--font-body);box-shadow:0 6px 20px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.13)}
-    .esxmas-sound-toggle:hover{border-color:var(--esxmas-gold);background:rgba(255,209,102,.12)}
-    .esxmas-sound-toggle:focus-visible{outline:2px solid var(--esxmas-gold);outline-offset:2px}
-    .esxmas-sound-toggle svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-    .esxmas-sound-toggle.is-playing{color:var(--esxmas-green);border-color:rgba(53,201,139,.45)}
-    :root[data-theme="light"] .esxmas-sound-toggle{background:rgba(255,255,255,.78);color:#9a6700}
-    @media(max-width:900px){.esxmas-sound-toggle{bottom:calc(68px + env(safe-area-inset-bottom,0px))}}
-    @media(max-width:560px){.esxmas-float{opacity:.42}.esxmas-santa{top:13vh;right:1vw;width:58px}.esxmas-reindeer{left:-12px;bottom:24vh;width:76px}.esxmas-sound-toggle{right:9px;padding:6px 8px}.esxmas-sound-toggle span{display:none}.esxmas-brand-art{inset:-9px -10px}}
-    @media(prefers-reduced-motion:reduce){.esxmas-snow,.esxmas-float,.esxmas-lights circle{animation:none}.esxmas-snow{transform:none}}
+    @media(max-width:700px){.esxmas-garland{height:26px}.esxmas-santa{top:calc(var(--nav-h,0px) + 38px);right:-10px;width:82px}.esxmas-reindeer{left:-24px;bottom:20vh;width:100px}.esxmas-tree{right:-17px;width:104px;bottom:0}.esxmas-brand-art{inset:-11px -12px}.esxmas-float{opacity:.72}}
+    @media(prefers-reduced-motion:reduce){.esxmas-snow,.esxmas-float,.esxmas-lights circle,.esxmas-garland g{animation:none}.esxmas-snow{transform:none}}
   `;
   document.head.appendChild(style);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
