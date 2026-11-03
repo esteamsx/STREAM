@@ -67,6 +67,10 @@ const POPUNDER_SKIP_PATHS = [
   "/admin",
 ];
 
+// Set to false after the Christmas season to disable the visual layer centrally.
+const SEASONAL_THEME_ENABLED = true;
+const SEASONAL_SKIP_PATHS = ["/api/", "/embed/", "/.well-known/"];
+
 const NATIVE_EXACT_PATHS = ["/", "/channel-react", "/developers"];
 const NATIVE_PREFIX_PATHS = ["/tools/"];
 
@@ -81,6 +85,7 @@ const POPUNDER_TAG = `<script nonce="__CSP_NONCE__" src="/popunder.js?v=${BUILD}
 const NATIVE_TAG = `<script nonce="__CSP_NONCE__" src="/native-banner.js?v=${BUILD}" defer></script>`;
 const THEME_TAG = `<script nonce="__CSP_NONCE__" src="/site-theme.js?v=${BUILD}"></script>`;
 const NAV_TAG = `<script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defer></script>`;
+const SEASONAL_TAG = `<script nonce="__CSP_NONCE__" src="/christmas-theme.js?v=${BUILD}" defer></script>`;
 
 function matches(path, list) {
   return list.some((entry) => (entry.endsWith("/") ? path.startsWith(entry) : path === entry || path.startsWith(entry + "/")));
@@ -95,7 +100,8 @@ export function injectPromoSlot(req, res, next) {
   const wantsSocial = !matches(req.path, SOCIAL_SKIP_PATHS);
   const wantsPopunder = !matches(req.path, POPUNDER_SKIP_PATHS);
   const wantsNative = wantsPopunder && (NATIVE_EXACT_PATHS.includes(req.path) || NATIVE_PREFIX_PATHS.some((p) => req.path.startsWith(p)));
-  if (!wantsAds && !wantsNav && !wantsPresence && !wantsSocial && !wantsRewards) return next();
+  const wantsSeasonal = SEASONAL_THEME_ENABLED && !matches(req.path, SEASONAL_SKIP_PATHS);
+  if (!wantsAds && !wantsNav && !wantsPresence && !wantsSocial && !wantsRewards && !wantsSeasonal) return next();
   const originalSend = res.send.bind(res);
   res.send = (body) => {
     if (typeof body === "string" && res.statusCode === 200) {
@@ -119,7 +125,8 @@ export function injectPromoSlot(req, res, next) {
             (wantsRewards ? WEEKLY_REWARDS_TAG : "") +
             (wantsSocial && adsOk ? SOCIAL_TAG : "") +
             (wantsPopunder && adsOk && body.indexOf("/popunder.js") === -1 ? POPUNDER_TAG : "") +
-            (wantsNative && adsOk && body.indexOf("/native-banner.js") === -1 ? NATIVE_TAG : "");
+            (wantsNative && adsOk && body.indexOf("/native-banner.js") === -1 ? NATIVE_TAG : "") +
+            (wantsSeasonal && body.indexOf("/christmas-theme.js") === -1 ? SEASONAL_TAG : "");
           body = body.slice(0, at) + tags + body.slice(at);
         }
       }
