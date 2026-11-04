@@ -3,6 +3,7 @@
 (function () {
   "use strict";
   var API = "/api/movies";
+  var CINEXORA = "https://cinexora.name.ng";
   var SORTS = [["RECOMMEND", "Recommended"], ["NEWEST", "Newest"], ["RATING", "Top rated"]];
   var TITLES = { movies: "Movies", "tv-series": "TV Series", animation: "Animation", "my-list": "My List" };
 
@@ -41,7 +42,65 @@
     film: '<rect x="3" y="3" width="18" height="18" rx="2.2"/><path d="M7 3v18M17 3v18M3 12h18M3 7h4M3 17h4M17 17h4M17 7h4"/>',
     warn: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/>',
   };
+  function directMovieApi(path) {
+    var parts = path.split("?");
+    var route = parts[0], query = new URLSearchParams(parts[1] || "");
+    var url, adapt;
+    function item(raw) {
+      raw = raw || {};
+      var id = String(raw.subjectId || raw.subject_id || raw.id || "").trim();
+      var detailPath = String(raw.detailPath || raw.detail_path || "").trim();
+      var slug = id ? id + "~" + detailPath : detailPath;
+      var cover = raw.cover && typeof raw.cover === "object" ? raw.cover.url : raw.cover;
+      return { id: id, slug: slug, title: String(raw.title || raw.name || "").trim(), poster: raw.poster || raw.posterUrl || cover || (raw.thumbnail && raw.thumbnail.url) || (raw.image && raw.image.url) || null, rating: Number(raw.imdbRatingValue || raw.rating) || null, year: String(raw.releaseDate || raw.year || "").match(/(19|20)\d{2}/)?.[0] || null, badge: null, kind: Number(raw.subjectType) === 2 ? "tv" : "movie", detailPath: detailPath };
+    }
+    function list(raw) { return (Array.isArray(raw) ? raw : []).map(item).filter(function (x) { return x.title && x.id; }); }
+    function result(body) { return body && body.results ? body.results : {}; }
+    function request(endpoint) {
+      return fetch(CINEXORA + endpoint, { headers: { Accept: "application/json" } }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          if (!res.ok || body.success === "false") { var e = new Error(body.message || "The movie service did not answer."); e.code = res.status === 404 ? "not_found" : res.status === 429 ? "rate_limited" : "upstream"; throw e; }
+          return body;
+        });
+      });
+    }
+    if (route === "/home") {
+      url = "/api/homepage";
+      adapt = function (body) {
+        var banner = [], rows = [];
+        (result(body).operatingList || []).forEach(function (section) {
+          var entries = section && section.type === "BANNER" ? (section.banner && section.banner.items) || section.items : section && (section.subjects || section.items);
+          var items = list(entries);
+          if (section && section.type === "BANNER") banner = banner.concat(items.filter(function (x) { return x.poster; }));
+          else if (items.length) rows.push({ title: String(section.title || section.name || "Movies"), kind: null, items: items });
+        });
+        if (!banner.length && rows.length) banner = rows[0].items.filter(function (x) { return x.poster; }).slice(0, 5);
+        return { banner: banner.slice(0, 8), rows: rows.slice(0, 12) };
+      };
+    } else if (route.indexOf("/catalog/") === 0) {
+      var kind = route.split("/")[2];
+      url = "/api/trending?page=" + encodeURIComponent(query.get("page") || "0") + "&perPage=24";
+      adapt = function (body) { var items = list(result(body).subjectList); if (kind === "tv-series") items = items.filter(function (x) { return x.kind === "tv"; }); else items = items.filter(function (x) { return x.kind !== "tv"; }); return { kind: kind, title: kind === "tv-series" ? "TV Series" : kind === "animation" ? "Animation" : "Movies", page: Number(query.get("page") || 1), items: items, total: items.length, hasMore: items.length >= 24 }; };
+    } else if (route === "/search") {
+      url = "/api/search/" + encodeURIComponent(query.get("q") || "") + "?page=" + encodeURIComponent(query.get("page") || "1") + "&perPage=24";
+      adapt = function (body) { var items = list(result(body).items); return { query: query.get("q") || "", page: Number(query.get("page") || 1), items: items, total: items.length, hasMore: items.length >= 24 }; };
+    } else if (route === "/suggest") {
+      url = "/api/search/" + encodeURIComponent(query.get("q") || "") + "?page=1&perPage=8";
+      adapt = function (body) { return { suggestions: list(result(body).items).slice(0, 8).map(function (x) { return { title: x.title, slug: x.slug, id: x.id }; }) }; };
+    } else if (route.indexOf("/detail/") === 0) {
+      var encoded = decodeURIComponent(route.slice(8)), detailParts = encoded.split("~"), subjectId = detailParts.shift(), detailPath = detailParts.join("~");
+      url = "/api/info/" + encodeURIComponent(subjectId) + (detailPath ? "?detailPath=" + encodeURIComponent(detailPath) : "");
+      adapt = function (body) { var r = result(body), s = r.subject || {}, d = item(Object.assign({}, s, { subjectId: s.subjectId || subjectId, detailPath: detailPath })); var seasons = (r.resource && r.resource.seasons || []).map(function (x, i) { return { season: Number(x.se || x.season) || i + 1, episodes: Number(x.maxEp || x.episodes) || 0 }; }).filter(function (x) { return x.episodes > 0; }); return Object.assign(d, { description: s.description || s.overview || null, backdrop: ((s.stills && s.stills.url) || (Array.isArray(s.stills) && s.stills[0] && s.stills[0].url) || null), genres: (Array.isArray(s.genres) ? s.genres : String(s.genre || "").split(/[,/|]/)).map(function (x) { return typeof x === "object" ? x.name : x; }).filter(Boolean), country: s.countryName || s.country || null, minutes: Number(s.duration) > 0 ? Math.round(Number(s.duration) > 600 ? Number(s.duration) / 60 : Number(s.duration)) : null, seasons: seasons, cast: (r.stars || []).map(function (x) { return { name: x.name || x.staffName, role: x.character || x.role || null, photo: x.avatarUrl || null }; }).filter(function (x) { return x.name; }) }); };
+    } else if (route.indexOf("/streams/") === 0) {
+      var streamId = decodeURIComponent(route.slice(9)), streamParts = streamId.split("~"), sid = streamParts.shift(), sdetail = streamParts.join("~") || query.get("slug") || "";
+      url = "/api/sources/" + encodeURIComponent(sid); if (sdetail) url += "?detailPath=" + encodeURIComponent(sdetail); if (query.get("se")) url += (url.indexOf("?") >= 0 ? "&" : "?") + "season=" + encodeURIComponent(query.get("se")); if (query.get("ep")) url += "&episode=" + encodeURIComponent(query.get("ep"));
+      adapt = function (body) { return { sources: (result(body).processedSources || []).map(function (x) { var q = String(x.quality || "").replace(/p$/i, ""); return { resolution: q ? q + "p" : null, format: "MP4", size: Number(x.size) || null, downloadUrl: x.proxyUrl || null, streamUrl: x.streamUrl || null, available: !!x.proxyUrl, premium: false }; }).filter(function (x) { return x.downloadUrl; }) }; };
+    }
+    if (!url || !adapt) return Promise.reject(new Error("Unknown movie API request."));
+    return request(url).then(adapt);
+  }
   function api(path, options) {
+    if (path.indexOf("/watch-later") !== 0) return directMovieApi(path);
     options = options || {};
     options.credentials = "same-origin";
     options.headers = Object.assign({ Accept: "application/json" }, options.headers || {});
@@ -128,7 +187,7 @@
     var poster = el("div", { class: "mv-poster" });
     var fallback = el("div", { class: "mv-noimg", text: item.title });
     if (item.poster) {
-      var img = el("img", { alt: item.title, loading: "lazy", decoding: "async", referrerpolicy: "no-referrer" });
+      var img = el("img", { alt: item.title, loading: "lazy", decoding: "async" });
       img.addEventListener("load", function () { poster.classList.add("loaded"); });
       img.addEventListener("error", function () { poster.classList.add("broken"); });
       img.src = item.poster;
@@ -422,7 +481,7 @@
     els.detail.textContent = "";
     var back = el("button", { type: "button", class: "mv-back", id: "mvBack", onclick: function () { if (inApp) history.back(); else go("/movies"); } }, [svg(ICON.left, 16), "Back"]);
     var posterBox = el("div", { class: "mv-detail-poster" });
-    if (d.poster) posterBox.appendChild(el("img", { src: d.poster, alt: d.title, referrerpolicy: "no-referrer", decoding: "async" }));
+    if (d.poster) posterBox.appendChild(el("img", { src: d.poster, alt: d.title, decoding: "async" }));
     var chips = el("div", { class: "mv-chips" });
     chips.appendChild(el("span", { class: "mv-chip kind", text: d.kind === "tv" ? "TV Series" : "Movie" }));
     if (d.rating) chips.appendChild(el("span", { class: "mv-chip star", text: "\u2605 " + d.rating.toFixed(1) }));
@@ -437,7 +496,7 @@
     if (d.seasons && d.seasons.length) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Seasons" }), el("div", { class: "mv-seasons" }, d.seasons.map(function (s) { return el("div", { class: "mv-season" }, [el("b", { text: "Season " + s.season }), el("span", { text: s.episodes + (s.episodes === 1 ? " episode" : " episodes") })]); }))]));
     if (d.cast && d.cast.length) inner.appendChild(el("div", { class: "mv-section" }, [el("h3", { text: "Cast" }), el("div", { class: "mv-cast" }, d.cast.map(function (p) {
       var photo = el("div", { class: "mv-person-photo" });
-      if (p.photo) { var im = el("img", { alt: "", referrerpolicy: "no-referrer", loading: "lazy" }); im.addEventListener("error", function () { im.remove(); photo.textContent = p.name.charAt(0); }); im.src = p.photo; photo.appendChild(im); } else photo.textContent = p.name.charAt(0);
+      if (p.photo) { var im = el("img", { alt: "", loading: "lazy" }); im.addEventListener("error", function () { im.remove(); photo.textContent = p.name.charAt(0); }); im.src = p.photo; photo.appendChild(im); } else photo.textContent = p.name.charAt(0);
       return el("div", { class: "mv-person" }, [photo, el("b", { text: p.name }), p.role ? el("span", { text: p.role }) : null]);
     }))]));
     var wrap = el("div", { class: "mv-detail" }, []);
