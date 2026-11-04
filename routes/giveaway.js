@@ -5,6 +5,7 @@ import {
   getPublicStatus,
   enterGiveaway,
   startGiveaway,
+  editGiveaway,
   closeEntriesNow,
   pickWinnerNow,
   cancelGiveaway,
@@ -83,6 +84,14 @@ export function createGiveawayRouter({ verifyCaptcha }) {
       res.json(await startGiveaway(req.body || {}));
     } catch (err) {
       fail(res, err, "Could not start the giveaway.");
+    }
+  });
+
+  router.post("/api/admin/giveaway/edit", requireAuth, requireAdmin, requireSiteOrigin, async (req, res) => {
+    try {
+      res.json(await editGiveaway(req.body || {}));
+    } catch (err) {
+      fail(res, err, "Could not edit the giveaway.");
     }
   });
 

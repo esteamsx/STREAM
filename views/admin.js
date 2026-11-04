@@ -1765,6 +1765,7 @@ let gvLastWinnerId = null;
 let gvFirstLoad = true;
 let gvDrawPokedFor = '';
 const GV_INPUT = 'width:100%;margin-bottom:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit';
+const GV_PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>';
 
 let gvLastLoad = 0;
 document.getElementById('giveawayHeader').addEventListener('click', () => {
@@ -1796,8 +1797,11 @@ function gvFormHtml(){
 
 function gvActiveHtml(c){
   const pill = c.status === 'drawing' ? 'Drawing...' : (c.phase === 'open' ? 'Open' : 'Waiting for draw');
+  const editButton = c.status === 'open' && c.phase === 'open'
+    ? '<button type="button" class="cs-icon" id="gvEditBtn" aria-label="Edit giveaway" title="Edit giveaway">' + GV_PENCIL + '</button>'
+    : '';
   return '<div class="withdrawal-item" style="margin-bottom:10px">' +
-    '<div class="withdrawal-item-head"><div class="withdrawal-item-amount" style="font-size:.95rem">' + esc(c.title) + '</div><span class="status-pill">' + pill + '</span></div>' +
+    '<div class="withdrawal-item-head"><div class="withdrawal-item-amount" style="font-size:.95rem">' + esc(c.title) + '</div><span style="display:flex;align-items:center;gap:7px">' + editButton + '<span class="status-pill">' + pill + '</span></span></div>' +
     '<div class="withdrawal-item-meta">Prize: ' + esc(c.prize) + '</div>' +
     '<div class="withdrawal-item-meta">PIN: <b>' + esc(c.pin) + '</b></div>' +
     '<div class="withdrawal-item-meta">Entries: <b id="gvEntries">' + c.entriesCount + '</b></div>' +
@@ -1805,6 +1809,13 @@ function gvActiveHtml(c){
     '<div class="withdrawal-item-meta">Winner picked in: <b id="gvLeftDraw"></b></div>' +
   '</div>' +
   '<div class="ad-modal-msg" id="gvMsg"></div>' +
+  '<div id="gvEditForm" style="display:none;border:1px solid var(--border);border-radius:11px;padding:10px;margin-bottom:10px">' +
+    '<div style="font-size:.74rem;color:var(--muted);margin-bottom:7px">Edit entry closing time, winner time and airtime PIN</div>' +
+    '<input type="text" id="gvEditPinIn" maxlength="60" autocomplete="off" style="' + GV_INPUT + '" placeholder="Recharge card PIN" value="' + esc(c.pin) + '">' +
+    '<button type="button" class="ad-modal-btn ghost" id="gvEditCloseAtBtn" style="width:100%;margin-bottom:8px"></button>' +
+    '<button type="button" class="ad-modal-btn ghost" id="gvEditDrawAtBtn" style="width:100%;margin-bottom:8px"></button>' +
+    '<div style="display:flex;gap:8px"><button type="button" class="ad-modal-btn primary" id="gvEditSaveBtn" style="flex:1">Save changes</button><button type="button" class="ad-modal-btn ghost" id="gvEditCancelBtn" style="flex:1">Cancel</button></div>' +
+  '</div>' +
   '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
     (c.phase === 'open' ? '<button type="button" class="ad-modal-btn ghost" id="gvCloseBtn" style="flex:1">End entries now</button>' : '') +
     '<button type="button" class="ad-modal-btn primary" id="gvDrawBtn" style="flex:1">Pick winner now</button>' +
@@ -1819,10 +1830,10 @@ function gvSetMsg(text){
   el.className = 'ad-modal-msg' + (text ? ' err' : '');
 }
 
-async function gvRun(btn, fn){
+async function gvRun(btn, fn, rolling){
   const original = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Please wait...';
+  btn.innerHTML = rolling ? '<span class="btn-spinner"></span>Please wait...' : 'Please wait...';
   try {
     gvApply(await fn());
   } catch (err) {
@@ -1834,6 +1845,8 @@ async function gvRun(btn, fn){
 
 let gvCloseAt = null;
 let gvDrawAt = null;
+let gvEditCloseAt = null;
+let gvEditDrawAt = null;
 
 function gvTimeLabel(ts, empty){
   return ts ? new Date(ts).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : empty;
@@ -1846,16 +1859,27 @@ function gvRefreshTimeButtons(){
   if (b) b.textContent = gvTimeLabel(gvDrawAt, 'Same time as closing (tap to change)');
 }
 
+function gvRefreshEditTimeButtons(){
+  const a = document.getElementById('gvEditCloseAtBtn');
+  const b = document.getElementById('gvEditDrawAtBtn');
+  if (a) a.textContent = gvTimeLabel(gvEditCloseAt, 'Tap to set the closing time');
+  if (b) b.textContent = gvTimeLabel(gvEditDrawAt, 'Same time as closing (tap to change)');
+}
+
 function gvOpenClock(mode){
-  if (mode === 'giveawayDraw' && !gvCloseAt) { gvSetMsg('Set the closing time first.'); return; }
+  if ((mode === 'giveawayDraw' && !gvCloseAt) || (mode === 'giveawayEditDraw' && !gvEditCloseAt)) { gvSetMsg('Set the closing time first.'); return; }
   gvSetMsg('');
   mtMode = mode;
-  document.getElementById('mtModalTitle').textContent = mode === 'giveawayClose' ? 'Giveaway closing time' : 'Pick the winner at';
-  document.getElementById('mtModalSub').textContent = mode === 'giveawayClose'
+  const isEdit = mode === 'giveawayEditClose' || mode === 'giveawayEditDraw';
+  const isClose = mode === 'giveawayClose' || mode === 'giveawayEditClose';
+  document.getElementById('mtModalTitle').textContent = isClose ? 'Giveaway closing time' : 'Pick the winner at';
+  document.getElementById('mtModalSub').textContent = isClose
     ? 'Drag the hands to set the time the giveaway page should close, then pick the date.'
     : 'Drag the hands to set when the winner is picked, then pick the date.';
   document.getElementById('mtPageFieldWrap').style.display = 'none';
-  const base = new Date(mode === 'giveawayDraw' ? (gvDrawAt || gvCloseAt) : (gvCloseAt || Date.now() + 3600000));
+  const base = new Date(isEdit
+    ? (isClose ? (gvEditCloseAt || Date.now() + 3600000) : (gvEditDrawAt || gvEditCloseAt))
+    : (mode === 'giveawayDraw' ? (gvDrawAt || gvCloseAt) : (gvCloseAt || Date.now() + 3600000)));
   const now = new Date();
   mtHour = base.getHours();
   mtMinute = base.getMinutes();
@@ -1894,6 +1918,33 @@ function gvRenderControls(){
     return;
   }
   gvBodyEl.innerHTML = gvActiveHtml(c);
+  gvEditCloseAt = c.endsAt;
+  gvEditDrawAt = c.drawAt || c.endsAt;
+  gvRefreshEditTimeButtons();
+  const editBtn = document.getElementById('gvEditBtn');
+  if (editBtn) editBtn.addEventListener('click', function(){
+    document.getElementById('gvEditForm').style.display = '';
+    gvEditCloseAt = c.endsAt;
+    gvEditDrawAt = c.drawAt || c.endsAt;
+    gvRefreshEditTimeButtons();
+  });
+  const editCloseBtn = document.getElementById('gvEditCloseAtBtn');
+  const editDrawBtn = document.getElementById('gvEditDrawAtBtn');
+  const editCancelBtn = document.getElementById('gvEditCancelBtn');
+  const editSaveBtn = document.getElementById('gvEditSaveBtn');
+  if (editCloseBtn) editCloseBtn.addEventListener('click', () => gvOpenClock('giveawayEditClose'));
+  if (editDrawBtn) editDrawBtn.addEventListener('click', () => gvOpenClock('giveawayEditDraw'));
+  if (editCancelBtn) editCancelBtn.addEventListener('click', () => { document.getElementById('gvEditForm').style.display = 'none'; });
+  if (editSaveBtn) editSaveBtn.addEventListener('click', function(){
+    const now = Date.now();
+    if (!gvEditCloseAt || gvEditCloseAt - now < 60000) { gvSetMsg('Set a closing time at least a minute from now.'); return; }
+    if (!gvEditDrawAt || gvEditDrawAt < gvEditCloseAt) { gvSetMsg('Pick a winner time at or after the closing time.'); return; }
+    gvRun(this, () => postJSON('/api/admin/giveaway/edit', {
+      pin: document.getElementById('gvEditPinIn').value,
+      endsAt: gvEditCloseAt,
+      drawAt: gvEditDrawAt,
+    }).then((state) => { gvRenderKey = ''; return state; }), true);
+  });
   const closeBtn = document.getElementById('gvCloseBtn');
   if (closeBtn) closeBtn.addEventListener('click', function(){ gvRun(this, () => postJSON('/api/admin/giveaway/close', {})); });
   document.getElementById('gvDrawBtn').addEventListener('click', function(){
@@ -3839,20 +3890,28 @@ document.getElementById('maintenanceSetBtn').addEventListener('click', async () 
     maintenanceMsg.textContent = 'Pick a time at least a minute from now.';
     return;
   }
-  if (mtMode === 'giveawayClose' || mtMode === 'giveawayDraw') {
-    if (mtMode === 'giveawayClose') {
-      gvCloseAt = target.getTime();
-      if (gvDrawAt && gvDrawAt < gvCloseAt) gvDrawAt = null;
+  if (mtMode === 'giveawayClose' || mtMode === 'giveawayDraw' || mtMode === 'giveawayEditClose' || mtMode === 'giveawayEditDraw') {
+    const editing = mtMode === 'giveawayEditClose' || mtMode === 'giveawayEditDraw';
+    const closing = mtMode === 'giveawayClose' || mtMode === 'giveawayEditClose';
+    if (closing) {
+      if (editing) gvEditCloseAt = target.getTime();
+      else gvCloseAt = target.getTime();
+      if (editing) {
+        if (gvEditDrawAt && gvEditDrawAt < gvEditCloseAt) gvEditDrawAt = null;
+      } else if (gvDrawAt && gvDrawAt < gvCloseAt) gvDrawAt = null;
     } else {
-      if (target.getTime() < gvCloseAt) {
+      const closeAt = editing ? gvEditCloseAt : gvCloseAt;
+      if (target.getTime() < closeAt) {
         maintenanceMsg.className = 'ad-modal-msg err';
         maintenanceMsg.textContent = 'Pick a time after the giveaway closes.';
         return;
       }
-      gvDrawAt = target.getTime();
+      if (editing) gvEditDrawAt = target.getTime();
+      else gvDrawAt = target.getTime();
     }
     maintenanceOverlay.classList.remove('show');
-    gvRefreshTimeButtons();
+    if (editing) gvRefreshEditTimeButtons();
+    else gvRefreshTimeButtons();
     return;
   }
   if (mtMode === 'pageLock') {

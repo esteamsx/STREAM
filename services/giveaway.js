@@ -232,6 +232,39 @@ export async function startGiveaway({ title, prize, pin, openMinutes, drawDelayM
   return getAdminState();
 }
 
+export async function editGiveaway({ pin, endsAt, drawAt }) {
+  const cleanPin = cleanText(pin, 60);
+  const nextEndsAt = Math.floor(Number(endsAt));
+  const nextDrawAt = Math.floor(Number(drawAt));
+  const now = Date.now();
+  if (cleanPin.length < 4) throw fail("Enter the recharge card PIN.");
+  if (!Number.isSafeInteger(nextEndsAt) || nextEndsAt - now < 60000) {
+    throw fail("Pick an entry closing time at least a minute from now.");
+  }
+  if (!Number.isSafeInteger(nextDrawAt) || nextDrawAt < nextEndsAt) {
+    throw fail("Pick a winner time at or after the entry closing time.");
+  }
+  const drawDelayMinutes = Math.floor((nextDrawAt - nextEndsAt) / 60000);
+  if (drawDelayMinutes < 0 || drawDelayMinutes > MAX_DRAW_DELAY_MINUTES) {
+    throw fail("Draw delay must be between 0 and 1440 minutes.");
+  }
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(CONFIG_REF);
+    const current = snap.exists ? snap.data() : null;
+    if (!current || current.status !== "open") throw fail("Only an open giveaway can be edited.", 409);
+    if (Date.now() >= Number(current.endsAt || 0)) throw fail("Entries have already closed. The giveaway can no longer be edited.", 409);
+    tx.update(CONFIG_REF, {
+      pin: cleanPin,
+      endsAt: nextEndsAt,
+      drawAt: nextDrawAt,
+      drawDelayMinutes,
+    });
+  });
+  invalidateConfig();
+  return getAdminState();
+}
+
 export async function closeEntriesNow() {
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(CONFIG_REF);
