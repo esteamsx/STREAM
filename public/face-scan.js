@@ -623,6 +623,10 @@ export function captureFaceDescriptor({ requireLiveness = true, showCamera = tru
             return;
           }
 
+          // Face capture is complete. The server may need time to verify the
+          // descriptor and persist the claim, so the capture watchdog must not
+          // turn a successful claim into a misleading stalled-face error.
+          stopCaptureWatchdog();
           setStatus('Verifying…');
           try {
             const outcome = await verify(descriptor, collected);

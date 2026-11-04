@@ -5899,6 +5899,16 @@ function setClaimState(state){
   }
 }
 
+function showDailyClaimSuccess(amount){
+  const successMessage = 'You have successfully claimed daily coins';
+  showToast(successMessage);
+  flashMsg(
+    document.getElementById('rwDailyClaimMsg'),
+    Number.isFinite(Number(amount)) ? ('+' + amount + ' coins claimed!') : successMessage,
+    true
+  );
+}
+
 document.getElementById('rwClaimGoFaceIdBtn').addEventListener('click', () => {
   closeRwOverlay(rwClaimOverlay);
   showAccount();
@@ -6034,7 +6044,7 @@ claimContinueBtn.addEventListener('click', async () => {
             altcha: claimCaptchaValue,
             faceDescriptor,
             paymentReference: paidRef,
-          });
+          }, 30000);
         } catch (claimError) {
           if (await claimWasRecordedToday()) return { ok: true, alreadyClaimed: true };
           throw claimError;
@@ -6047,8 +6057,7 @@ claimContinueBtn.addEventListener('click', async () => {
     if (await claimWasRecordedToday()) {
       closeRwOverlay(rwClaimOverlay);
       await loadRewardsSummary();
-      showToast('Your daily coins were already claimed today');
-      flashMsg(document.getElementById('rwDailyClaimMsg'), 'Today’s claim is recorded and your balance has been refreshed.', true);
+      showDailyClaimSuccess();
       return;
     }
     if (/Face Id not Set/i.test(err.message || '')) setClaimState('nofaceid');
@@ -6061,15 +6070,13 @@ claimContinueBtn.addEventListener('click', async () => {
     if (result && result.alreadyClaimed) {
       closeRwOverlay(rwClaimOverlay);
       await loadRewardsSummary();
-      showToast('Your daily coins were already claimed today');
-      flashMsg(document.getElementById('rwDailyClaimMsg'), 'Today’s claim is recorded and your balance has been refreshed.', true);
+      showDailyClaimSuccess();
       return;
     }
     if (rewardsSummary) rewardsSummary.claimCreditRef = null;
     closeRwOverlay(rwClaimOverlay);
     try { claimModule.playCoinSound(); } catch (e) {}
-    showToast('You have successfully claimed daily coins');
-    flashMsg(document.getElementById('rwDailyClaimMsg'), '+' + result.amount + ' coins claimed!', true);
+    showDailyClaimSuccess(result && result.amount);
     await loadRewardsSummary();
   } catch (err) {
     if (/Face Id not Set/i.test(err.message || '')) setClaimState('nofaceid');

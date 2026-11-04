@@ -28,6 +28,7 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.match(loginScanner, /const result = await runDetect\(true, true\)/);
   assert.match(loginScanner, /const descriptorResult = await runDetect\(true, true\)/);
   assert.match(loginScanner, /function stopCaptureWatchdog\(\)/);
+  assert.match(loginScanner, /stopCaptureWatchdog\(\);\n          setStatus\('Verifying…'\)/);
   assert.match(loginScanner, /if \(elapsed > captureTimeout\)/);
   assert.doesNotMatch(loginScanner, /if \(enrollmentMode\) stopCaptureWatchdog\(\);/);
   assert.doesNotMatch(loginScanner, /flashEnrollmentCapture|fs-capture-flash|fsCaptureFlash/);
@@ -42,6 +43,10 @@ test("daily coin face check reuses Login Face ID without a duplicate scanner mod
   assert.match(account, /const claimWasRecordedToday = async \(\) =>/);
   assert.match(account, /latest\.lastDailyCoinClaimDay === new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);
   assert.match(account, /if \(await claimWasRecordedToday\(\)\) return \{ ok: true, alreadyClaimed: true \}/);
+  assert.match(account, /function showDailyClaimSuccess\(amount\)/);
+  assert.match(account, /const successMessage = 'You have successfully claimed daily coins'/);
+  assert.match(account, /\}, 30000\);/);
+  assert.doesNotMatch(account, /Today.s claim is recorded/);
   assert.doesNotMatch(account, /import\('\/face-scan\.js\?v=\$\{ASSET_VERSION\}/);
   assert.doesNotMatch(account, /claimModule\.captureClaimFace\(\)/);
   assert.doesNotMatch(account, /import\('\/claim-face\.js/);
