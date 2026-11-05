@@ -10,9 +10,14 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
     const expectedOrigin = "https://esteamstv.devs.surf";
     const origin = req.get("origin");
     if (origin === expectedOrigin) return next();
+    const referer = req.get("referer");
     let refererOrigin = "";
-    try { refererOrigin = new URL(req.get("referer") || "").origin; } catch {}
-    if (!origin && req.get("sec-fetch-site") === "same-origin" && refererOrigin === expectedOrigin) return next();
+    try { refererOrigin = new URL(referer || "").origin; } catch {}
+    const requestHost = String(req.get("host") || "").toLowerCase().replace(/:443$/, "");
+    const sameSiteBrowserRequest = !origin && req.get("sec-fetch-site") === "same-origin"
+      && requestHost === new URL(expectedOrigin).host
+      && (!referer || refererOrigin === expectedOrigin);
+    if (sameSiteBrowserRequest) return next();
     return res.status(403).json({ error: "This movie service is available only from ES Teams TV.", code: "site_origin_required" });
   };
 

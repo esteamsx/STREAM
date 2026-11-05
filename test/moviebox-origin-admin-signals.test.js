@@ -34,7 +34,15 @@ test("Stream movie API rejects off-site origins and accepts same-origin browser 
   assert.deepEqual(invoke({ origin: "https://attacker.example" }), { allowed: false, status: 403 });
   assert.deepEqual(invoke({}), { allowed: false, status: 403 });
   assert.deepEqual(invoke({ origin: "https://esteamstv.devs.surf" }), { allowed: true, status: 200 });
-  assert.deepEqual(invoke({ referer: "https://esteamstv.devs.surf/movies", "sec-fetch-site": "same-origin" }), { allowed: true, status: 200 });
+  assert.deepEqual(invoke({ host: "esteamstv.devs.surf", referer: "https://esteamstv.devs.surf/movies", "sec-fetch-site": "same-origin" }), { allowed: true, status: 200 });
+  assert.deepEqual(invoke({ host: "esteamstv.devs.surf", "sec-fetch-site": "same-origin" }), { allowed: true, status: 200 });
+});
+
+test("movie search keeps a full-title search action available when suggestions are empty or unavailable", () => {
+  const page = read("../public/movies/movies.js");
+  assert.match(page, /function showSearchFallback\(q\)[\s\S]*?Search all titles for/);
+  assert.match(page, /if \(!suggestions\.length\) \{ showSearchFallback\(q\); return; \}/);
+  assert.match(page, /if \(n !== sugToken \|\| els\.input\.value\.trim\(\) !== q\) return;\s*showSearchFallback\(q\);/);
 });
 
 test("weekly activity signals display in a bounded three-column scroll area", () => {

@@ -508,6 +508,11 @@
     els.suggest.appendChild(el("div", { class: "cx-loading" }, [el("span", { class: "cx-dots" }, [el("span"), el("span"), el("span")]), "Searching"]));
     els.suggest.classList.add("open");
   }
+  function showSearchFallback(q) {
+    els.suggest.textContent = "";
+    els.suggest.appendChild(el("button", { type: "button", role: "option", text: 'Search all titles for "' + q + '"', onclick: runSearch }));
+    els.suggest.classList.add("open");
+  }
   var sugTimer = null, sugToken = 0, sugCur = -1;
   function runSearch() {
     var q = els.input.value.trim();
@@ -535,11 +540,16 @@
         if (n !== sugToken || els.input.value.trim() !== q) return;
         els.suggest.textContent = "";
         sugCur = -1;
-        (d.suggestions || []).forEach(function (s) {
+        var suggestions = d.suggestions || [];
+        if (!suggestions.length) { showSearchFallback(q); return; }
+        suggestions.forEach(function (s) {
           els.suggest.appendChild(el("button", { type: "button", role: "option", text: s.title, onclick: function () { closeSuggest(); els.input.blur(); els.nav.classList.remove("searching"); go(detailUrl(s.slug)); } }));
         });
-        els.suggest.classList.toggle("open", els.suggest.children.length > 0);
-      }, closeSuggest);
+        els.suggest.classList.add("open");
+      }, function () {
+        if (n !== sugToken || els.input.value.trim() !== q) return;
+        showSearchFallback(q);
+      });
     }, 220);
   });
   els.input.addEventListener("keydown", function (e) {
