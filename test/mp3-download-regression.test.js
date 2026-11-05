@@ -9,7 +9,9 @@ const proxy = readFileSync(new URL("../services/download-proxy.js", import.meta.
 const avMux = readFileSync(new URL("../services/av-mux.js", import.meta.url), "utf8");
 
 test("MP3 downloads preserve a direct audio fallback and normalize chunked provider streams", () => {
-  assert.match(silvatech, /directAudioUrl: result\.direct_audio_url \|\| null/);
+  assert.match(silvatech, /directAudioUrl: details\.direct_audio_url/);
+  assert.match(silvatech, /callSilvatech\("audio", videoUrl\)/);
+  assert.match(silvatech, /result\.download_url \|\| result\.downloadUrl/);
   assert.match(song, /audioFallbackUrl: result\.directAudioUrl \|\| null/);
   assert.match(route, /audioFallbackUrl: song\.audioFallbackUrl \|\| null/);
   assert.match(proxy, /!upstream\.headers\.get\("content-length"\)/);
