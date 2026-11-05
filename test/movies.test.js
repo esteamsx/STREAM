@@ -380,7 +380,7 @@ test("download route forwards Range and preserves HTTP 206 for a signed-in free 
     uid: "free-user",
     userProfile: profile,
     params: { subjectId: "6207982430134357800" },
-    query: { slug: "breaking-bad-ej6Bp0MCAo7", se: "1", ep: "1", res: "360" },
+    query: { slug: "breaking-bad-ej6Bp0MCAo7", se: "1", ep: "1", res: "360", filename: "Breaking Bad - S01E01 360p.mp4" },
     headers: { range: "bytes=0-7" },
     get(name) { return this.headers[String(name).toLowerCase()]; },
   }, res);
@@ -388,6 +388,7 @@ test("download route forwards Range and preserves HTTP 206 for a signed-in free 
   assert.equal(state.lastProxyRange, "bytes=0-7");
   assert.equal(res.statusCode, 206);
   assert.equal(headers["content-range"], "bytes 0-7/12");
+  assert.equal(headers["content-disposition"], 'attachment; filename="Breaking Bad - S01E01 360p.mp4"');
   assert.equal(Buffer.concat(chunks).length, 8);
 });
 
@@ -468,4 +469,13 @@ test("premium offer uses the verification payment price, existing benefits and a
   assert.match(server, /\/api\/premium-promotion\/dismissed/);
   assert.match(auth, /3 \* 24 \* 60 \* 60 \* 1000/);
   assert.match(auth, /db\.runTransaction\(async \(tx\)/);
+});
+
+test("movie downloads name files with title and quality and report the same filename via the shared toast", () => {
+  const frontend = fs.readFileSync(new URL("../public/movies/movies.js", import.meta.url), "utf8");
+  assert.match(frontend, /function downloadFilename\(d, season, episode, quality\)/);
+  assert.match(frontend, /if \(d\.kind === "tv" && season && episode\).*S" \+ String\(season\).*E" \+ String\(episode\)/);
+  assert.match(frontend, /if \(\/\^\\d\+\$\/.test\(q\)\) title \+= " " \+ q \+ "p"/);
+  assert.match(frontend, /filename=" \+ encodeURIComponent\(filename\)/);
+  assert.match(frontend, /window\.EsUI\.toast\("Download requested: " \+ filename, "success", 5000\)/);
 });
