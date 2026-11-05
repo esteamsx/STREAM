@@ -4,6 +4,7 @@
    It is not a public service, so it only works once you run it somewhere and set:
 
        MOVIEBOX_API_URL=https://your-moviebox-api-host        (no trailing slash needed)
+       MOVIEBOX_API_KEY=<same private key as API_ACCESS_KEY on Moviebox-API>
 
    Until then every call here fails with the code "not_configured" and the page says so.
 
@@ -21,6 +22,13 @@ export const CATALOGS = { movies: { path: "/movies", title: "Movies" }, "tv-seri
 export const SORTS = ["RECOMMEND", "NEWEST", "RATING"];
 const SLUG_RE = /^[A-Za-z0-9._~-]{2,160}$/;
 const SUBJECT_ID_RE = /^[A-Za-z0-9_-]{2,64}$/;
+const MOVIEBOX_SITE_ORIGIN = "https://esteamstv.devs.surf";
+function movieboxHeaders(accept) {
+  const headers = { accept, origin: MOVIEBOX_SITE_ORIGIN };
+  const key = String(process.env.MOVIEBOX_API_KEY || "").trim();
+  if (key) headers.authorization = "Bearer " + key;
+  return headers;
+}
 
 export class MovieError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
@@ -60,7 +68,7 @@ async function upstream(path, params = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(url, { headers: { accept: "application/json" }, signal: controller.signal });
+      const res = await fetch(url, { headers: movieboxHeaders("application/json"), signal: controller.signal });
       if (res.status === 429) {
         if (attempt === 0) { await pause(retryDelay(res)); continue; }
         throw new MovieError(429, "rate_limited", "The movie service is rate-limited. Please wait a moment and try again.");
@@ -96,7 +104,7 @@ export async function proxyStream(subjectId, slug, season = 1, episode = 1, reso
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const headers = { accept: "video/mp4" };
+      const headers = movieboxHeaders("video/mp4");
       if (range) headers.range = range;
       const response = await fetch(url, { headers, signal: controller.signal });
       if (response.status === 429) { if (attempt === 0) { await pause(retryDelay(response)); continue; } throw new MovieError(429, "rate_limited", "The download service is busy. Please wait a moment and try again."); }

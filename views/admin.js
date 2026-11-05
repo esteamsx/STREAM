@@ -269,6 +269,11 @@ body:has(.ad-overlay.show){overflow:hidden}
 .cn-amt:disabled,.cn-refund:disabled{opacity:.5;cursor:default}
 .cn-p{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--card2);margin-bottom:6px;font-size:.78rem}
 .cn-p small{display:block;color:var(--muted);margin-top:2px;font-size:.68rem;line-height:1.4}
+.weekly-signal-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(76px,auto);gap:8px;max-height:252px;overflow-y:auto;overscroll-behavior:contain;padding:2px 6px 2px 0;align-content:start}
+.weekly-signal-list .cn-p{align-items:flex-start;justify-content:flex-start;min-width:0;min-height:76px;margin:0;overflow-wrap:anywhere}
+.weekly-signal-list .cn-p>div{min-width:0}
+@media(max-width:720px){.weekly-signal-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:252px}}
+@media(max-width:430px){.weekly-signal-list{grid-template-columns:minmax(0,1fr);max-height:252px}}
 .cn-refund{flex-shrink:0;padding:8px 12px;border-radius:10px;border:none;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#04141a;font-family:inherit;font-weight:700;font-size:.74rem;cursor:pointer}
 .cn-busy{position:relative!important;pointer-events:none!important;color:transparent!important}
 .cn-busy::after{content:"";position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:adSpin .6s linear infinite;box-sizing:border-box}
@@ -781,7 +786,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
       <div class="ad-card-body-inner">
         <div style="font-size:.76rem;color:var(--muted);line-height:1.5;margin-bottom:10px">Review-only signals for rapid heartbeats, overlapping sessions, and unusually regular activity timing. These signals do not automatically restrict an account.</div>
         <button type="button" class="cn-refund" id="weeklyActivityRefresh" style="width:100%;padding:10px;border-radius:12px">Refresh activity signals</button>
-        <div id="weeklyActivitySignalList" style="margin-top:6px"></div>
+        <div id="weeklyActivitySignalList" class="weekly-signal-list" aria-label="Weekly activity signals"></div>
       </div>
     </div>
   </div>

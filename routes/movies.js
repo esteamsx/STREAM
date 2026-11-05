@@ -6,6 +6,15 @@ import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, getSt
 export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, isVerificationActive, isAdminEmail, listMovieWatchLater, getMovieWatchLater, saveMovieWatchLater, removeMovieWatchLater }) {
   if (typeof requireSiteOrigin !== "function") throw new TypeError("The Movies routes require the site's origin guard.");
   const limiter = new SimpleRateLimiter(90, 60 * 1000, (req) => req.uid || req.ip).middleware();
+  const requireMovieSiteOrigin = (req, res, next) => {
+    const expectedOrigin = "https://esteamstv.devs.surf";
+    const origin = req.get("origin");
+    if (origin === expectedOrigin) return next();
+    let refererOrigin = "";
+    try { refererOrigin = new URL(req.get("referer") || "").origin; } catch {}
+    if (!origin && req.get("sec-fetch-site") === "same-origin" && refererOrigin === expectedOrigin) return next();
+    return res.status(403).json({ error: "This movie service is available only from ES Teams TV.", code: "site_origin_required" });
+  };
 
   const send = async (res, work, cache = "private, max-age=60") => {
     try {
@@ -17,13 +26,13 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
     }
   };
 
-  router.get("/api/movies/status", requireAuth, limiter, (req, res) => res.set("Cache-Control", "no-store").json(getStatus()));
-  router.get("/api/movies/home", requireAuth, limiter, (req, res) => send(res, () => getHome()));
-  router.get("/api/movies/catalog/:kind", requireAuth, limiter, (req, res) => send(res, () => getCatalog(String(req.params.kind), req.query.page, String(req.query.sort || ""))));
-  router.get("/api/movies/search", requireAuth, limiter, (req, res) => send(res, () => getSearch(req.query.q, req.query.page)));
-  router.get("/api/movies/suggest", requireAuth, limiter, (req, res) => send(res, () => getSuggest(req.query.q)));
-  router.get("/api/movies/watch-later", requireAuth, limiter, (req, res) => send(res, async () => ({ items: await listMovieWatchLater(req.uid) }), "no-store"));
-  router.get("/api/movies/watch-later/:slug", requireAuth, limiter, (req, res) => send(res, async () => ({ saved: await getMovieWatchLater(req.uid, String(req.params.slug || "")) }), "no-store"));
+  router.get("/api/movies/status", requireAuth, requireMovieSiteOrigin, limiter, (req, res) => res.set("Cache-Control", "no-store").json(getStatus()));
+  router.get("/api/movies/home", requireAuth, requireMovieSiteOrigin, limiter, (req, res) => send(res, () => getHome()));
+  router.get("/api/movies/catalog/:kind", requireAuth, requireMovieSiteOrigin, limiter, (req, res) => send(res, () => getCatalog(String(req.params.kind), req.query.page, String(req.query.sort || ""))));
+  router.get("/api/movies/search", requireAuth, requireMovieSiteOrigin, limiter, (req, res) => send(res, () => getSearch(req.query.q, req.query.page)));
+  router.get("/api/movies/suggest", requireAuth, requireMovieSiteOrigin, limiter, (req, res) => send(res, () => getSuggest(req.query.q)));
+  router.get("/api/movies/watch-later", requireAuth, requireMovieSiteOrigin, limiter, (req, res) => send(res, async () => ({ items: await listMovieWatchLater(req.uid) }), "no-store"));
+  router.get("/api/movies/watch-later/:slug", requireAuth, requireMovieSiteOrigin, limiter, (req, res) => send(res, async () => ({ saved: await getMovieWatchLater(req.uid, String(req.params.slug || "")) }), "no-store"));
   router.post("/api/movies/watch-later", requireAuth, requireSiteOrigin, limiter, async (req, res) => {
     try {
       const item = await saveMovieWatchLater(req.uid, req.body?.movie || {});
@@ -48,8 +57,8 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
     const profile = req.userProfile || (getUserProfile ? await getUserProfile(req.uid) : null);
     return !!(profile && ((isVerificationActive && isVerificationActive(profile)) || (isAdminEmail && isAdminEmail(profile.email))));
   }
-  router.get("/api/movies/detail/:slug", requireAuth, limiter, (req, res) => send(res, () => getDetail(String(req.params.slug))));
-  router.get("/api/movies/streams/:subjectId", requireAuth, limiter, async (req, res) => {
+  router.get("/api/movies/detail/:slug", requireAuth, requireMovieSiteOrigin, limiter, (req, res) => send(res, () => getDetail(String(req.params.slug))));
+  router.get("/api/movies/streams/:subjectId", requireAuth, requireMovieSiteOrigin, limiter, async (req, res) => {
     try {
       const premium = await premiumFor(req);
       const subjectId = String(req.params.subjectId), slug = String(req.query.slug || "");
@@ -68,7 +77,7 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
       res.set("Cache-Control", "private, max-age=30").json({ ...data, premium, sources });
     } catch (e) { return send(res, () => Promise.reject(e)); }
   });
-  router.get("/api/movies/download/:subjectId", requireAuth, limiter, async (req, res) => {
+  router.get("/api/movies/download/:subjectId", requireAuth, requireMovieSiteOrigin, limiter, async (req, res) => {
     try {
       const premium = await premiumFor(req);
       const resolution = String(req.query.res || "").replace(/p$/i, "");
