@@ -389,9 +389,11 @@
     while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
     return (i === 0 ? Math.round(v) : v.toFixed(v >= 10 ? 0 : 1)) + " " + units[i];
   }
-  function downloadFilename(d, season, episode) {
+  function downloadFilename(d, season, episode, quality) {
     var title = String(d.title || "movie").replace(/[\\/:*?"<>|\x00-\x1F]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "movie";
     if (d.kind === "tv" && season && episode) title += " - S" + String(season).padStart(2, "0") + "E" + String(episode).padStart(2, "0");
+    var q = String(quality || "").replace(/\s+/g, "").replace(/p$/i, "");
+    if (/^\d+$/.test(q)) title += " " + q + "p";
     return title + ".mp4";
   }
   function accountForPremium() { window.location.href = "/account#verify"; }
@@ -425,7 +427,16 @@
     (sources || []).forEach(function (source) {
       var locked = source.premium && !source.available;
       var label = [source.resolution, source.format, formatBytes(source.size)].filter(Boolean).join(" \u00b7 ") || "Download";
-      var row = el("button", { type: "button", class: "mv-download-option" + (locked ? " locked" : ""), disabled: false, onclick: locked ? accountForPremium : function () { var url = source.downloadUrl; url += (url.indexOf("?") >= 0 ? "&" : "?") + "filename=" + encodeURIComponent(downloadFilename(d, season, episode)); window.location.href = url; } }, [el("span", { class: "mv-download-option-main" }, [el("b", { text: label }), el("small", { text: locked ? "Premium only" : (source.resolution === "360p" ? "Free mobile quality" : "Ready to download") })]), el("span", { class: "mv-download-option-mark" }, [svg(ICON.download, 15), document.createTextNode(locked ? "Premium" : "Download")])]);
+      var row = el("button", { type: "button", class: "mv-download-option" + (locked ? " locked" : ""), disabled: false, onclick: locked ? accountForPremium : function () {
+        var filename = downloadFilename(d, season, episode, source.resolution), url = source.downloadUrl;
+        url += (url.indexOf("?") >= 0 ? "&" : "?") + "filename=" + encodeURIComponent(filename);
+        row.disabled = true; row.setAttribute("aria-busy", "true"); row.classList.add("is-preparing");
+        var mark = row.querySelector(".mv-download-option-mark"); if (mark) mark.textContent = "Preparing...";
+        var link = document.createElement("a"); link.href = url; link.download = filename; link.rel = "noopener"; link.style.display = "none";
+        document.body.appendChild(link); link.click(); window.setTimeout(function () { link.remove(); }, 1000);
+        if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast("Download requested. Chrome may take a moment to begin.", "success", 5000);
+        window.setTimeout(function () { if (row.isConnected) { row.disabled = false; row.removeAttribute("aria-busy"); row.classList.remove("is-preparing"); if (mark) { mark.textContent = ""; mark.appendChild(svg(ICON.download, 15)); mark.appendChild(document.createTextNode("Download")); } } }, 3500);
+      } }, [el("span", { class: "mv-download-option-main" }, [el("b", { text: label }), el("small", { text: locked ? "Premium only" : (source.resolution === "360p" ? "Free mobile quality" : "Ready to download") })]), el("span", { class: "mv-download-option-mark" }, [svg(ICON.download, 15), document.createTextNode(locked ? "Premium" : "Download")])]);
       list.appendChild(row);
     });
     if (!list.children.length) list.appendChild(el("p", { class: "mv-download-empty", text: "No supported download source is available for this selection." }));
