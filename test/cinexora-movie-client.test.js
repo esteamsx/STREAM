@@ -15,10 +15,8 @@ test("movie page uses Cinexora directly for data and signed downloads", () => {
   assert.match(client, /streamUrl: x\.streamUrl \|\| null/);
   assert.match(client, /sourceQuery\.push\("detailPath=" \+ encodeURIComponent\(d\.detailPath\)\)/);
   assert.match(client, /if \(d\.kind === "tv"\) sourceQuery\.push\("season="/);
-  assert.match(client, /filename=" \+ encodeURIComponent\(filename\)/);
-  assert.ok(client.includes('if (/^\\d+$/.test(q)) title += " " + q + "p";'));
-  assert.match(client, /link\.download = filename/);
-  assert.match(client, /Download requested\. Chrome may take a moment to begin/);
+  assert.match(client, /filename=" \+ encodeURIComponent\(downloadFilename\(d, season, episode\)\)/);
+  assert.match(client, /return title \+ "\.mp4"/);
   assert.match(client, /path\.indexOf\("\/watch-later"\) !== 0/);
   assert.doesNotMatch(client, /referrerpolicy:\s*["']no-referrer["']/i);
 });
