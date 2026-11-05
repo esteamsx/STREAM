@@ -92,7 +92,7 @@
       url = "/api/info/" + encodeURIComponent(subjectId) + (detailPath ? "?detailPath=" + encodeURIComponent(detailPath) : "");
       adapt = function (body) { var r = result(body), s = r.subject || {}, d = item(Object.assign({}, s, { subjectId: s.subjectId || subjectId, detailPath: detailPath })); var seasons = (r.resource && r.resource.seasons || []).map(function (x, i) { return { season: Number(x.se || x.season) || i + 1, episodes: Number(x.maxEp || x.episodes) || 0 }; }).filter(function (x) { return x.episodes > 0; }); return Object.assign(d, { description: s.description || s.overview || null, backdrop: ((s.stills && s.stills.url) || (Array.isArray(s.stills) && s.stills[0] && s.stills[0].url) || null), genres: (Array.isArray(s.genres) ? s.genres : String(s.genre || "").split(/[,/|]/)).map(function (x) { return typeof x === "object" ? x.name : x; }).filter(Boolean), country: s.countryName || s.country || null, minutes: Number(s.duration) > 0 ? Math.round(Number(s.duration) > 600 ? Number(s.duration) / 60 : Number(s.duration)) : null, seasons: seasons, cast: (r.stars || []).map(function (x) { return { name: x.name || x.staffName, role: x.character || x.role || null, photo: x.avatarUrl || null }; }).filter(function (x) { return x.name; }) }); };
     } else if (route.indexOf("/streams/") === 0) {
-      var streamId = decodeURIComponent(route.slice(9)), streamParts = streamId.split("~"), sid = streamParts.shift(), sdetail = streamParts.join("~") || query.get("slug") || "";
+      var streamId = decodeURIComponent(route.slice(9)), streamParts = streamId.split("~"), sid = streamParts.shift(), sdetail = streamParts.join("~") || query.get("detailPath") || "";
       url = "/api/sources/" + encodeURIComponent(sid); if (sdetail) url += "?detailPath=" + encodeURIComponent(sdetail); if (query.get("se")) url += (url.indexOf("?") >= 0 ? "&" : "?") + "season=" + encodeURIComponent(query.get("se")); if (query.get("ep")) url += "&episode=" + encodeURIComponent(query.get("ep"));
       adapt = function (body) { return { sources: (result(body).processedSources || []).map(function (x) { var q = String(x.quality || "").replace(/p$/i, ""); return { resolution: q ? q + "p" : null, format: "MP4", size: Number(x.size) || null, downloadUrl: x.proxyUrl || null, streamUrl: x.streamUrl || null, available: !!x.proxyUrl, premium: false }; }).filter(function (x) { return x.downloadUrl; }) }; };
     }
@@ -389,6 +389,11 @@
     while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
     return (i === 0 ? Math.round(v) : v.toFixed(v >= 10 ? 0 : 1)) + " " + units[i];
   }
+  function downloadFilename(d, season, episode) {
+    var title = String(d.title || "movie").replace(/[\\/:*?"<>|\x00-\x1F]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "movie";
+    if (d.kind === "tv" && season && episode) title += " - S" + String(season).padStart(2, "0") + "E" + String(episode).padStart(2, "0");
+    return title + ".mp4";
+  }
   function accountForPremium() { window.location.href = "/account#verify"; }
   function shareMovie(d, button) {
     var url = new URL(detailUrl(d.slug), window.location.origin).toString();
@@ -420,7 +425,7 @@
     (sources || []).forEach(function (source) {
       var locked = source.premium && !source.available;
       var label = [source.resolution, source.format, formatBytes(source.size)].filter(Boolean).join(" \u00b7 ") || "Download";
-      var row = el("button", { type: "button", class: "mv-download-option" + (locked ? " locked" : ""), disabled: false, onclick: locked ? accountForPremium : function () { window.location.href = source.downloadUrl; } }, [el("span", { class: "mv-download-option-main" }, [el("b", { text: label }), el("small", { text: locked ? "Premium only" : (source.resolution === "360p" ? "Free mobile quality" : "Ready to download") })]), el("span", { class: "mv-download-option-mark" }, [svg(ICON.download, 15), document.createTextNode(locked ? "Premium" : "Download")])]);
+      var row = el("button", { type: "button", class: "mv-download-option" + (locked ? " locked" : ""), disabled: false, onclick: locked ? accountForPremium : function () { var url = source.downloadUrl; url += (url.indexOf("?") >= 0 ? "&" : "?") + "filename=" + encodeURIComponent(downloadFilename(d, season, episode)); window.location.href = url; } }, [el("span", { class: "mv-download-option-main" }, [el("b", { text: label }), el("small", { text: locked ? "Premium only" : (source.resolution === "360p" ? "Free mobile quality" : "Ready to download") })]), el("span", { class: "mv-download-option-mark" }, [svg(ICON.download, 15), document.createTextNode(locked ? "Premium" : "Download")])]);
       list.appendChild(row);
     });
     if (!list.children.length) list.appendChild(el("p", { class: "mv-download-empty", text: "No supported download source is available for this selection." }));
@@ -464,7 +469,11 @@
       if (seasonSelect && (!se || !ep)) { button.disabled = true; setButton("Select season and episode"); return; }
       sourceState.loading = true; sourceState.error = false; sourceState.sources = [];
       button.disabled = true; setButton("Checking sources...");
-      api("/streams/" + encodeURIComponent(d.id) + "?slug=" + encodeURIComponent(d.slug) + "&se=" + se + "&ep=" + ep).then(function (stream) {
+      var sourcePath = "/streams/" + encodeURIComponent(d.id), sourceQuery = [];
+      if (d.detailPath) sourceQuery.push("detailPath=" + encodeURIComponent(d.detailPath));
+      if (d.kind === "tv") sourceQuery.push("season=" + encodeURIComponent(se), "episode=" + encodeURIComponent(ep));
+      if (sourceQuery.length) sourcePath += "?" + sourceQuery.join("&");
+      api(sourcePath).then(function (stream) {
         sourceState.loading = false; sourceState.sources = Array.isArray(stream.sources) ? stream.sources : [];
         button.disabled = false; setButton(sourceState.sources.length ? "Download" : "No downloads available");
       }).catch(function (e) {

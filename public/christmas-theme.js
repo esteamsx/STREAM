@@ -108,7 +108,7 @@
   const style = document.createElement("style");
   style.textContent = `
     :root{--esxmas-red:#e84b5f;--esxmas-green:#35c98b;--esxmas-deep:#0c5b4e;--esxmas-gold:#ffd166;--esxmas-ice:#d9f5ff}
-    .esxmas-layer{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;isolation:isolate}
+    .esxmas-layer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;isolation:isolate}
     .esxmas-snow{position:absolute;inset:-12vh -8vw;opacity:.34;will-change:transform;background-repeat:repeat;background-size:180px 180px;background-image:radial-gradient(circle at 12px 22px,rgba(255,255,255,.9) 0 1.7px,transparent 2.1px),radial-gradient(circle at 78px 86px,rgba(225,247,255,.72) 0 2.1px,transparent 2.7px),radial-gradient(circle at 142px 42px,rgba(255,255,255,.62) 0 1.2px,transparent 1.8px),radial-gradient(circle at 45px 150px,rgba(217,243,255,.68) 0 1.4px,transparent 2px);animation:esxmas-snowfall 24s linear infinite;mix-blend-mode:screen}
     .esxmas-snow-b{opacity:.16;background-size:280px 280px;filter:blur(.25px);animation-duration:36s;animation-direction:reverse}
     @keyframes esxmas-snowfall{from{transform:translate3d(-2vw,-10vh,0)}to{transform:translate3d(5vw,14vh,0)}}

@@ -13,6 +13,17 @@ test("movie page uses Cinexora directly for data and signed downloads", () => {
   assert.match(client, /\/api\/sources\//);
   assert.match(client, /downloadUrl: x\.proxyUrl \|\| null/);
   assert.match(client, /streamUrl: x\.streamUrl \|\| null/);
+  assert.match(client, /sourceQuery\.push\("detailPath=" \+ encodeURIComponent\(d\.detailPath\)\)/);
+  assert.match(client, /if \(d\.kind === "tv"\) sourceQuery\.push\("season="/);
+  assert.match(client, /filename=" \+ encodeURIComponent\(downloadFilename\(d, season, episode\)\)/);
+  assert.match(client, /return title \+ "\.mp4"/);
   assert.match(client, /path\.indexOf\("\/watch-later"\) !== 0/);
   assert.doesNotMatch(client, /referrerpolicy:\s*["']no-referrer["']/i);
+});
+
+test("seasonal decoration stays behind movie content", () => {
+  const christmas = readFileSync(new URL("../public/christmas-theme.js", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../public/movies/movies.css", import.meta.url), "utf8");
+  assert.match(christmas, /\.esxmas-layer\{[^}]*z-index:0/);
+  assert.match(css, /\.mv-main\{[^}]*z-index:2/);
 });
