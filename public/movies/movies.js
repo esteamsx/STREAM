@@ -357,6 +357,42 @@
       navigator.share({ title: d.title, text: "Watch " + d.title + " on ES TEAMS TV", url: url }).catch(function (e) { if (!e || e.name !== "AbortError") copyFallback(); });
     } else copyFallback();
   }
+  function verifyDownloadReady(url) {
+    return fetch(url, { credentials: "same-origin", headers: { Accept: "video/mp4, application/octet-stream", Range: "bytes=0-0" } }).then(async function (response) {
+      var contentType = String(response.headers.get("content-type") || "");
+      var contentRange = String(response.headers.get("content-range") || "");
+      var media = /^(video\/mp4|application\/octet-stream)(?:;|$)/i.test(contentType);
+      var oneByteRange = /^bytes 0-0\/(?:\d+|\*)$/i.test(contentRange);
+      if (response.status === 206 && media && oneByteRange) {
+        if (response.body) await response.body.cancel().catch(function () {});
+        return true;
+      }
+      if (media && response.body) await response.body.cancel().catch(function () {});
+      var message = "The server did not confirm that the download is ready (HTTP " + response.status + "). The full file was not started.";
+      if (response.status === 200 && !media) {
+        if (response.body) await response.body.cancel().catch(function () {});
+        message = response.redirected || /text\/html/i.test(contentType)
+          ? "The site returned a page instead of a video. Your session may have expired; refresh, sign in, and try again. No file was started."
+          : "The server did not return a video range. The full download was not started.";
+      }
+      if (!media && response.status !== 200 && response.status !== 206) {
+        var body = await response.text().catch(function () { return ""; });
+        try {
+          var payload = JSON.parse(body);
+          message = payload.error || payload.detail || message;
+        } catch (e) {
+          if (response.status === 403) message = "Download forbidden (403). The site-origin check rejected this request; no file was downloaded.";
+        }
+        if (response.status === 403 && !body) message = "Download forbidden (403). No file was downloaded.";
+      } else if (response.status === 200 && media) {
+        message = "The server ignored the one-byte safety check. The full download was stopped to avoid using your data.";
+      } else if (response.status === 206 && (!oneByteRange || !media)) {
+        if (response.body) await response.body.cancel().catch(function () {});
+        message = "The server returned an invalid range check. The full download was not started.";
+      }
+      throw new Error(message);
+    });
+  }
   function showPlayerPopup(d, source, season, episode) {
     var previous = document.getElementById("mvPlayerPopup"); if (previous) previous.remove();
     var overlay = el("div", { class: "mv-player-overlay", id: "mvPlayerPopup", role: "dialog", "aria-modal": "true", "aria-label": "Movie player" });
@@ -373,7 +409,14 @@
     video.addEventListener("error", function () { status.textContent = "This stream could not be played. Try another quality or download it instead."; });
     card.appendChild(el("div", { class: "mv-download-head" }, [el("div", { class: "mv-download-title", text: title }), el("button", { type: "button", class: "mv-download-close", "aria-label": "Close player", onclick: close }, ["\u00d7"])]));
     card.appendChild(el("p", { class: "mv-download-sub", text: [source.resolution, source.format].filter(Boolean).join(" · ") + " · ES TEAMS TV" }));
-    card.appendChild(el("div", { class: "mv-player-stage" }, [video]));
+    var watermark = el("div", { class: "mv-player-watermark", "aria-hidden": "true" }, [
+      el("svg", { class: "mv-player-watermark-icon", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round" }, [
+        el("path", { d: "M12 2L3 6v5c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V6z" }),
+        el("path", { d: "M9 12l2 2 4-4", "stroke-width": "2" }),
+      ]),
+      el("span", { text: "ES TEAMS TV" }),
+    ]);
+    card.appendChild(el("div", { class: "mv-player-stage" }, [video, watermark]));
     card.appendChild(status);
     overlay.appendChild(card); document.body.appendChild(overlay);
     overlay.addEventListener("click", function (event) { if (event.target === overlay) close(); });
@@ -400,15 +443,34 @@
         close(); showPlayerPopup(d, source, season, episode);
       } }, [locked ? "Premium" : (source.playUrl ? "Play" : "Unavailable")]);
       actions.appendChild(playButton);
+      var readyUrl = null, checkingDownload = false;
       var downloadButton = el("button", { type: "button", class: "mv-source-action mv-source-download", disabled: !locked && !source.downloadUrl, onclick: locked ? accountForPremium : function () {
         if (!source.downloadUrl) return;
         var filename = downloadFilename(d, season, episode, source.resolution), url = source.downloadUrl;
         url += (url.indexOf("?") >= 0 ? "&" : "?") + "filename=" + encodeURIComponent(filename);
-        downloadButton.disabled = true; downloadButton.setAttribute("aria-busy", "true"); downloadButton.textContent = "Preparing…";
-        var link = document.createElement("a"); link.href = url; link.download = filename; link.rel = "noopener"; link.style.display = "none";
-        document.body.appendChild(link); link.click(); window.setTimeout(function () { link.remove(); }, 1000);
-        if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast("Download requested: " + filename, "success", 5000);
-        window.setTimeout(function () { if (downloadButton.isConnected) { downloadButton.disabled = false; downloadButton.removeAttribute("aria-busy"); downloadButton.textContent = "Download"; } }, 3500);
+        if (readyUrl === url) {
+          readyUrl = null; downloadButton.disabled = true; downloadButton.textContent = "Starting…";
+          var link = document.createElement("a"); link.href = url; link.download = filename; link.rel = "noopener"; link.style.display = "none";
+          document.body.appendChild(link); link.click(); window.setTimeout(function () { link.remove(); }, 1000);
+          if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast("Download started: " + filename, "success", 5000);
+          window.setTimeout(function () { if (downloadButton.isConnected) { downloadButton.disabled = false; downloadButton.textContent = "Download"; } }, 1800);
+          return;
+        }
+        if (checkingDownload) return;
+        checkingDownload = true;
+        downloadButton.disabled = true; downloadButton.setAttribute("aria-busy", "true"); downloadButton.textContent = "Checking…";
+        verifyDownloadReady(url).then(function () {
+          readyUrl = url;
+          downloadButton.disabled = false; downloadButton.removeAttribute("aria-busy"); downloadButton.textContent = "Start download";
+          if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast("Download is ready. Tap Start download to save the file.", "success", 5000);
+        }).catch(function (error) {
+          downloadButton.textContent = "Unavailable";
+          if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(error.message || "Download check failed. No file was started.", "error", 8000);
+        }).finally(function () {
+          checkingDownload = false;
+          if (readyUrl === url) return;
+          window.setTimeout(function () { if (downloadButton.isConnected) { downloadButton.disabled = false; downloadButton.removeAttribute("aria-busy"); downloadButton.textContent = "Download"; } }, 2200);
+        });
       } }, [locked ? "Premium" : "Download"]);
       actions.appendChild(downloadButton);
       row.appendChild(actions);

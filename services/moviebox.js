@@ -121,13 +121,21 @@ export async function proxyStream(subjectId, slug, season = 1, episode = 1, reso
         const detail = await responseDetail(response);
         const noSource = /no\s+mp4\s+source/i.test(detail);
         const rejectedByCdn = /^upstream\s+stream\s+error:\s+4\d{2}$/i.test(detail);
+        const apiAccessDenied = [401, 403].includes(response.status)
+          || (response.status === 503 && /API_ACCESS_KEY/i.test(detail));
+        if (apiAccessDenied) {
+          throw new MovieError(502, "api_access_denied", "The Moviebox API denied this request. Check that API_ACCESS_KEY matches MOVIEBOX_API_KEY in Stream and that the site origin is allowed.");
+        }
+        if (rejectedByCdn) {
+          throw new MovieError(502, "source_forbidden", "Moviebox blocked this video source. No full download was started; try another quality or title.");
+        }
+        if (noSource || /^selected\s+source\s+has\s+no\s+url$/i.test(detail)) {
+          throw new MovieError(404, "no_source", "No downloadable MP4 source is available for this quality or episode. No full download was started.");
+        }
         const transient = [502, 503, 504].includes(response.status) && !noSource && !rejectedByCdn;
         if (transient && attempt === 0) { await pause(retryDelay(response)); continue; }
         let message = "The download service returned an error (" + response.status + ").";
-        if (noSource) message = "No downloadable MP4 source is available for this resolution and episode.";
-        else if (/^upstream\s+stream\s+error:\s+\d{3}$/i.test(detail)) message = "The Moviebox CDN rejected the selected stream (" + detail.match(/\d{3}/)[0] + ").";
-        else if (/^selected\s+source\s+has\s+no\s+url$/i.test(detail)) message = "Moviebox returned a stream without a downloadable source.";
-        else if (transient) throw new MovieError(503, "upstream_unavailable", "The download service is temporarily unavailable. Please try again shortly.");
+        if (transient) throw new MovieError(503, "upstream_unavailable", "The download service is temporarily unavailable. Please try again shortly.");
         throw new MovieError(502, "upstream", message);
       }
       return response;

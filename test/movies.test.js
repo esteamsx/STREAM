@@ -227,6 +227,30 @@ test("download proxy forwards safe byte ranges and preserves partial MP4 respons
   assert.equal(state.calls.filter((x) => x.includes("/proxy")).length, 1, "invalid ranges are rejected before making an API request");
 });
 
+test("download proxy identifies a Moviebox API origin or shared-key rejection", async () => {
+  reset();
+  state.fail["/api/stream/6207982430134357800/proxy"] = {
+    status: 403,
+    body: { detail: "This API is restricted to the ES Teams TV site." },
+  };
+  await assert.rejects(
+    proxyStream("6207982430134357800", "breaking-bad-ej6Bp0MCAo7", 1, 1, "360"),
+    (error) => error instanceof MovieError && error.code === "api_access_denied" && /API_ACCESS_KEY matches MOVIEBOX_API_KEY/.test(error.message)
+  );
+});
+
+test("download proxy reports a CDN-forbidden source before starting a full transfer", async () => {
+  reset();
+  state.fail["/api/stream/6207982430134357800/proxy"] = {
+    status: 502,
+    body: { detail: "Upstream stream error: 403" },
+  };
+  await assert.rejects(
+    proxyStream("6207982430134357800", "breaking-bad-ej6Bp0MCAo7", 1, 1, "360"),
+    (error) => error instanceof MovieError && error.code === "source_forbidden" && /No full download was started/.test(error.message)
+  );
+});
+
 test("a broken or unreachable API becomes a clean 502", async () => {
   reset(); state.fail["/search"] = { status: 200, body: "<html>nope</html>" };
   await assert.rejects(getSearch("q"), (e) => e.status === 502 && e.code === "upstream");
@@ -527,9 +551,16 @@ test("premium offer uses the verification payment price, existing benefits and a
 
 test("movie downloads name files with title and quality and report the same filename via the shared toast", () => {
   const frontend = fs.readFileSync(new URL("../public/movies/movies.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../public/movies/movies.css", import.meta.url), "utf8");
   assert.match(frontend, /function downloadFilename\(d, season, episode, quality\)/);
   assert.match(frontend, /if \(d\.kind === "tv" && season && episode\).*S" \+ String\(season\).*E" \+ String\(episode\)/);
   assert.match(frontend, /if \(\/\^\\d\+\$\/.test\(q\)\) title \+= " " \+ q \+ "p"/);
   assert.match(frontend, /filename=" \+ encodeURIComponent\(filename\)/);
-  assert.match(frontend, /window\.EsUI\.toast\("Download requested: " \+ filename, "success", 5000\)/);
+  assert.match(frontend, /window\.EsUI\.toast\("Download started: " \+ filename, "success", 5000\)/);
+  assert.match(frontend, /Range: "bytes=0-0"/);
+  assert.match(frontend, /verifyDownloadReady\(url\)/);
+  assert.match(frontend, /The full download was stopped to avoid using your data/);
+  assert.match(frontend, /class: "mv-player-watermark"/);
+  assert.match(frontend, /text: "ES TEAMS TV"/);
+  assert.match(css, /\.mv-player-watermark\{[^}]*pointer-events:none/);
 });
