@@ -227,6 +227,18 @@ test("download proxy forwards safe byte ranges and preserves partial MP4 respons
   assert.equal(state.calls.filter((x) => x.includes("/proxy")).length, 1, "invalid ranges are rejected before making an API request");
 });
 
+test("download proxy retries a transient CDN 403 and returns the stream when the source recovers", async () => {
+  reset();
+  state.fail["/api/stream/6207982430134357800/proxy"] = [
+    { status: 502, body: { detail: "Upstream stream error: 403" } },
+  ];
+  const response = await proxyStream("6207982430134357800", "breaking-bad-ej6Bp0MCAo7", 1, 1, "360", "bytes=0-0");
+  assert.equal(response.status, 206);
+  assert.equal(response.headers.get("content-range"), "bytes 0-0/12");
+  assert.equal((await response.arrayBuffer()).byteLength, 1);
+  assert.equal(state.calls.filter((x) => x.includes("/proxy")).length, 2);
+});
+
 test("download proxy identifies a Moviebox API origin or shared-key rejection", async () => {
   reset();
   state.fail["/api/stream/6207982430134357800/proxy"] = {
@@ -237,18 +249,21 @@ test("download proxy identifies a Moviebox API origin or shared-key rejection", 
     proxyStream("6207982430134357800", "breaking-bad-ej6Bp0MCAo7", 1, 1, "360"),
     (error) => error instanceof MovieError && error.code === "api_access_denied" && /API_ACCESS_KEY matches MOVIEBOX_API_KEY/.test(error.message)
   );
+  assert.equal(state.calls.filter((x) => x.includes("/proxy")).length, 1, "real API access denials are not retried");
 });
 
 test("download proxy reports a CDN-forbidden source before starting a full transfer", async () => {
   reset();
-  state.fail["/api/stream/6207982430134357800/proxy"] = {
-    status: 502,
-    body: { detail: "Upstream stream error: 403" },
-  };
+  state.fail["/api/stream/6207982430134357800/proxy"] = [
+    { status: 502, body: { detail: "Upstream stream error: 403" } },
+    { status: 502, body: { detail: "Upstream stream error: 403" } },
+    { status: 502, body: { detail: "Upstream stream error: 403" } },
+  ];
   await assert.rejects(
     proxyStream("6207982430134357800", "breaking-bad-ej6Bp0MCAo7", 1, 1, "360"),
     (error) => error instanceof MovieError && error.code === "source_forbidden" && /Moviebox blocked this video source/.test(error.message)
   );
+  assert.equal(state.calls.filter((x) => x.includes("/proxy")).length, 3);
 });
 
 test("a broken or unreachable API becomes a clean 502", async () => {

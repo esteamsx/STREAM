@@ -13,6 +13,7 @@
 
 const FETCH_TIMEOUT_MS = 20000;
 const UPSTREAM_MAX_ATTEMPTS = 3;
+const PROXY_MAX_ATTEMPTS = 3;
 const MAX_BODY_CHARS = 2_500_000;
 const MAX_CACHE_ENTRIES = 300;
 const STALE_OK_MS = 60 * 60 * 1000;      // if the API is down, a result up to an hour old is better than an empty page
@@ -109,7 +110,7 @@ export async function proxyStream(subjectId, slug, season = 1, episode = 1, reso
   url.searchParams.set("se", String(Math.min(99, Math.max(1, Math.floor(Number(season)) || 1))));
   url.searchParams.set("ep", String(Math.min(999, Math.max(1, Math.floor(Number(episode)) || 1))));
   url.searchParams.set("res", resolution);
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < PROXY_MAX_ATTEMPTS; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
@@ -120,20 +121,26 @@ export async function proxyStream(subjectId, slug, season = 1, episode = 1, reso
       if (!response.ok) {
         const detail = await responseDetail(response);
         const noSource = /no\s+mp4\s+source/i.test(detail);
-        const rejectedByCdn = /^upstream\s+stream\s+error:\s+4\d{2}$/i.test(detail);
+        const rejectedByCdn = /^upstream\s+stream\s+error:\s+403$/i.test(detail);
         const apiAccessDenied = [401, 403].includes(response.status)
           || (response.status === 503 && /API_ACCESS_KEY/i.test(detail));
         if (apiAccessDenied) {
           throw new MovieError(502, "api_access_denied", "The Moviebox API denied this request. Check that API_ACCESS_KEY matches MOVIEBOX_API_KEY in Stream and that the site origin is allowed.");
         }
         if (rejectedByCdn) {
+          // Moviebox can briefly return a CDN 403 for a freshly resolved source. Retry only this wrapped upstream
+          // failure (not direct API 401/403s, which indicate a real key/origin problem) before giving up.
+          if (attempt < PROXY_MAX_ATTEMPTS - 1) {
+            await pause(Math.min(1500, Math.max(retryDelay(response), 400 * (attempt + 1))));
+            continue;
+          }
           throw new MovieError(502, "source_forbidden", "Moviebox blocked this video source. Try another quality or title.");
         }
         if (noSource || /^selected\s+source\s+has\s+no\s+url$/i.test(detail)) {
           throw new MovieError(404, "no_source", "No MP4 source is available for this quality or episode.");
         }
         const transient = [502, 503, 504].includes(response.status) && !noSource && !rejectedByCdn;
-        if (transient && attempt === 0) { await pause(retryDelay(response)); continue; }
+        if (transient && attempt < PROXY_MAX_ATTEMPTS - 1) { await pause(retryDelay(response)); continue; }
         let message = "The download service returned an error (" + response.status + ").";
         if (transient) throw new MovieError(503, "upstream_unavailable", "The download service is temporarily unavailable. Please try again shortly.");
         throw new MovieError(502, "upstream", message);
