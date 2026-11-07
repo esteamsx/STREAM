@@ -44,7 +44,9 @@ function errorPageHtml({ code, title, message, id }) {
     display:flex;align-items:center;justify-content:center;min-height:100vh;
     margin:0;padding:24px;text-align:center;
   }
-  .box{max-width:440px}
+  .box{width:100%;max-width:440px;padding:26px 22px;border:1px solid rgba(255,255,255,.17);border-radius:20px;
+    background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(255,255,255,.025) 44%,rgba(255,255,255,.06)),rgba(18,20,32,.58);
+    box-shadow:0 18px 48px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.2);backdrop-filter:blur(12px) saturate(125%);-webkit-backdrop-filter:blur(12px) saturate(125%)}
   .code{font-size:2.2rem;font-weight:800;letter-spacing:-.02em;margin:0 0 6px;color:#00E0FF}
   h1{font-size:1.05rem;margin:0 0 10px;font-weight:700}
   p{color:#8a8a9a;font-size:.85rem;line-height:1.6;margin:0 0 8px}

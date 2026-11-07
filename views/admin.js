@@ -59,14 +59,40 @@ input{font-family:inherit}
 .ad-back svg{width:18px;height:18px}
 .ad-nav-title{font-family:var(--font-display);font-weight:700;font-size:.95rem}
 
-.ad-wrap{max-width:560px;margin:0 auto;padding:24px 18px 60px;position:relative;z-index:1}
+.ad-dashboard{width:min(1760px,100%);margin:0 auto;padding:14px 24px 36px;display:grid;grid-template-columns:220px minmax(0,1fr);gap:22px;align-items:start;position:relative;z-index:1}
+.ad-sidebar{
+  position:sticky;top:78px;align-self:start;display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:18px;
+  background:linear-gradient(155deg,rgba(255,255,255,.13),rgba(255,255,255,.025) 44%,rgba(255,255,255,.06)),rgba(18,20,32,.58);
+  border:1px solid rgba(255,255,255,.2);box-shadow:0 16px 40px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.2);
+  -webkit-backdrop-filter:blur(14px) saturate(135%);backdrop-filter:blur(14px) saturate(135%);
+}
+:root[data-theme="light"] .ad-sidebar{background:linear-gradient(155deg,rgba(255,255,255,.78),rgba(255,255,255,.44) 44%,rgba(255,255,255,.62)),rgba(255,255,255,.7);border-color:rgba(255,255,255,.72);box-shadow:0 16px 40px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.82)}
+.ad-sidebar-label{padding:5px 10px 9px;color:var(--muted);font-size:.64rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.ad-sidebar-link{display:flex;align-items:center;min-height:42px;padding:9px 11px;border-radius:12px;border:1px solid transparent;color:var(--muted);font-size:.78rem;font-weight:700;text-decoration:none;white-space:nowrap;transition:color .18s var(--ease),background .18s var(--ease),border-color .18s var(--ease)}
+.ad-sidebar-link:hover,.ad-sidebar-link:focus-visible{color:var(--text);background:rgba(255,255,255,.09);border-color:var(--border-strong)}
+.ad-dashboard-main{min-width:0}
+.ad-wrap{max-width:none;margin:0;padding:14px 0 60px;position:relative;z-index:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.ad-hero,.ad-section-label{grid-column:1/-1;scroll-margin-top:84px}
+.ad-wrap>.ad-section-label{margin:8px 0 0}
+.ad-wrap>.ad-card{min-width:0;margin-bottom:0}
+#weeklyActivityReviewCard,#adsCard,#promoReviewsCard,#botsCard{grid-column:1/-1}
+@media(max-width:1080px){.ad-dashboard{grid-template-columns:190px minmax(0,1fr);gap:16px;padding-right:16px;padding-left:16px}}
+@media(max-width:820px){
+  .ad-dashboard{display:block;padding:0 14px 24px}
+  .ad-sidebar{position:sticky;top:58px;z-index:9;flex-direction:row;align-items:center;gap:6px;margin:8px 0 0;padding:7px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;border-radius:15px}
+  .ad-sidebar::-webkit-scrollbar{display:none}
+  .ad-sidebar-label{display:none}
+  .ad-sidebar-link{flex:0 0 auto;min-height:36px;padding:8px 11px;font-size:.72rem}
+  .ad-wrap{padding-top:16px}
+}
+@media(max-width:620px){.ad-dashboard{padding-right:10px;padding-left:10px}.ad-wrap{grid-template-columns:minmax(0,1fr);gap:13px;padding-top:13px}.ad-hero,.ad-section-label,.ad-card,#weeklyActivityReviewCard,#adsCard,#promoReviewsCard,#botsCard{grid-column:1/-1}}
 
 .ad-hero{
   display:flex;align-items:center;gap:14px;
   background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
   border:1px solid rgba(255,255,255,.16);
   box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
-  border-radius:18px;padding:18px;margin-bottom:20px;
+  border-radius:18px;padding:18px;margin-bottom:0;
 }
 :root[data-theme="light"] .ad-hero{
   background:linear-gradient(155deg,rgba(255,255,255,.5),rgba(255,255,255,.16) 40%,rgba(255,255,255,.24) 100%);
@@ -86,7 +112,7 @@ input{font-family:inherit}
   background:linear-gradient(155deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 40%,rgba(255,255,255,.04) 100%),rgba(255,255,255,.045);
   border:1px solid rgba(255,255,255,.16);
   box-shadow:0 16px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.12);
-  border-radius:16px;margin-bottom:18px;overflow:hidden;border-left-width:3px;
+  border-radius:16px;margin-bottom:0;overflow:hidden;border-left-width:3px;
 }
 .ad-card.accent-blue{border-left-color:var(--accent)}
 .ad-card.accent-purple{border-left-color:var(--accent2)}
@@ -711,9 +737,19 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
   <div class="ad-nav-title">Admin</div>
 </div>
 
+<div class="ad-dashboard">
+  <nav class="ad-sidebar" aria-label="Admin sections">
+    <div class="ad-sidebar-label">Workspace</div>
+    <a class="ad-sidebar-link" href="#adminOverview">Overview</a>
+    <a class="ad-sidebar-link" href="#adminPlatform">Platform</a>
+    <a class="ad-sidebar-link" href="#adminFinance">Finance &amp; Rewards</a>
+    <a class="ad-sidebar-link" href="#adminModeration">Users &amp; Moderation</a>
+    <a class="ad-sidebar-link" href="#adminBots">Bot Deployments</a>
+  </nav>
+  <main class="ad-dashboard-main">
 <div class="ad-wrap">
 
-  <div class="ad-hero">
+  <div class="ad-hero" id="adminOverview">
     <div class="ad-avatar" id="adAvatar">A</div>
     <div>
       <div class="ad-hero-name" id="adName"><span class="sk-line" style="display:inline-block;width:130px;height:15px;vertical-align:-2px"></span></div>
@@ -721,7 +757,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div>
   </div>
 
-  <div class="ad-section-label">Platform</div>
+  <div class="ad-section-label" id="adminPlatform">Platform</div>
 
   <div class="ad-card open accent-blue" id="maintenanceCard">
     <div class="ad-card-header" style="cursor:default">
@@ -851,7 +887,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div>
   </div>
 
-  <div class="ad-section-label">Finance &amp; Rewards</div>
+  <div class="ad-section-label" id="adminFinance">Finance &amp; Rewards</div>
 
   <div class="ad-card accent-gold" id="bonusCard">
     <div class="ad-card-header" id="bonusHeader">
@@ -1041,7 +1077,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div></div>
   </div>
 
-  <div class="ad-section-label">Users &amp; Moderation</div>
+  <div class="ad-section-label" id="adminModeration">Users &amp; Moderation</div>
 
   <div class="ad-card open accent-red" id="promoReviewsCard">
     <div class="ad-card-header" style="cursor:default">
@@ -1097,7 +1133,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
       <button type="button" class="ad-loadmore" id="verifyLoadMore" style="display:none">Load more</button>
     </div></div>
   </div>
-  <div class="ad-section-label">Bot Deployments</div>
+  <div class="ad-section-label" id="adminBots">Bot Deployments</div>
 
   <div class="ad-card accent-green" id="botsCard">
     <div class="ad-card-header" id="botsHeader">
@@ -1138,6 +1174,8 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div></div>
   </div>
 
+</div>
+  </main>
 </div>
 
 <div class="ad-overlay" id="dbUsageOverlay" role="dialog" aria-modal="true" aria-label="Database usage">

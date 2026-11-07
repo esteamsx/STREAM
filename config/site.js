@@ -464,6 +464,39 @@ const GLASS_OVERLAY_CSS = `<style>
   border-color:rgba(255,255,255,.72)!important;
   box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.78)!important;
 }
+
+/* Site-wide liquid-glass finish: paint-only refinements on audited page shells. */
+:root{
+  --es-glass-sheen:linear-gradient(145deg,rgba(255,255,255,.16),rgba(255,255,255,.035) 44%,rgba(255,255,255,.075) 100%);
+  --es-glass-edge:rgba(255,255,255,.22);
+  --es-glass-depth:0 16px 42px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.22);
+}
+:root[data-theme="light"]{
+  --es-glass-sheen:linear-gradient(145deg,rgba(255,255,255,.76),rgba(255,255,255,.36) 44%,rgba(255,255,255,.58) 100%);
+  --es-glass-edge:rgba(255,255,255,.74);
+  --es-glass-depth:0 16px 42px rgba(20,20,28,.1),inset 0 1px 0 rgba(255,255,255,.82);
+}
+.hm-aside-card.hm-glass,.hm-feed-card.hm-glass,.hm-composer.hm-glass,.hm-tabs.hm-glass,
+.acc-card,.tfa-card,.pf-locked-card,.pf-stats,.pf-card,
+.mv-state,.placeholder,.ph-frame,
+.tool-card,.tr-positions-empty,
+.cx-card,.cx-modal,.lx-boardwrap,.wx-tablewrap,.sx-boardwrap,.tx-boardwrap,
+.cr-card,.gv-card,.pm-stat,.pm-ad,.pm-empty,
+.auth-card,.v-card,.policy-card,.form-card,.contact-box,.agent-box{
+  background-image:var(--es-glass-sheen)!important;
+  border-color:var(--es-glass-edge)!important;
+  box-shadow:var(--es-glass-depth)!important;
+}
+/* Link-like shells keep their existing hover shadows and movement. */
+.hm-live-card,.hm-me.hm-glass,.tool-link-card,.db-card,.tile,.dcard{
+  background-image:var(--es-glass-sheen)!important;
+  border-color:var(--es-glass-edge)!important;
+}
+/* Existing sticky bars retain their blur/positioning; only the glass highlight is unified. */
+.tr-nav,.cx-nav{
+  background-image:var(--es-glass-sheen)!important;
+  border-color:var(--es-glass-edge)!important;
+}
 </style>`;
 
 export const ASSET_VERSION = Date.now().toString("36");

@@ -55,7 +55,10 @@ function maintenanceHtml(untilMs) {
       radial-gradient(900px 500px at 15% -10%,rgba(0,224,255,.08),transparent 60%),
       radial-gradient(700px 400px at 100% 0%,rgba(124,92,255,.06),transparent 55%);
   }
-  .box{max-width:380px;display:flex;flex-direction:column;align-items:center}
+  .box{width:100%;max-width:380px;padding:26px 22px;border:1px solid rgba(255,255,255,.17);border-radius:22px;
+    background:linear-gradient(145deg,rgba(255,255,255,.14),rgba(255,255,255,.025) 44%,rgba(255,255,255,.06)),rgba(18,20,32,.58);
+    box-shadow:0 18px 48px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.2);backdrop-filter:blur(14px) saturate(130%);-webkit-backdrop-filter:blur(14px) saturate(130%);
+    display:flex;flex-direction:column;align-items:center}
   .ring{
     position:relative;width:30px;height:30px;border-radius:50%;flex-shrink:0;margin:22px 0 46px;
     background:url(/favicon.svg) center/cover no-repeat;

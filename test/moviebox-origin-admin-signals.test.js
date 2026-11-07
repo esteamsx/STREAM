@@ -51,3 +51,30 @@ test("weekly activity signals display in a bounded three-column scroll area", ()
   assert.match(admin, /\.weekly-signal-list\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)[^}]*max-height:252px[^}]*overflow-y:auto/);
   assert.match(admin, /@media\(max-width:720px\)\{\.weekly-signal-list\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
 });
+
+test("admin dashboard gains responsive navigation without removing existing cards or bindings", () => {
+  const admin = read("../views/admin.js");
+  assert.match(admin, /<div class="ad-dashboard">[\s\S]*?<nav class="ad-sidebar" aria-label="Admin sections">[\s\S]*?<main class="ad-dashboard-main">[\s\S]*?<div class="ad-wrap">/);
+  for (const [id, label] of [["adminOverview", "Overview"], ["adminPlatform", "Platform"], ["adminFinance", "Finance &amp; Rewards"], ["adminModeration", "Users &amp; Moderation"], ["adminBots", "Bot Deployments"]]) {
+    assert.match(admin, new RegExp(`href="#${id}"`));
+    if (id !== "adminOverview") assert.match(admin, new RegExp(`id="${id}">${label}<`));
+  }
+  const existingCards = ["maintenanceCard", "coinsCard", "fakeCoinsCard", "weeklyActivityReviewCard", "pageLocksCard", "pushCard", "bonusCard", "tpCodeCard", "withdrawalsCard", "cryptoDepositsCard", "faceIdsCard", "giveawayCard", "deviceBansCard", "crlogCard", "csCard", "adsCard", "promoReviewsCard", "usersCard", "bannedCard", "verifyCard", "botsCard", "storageCard", "dbUsageCard"];
+  for (const id of existingCards) assert.equal((admin.match(new RegExp(`id="${id}"`, "g")) || []).length, 1, `${id} remains exactly once`);
+  for (const id of ["adBackBtn", "weeklyActivitySignalList", "userSearchInput", "adsSearch", "dbUsageOverlay"]) assert.match(admin, new RegExp(`id="${id}"`));
+  assert.match(admin, /@media\(max-width:620px\)/);
+  assert.match(admin, /\.ad-wrap\{grid-template-columns:minmax\(0,1fr\)/);
+});
+
+test("site-wide liquid glass refinements use theme-aware, page-specific surfaces", () => {
+  const shared = read("../config/site.js");
+  assert.match(shared, /--es-glass-sheen/);
+  assert.match(shared, /:root\[data-theme="light"\]\{\s*--es-glass-sheen/);
+  for (const selector of [".hm-feed-card.hm-glass", ".acc-card", ".mv-state", ".tool-card", ".cx-card", ".cr-card", ".auth-card"]) {
+    assert.ok(shared.includes(selector), `${selector} receives the shared finish`);
+  }
+  const start = shared.indexOf("/* Site-wide liquid-glass finish");
+  const end = shared.indexOf("</style>`", start);
+  const glassRules = shared.slice(start, end);
+  assert.doesNotMatch(glassRules, /\.cx-board\s*,|\.cx-sq\s*,|\.mv-card\s*,|\.music-player\s*,|(?:^|[,\s])input\s*,|(?:^|[,\s])textarea\s*,/);
+});
