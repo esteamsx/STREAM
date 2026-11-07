@@ -11,7 +11,8 @@
    Why it goes through the server: the browser never sees the API address, results are cached (the API's own README warns that
    heavy polling gets throttled upstream), the site's login and rate limits apply, and a bad answer from the API can never break the page. */
 
-const FETCH_TIMEOUT_MS = 12000;
+const FETCH_TIMEOUT_MS = 20000;
+const UPSTREAM_MAX_ATTEMPTS = 3;
 const MAX_BODY_CHARS = 2_500_000;
 const MAX_CACHE_ENTRIES = 300;
 const STALE_OK_MS = 60 * 60 * 1000;      // if the API is down, a result up to an hour old is better than an empty page
@@ -64,22 +65,30 @@ async function upstream(path, params = {}) {
   if (!base) throw new MovieError(503, "not_configured", "The movie service is not connected yet.");
   const url = new URL(base + path);
   for (const [k, v] of Object.entries(params)) if (v != null && v !== "") url.searchParams.set(k, String(v));
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < UPSTREAM_MAX_ATTEMPTS; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
       const res = await fetch(url, { headers: movieboxHeaders("application/json"), signal: controller.signal });
       if (res.status === 429) {
-        if (attempt === 0) { await pause(retryDelay(res)); continue; }
+        if (attempt < UPSTREAM_MAX_ATTEMPTS - 1) { await pause(retryDelay(res)); continue; }
         throw new MovieError(429, "rate_limited", "The movie service is rate-limited. Please wait a moment and try again.");
       }
       if (res.status === 404) throw new MovieError(404, "not_found", "That title could not be found.");
+      if ([502, 503, 504].includes(res.status) && attempt < UPSTREAM_MAX_ATTEMPTS - 1) {
+        await pause(retryDelay(res));
+        continue;
+      }
       if (!res.ok) throw new MovieError(502, "upstream", "The movie service had a problem (" + res.status + ").");
       const text = await res.text();
       if (text.length > MAX_BODY_CHARS) throw new MovieError(502, "upstream", "The movie service sent too much data.");
       try { return JSON.parse(text); } catch { throw new MovieError(502, "upstream", "The movie service sent something unreadable."); }
     } catch (e) {
       if (e instanceof MovieError) throw e;
+      if (attempt < UPSTREAM_MAX_ATTEMPTS - 1) {
+        await pause(350 * (attempt + 1));
+        continue;
+      }
       throw new MovieError(502, "upstream", e && e.name === "AbortError" ? "The movie service took too long to answer." : "Could not reach the movie service.");
     } finally { clearTimeout(timer); }
   }

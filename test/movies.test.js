@@ -35,7 +35,11 @@ const server = http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   state.calls.push(u.pathname + (u.search || ""));
   const send = (status, body) => setTimeout(() => { res.writeHead(status, { "Content-Type": "application/json" }); res.end(typeof body === "string" ? body : JSON.stringify(body)); }, state.delay);
-  if (state.fail[u.pathname]) return send(state.fail[u.pathname].status || 500, state.fail[u.pathname].body || "{}");
+  if (state.fail[u.pathname]) {
+    const failure = Array.isArray(state.fail[u.pathname]) ? state.fail[u.pathname].shift() : state.fail[u.pathname];
+    if (Array.isArray(state.fail[u.pathname]) && !state.fail[u.pathname].length) delete state.fail[u.pathname];
+    if (failure) return send(failure.status || 500, failure.body || "{}");
+  }
   if (u.pathname === "/home") return send(200, HOME());
   if (["/movies", "/tv-series", "/animation"].includes(u.pathname)) {
     const page = Number(u.searchParams.get("page") || 1);
@@ -159,6 +163,14 @@ test("search and suggestions", async () => {
   assert.equal(s.suggestions.length, 8, "at most 8");
   assert.ok(s.suggestions.every((x) => /^match-/.test(x.slug)), "a suggestion with a bad link is dropped");
   assert.deepEqual(await getSuggest("  "), { suggestions: [] });
+});
+
+test("search retries a transient Moviebox cold-start response", async () => {
+  reset();
+  state.fail["/search"] = [{ status: 503, body: "starting" }];
+  const result = await getSearch("Avengers Endgame");
+  assert.equal(result.items.length, 3);
+  assert.equal(state.calls.filter((call) => call.startsWith("/search?")).length, 2);
 });
 
 test("detail: the parts that are recognised are kept and tidied", async () => {
