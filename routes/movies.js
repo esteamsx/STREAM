@@ -76,11 +76,33 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
         return {
           resolution: source.resolution, format: source.format, size: source.size,
           premium: !free, available: allowed,
+          playUrl: allowed ? "/api/movies/play/" + encodeURIComponent(subjectId) + "?slug=" + encodeURIComponent(slug) + "&se=" + encodeURIComponent(se || data.season || 1) + "&ep=" + encodeURIComponent(ep || data.episode || 1) + "&res=" + encodeURIComponent(resolution) : null,
           downloadUrl: allowed ? "/api/movies/download/" + encodeURIComponent(subjectId) + "?slug=" + encodeURIComponent(slug) + "&se=" + encodeURIComponent(se || data.season || 1) + "&ep=" + encodeURIComponent(ep || data.episode || 1) + "&res=" + encodeURIComponent(resolution) : null,
         };
       });
       res.set("Cache-Control", "private, max-age=30").json({ ...data, premium, sources });
     } catch (e) { return send(res, () => Promise.reject(e)); }
+  });
+  router.get("/api/movies/play/:subjectId", requireAuth, requireMovieSiteOrigin, limiter, async (req, res) => {
+    try {
+      const premium = await premiumFor(req);
+      const resolution = String(req.query.res || "").replace(/p$/i, "");
+      if (!premium && resolution !== "360") return res.status(403).json({ error: "Higher resolutions require Premium.", code: "premium_required" });
+      const response = await proxyStream(String(req.params.subjectId), String(req.query.slug || ""), req.query.se, req.query.ep, resolution, req.get("range"));
+      res.status(response.status);
+      ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"].forEach((key) => { const value = response.headers.get(key); if (value) res.set(key, value); });
+      res.set("Cache-Control", "private, no-store");
+      res.set("Content-Disposition", "inline; filename=\"movie-" + resolution + "p.mp4\"");
+      if (!response.body) return res.end();
+      return Readable.fromWeb(response.body).pipe(res);
+    } catch (e) {
+      if (e instanceof MovieError) {
+        if (e.code === "rate_limited") return res.status(429).json({ error: "ES Teams TV is preparing playback. Please try again shortly.", code: "playback_busy" });
+        if (e.code === "upstream" || e.code === "upstream_unavailable" || e.code === "not_configured") return res.status(e.code === "upstream_unavailable" ? 503 : 502).json({ error: "ES Teams TV could not start playback right now. Please try again shortly.", code: "playback_unavailable" });
+        if (e.code === "bad_request") return res.status(400).json({ error: "That playback selection is not available.", code: "playback_unavailable" });
+      }
+      return res.status(502).json({ error: "ES Teams TV could not start playback right now. Please try again shortly.", code: "playback_unavailable" });
+    }
   });
   router.get("/api/movies/download/:subjectId", requireAuth, requireMovieSiteOrigin, limiter, async (req, res) => {
     try {

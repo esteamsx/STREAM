@@ -357,30 +357,64 @@
       navigator.share({ title: d.title, text: "Watch " + d.title + " on ES TEAMS TV", url: url }).catch(function (e) { if (!e || e.name !== "AbortError") copyFallback(); });
     } else copyFallback();
   }
+  function showPlayerPopup(d, source, season, episode) {
+    var previous = document.getElementById("mvPlayerPopup"); if (previous) previous.remove();
+    var overlay = el("div", { class: "mv-player-overlay", id: "mvPlayerPopup", role: "dialog", "aria-modal": "true", "aria-label": "Movie player" });
+    var card = el("div", { class: "mv-player-card" });
+    var close = function () {
+      document.removeEventListener("keydown", onKeydown);
+      video.pause(); video.removeAttribute("src"); video.load(); overlay.remove();
+    };
+    var onKeydown = function (event) { if (event.key === "Escape") close(); };
+    var title = d.title + (d.kind === "tv" && season && episode ? " · S" + String(season).padStart(2, "0") + "E" + String(episode).padStart(2, "0") : "");
+    var video = el("video", { class: "mv-player-video", controls: true, playsinline: true, preload: "metadata", "aria-label": "Play " + title });
+    var status = el("p", { class: "mv-player-status", text: "Loading video…" });
+    video.addEventListener("loadedmetadata", function () { status.textContent = ""; });
+    video.addEventListener("error", function () { status.textContent = "This stream could not be played. Try another quality or download it instead."; });
+    card.appendChild(el("div", { class: "mv-download-head" }, [el("div", { class: "mv-download-title", text: title }), el("button", { type: "button", class: "mv-download-close", "aria-label": "Close player", onclick: close }, ["\u00d7"])]));
+    card.appendChild(el("p", { class: "mv-download-sub", text: [source.resolution, source.format].filter(Boolean).join(" · ") + " · ES TEAMS TV" }));
+    card.appendChild(el("div", { class: "mv-player-stage" }, [video]));
+    card.appendChild(status);
+    overlay.appendChild(card); document.body.appendChild(overlay);
+    overlay.addEventListener("click", function (event) { if (event.target === overlay) close(); });
+    document.addEventListener("keydown", onKeydown);
+    video.src = source.playUrl;
+    video.play().catch(function () { status.textContent = "Press play to start the video."; });
+  }
   function showDownloadPopup(d, sources, season, episode) {
     var old = document.getElementById("mvDownloadPopup"); if (old) old.remove();
-    var overlay = el("div", { class: "mv-download-popup", id: "mvDownloadPopup", role: "dialog", "aria-modal": "true", "aria-label": "Download options" });
+    var overlay = el("div", { class: "mv-download-popup", id: "mvDownloadPopup", role: "dialog", "aria-modal": "true", "aria-label": "Watch or download options" });
     var card = el("div", { class: "mv-download-card" });
     var close = function () { overlay.remove(); };
-    card.appendChild(el("div", { class: "mv-download-head" }, [el("div", { class: "mv-download-title", text: "Download " + d.title }), el("button", { type: "button", class: "mv-download-close", "aria-label": "Close", onclick: close }, ["\u00d7"]) ]));
-    card.appendChild(el("p", { class: "mv-download-sub", text: d.kind === "tv" ? "Season " + season + ", Episode " + episode : "Choose a resolution and format." }));
+    card.appendChild(el("div", { class: "mv-download-head" }, [el("div", { class: "mv-download-title", text: "Watch or download " + d.title }), el("button", { type: "button", class: "mv-download-close", "aria-label": "Close", onclick: close }, ["\u00d7"]) ]));
+    card.appendChild(el("p", { class: "mv-download-sub", text: d.kind === "tv" ? "Season " + season + ", Episode " + episode + " · choose a quality to play or download." : "Choose a quality to play here or download as MP4." }));
     var list = el("div", { class: "mv-download-list" });
     (sources || []).forEach(function (source) {
       var locked = source.premium && !source.available;
-      var label = [source.resolution, source.format, formatBytes(source.size)].filter(Boolean).join(" \u00b7 ") || "Download";
-      var row = el("button", { type: "button", class: "mv-download-option" + (locked ? " locked" : ""), disabled: false, onclick: locked ? accountForPremium : function () {
+      var label = [source.resolution, source.format, formatBytes(source.size)].filter(Boolean).join(" \u00b7 ") || "Video";
+      var row = el("div", { class: "mv-download-option mv-source-row" + (locked ? " locked" : "") });
+      row.appendChild(el("span", { class: "mv-download-option-main" }, [el("b", { text: label }), el("small", { text: locked ? "Premium only" : "Stream or save this quality" })]));
+      var actions = el("span", { class: "mv-source-actions" });
+      var playButton = el("button", { type: "button", class: "mv-source-action mv-source-play", disabled: !locked && !source.playUrl, onclick: locked ? accountForPremium : function () {
+        if (!source.playUrl) return;
+        close(); showPlayerPopup(d, source, season, episode);
+      } }, [locked ? "Premium" : (source.playUrl ? "Play" : "Unavailable")]);
+      actions.appendChild(playButton);
+      var downloadButton = el("button", { type: "button", class: "mv-source-action mv-source-download", disabled: !locked && !source.downloadUrl, onclick: locked ? accountForPremium : function () {
+        if (!source.downloadUrl) return;
         var filename = downloadFilename(d, season, episode, source.resolution), url = source.downloadUrl;
         url += (url.indexOf("?") >= 0 ? "&" : "?") + "filename=" + encodeURIComponent(filename);
-        row.disabled = true; row.setAttribute("aria-busy", "true"); row.classList.add("is-preparing");
-        var mark = row.querySelector(".mv-download-option-mark"); if (mark) mark.textContent = "Preparing...";
+        downloadButton.disabled = true; downloadButton.setAttribute("aria-busy", "true"); downloadButton.textContent = "Preparing…";
         var link = document.createElement("a"); link.href = url; link.download = filename; link.rel = "noopener"; link.style.display = "none";
         document.body.appendChild(link); link.click(); window.setTimeout(function () { link.remove(); }, 1000);
         if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast("Download requested: " + filename, "success", 5000);
-        window.setTimeout(function () { if (row.isConnected) { row.disabled = false; row.removeAttribute("aria-busy"); row.classList.remove("is-preparing"); if (mark) { mark.textContent = ""; mark.appendChild(svg(ICON.download, 15)); mark.appendChild(document.createTextNode("Download")); } } }, 3500);
-      } }, [el("span", { class: "mv-download-option-main" }, [el("b", { text: label }), el("small", { text: locked ? "Premium only" : (source.resolution === "360p" ? "Free mobile quality" : "Ready to download") })]), el("span", { class: "mv-download-option-mark" }, [svg(ICON.download, 15), document.createTextNode(locked ? "Premium" : "Download")])]);
+        window.setTimeout(function () { if (downloadButton.isConnected) { downloadButton.disabled = false; downloadButton.removeAttribute("aria-busy"); downloadButton.textContent = "Download"; } }, 3500);
+      } }, [locked ? "Premium" : "Download"]);
+      actions.appendChild(downloadButton);
+      row.appendChild(actions);
       list.appendChild(row);
     });
-    if (!list.children.length) list.appendChild(el("p", { class: "mv-download-empty", text: "No supported download source is available for this selection." }));
+    if (!list.children.length) list.appendChild(el("p", { class: "mv-download-empty", text: "No supported playback or download source is available for this selection." }));
     card.appendChild(list);
     card.appendChild(el("button", { type: "button", class: "mv-btn ghost mv-download-cancel", onclick: close }, ["Cancel"]));
     overlay.appendChild(card); document.body.appendChild(overlay);
@@ -403,9 +437,9 @@
     }
     var sourceState = { sources: [], loading: false, error: false };
     button = el("button", { type: "button", class: "mv-btn mv-download-open", disabled: d.kind === "tv" });
-    function setButton(label) { button.textContent = ""; button.appendChild(svg(ICON.download, 16)); button.appendChild(document.createTextNode(label)); }
-    setButton(d.kind === "tv" ? "Select season and episode" : "Download");
-    controls.appendChild(button); section.appendChild(el("h3", { text: "Download" })); section.appendChild(controls);
+    function setButton(label) { button.textContent = ""; button.appendChild(svg(ICON.film, 16)); button.appendChild(document.createTextNode(label)); }
+    setButton(d.kind === "tv" ? "Select season and episode" : "Watch or download");
+    controls.appendChild(button); section.appendChild(el("h3", { text: "Watch or download" })); section.appendChild(controls);
     var shareButton = el("button", { type: "button", class: "mv-btn ghost mv-icon-action mv-share-button", "aria-label": "Share movie or series", title: "Share", onclick: function () { shareMovie(d, shareButton); } }, [svg(ICON.share, 18)]);
     controls.appendChild(shareButton);
     var bookmarkButton = watchLaterButton(d, detailSavedState, null);
@@ -423,7 +457,7 @@
       button.disabled = true; setButton("Checking sources...");
       api("/streams/" + encodeURIComponent(d.id) + "?slug=" + encodeURIComponent(d.slug) + "&se=" + se + "&ep=" + ep).then(function (stream) {
         sourceState.loading = false; sourceState.sources = Array.isArray(stream.sources) ? stream.sources : [];
-        button.disabled = false; setButton(sourceState.sources.length ? "Download" : "No downloads available");
+        button.disabled = false; setButton(sourceState.sources.length ? "Choose quality" : "No video source available");
       }).catch(function (e) {
         sourceState.loading = false; sourceState.error = true; button.disabled = false;
         setButton(e && e.code === "rate_limited" ? "Try again shortly" : "Try again");

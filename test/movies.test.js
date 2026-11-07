@@ -326,6 +326,11 @@ test("signed-in free accounts can browse movie lists without gaining premium dow
   assert.equal(streams.status, 200);
   assert.equal(streams.body.premium, false);
   assert.equal(streams.body.sources[0].available, false, "non-360p sources remain locked for free accounts");
+  assert.equal(streams.body.sources[0].playUrl, null, "locked qualities never receive a playback URL");
+  profile.verified = true;
+  const premiumStreams = await call("/api/movies/streams/:subjectId", { params: { subjectId: "6207982430134357800" }, query: { slug: "breaking-bad-ej6Bp0MCAo7" } });
+  assert.equal(premiumStreams.body.sources[0].available, true);
+  assert.match(premiumStreams.body.sources[0].playUrl, /^\/api\/movies\/play\//);
 });
 
 test("Watch Later endpoints save, read and remove entries only for the authenticated account", async () => {
@@ -401,6 +406,43 @@ test("download route forwards Range and preserves HTTP 206 for a signed-in free 
   assert.equal(res.statusCode, 206);
   assert.equal(headers["content-range"], "bytes 0-7/12");
   assert.equal(headers["content-disposition"], 'attachment; filename="Breaking Bad - S01E01 360p.mp4"');
+  assert.equal(Buffer.concat(chunks).length, 8);
+});
+
+test("play route streams an authenticated MP4 inline and forwards byte ranges", async () => {
+  reset();
+  const handlers = {};
+  const profile = { verified: false, email: "free@example.test" };
+  class Limiter { middleware() { return (req, res, next) => next(); } }
+  const router = { get: (path, ...fns) => { handlers[path] = fns; }, post: () => {}, delete: () => {} };
+  registerMovieRoutes(router, {
+    requireAuth: (req, res, next) => next(),
+    requireSiteOrigin: (req, res, next) => next(),
+    SimpleRateLimiter: Limiter,
+    getUserProfile: async () => profile,
+    isVerificationActive: (user) => !!user.verified,
+    isAdminEmail: () => false,
+  });
+  const chunks = [];
+  const headers = {};
+  const res = new Writable({ write(chunk, encoding, callback) { chunks.push(Buffer.from(chunk)); callback(); } });
+  res.statusCode = 200;
+  res.status = (code) => { res.statusCode = code; return res; };
+  res.set = (key, value) => { headers[key.toLowerCase()] = value; return res; };
+  res.json = (body) => { res.body = body; res.end(); return res; };
+  const finished = new Promise((resolve, reject) => { res.once("finish", resolve); res.once("error", reject); });
+  await handlers["/api/movies/play/:subjectId"].at(-1)({
+    uid: "free-user", userProfile: profile,
+    params: { subjectId: "6207982430134357800" },
+    query: { slug: "breaking-bad-ej6Bp0MCAo7", se: "1", ep: "1", res: "360" },
+    headers: { range: "bytes=0-7" },
+    get(name) { return this.headers[String(name).toLowerCase()]; },
+  }, res);
+  await finished;
+  assert.equal(state.lastProxyRange, "bytes=0-7");
+  assert.equal(res.statusCode, 206);
+  assert.equal(headers["content-range"], "bytes 0-7/12");
+  assert.equal(headers["content-disposition"], 'inline; filename="movie-360p.mp4"');
   assert.equal(Buffer.concat(chunks).length, 8);
 });
 
