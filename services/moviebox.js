@@ -127,10 +127,10 @@ export async function proxyStream(subjectId, slug, season = 1, episode = 1, reso
           throw new MovieError(502, "api_access_denied", "The Moviebox API denied this request. Check that API_ACCESS_KEY matches MOVIEBOX_API_KEY in Stream and that the site origin is allowed.");
         }
         if (rejectedByCdn) {
-          throw new MovieError(502, "source_forbidden", "Moviebox blocked this video source. No full download was started; try another quality or title.");
+          throw new MovieError(502, "source_forbidden", "Moviebox blocked this video source. Try another quality or title.");
         }
         if (noSource || /^selected\s+source\s+has\s+no\s+url$/i.test(detail)) {
-          throw new MovieError(404, "no_source", "No downloadable MP4 source is available for this quality or episode. No full download was started.");
+          throw new MovieError(404, "no_source", "No MP4 source is available for this quality or episode.");
         }
         const transient = [502, 503, 504].includes(response.status) && !noSource && !rejectedByCdn;
         if (transient && attempt === 0) { await pause(retryDelay(response)); continue; }

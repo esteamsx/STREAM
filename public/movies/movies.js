@@ -357,7 +357,8 @@
       navigator.share({ title: d.title, text: "Watch " + d.title + " on ES TEAMS TV", url: url }).catch(function (e) { if (!e || e.name !== "AbortError") copyFallback(); });
     } else copyFallback();
   }
-  function verifyDownloadReady(url) {
+  function verifyMediaReady(url, action) {
+    var stopped = action === "playback" ? "Playback was not started." : "No file was started.";
     return fetch(url, { credentials: "same-origin", headers: { Accept: "video/mp4, application/octet-stream", Range: "bytes=0-0" } }).then(async function (response) {
       var contentType = String(response.headers.get("content-type") || "");
       var contentRange = String(response.headers.get("content-range") || "");
@@ -368,47 +369,115 @@
         return true;
       }
       if (media && response.body) await response.body.cancel().catch(function () {});
-      var message = "The server did not confirm that the download is ready (HTTP " + response.status + "). The full file was not started.";
+      var message = "The server did not confirm that the " + action + " source is ready (HTTP " + response.status + "). " + stopped;
       if (response.status === 200 && !media) {
         if (response.body) await response.body.cancel().catch(function () {});
         message = response.redirected || /text\/html/i.test(contentType)
-          ? "The site returned a page instead of a video. Your session may have expired; refresh, sign in, and try again. No file was started."
-          : "The server did not return a video range. The full download was not started.";
+          ? "The site returned a page instead of a video. Your session may have expired; refresh, sign in, and try again. " + stopped
+          : "The server did not return a video range. " + stopped;
       }
       if (!media && response.status !== 200 && response.status !== 206) {
         var body = await response.text().catch(function () { return ""; });
         try {
           var payload = JSON.parse(body);
           message = payload.error || payload.detail || message;
+          if (!/no file was started|playback was not started|no media was started/i.test(message)) message += " " + stopped;
         } catch (e) {
-          if (response.status === 403) message = "Download forbidden (403). The site-origin check rejected this request; no file was downloaded.";
+          if (response.status === 403) message = "Request forbidden (403). The site-origin check rejected this request. " + stopped;
         }
-        if (response.status === 403 && !body) message = "Download forbidden (403). No file was downloaded.";
+        if (response.status === 403 && !body) message = "Request forbidden (403). " + stopped;
       } else if (response.status === 200 && media) {
-        message = "The server ignored the one-byte safety check. The full download was stopped to avoid using your data.";
+        message = "The server ignored the one-byte safety check. " + stopped + " Try another quality or contact the site owner.";
       } else if (response.status === 206 && (!oneByteRange || !media)) {
         if (response.body) await response.body.cancel().catch(function () {});
-        message = "The server returned an invalid range check. The full download was not started.";
+        message = "The server returned an invalid video range check. " + stopped;
       }
       throw new Error(message);
     });
   }
+  function verifyDownloadReady(url) { return verifyMediaReady(url, "download"); }
   function showPlayerPopup(d, source, season, episode) {
     var previous = document.getElementById("mvPlayerPopup"); if (previous) previous.remove();
     var overlay = el("div", { class: "mv-player-overlay", id: "mvPlayerPopup", role: "dialog", "aria-modal": "true", "aria-label": "Movie player" });
     var card = el("div", { class: "mv-player-card" });
+    var title = d.title + (d.kind === "tv" && season && episode ? " · S" + String(season).padStart(2, "0") + "E" + String(episode).padStart(2, "0") : "");
+    var video = el("video", { class: "mv-player-video", playsinline: true, preload: "metadata", poster: d.backdrop || d.poster || null, "aria-label": "Play " + title });
+    var status = el("p", { class: "mv-player-status", role: "status", text: "Checking stream…" });
+    var stage = el("div", { class: "mv-player-stage controls-visible" });
+    var playButton = el("button", { type: "button", class: "mc-btn mc-play", "aria-label": "Play" });
+    var muteButton = el("button", { type: "button", class: "mc-btn mc-vol", "aria-label": "Mute" });
+    var volumeSlider = el("input", { class: "mc-vol-slider", type: "range", min: "0", max: "1", step: "0.02", value: "0.8", "aria-label": "Volume" });
+    var seekSlider = el("input", { class: "mv-seek-slider", type: "range", min: "0", max: "1000", step: "1", value: "0", disabled: true, "aria-label": "Seek video" });
+    var currentTime = el("span", { class: "mv-player-time", text: "0:00" });
+    var durationTime = el("span", { class: "mv-player-time", text: "0:00" });
+    var pipButton = el("button", { type: "button", class: "mc-btn mc-pip", "aria-label": "Picture in picture", title: "Picture in picture", style: "display:none" }, [svg('<rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="8" height="6" rx="1" fill="currentColor"/>', 16)]);
+    var lockButton = el("button", { type: "button", class: "mc-btn mc-lock", "aria-label": "Lock controls", title: "Lock controls" });
+    lockButton.appendChild(svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/>', 16));
+    var fullButton = el("button", { type: "button", class: "mc-btn mc-full", "aria-label": "Fullscreen", title: "Fullscreen" });
+    var controls = el("div", { class: "media-controls mv-media-controls" });
+    var timeline = el("div", { class: "mv-player-timeline" }, [seekSlider, currentTime, el("span", { class: "mv-player-time-separator", text: "/" }), durationTime]);
+    var controlsRow = el("div", { class: "mv-player-control-row" }, [playButton, muteButton, volumeSlider, el("span", { class: "mc-live-tag mv-vod-tag" }, [el("span", { class: "mc-live-dot" }), "VOD"]), el("span", { class: "mc-spacer" }), pipButton, lockButton, fullButton]);
+    controls.appendChild(timeline); controls.appendChild(controlsRow);
+    var volume = function (muted) {
+      muteButton.textContent = "";
+      muteButton.appendChild(svg(muted
+        ? '<polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor" stroke="none"/><path d="M16 9l5 6m0-6l-5 6"/>'
+        : '<polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor" stroke="none"/><path d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14"/>', 16));
+      muteButton.setAttribute("aria-label", muted ? "Unmute" : "Mute");
+      volumeSlider.style.setProperty("--vol", Math.round((muted ? 0 : video.volume) * 100) + "%");
+    };
+    var syncPlay = function () {
+      playButton.textContent = "";
+      playButton.appendChild(svg(video.paused
+        ? '<polygon points="5,3 19,12 5,21" fill="currentColor" stroke="none"/>'
+        : '<rect x="5" y="3" width="4" height="18" rx="1" fill="currentColor" stroke="none"/><rect x="15" y="3" width="4" height="18" rx="1" fill="currentColor" stroke="none"/>', 16));
+      playButton.setAttribute("aria-label", video.paused ? "Play" : "Pause");
+      playButton.title = video.paused ? "Play" : "Pause";
+    };
+    var timeText = function (seconds) {
+      if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+      var total = Math.floor(seconds), s = String(total % 60).padStart(2, "0"), m = Math.floor(total / 60);
+      return m >= 60 ? String(Math.floor(m / 60)) + ":" + String(m % 60).padStart(2, "0") + ":" + s : String(m) + ":" + s;
+    };
+    var syncTime = function () {
+      var duration = Number.isFinite(video.duration) ? video.duration : 0;
+      var progress = duration > 0 ? Math.min(1000, Math.max(0, Math.round(video.currentTime / duration * 1000))) : 0;
+      seekSlider.value = String(progress); seekSlider.disabled = duration <= 0;
+      seekSlider.style.setProperty("--seek", (progress / 10) + "%");
+      currentTime.textContent = timeText(video.currentTime); durationTime.textContent = timeText(duration);
+    };
     var close = function () {
       document.removeEventListener("keydown", onKeydown);
+      document.removeEventListener("fullscreenchange", fullscreenHandler);
+      if (document.fullscreenElement === stage && document.exitFullscreen) { try { var exitResult = document.exitFullscreen(); if (exitResult && exitResult.catch) exitResult.catch(function () {}); } catch (e) {} }
       video.pause(); video.removeAttribute("src"); video.load(); overlay.remove();
     };
     var onKeydown = function (event) { if (event.key === "Escape") close(); };
-    var title = d.title + (d.kind === "tv" && season && episode ? " · S" + String(season).padStart(2, "0") + "E" + String(episode).padStart(2, "0") : "");
-    var video = el("video", { class: "mv-player-video", controls: true, playsinline: true, preload: "metadata", "aria-label": "Play " + title });
-    var status = el("p", { class: "mv-player-status", text: "Loading video…" });
-    video.addEventListener("loadedmetadata", function () { status.textContent = ""; });
-    video.addEventListener("error", function () { status.textContent = "This stream could not be played. Try another quality or download it instead."; });
-    card.appendChild(el("div", { class: "mv-download-head" }, [el("div", { class: "mv-download-title", text: title }), el("button", { type: "button", class: "mv-download-close", "aria-label": "Close player", onclick: close }, ["\u00d7"])]));
-    card.appendChild(el("p", { class: "mv-download-sub", text: [source.resolution, source.format].filter(Boolean).join(" · ") + " · ES TEAMS TV" }));
+    var hideTimer;
+    var revealControls = function () {
+      stage.classList.add("controls-visible"); window.clearTimeout(hideTimer);
+      if (!video.paused) hideTimer = window.setTimeout(function () { stage.classList.remove("controls-visible"); }, 3000);
+    };
+    playButton.addEventListener("click", function () {
+      if (video.paused) video.play().catch(function () { status.textContent = "Playback could not start. Check the stream connection and press Play again."; });
+      else video.pause();
+    });
+    muteButton.addEventListener("click", function () { video.muted = !video.muted; volume(video.muted || video.volume === 0); });
+    volumeSlider.addEventListener("input", function () { video.volume = Number(volumeSlider.value); video.muted = video.volume === 0; volume(video.muted); });
+    seekSlider.addEventListener("input", function () { if (Number.isFinite(video.duration) && video.duration > 0) video.currentTime = Number(seekSlider.value) / 1000 * video.duration; });
+    playButton.disabled = true; muteButton.disabled = true; volumeSlider.disabled = true; lockButton.disabled = true; fullButton.disabled = true;
+    video.volume = 0.8;
+    syncPlay(); volume(false); syncTime();
+    video.addEventListener("loadedmetadata", function () { syncTime(); status.textContent = "Ready — press Play to start."; });
+    video.addEventListener("timeupdate", syncTime); video.addEventListener("durationchange", syncTime); video.addEventListener("play", function () { syncPlay(); status.textContent = ""; revealControls(); });
+    video.addEventListener("pause", function () { syncPlay(); revealControls(); });
+    video.addEventListener("waiting", function () { status.textContent = "Buffering video…"; });
+    video.addEventListener("playing", function () { status.textContent = ""; });
+    video.addEventListener("error", function () {
+      var code = video.error && video.error.code;
+      status.textContent = code === 2 ? "Network error while loading this video. Try again or choose another quality." : code === 3 ? "This video format could not be decoded by your browser." : "The video could not be played. Try another quality or download it.";
+    });
+    stage.appendChild(video);
     var watermark = el("div", { class: "mv-player-watermark", "aria-hidden": "true" }, [
       el("svg", { class: "mv-player-watermark-icon", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round" }, [
         el("path", { d: "M12 2L3 6v5c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V6z" }),
@@ -416,13 +485,59 @@
       ]),
       el("span", { text: "ES TEAMS TV" }),
     ]);
-    card.appendChild(el("div", { class: "mv-player-stage" }, [video, watermark]));
-    card.appendChild(status);
+    stage.appendChild(watermark); stage.appendChild(controls);
+    stage.addEventListener("mousemove", revealControls); stage.addEventListener("touchstart", revealControls, { passive: true });
+    stage.addEventListener("click", function (event) { if (event.target === stage || event.target === video) { if (video.paused) video.play().catch(function () { status.textContent = "Playback could not start. Use the Play control or choose another quality."; }); else video.pause(); } });
+    lockButton.addEventListener("click", function () {
+      var locked = controls.classList.toggle("mc-locked");
+      [playButton, muteButton, volumeSlider, seekSlider, pipButton, fullButton].forEach(function (control) { control.disabled = locked; });
+      lockButton.setAttribute("aria-label", locked ? "Unlock controls" : "Lock controls"); lockButton.title = locked ? "Unlock controls" : "Lock controls";
+      lockButton.textContent = ""; lockButton.appendChild(svg(locked ? '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/>' : '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 017.8-1.2"/>', 16));
+    });
+    var canPip = !!(document.pictureInPictureEnabled && video.requestPictureInPicture) || typeof video.webkitSetPresentationMode === "function";
+    if (canPip) {
+      pipButton.style.display = "";
+      pipButton.addEventListener("click", function () {
+        if (video.requestPictureInPicture) {
+          if (document.pictureInPictureElement) document.exitPictureInPicture().catch(function () {});
+          else video.requestPictureInPicture().catch(function () {});
+        } else video.webkitSetPresentationMode(video.webkitPresentationMode === "picture-in-picture" ? "inline" : "picture-in-picture");
+      });
+      video.addEventListener("enterpictureinpicture", function () { pipButton.classList.add("active"); });
+      video.addEventListener("leavepictureinpicture", function () { pipButton.classList.remove("active"); });
+    }
+    fullButton.textContent = ""; fullButton.appendChild(svg('<path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M16 21h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/>', 16));
+    fullButton.addEventListener("click", function () {
+      try {
+        var result;
+        if (document.fullscreenElement === stage && document.exitFullscreen) result = document.exitFullscreen();
+        else if (stage.requestFullscreen) result = stage.requestFullscreen();
+        else { status.textContent = "Fullscreen is not supported by this browser."; return; }
+        if (result && result.catch) result.catch(function () { status.textContent = "Fullscreen could not be opened."; });
+      } catch (e) { status.textContent = "Fullscreen could not be opened."; }
+    });
+    var fullscreenHandler = function () {
+      var expanded = document.fullscreenElement === stage;
+      fullButton.setAttribute("aria-label", expanded ? "Exit fullscreen" : "Fullscreen");
+      fullButton.title = expanded ? "Exit fullscreen" : "Fullscreen";
+      fullButton.textContent = "";
+      fullButton.appendChild(svg(expanded
+        ? '<path d="M8 3v3a2 2 0 01-2 2H3M21 8h-3a2 2 0 01-2-2V3M3 16h3a2 2 0 012 2v3M16 21v-3a2 2 0 012-2h3"/>'
+        : '<path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M16 21h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/>', 16));
+    };
+    document.addEventListener("fullscreenchange", fullscreenHandler);
+    card.appendChild(el("div", { class: "mv-download-head" }, [el("div", { class: "mv-download-title", text: title }), el("button", { type: "button", class: "mv-download-close", "aria-label": "Close player", onclick: close }, ["\u00d7"])]));
+    card.appendChild(el("p", { class: "mv-download-sub", text: [source.resolution, source.format].filter(Boolean).join(" · ") + " · ES TEAMS TV" }));
+    card.appendChild(stage); card.appendChild(status);
     overlay.appendChild(card); document.body.appendChild(overlay);
     overlay.addEventListener("click", function (event) { if (event.target === overlay) close(); });
     document.addEventListener("keydown", onKeydown);
-    video.src = source.playUrl;
-    video.play().catch(function () { status.textContent = "Press play to start the video."; });
+    verifyMediaReady(source.playUrl, "playback").then(function () {
+      if (!overlay.isConnected) return;
+      video.src = source.playUrl; video.load();
+      playButton.disabled = false; muteButton.disabled = false; volumeSlider.disabled = false; lockButton.disabled = false; fullButton.disabled = false;
+      status.textContent = "Stream ready — press Play.";
+    }).catch(function (error) { if (overlay.isConnected) status.textContent = error.message || "Playback check failed. No video was started."; });
   }
   function showDownloadPopup(d, sources, season, episode) {
     var old = document.getElementById("mvDownloadPopup"); if (old) old.remove();

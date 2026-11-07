@@ -91,6 +91,7 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
       const response = await proxyStream(String(req.params.subjectId), String(req.query.slug || ""), req.query.se, req.query.ep, resolution, req.get("range"));
       res.status(response.status);
       ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"].forEach((key) => { const value = response.headers.get(key); if (value) res.set(key, value); });
+      res.set("Content-Type", "video/mp4");
       res.set("Cache-Control", "private, no-store");
       res.set("Content-Disposition", "inline; filename=\"movie-" + resolution + "p.mp4\"");
       if (!response.body) return res.end();

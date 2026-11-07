@@ -247,7 +247,7 @@ test("download proxy reports a CDN-forbidden source before starting a full trans
   };
   await assert.rejects(
     proxyStream("6207982430134357800", "breaking-bad-ej6Bp0MCAo7", 1, 1, "360"),
-    (error) => error instanceof MovieError && error.code === "source_forbidden" && /No full download was started/.test(error.message)
+    (error) => error instanceof MovieError && error.code === "source_forbidden" && /Moviebox blocked this video source/.test(error.message)
   );
 });
 
@@ -466,6 +466,7 @@ test("play route streams an authenticated MP4 inline and forwards byte ranges", 
   assert.equal(state.lastProxyRange, "bytes=0-7");
   assert.equal(res.statusCode, 206);
   assert.equal(headers["content-range"], "bytes 0-7/12");
+  assert.equal(headers["content-type"], "video/mp4");
   assert.equal(headers["content-disposition"], 'inline; filename="movie-360p.mp4"');
   assert.equal(Buffer.concat(chunks).length, 8);
 });
@@ -559,8 +560,15 @@ test("movie downloads name files with title and quality and report the same file
   assert.match(frontend, /window\.EsUI\.toast\("Download started: " \+ filename, "success", 5000\)/);
   assert.match(frontend, /Range: "bytes=0-0"/);
   assert.match(frontend, /verifyDownloadReady\(url\)/);
-  assert.match(frontend, /The full download was stopped to avoid using your data/);
+  assert.match(frontend, /verifyMediaReady\(source\.playUrl, "playback"\)/);
+  assert.match(frontend, /class: "media-controls mv-media-controls"/);
+  assert.match(frontend, /class: "mv-player-control-row"/);
+  assert.match(frontend, /class: "mv-seek-slider"/);
+  assert.match(frontend, /video\.play\(\)\.catch/);
+  assert.doesNotMatch(frontend, /class: "mv-player-video", controls: true/);
+  assert.match(frontend, /The server ignored the one-byte safety check/);
   assert.match(frontend, /class: "mv-player-watermark"/);
   assert.match(frontend, /text: "ES TEAMS TV"/);
   assert.match(css, /\.mv-player-watermark\{[^}]*pointer-events:none/);
+  assert.match(css, /\.mv-player-stage:hover \.media-controls/);
 });
