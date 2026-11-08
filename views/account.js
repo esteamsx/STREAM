@@ -303,8 +303,8 @@ input{font-family:inherit}
 
 .acc-nav{
   position:sticky;top:0;z-index:10;height:58px;display:flex;align-items:center;gap:14px;padding:0 18px;
-  background:linear-gradient(180deg,rgba(10,32,48,.075),rgba(10,32,48,.025))!important;
-  border-bottom:1px solid rgba(126,214,232,.16);backdrop-filter:blur(2px);
+  background:linear-gradient(180deg,rgba(10,32,48,.13),rgba(10,32,48,.045))!important;
+  border-bottom:1px solid rgba(126,214,232,.22);backdrop-filter:blur(2px);
 }
 .acc-back{
   display:flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-size:.85rem;font-weight:600;
@@ -316,7 +316,7 @@ input{font-family:inherit}
 .notif-bell{
   position:relative;background:transparent;border:none;color:var(--muted);width:38px;height:38px;
   border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;
-  transition:all .2s var(--ease);flex-shrink:0;outline:1px solid rgba(126,214,232,.14);outline-offset:-1px;
+  transition:all .2s var(--ease);flex-shrink:0;outline:1px solid rgba(126,214,232,.2);outline-offset:-1px;
 }
 .notif-bell:hover{color:var(--accent);background:rgba(0,224,255,.1)}
 .notif-bell svg{width:20px;height:20px}
