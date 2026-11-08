@@ -573,6 +573,13 @@ test("movie downloads name files with title and quality and report the same file
   assert.match(frontend, /if \(\/\^\\d\+\$\/.test\(q\)\) title \+= " " \+ q \+ "p"/);
   assert.match(frontend, /filename=" \+ encodeURIComponent\(filename\)/);
   assert.match(frontend, /window\.EsUI\.toast\("Download started: " \+ filename, "success", 5000\)/);
+  assert.match(frontend, /function startSiteDownload\(url, filename, sourceButton\)/);
+  assert.match(frontend, /id: "mvDownloadProgress"/);
+  assert.match(frontend, /response\.body\.getReader\(\)/);
+  assert.match(frontend, /remaining/);
+  assert.match(frontend, /new Blob\(chunks/);
+  assert.match(css, /\.mv-download-progress\{/);
+  assert.match(css, /\.mv-download-progress-fill\{/);
   assert.match(frontend, /Range: "bytes=0-0"/);
   assert.match(frontend, /verifyDownloadReady\(url\)/);
   assert.match(frontend, /verifyMediaReady\(source\.playUrl, "playback"\)/);

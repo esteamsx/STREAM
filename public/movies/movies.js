@@ -396,6 +396,64 @@
     });
   }
   function verifyDownloadReady(url) { return verifyMediaReady(url, "download"); }
+  function formatDuration(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return "calculating…";
+    var total = Math.max(0, Math.round(seconds)), mins = Math.floor(total / 60), secs = total % 60;
+    if (mins >= 60) return String(Math.floor(mins / 60)) + "h " + String(mins % 60).padStart(2, "0") + "m";
+    return String(mins) + ":" + String(secs).padStart(2, "0");
+  }
+  function startSiteDownload(url, filename, sourceButton) {
+    var old = document.getElementById("mvDownloadProgress"); if (old) old.remove();
+    var controller = new AbortController();
+    var overlay = el("div", { class: "mv-download-progress", id: "mvDownloadProgress", role: "dialog", "aria-modal": "true", "aria-labelledby": "mvDownloadProgressTitle" });
+    var card = el("div", { class: "mv-download-progress-card" });
+    var title = el("h2", { class: "mv-download-progress-title", id: "mvDownloadProgressTitle", text: "Preparing…" });
+    var file = el("p", { class: "mv-download-progress-file", text: filename });
+    var track = el("div", { class: "mv-download-progress-track", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": "0", "aria-label": "Download progress" });
+    var fill = el("div", { class: "mv-download-progress-fill" }); track.appendChild(fill);
+    var status = el("p", { class: "mv-download-progress-status", role: "status", text: "Connecting to the movie server…" });
+    var meta = el("p", { class: "mv-download-progress-meta", text: "Downloaded 0 B" });
+    var cancel = el("button", { type: "button", class: "mv-btn ghost mv-download-progress-cancel", text: "Cancel" });
+    var closed = false;
+    function finishOverlay() { if (closed) return; closed = true; window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); }, 1400); }
+    cancel.addEventListener("click", function () { controller.abort(); title.textContent = "Download canceled"; status.textContent = "No file was saved."; cancel.disabled = true; window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); }, 700); });
+    overlay.addEventListener("click", function (event) { if (event.target === overlay) cancel.click(); });
+    card.append(title, file, track, status, meta, cancel); overlay.appendChild(card); document.body.appendChild(overlay);
+    if (sourceButton) { sourceButton.disabled = true; sourceButton.setAttribute("aria-busy", "true"); sourceButton.textContent = "Preparing…"; }
+    var started = performance.now(), received = 0, total = 0, lastPaint = 0;
+    function paint(force) {
+      var now = performance.now(); if (!force && now - lastPaint < 80) return; lastPaint = now;
+      var percent = total > 0 ? Math.min(100, received / total * 100) : 0;
+      var elapsed = Math.max(.001, (now - started) / 1000), speed = received / elapsed, remaining = total > 0 && speed > 0 ? (total - received) / speed : NaN;
+      fill.style.width = percent.toFixed(2) + "%"; track.setAttribute("aria-valuenow", String(Math.round(percent)));
+      meta.textContent = total > 0 ? formatBytes(received) + " of " + formatBytes(total) + " · " + formatBytes(Math.max(0, total - received)) + " left · " + formatDuration(remaining) + " remaining" : formatBytes(received) + " downloaded · calculating size…";
+      status.textContent = total > 0 ? Math.round(percent) + "% downloaded" : "Downloading…";
+    }
+    fetch(url, { credentials: "same-origin", headers: { Accept: "video/mp4, application/octet-stream" }, signal: controller.signal }).then(async function (response) {
+      if (!response.ok) {
+        var body = await response.text().catch(function () { return ""; }), message = "Download failed (HTTP " + response.status + ").";
+        try { var payload = JSON.parse(body); message = payload.error || payload.detail || message; } catch (e) {}
+        throw new Error(message);
+      }
+      if (!response.body || !response.body.getReader) throw new Error("This browser cannot show download progress. Try again in a newer browser.");
+      total = Number(response.headers.get("content-length")) || 0;
+      var range = String(response.headers.get("content-range") || "").match(/\/([0-9]+)$/); if (!total && range) total = Number(range[1]) || 0;
+      var reader = response.body.getReader(), chunks = [];
+      while (true) { var part = await reader.read(); if (part.done) break; if (part.value && part.value.byteLength) { chunks.push(part.value); received += part.value.byteLength; paint(false); } }
+      paint(true); title.textContent = "Download ready"; status.textContent = "Saving to your device…";
+      var blob = new Blob(chunks, { type: response.headers.get("content-type") || "video/mp4" }), objectUrl = URL.createObjectURL(blob), link = document.createElement("a");
+      link.href = objectUrl; link.download = filename; link.rel = "noopener"; link.style.display = "none"; document.body.appendChild(link); link.click();
+      window.setTimeout(function () { link.remove(); URL.revokeObjectURL(objectUrl); }, 1000);
+      window.EsUI && typeof window.EsUI.toast === "function" && window.EsUI.toast("Download started: " + filename, "success", 5000);
+      cancel.textContent = "Done"; cancel.disabled = true; finishOverlay();
+    }).catch(function (error) {
+      if (error && error.name === "AbortError") return;
+      title.textContent = "Download unavailable"; status.textContent = error.message || "No file was saved."; cancel.textContent = "Close";
+      if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(status.textContent, "error", 8000);
+    }).finally(function () {
+      if (!sourceButton) return; sourceButton.disabled = false; sourceButton.removeAttribute("aria-busy"); sourceButton.textContent = "Download";
+    });
+  }
   function showPlayerPopup(d, source, season, episode) {
     var previous = document.getElementById("mvPlayerPopup"); if (previous) previous.remove();
     var overlay = el("div", { class: "mv-player-overlay", id: "mvPlayerPopup", role: "dialog", "aria-modal": "true", "aria-label": "Movie player" });
@@ -564,11 +622,7 @@
         var filename = downloadFilename(d, season, episode, source.resolution), url = source.downloadUrl;
         url += (url.indexOf("?") >= 0 ? "&" : "?") + "filename=" + encodeURIComponent(filename);
         if (readyUrl === url) {
-          readyUrl = null; downloadButton.disabled = true; downloadButton.textContent = "Starting…";
-          var link = document.createElement("a"); link.href = url; link.download = filename; link.rel = "noopener"; link.style.display = "none";
-          document.body.appendChild(link); link.click(); window.setTimeout(function () { link.remove(); }, 1000);
-          if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast("Download started: " + filename, "success", 5000);
-          window.setTimeout(function () { if (downloadButton.isConnected) { downloadButton.disabled = false; downloadButton.textContent = "Download"; } }, 1800);
+          readyUrl = null; startSiteDownload(url, filename, downloadButton);
           return;
         }
         if (checkingDownload) return;
