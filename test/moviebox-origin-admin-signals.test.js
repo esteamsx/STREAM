@@ -85,8 +85,9 @@ test("site-wide liquid glass refinements use theme-aware, page-specific surfaces
   assert.ok(blurFilters.length > 0);
   assert.ok(blurFilters.every((filter) => filter.includes("blur(2px)")));
   assert.match(glassRules, /--es-glass-fill:transparent/);
-  assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?background-color:var\(--nav-bg\)!important/);
-  assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?backdrop-filter:blur\(20px\)!important/);
+  assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?background-color:color-mix\(in srgb,var\(--nav-bg,#10131d\) 58%,transparent\)!important/);
+  assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?background-image:var\(--es-glass-sheen\)!important/);
+  assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?backdrop-filter:blur\(10px\) saturate\(1\.18\)!important/);
   assert.match(glassRules, /Buttons and form fields intentionally retain their original visual styles/);
   assert.doesNotMatch(glassRules, /(?:^|\n)button\s*,|(?:^|\n)input\s*\{/);
   assert.match(glassRules, /prefers-reduced-transparency:reduce/);
