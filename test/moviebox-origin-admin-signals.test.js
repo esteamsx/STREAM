@@ -7,7 +7,7 @@ const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
 
 test("Stream Moviebox calls identify the site and support the private shared key", () => {
   const client = read("../services/moviebox.js");
-  assert.match(client, /MOVIEBOX_SITE_ORIGIN = "https:\/\/esteamstv\.devs\.surf"/);
+  assert.match(client, /MOVIEBOX_SITE_ORIGIN = String\(process\.env\.MOVIEBOX_SITE_ORIGIN \|\| "https:\/\/esteamstv\.devs\.surf"\)/);
   assert.match(client, /process\.env\.MOVIEBOX_API_KEY/);
   assert.match(client, /headers: movieboxHeaders\("application\/json"\)/);
   assert.match(client, /const headers = movieboxHeaders\("video\/mp4"\)/);

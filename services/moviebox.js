@@ -24,7 +24,7 @@ export const CATALOGS = { movies: { path: "/movies", title: "Movies" }, "tv-seri
 export const SORTS = ["RECOMMEND", "NEWEST", "RATING"];
 const SLUG_RE = /^[A-Za-z0-9._~-]{2,160}$/;
 const SUBJECT_ID_RE = /^[A-Za-z0-9_-]{2,64}$/;
-const MOVIEBOX_SITE_ORIGIN = "https://esteamstv.devs.surf";
+const MOVIEBOX_SITE_ORIGIN = String(process.env.MOVIEBOX_SITE_ORIGIN || "https://esteamstv.devs.surf").trim().replace(/\/+$/, "");
 function movieboxHeaders(accept) {
   const headers = { accept, origin: MOVIEBOX_SITE_ORIGIN };
   const key = String(process.env.MOVIEBOX_API_KEY || "").trim();
@@ -195,6 +195,17 @@ function bytesOf(v) {
   return Number.isFinite(bytes) && bytes > 0 && bytes <= 100 * 1024 * 1024 * 1024 ? Math.round(bytes) : null;
 }
 const yearOf = (v) => { const m = String(v == null ? "" : v).match(/(19|20)\d{2}/); return m ? m[0] : null; };
+function payloadData(raw) {
+  return raw && raw.data && typeof raw.data === "object" ? raw.data : raw;
+}
+function payloadItems(raw) {
+  const data = payloadData(raw) || {};
+  return data.items || data.subjects || data.list || (raw && raw.items) || [];
+}
+function payloadPager(raw) {
+  const data = payloadData(raw) || {};
+  return data.pager && typeof data.pager === "object" ? data.pager : {};
+}
 
 /* one movie or series, from a banner row, a subject row, a catalog or a search result */
 export function normalizeItem(raw) {
@@ -269,7 +280,7 @@ export function getHome() {
   return cached("home", TTL.home, async () => {
     const [homeRes, ...catalogRes] = await Promise.allSettled([
       upstream("/home"),
-      ...Object.entries(CATALOGS).map(([kind, c]) => upstream(c.path, { page: 1, sort: "RECOMMEND" }).then((r) => ({ kind, items: normalizeList(r && (r.items || r.data)) }))),
+      ...Object.entries(CATALOGS).map(([kind, c]) => upstream(c.path, { page: 1, sort: "RECOMMEND" }).then((r) => ({ kind, items: normalizeList(payloadItems(r)) }))),
     ]);
     const sections = homeRes.status === "fulfilled" && homeRes.value ? (homeRes.value.sections || (homeRes.value.data && homeRes.value.data.sections) || []) : [];
     let banner = [];
@@ -303,8 +314,11 @@ export function getCatalog(kind, page = 1, sort = "RECOMMEND") {
   if (!SORTS.includes(sort)) sort = "RECOMMEND";
   return cached(`catalog:${kind}:${page}:${sort}`, TTL.catalog, async () => {
     const r = await upstream(c.path, { page, sort });
-    const items = normalizeList(r && (r.items || r.data), 60);
-    const total = Number(r && r.total) || 0, perPage = Number(r && r.per_page) || items.length;
+    const items = normalizeList(payloadItems(r), 60);
+    const pager = payloadPager(r);
+    const data = payloadData(r) || {};
+    const total = Number(r && r.total) || Number(data.total) || Number(pager.totalCount) || 0;
+    const perPage = Number(r && r.per_page) || Number(data.per_page) || Number(pager.pageSize) || items.length;
     return { kind, title: c.title, page, items, total, hasMore: items.length > 0 && (total ? page * (perPage || 24) < total : items.length >= 20) };
   });
 }
@@ -315,8 +329,9 @@ export function getSearch(q, page = 1) {
   page = Math.min(50, Math.max(1, Math.floor(Number(page)) || 1));
   return cached(`search:${q.toLowerCase()}:${page}`, TTL.search, async () => {
     const r = await upstream("/search", { q, page });
-    const items = normalizeList(r && (r.items || r.data), 60);
-    const total = Number(r && r.total) || 0;
+    const items = normalizeList(payloadItems(r), 60);
+    const data = payloadData(r) || {};
+    const total = Number(r && r.total) || Number(data.total) || Number(payloadPager(r).totalCount) || 0;
     return { query: q, page, items, total, hasMore: items.length > 0 && (total ? page * 24 < total : items.length >= 20) };
   });
 }
