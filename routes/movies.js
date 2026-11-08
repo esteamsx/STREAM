@@ -89,7 +89,7 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
     return job ? res.set("Cache-Control", "no-store").json(job) : res.status(404).json({ error: "Download job not found.", code: "not_found" });
   });
   router.get("/api/movies/download-jobs/:id/file", requireAuth, requireMovieSiteOrigin, limiter, async (req, res) => {
-    const ok = await streamMovieDownload(req.uid, req.params.id, res);
+    const ok = await streamMovieDownload(req.uid, req.params.id, res, req.get("range"));
     if (!ok && !res.headersSent) return res.status(409).json({ error: "That download is not ready yet.", code: "download_not_ready" });
   });
   router.get("/api/movies/detail/:slug", requireAuth, requireMovieSiteOrigin, limiter, (req, res) => send(res, () => getDetail(String(req.params.slug))));

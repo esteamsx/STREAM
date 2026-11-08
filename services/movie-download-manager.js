@@ -111,13 +111,40 @@ export async function listMovieDownloads(uid) { await ensureReady(); return [...
 export async function getMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); return job && job.uid === String(uid) ? publicJob(job) : null; }
 export async function retryMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; if (!["failed", "paused"].includes(job.status)) return publicJob(job); job.cancelRequested = false; job.error = null; void startWorker(job); return publicJob(job); }
 export async function cancelMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; job.cancelRequested = true; if (!job.running) { job.status = "canceled"; await save(job); } return publicJob(job); }
-export async function streamMovieDownload(uid, id, res) {
+function parseByteRange(value, size) {
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(String(value || "").trim());
+  if (!match || (!match[1] && !match[2])) return null;
+  let start, end;
+  if (!match[1]) {
+    const suffix = Number(match[2]);
+    if (!Number.isInteger(suffix) || suffix <= 0) return null;
+    start = Math.max(0, size - suffix); end = size - 1;
+  } else {
+    start = Number(match[1]); end = match[2] ? Number(match[2]) : size - 1;
+  }
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start > end || start >= size) return null;
+  return { start, end: Math.min(end, size - 1) };
+}
+export async function streamMovieDownload(uid, id, res, rangeHeader) {
   await ensureReady(); const job = jobs.get(String(id));
   if (!job || job.uid !== String(uid)) return false;
   if (job.status !== "completed") return false;
   const stat = await fsp.stat(filePath(job)).catch(() => null); if (!stat) return false;
-  res.status(200).set({ "Content-Type": "video/mp4", "Content-Length": String(stat.size), "Content-Disposition": `attachment; filename="${job.filename}"`, "Cache-Control": "private, no-store", "Accept-Ranges": "bytes" });
-  await pipeline(fs.createReadStream(filePath(job)), res).catch(() => {}); return true;
+  const range = rangeHeader ? parseByteRange(rangeHeader, stat.size) : null;
+  if (rangeHeader && !range) {
+    res.status(416).set({ "Content-Range": `bytes */${stat.size}`, "Accept-Ranges": "bytes", "Cache-Control": "private, no-store" }).end();
+    return true;
+  }
+  const start = range ? range.start : 0, end = range ? range.end : stat.size - 1;
+  res.status(range ? 206 : 200).set({
+    "Content-Type": "video/mp4",
+    "Content-Length": String(end - start + 1),
+    "Content-Disposition": `attachment; filename="${job.filename}"`,
+    "Cache-Control": "private, no-store",
+    "Accept-Ranges": "bytes",
+    ...(range ? { "Content-Range": `bytes ${start}-${end}/${stat.size}` } : {}),
+  });
+  await pipeline(fs.createReadStream(filePath(job), { start, end }), res).catch(() => {}); return true;
 }
 export async function purgeMovieDownloads() {
   await ensureReady(); const cutoff = Date.now() - 24 * 60 * 60 * 1000;

@@ -452,7 +452,7 @@
     function showFailure(message) { failed = true; title.textContent = "Download unavailable"; status.textContent = message || "The server could not finish this download."; meta.textContent = "Your partial bytes are kept on the server."; cancel.textContent = "Close"; restore.textContent = "Retry"; restore.onclick = retryDownload; dockMeta.textContent = "Failed · tap Retry"; dockCircle.textContent = "!"; dockCircle.classList.add("is-error"); dock.classList.add("is-failed"); dockCopy.querySelector(".mv-download-dock-title").textContent = "Download failed"; resetSource(); if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(status.textContent, "error", 8000); }
     function saveFile() {
       title.textContent = "Download ready";
-      status.textContent = "Saving to your device…";
+      status.textContent = "Browser download started…";
       // Do not fetch the completed movie into a Blob. That buffers the entire
       // file in browser memory and can hang at the final "saving" stage for
       // large movies, especially on mobile. Let the browser's native download
@@ -465,11 +465,15 @@
       document.body.appendChild(link);
       link.click();
       window.setTimeout(function () { link.remove(); }, 1000);
-      dockCircle.textContent = "✓";
+      dockCircle.textContent = "";
+      dockCircle.appendChild(svg('<path d="M5 12.5l4.2 4.2L19 7"/>', 22));
+      dockCircle.setAttribute("aria-label", "Server copy ready; browser is saving " + filename);
+      dockCircle.title = "Server copy ready; browser save in progress";
       dockCircle.classList.add("is-complete");
-      dockMeta.textContent = "Saved";
-      dockCopy.querySelector(".mv-download-dock-title").textContent = "Download complete";
-      cancel.textContent = "Done";
+      dockMeta.textContent = "Saving on device";
+      dockCopy.querySelector(".mv-download-dock-title").textContent = "Browser download started";
+      meta.textContent = "Server copy complete · your browser is saving the file";
+      cancel.textContent = "Close";
       cancel.disabled = true;
       resetSource();
       finishOverlay();
