@@ -7,7 +7,7 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
   if (typeof requireSiteOrigin !== "function") throw new TypeError("The Movies routes require the site's origin guard.");
   const limiter = new SimpleRateLimiter(90, 60 * 1000, (req) => req.uid || req.ip).middleware();
   const requireMovieSiteOrigin = (req, res, next) => {
-    const expectedOrigin = "https://esteamstv.devs.surf";
+    const expectedOrigin = String(process.env.MOVIEBOX_SITE_ORIGIN || process.env.SITE_ORIGIN || "https://esteamstv.devs.surf").trim().replace(/\/+$/, "");
     const origin = req.get("origin");
     if (origin === expectedOrigin) return next();
     const referer = req.get("referer");
