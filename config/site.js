@@ -422,9 +422,9 @@ const GLASS_OVERLAY_CSS = `<style>
 .comments-overlay,.img-lightbox-overlay,.sp-ov,.cx-ov,.es-pay-overlay,
 .es-weekly-overlay,.st-full,.ch-down-overlay,.connecting-overlay,
 .countdown-overlay,.idle-overlay,.err-overlay{
-  background:rgba(7,10,18,.5)!important;
-  -webkit-backdrop-filter:blur(4px) saturate(1.12)!important;
-  backdrop-filter:blur(4px) saturate(1.12)!important;
+  background:rgba(7,10,18,.34)!important;
+  -webkit-backdrop-filter:blur(2px) saturate(1.08)!important;
+  backdrop-filter:blur(2px) saturate(1.08)!important;
 }
 .page-overlay> .overlay-card,.page-overlay> .flist-card,.page-overlay> .mpv-card,
 .page-overlay> .comments-card,.page-overlay> [class$="-card"],
@@ -439,11 +439,11 @@ const GLASS_OVERLAY_CSS = `<style>
 .st-full> .st-panel,.ch-down-overlay> .ch-down-card,
 .connecting-overlay> [class$="-card"],.countdown-overlay> [class$="-card"],
 .idle-overlay> [class$="-card"],.err-overlay> [class$="-card"]{
-  background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(255,255,255,.012) 34%,rgba(255,255,255,.035) 72%,rgba(255,255,255,.075)),rgba(14,19,31,.38)!important;
-  border:1px solid rgba(255,255,255,.3)!important;
-  -webkit-backdrop-filter:blur(8px) saturate(1.22)!important;
-  backdrop-filter:blur(8px) saturate(1.22)!important;
-  box-shadow:0 18px 44px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.34),inset 0 -1px 0 rgba(255,255,255,.06)!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.1),rgba(255,255,255,.008) 42%,rgba(255,255,255,.035)),rgba(14,19,31,.18)!important;
+  border:1px solid rgba(255,255,255,.24)!important;
+  -webkit-backdrop-filter:blur(6px) saturate(1.12)!important;
+  backdrop-filter:blur(6px) saturate(1.12)!important;
+  box-shadow:0 12px 30px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.18)!important;
 }
 :root[data-theme="light"] .page-overlay> .overlay-card,:root[data-theme="light"] .page-overlay> .flist-card,
 :root[data-theme="light"] .page-overlay> .mpv-card,:root[data-theme="light"] .page-overlay> .comments-card,
@@ -460,38 +460,38 @@ const GLASS_OVERLAY_CSS = `<style>
 :root[data-theme="light"] .ch-down-overlay> .ch-down-card,:root[data-theme="light"] .connecting-overlay> [class$="-card"],
 :root[data-theme="light"] .countdown-overlay> [class$="-card"],:root[data-theme="light"] .idle-overlay> [class$="-card"],
 :root[data-theme="light"] .err-overlay> [class$="-card"]{
-  background:linear-gradient(145deg,rgba(255,255,255,.62),rgba(255,255,255,.16) 35%,rgba(255,255,255,.34) 74%,rgba(255,255,255,.5)),rgba(248,250,255,.2)!important;
-  border-color:rgba(255,255,255,.82)!important;
-  -webkit-backdrop-filter:blur(8px) saturate(1.12)!important;
-  backdrop-filter:blur(8px) saturate(1.12)!important;
-  box-shadow:0 18px 44px rgba(20,20,40,.13),inset 0 1px 0 rgba(255,255,255,.88),inset 0 -1px 0 rgba(255,255,255,.3)!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.48),rgba(255,255,255,.08) 42%,rgba(255,255,255,.24)),rgba(248,250,255,.2)!important;
+  border-color:rgba(255,255,255,.68)!important;
+  -webkit-backdrop-filter:blur(6px) saturate(1.08)!important;
+  backdrop-filter:blur(6px) saturate(1.08)!important;
+  box-shadow:0 12px 30px rgba(20,20,40,.1),inset 0 1px 0 rgba(255,255,255,.65)!important;
 }
 #esSiteUiOverlays .overlay-card,#esSiteUiOverlays .flist-card,#esSiteUiOverlays .mpv-card,#esSiteUiOverlays .comments-card{
-  background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(255,255,255,.012) 34%,rgba(255,255,255,.035) 72%,rgba(255,255,255,.075)),rgba(14,19,31,.38)!important;
-  border-color:rgba(255,255,255,.3)!important;
-  -webkit-backdrop-filter:blur(8px) saturate(1.22)!important;backdrop-filter:blur(8px) saturate(1.22)!important;
-  box-shadow:0 18px 44px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.34),inset 0 -1px 0 rgba(255,255,255,.06)!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.1),rgba(255,255,255,.008) 42%,rgba(255,255,255,.035)),rgba(14,19,31,.18)!important;
+  border-color:rgba(255,255,255,.24)!important;
+  -webkit-backdrop-filter:blur(6px) saturate(1.12)!important;backdrop-filter:blur(6px) saturate(1.12)!important;
+  box-shadow:0 12px 30px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.18)!important;
 }
 :root[data-theme="light"] #esSiteUiOverlays .overlay-card,:root[data-theme="light"] #esSiteUiOverlays .flist-card,
 :root[data-theme="light"] #esSiteUiOverlays .mpv-card,:root[data-theme="light"] #esSiteUiOverlays .comments-card{
-  background:linear-gradient(145deg,rgba(255,255,255,.62),rgba(255,255,255,.16) 35%,rgba(255,255,255,.34) 74%,rgba(255,255,255,.5)),rgba(248,250,255,.2)!important;
-  border-color:rgba(255,255,255,.82)!important;
-  -webkit-backdrop-filter:blur(8px) saturate(1.12)!important;backdrop-filter:blur(8px) saturate(1.12)!important;
-  box-shadow:0 18px 44px rgba(20,20,40,.13),inset 0 1px 0 rgba(255,255,255,.88),inset 0 -1px 0 rgba(255,255,255,.3)!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.48),rgba(255,255,255,.08) 42%,rgba(255,255,255,.24)),rgba(248,250,255,.2)!important;
+  border-color:rgba(255,255,255,.68)!important;
+  -webkit-backdrop-filter:blur(6px) saturate(1.08)!important;backdrop-filter:blur(6px) saturate(1.08)!important;
+  box-shadow:0 12px 30px rgba(20,20,40,.1),inset 0 1px 0 rgba(255,255,255,.65)!important;
 }
 
 /* Site-wide liquid-glass finish: paint-only refinements on audited page shells. */
 :root{
   --es-glass-sheen:linear-gradient(145deg,rgba(255,255,255,.18),rgba(255,255,255,.012) 38%,rgba(255,255,255,.045) 72%,rgba(255,255,255,.1) 100%);
-  --es-glass-fill:rgba(20,24,36,.66);
-  --es-glass-edge:rgba(255,255,255,.3);
-  --es-glass-depth:0 14px 34px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.34),inset 0 -1px 0 rgba(255,255,255,.06);
+  --es-glass-fill:rgba(20,24,36,.2);
+  --es-glass-edge:rgba(255,255,255,.24);
+  --es-glass-depth:0 10px 26px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.18);
 }
 :root[data-theme="light"]{
   --es-glass-sheen:linear-gradient(145deg,rgba(255,255,255,.76),rgba(255,255,255,.13) 38%,rgba(255,255,255,.3) 72%,rgba(255,255,255,.56) 100%);
-  --es-glass-fill:rgba(250,251,255,.72);
-  --es-glass-edge:rgba(255,255,255,.84);
-  --es-glass-depth:0 14px 34px rgba(20,20,40,.1),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.34);
+  --es-glass-fill:rgba(250,251,255,.28);
+  --es-glass-edge:rgba(255,255,255,.68);
+  --es-glass-depth:0 10px 26px rgba(20,20,40,.08),inset 0 1px 0 rgba(255,255,255,.65);
 }
 .hm-aside-card.hm-glass,.hm-feed-card.hm-glass,.hm-composer.hm-glass,.hm-tabs.hm-glass,
 .acc-card,.tfa-card,.pf-locked-card,.pf-stats,.pf-card,
@@ -513,34 +513,20 @@ const GLASS_OVERLAY_CSS = `<style>
 }
 /* Existing fixed/sticky top bars retain their layout and scroll behavior, with a clearer transparent finish. */
 .nav,.hm-nav,.mv-nav,.acc-nav,.pf-nav,.ad-nav,.cr-nav,.db-nav,.gv-nav,.pm-nav,.tr-nav,.cx-nav{
-  background-color:rgba(10,12,20,.72)!important;
-  background-color:color-mix(in srgb,var(--nav-bg,#10131d) 64%,transparent)!important;
+  background-color:rgba(10,12,20,.46)!important;
+  background-color:color-mix(in srgb,var(--nav-bg,#10131d) 44%,transparent)!important;
   background-image:var(--es-glass-sheen)!important;
   border-bottom-color:var(--es-glass-edge)!important;
-  -webkit-backdrop-filter:blur(9px) saturate(1.32)!important;backdrop-filter:blur(9px) saturate(1.32)!important;
+  -webkit-backdrop-filter:blur(6px) saturate(1.18)!important;backdrop-filter:blur(6px) saturate(1.18)!important;
 }
 :root[data-theme="light"] .nav,:root[data-theme="light"] .hm-nav,:root[data-theme="light"] .mv-nav,
 :root[data-theme="light"] .acc-nav,:root[data-theme="light"] .pf-nav,:root[data-theme="light"] .ad-nav,
 :root[data-theme="light"] .cr-nav,:root[data-theme="light"] .db-nav,:root[data-theme="light"] .gv-nav,
 :root[data-theme="light"] .pm-nav,:root[data-theme="light"] .tr-nav,:root[data-theme="light"] .cx-nav{
-  background-color:rgba(248,250,255,.72)!important;
-  background-color:color-mix(in srgb,var(--nav-bg,#f5f6fa) 64%,transparent)!important;
+  background-color:rgba(248,250,255,.5)!important;
+  background-color:color-mix(in srgb,var(--nav-bg,#f5f6fa) 48%,transparent)!important;
 }
-/* A crisp catchlight on native and custom buttons; local gradient fills and state colors remain intact. */
-button,[role="button"],input[type="button"],input[type="submit"],input[type="reset"]{
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.24),inset 0 -1px 0 rgba(0,0,0,.08);
-}
-:root[data-theme="light"] button,:root[data-theme="light"] [role="button"],
-:root[data-theme="light"] input[type="button"],:root[data-theme="light"] input[type="submit"],:root[data-theme="light"] input[type="reset"]{
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.72),inset 0 -1px 0 rgba(20,30,50,.07);
-}
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),select,textarea{
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.12);
-}
-:root[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
-:root[data-theme="light"] select,:root[data-theme="light"] textarea{
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.58);
-}
+/* Buttons and form fields intentionally retain their original visual styles. */
 @media(prefers-reduced-transparency:reduce){
   .page-overlay> .overlay-card,.page-overlay> .flist-card,.page-overlay> .mpv-card,.page-overlay> .comments-card,
   .ad-overlay> .ad-modal,.ad-analytics-overlay> .aa-modal,.cr-premium-overlay> .cr-premium-card,
