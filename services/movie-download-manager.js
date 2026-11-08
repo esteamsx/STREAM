@@ -33,13 +33,14 @@ async function loadExisting() {
       if (!entry.isDirectory()) continue;
       try {
         const data = JSON.parse(await fsp.readFile(path.join(dir, entry.name, "job.json"), "utf8"));
-        const job = { ...data, dir: path.join(dir, entry.name), running: false, cancelRequested: false };
+        const wasActive = ["running", "queued", "retrying"].includes(data.status);
+        const job = { ...data, dir: path.join(dir, entry.name), running: false, cancelRequested: false, pauseRequested: false };
         const stat = await fsp.stat(filePath(job)).catch(() => ({ size: 0 }));
         job.bytes = stat.size;
-        if (["running", "queued", "retrying"].includes(job.status)) job.status = "paused";
+        if (wasActive) job.status = "paused";
         jobs.set(job.id, job);
         await save(job);
-        if (job.status === "paused") void startWorker(job);
+        if (wasActive) void startWorker(job);
       } catch {}
     }
   }
@@ -57,7 +58,7 @@ async function startWorker(job) {
   if (job.running || ["completed", "canceled"].includes(job.status)) return;
   job.running = true; job.status = "running"; job.error = null; await save(job);
   try {
-    for (let attempt = 0; attempt < RETRIES && !job.cancelRequested; attempt++) {
+    for (let attempt = 0; attempt < RETRIES && !job.cancelRequested && !job.pauseRequested; attempt++) {
       try {
         const stat = await fsp.stat(filePath(job)).catch(() => ({ size: 0 }));
         let offset = stat.size;
@@ -76,6 +77,7 @@ async function startWorker(job) {
         try {
           for (;;) {
             if (job.cancelRequested) throw Object.assign(new Error("Download canceled."), { code: "canceled" });
+            if (job.pauseRequested) throw Object.assign(new Error("Download paused."), { code: "paused" });
             const part = await reader.read();
             if (part.done) break;
             if (part.value?.byteLength) {
@@ -91,10 +93,12 @@ async function startWorker(job) {
         job.status = "completed"; job.completedAt = Date.now(); job.error = null; await save(job); return;
       } catch (error) {
         if (job.cancelRequested || error?.code === "canceled") { job.status = "canceled"; job.error = "Download canceled."; await save(job); return; }
+        if (job.pauseRequested || error?.code === "paused") { job.pauseRequested = false; job.status = "paused"; job.error = null; await save(job); return; }
         job.error = error?.message || "The download was interrupted.";
         if (attempt + 1 < RETRIES) { job.status = "retrying"; await save(job); await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt)); job.status = "running"; await save(job); }
       }
     }
+    if (job.pauseRequested) { job.pauseRequested = false; job.status = "paused"; job.error = null; await save(job); return; }
     if (!job.cancelRequested) { job.status = "failed"; await save(job); }
   } finally { job.running = false; }
 }
@@ -103,13 +107,15 @@ export async function createMovieDownload(uid, input) {
   if (countActive(uid) >= MAX_ACTIVE_PER_USER) throw Object.assign(new Error("You can have up to three movie downloads at once."), { status: 429 });
   const spec = parseSpec(input), id = crypto.randomUUID(), dir = path.join(uidDir(uid), id);
   await fsp.mkdir(dir, { recursive: true });
-  const job = { id, uid: String(uid), ...spec, dir, status: "queued", bytes: 0, total: 0, error: null, createdAt: Date.now(), updatedAt: Date.now(), running: false, cancelRequested: false };
+  const job = { id, uid: String(uid), ...spec, dir, status: "queued", bytes: 0, total: 0, error: null, createdAt: Date.now(), updatedAt: Date.now(), running: false, cancelRequested: false, pauseRequested: false };
   jobs.set(id, job); await save(job); void startWorker(job);
   return publicJob(job);
 }
 export async function listMovieDownloads(uid) { await ensureReady(); return [...jobs.values()].filter((job) => job.uid === String(uid) && job.status !== "canceled").sort((a, b) => b.createdAt - a.createdAt).map(publicJob); }
 export async function getMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); return job && job.uid === String(uid) ? publicJob(job) : null; }
-export async function retryMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; if (!["failed", "paused"].includes(job.status)) return publicJob(job); job.cancelRequested = false; job.error = null; void startWorker(job); return publicJob(job); }
+export async function retryMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; if (!["failed", "paused"].includes(job.status)) return publicJob(job); job.cancelRequested = false; job.pauseRequested = false; job.error = null; void startWorker(job); return publicJob(job); }
+export async function pauseMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; if (["completed", "failed", "canceled", "paused"].includes(job.status)) return publicJob(job); job.pauseRequested = true; if (!job.running) { job.status = "paused"; job.pauseRequested = false; await save(job); } return publicJob(job); }
+export async function resumeMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; if (job.status !== "paused") return publicJob(job); job.cancelRequested = false; job.pauseRequested = false; job.error = null; void startWorker(job); return publicJob(job); }
 export async function cancelMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; job.cancelRequested = true; if (!job.running) { job.status = "canceled"; await save(job); } return publicJob(job); }
 function parseByteRange(value, size) {
   const match = /^bytes=(\d*)-(\d*)$/i.exec(String(value || "").trim());

@@ -415,6 +415,7 @@
     var status = el("p", { class: "mv-download-progress-status", role: "status", text: "Connecting to the download worker…" });
     var meta = el("p", { class: "mv-download-progress-meta", text: "Queued on server" });
     var minimize = el("button", { type: "button", class: "mv-btn ghost mv-download-progress-minimize", text: "Minimize" });
+    var pause = el("button", { type: "button", class: "mv-btn ghost mv-download-progress-pause", text: existingJob && existingJob.status === "paused" ? "Resume" : "Pause" });
     var cancel = el("button", { type: "button", class: "mv-btn ghost mv-download-progress-cancel", text: "Cancel" });
     var dock = el("div", { class: "mv-download-dock", id: dockId, role: "status", "aria-live": "polite" });
     var dockCircle = el("button", { type: "button", class: "mv-download-dock-circle", "aria-label": "View download progress for " + filename, title: "View download progress", text: (existingJob?.progress || 0) + "%" });
@@ -429,6 +430,16 @@
     function resetSource() { if (!sourceButton) return; sourceButton.disabled = false; sourceButton.removeAttribute("aria-busy"); sourceButton.textContent = "Download"; }
     function finishOverlay() { if (closed) return; closed = true; window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); }, 1400); }
     function removeDownload() { controller.abort(); if (jobId) fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId), { method: "DELETE", credentials: "same-origin" }).catch(function () {}); if (overlay.isConnected) overlay.remove(); if (dock.isConnected) dock.remove(); resetSource(); }
+    function pauseDownload() {
+      if (!jobId || pause.disabled) return;
+      pause.disabled = true;
+      fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId) + "/pause", { method: "POST", credentials: "same-origin", signal: controller.signal }).then(function (response) { return response.json().then(function (job) { if (!response.ok) throw new Error(job.error || "Could not pause this download."); return job; }); }).then(function (job) { paint(job); if (job.status === "paused") showPaused(job); }).catch(function (error) { if (error && error.name !== "AbortError") { pause.disabled = false; if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(error.message, "error", 5000); } });
+    }
+    function resumeDownload() {
+      if (!jobId || pause.disabled) return;
+      pause.disabled = true;
+      fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId) + "/resume", { method: "POST", credentials: "same-origin", signal: controller.signal }).then(function (response) { return response.json().then(function (job) { if (!response.ok) throw new Error(job.error || "Could not resume this download."); return job; }); }).then(function (job) { pause.disabled = false; pause.textContent = "Pause"; pause.onclick = pauseDownload; paint(job); return poll(); }).catch(function (error) { if (error && error.name !== "AbortError") { pause.disabled = false; if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(error.message, "error", 5000); } });
+    }
     function retryDownload() {
       if (!failed || !jobId) return;
       fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId) + "/retry", { method: "POST", credentials: "same-origin", signal: controller.signal }).then(function (response) { return response.json().then(function (job) { if (!response.ok) throw new Error(job.error || "Could not resume this download."); return job; }); }).then(function (job) { if (overlay.isConnected) overlay.remove(); if (dock.isConnected) dock.remove(); startSiteDownload(url, filename, sourceButton, job); }).catch(function (error) { showFailure(error.message); });
@@ -436,10 +447,11 @@
     function cancelDownload() { if (failed) { if (overlay.isConnected) overlay.remove(); return; } removeDownload(); }
     function minimizeDownload() { overlay.classList.add("is-minimized"); }
     function restoreDownload() { overlay.classList.remove("is-minimized"); }
-    cancel.addEventListener("click", cancelDownload); dockCancel.addEventListener("click", removeDownload); minimize.addEventListener("click", minimizeDownload); restore.addEventListener("click", restoreDownload); dockCircle.addEventListener("click", restoreDownload);
+    pause.onclick = existingJob && existingJob.status === "paused" ? resumeDownload : pauseDownload;
+    cancel.addEventListener("click", cancelDownload); pause.addEventListener("click", function () { if (pause.onclick) pause.onclick(); }); dockCancel.addEventListener("click", removeDownload); minimize.addEventListener("click", minimizeDownload); restore.addEventListener("click", restoreDownload); dockCircle.addEventListener("click", restoreDownload);
     var dockIndex = document.querySelectorAll(".mv-download-dock").length; dock.style.setProperty("--dock-index", String(dockIndex));
     overlay.addEventListener("click", function (event) { if (event.target === overlay) minimizeDownload(); });
-    card.append(title, file, track, status, meta, el("div", { class: "mv-download-progress-actions" }, [minimize, cancel])); overlay.appendChild(card); document.body.appendChild(overlay); document.body.appendChild(dock);
+    card.append(title, file, track, status, meta, el("div", { class: "mv-download-progress-actions" }, [minimize, pause, cancel])); overlay.appendChild(card); document.body.appendChild(overlay); document.body.appendChild(dock);
     if (sourceButton) { sourceButton.disabled = true; sourceButton.setAttribute("aria-busy", "true"); sourceButton.textContent = "Queued…"; }
     function paint(job) {
       received = Number(job.bytes || received); total = Number(job.total || total); var percent = Number(job.progress || (total ? received / total * 100 : 0));
@@ -448,8 +460,10 @@
       meta.textContent = total ? formatBytes(received) + " of " + formatBytes(total) + " · " + formatBytes(Math.max(0, total - received)) + " left · " + formatDuration(remaining) + " remaining" : formatBytes(received) + " received by server";
       dockMeta.textContent = total ? Math.round(percent) + "% · " + formatBytes(Math.max(0, total - received)) + " left" : formatBytes(received) + " received";
       status.textContent = "Server downloading…";
+      pause.disabled = false; pause.textContent = "Pause"; pause.onclick = pauseDownload;
     }
-    function showFailure(message) { failed = true; title.textContent = "Download unavailable"; status.textContent = message || "The server could not finish this download."; meta.textContent = "Your partial bytes are kept on the server."; cancel.textContent = "Close"; restore.textContent = "Retry"; restore.onclick = retryDownload; dockMeta.textContent = "Failed · tap Retry"; dockCircle.textContent = "!"; dockCircle.classList.add("is-error"); dock.classList.add("is-failed"); dockCopy.querySelector(".mv-download-dock-title").textContent = "Download failed"; resetSource(); if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(status.textContent, "error", 8000); }
+    function showPaused(job) { paint(job); title.textContent = "Download paused"; status.textContent = "Server download paused"; meta.textContent = formatBytes(received) + (total ? " of " + formatBytes(total) : "") + " saved on server · resume whenever you are ready"; dockMeta.textContent = "Paused"; dockCopy.querySelector(".mv-download-dock-title").textContent = "Server download paused"; pause.disabled = false; pause.textContent = "Resume"; pause.onclick = resumeDownload; }
+    function showFailure(message) { failed = true; title.textContent = "Download unavailable"; status.textContent = message || "The server could not finish this download."; meta.textContent = "Your partial bytes are kept on the server."; pause.disabled = true; cancel.textContent = "Close"; restore.textContent = "Retry"; restore.onclick = retryDownload; dockMeta.textContent = "Failed · tap Retry"; dockCircle.textContent = "!"; dockCircle.classList.add("is-error"); dock.classList.add("is-failed"); dockCopy.querySelector(".mv-download-dock-title").textContent = "Download failed"; resetSource(); if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(status.textContent, "error", 8000); }
     function saveFile() {
       title.textContent = "Download ready";
       status.textContent = "Browser download started…";
@@ -473,19 +487,20 @@
       dockMeta.textContent = "Saving on device";
       dockCopy.querySelector(".mv-download-dock-title").textContent = "Browser download started";
       meta.textContent = "Server copy complete · your browser is saving the file";
+      pause.disabled = true;
       cancel.textContent = "Close";
       cancel.disabled = true;
       resetSource();
       finishOverlay();
       return Promise.resolve();
     }
-    function poll() { return fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId), { credentials: "same-origin", signal: controller.signal }).then(function (response) { return response.json().then(function (data) { if (!response.ok) throw new Error(data.error || "Could not read download status."); return data; }); }).then(function (job) { paint(job); if (job.status === "completed") return saveFile(); if (["failed", "canceled"].includes(job.status)) return showFailure(job.error || "The server stopped this download."); return new Promise(function (resolve, reject) { window.setTimeout(function () { poll().then(resolve).catch(reject); }, 1000); }); }); }
+    function poll() { return fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId), { credentials: "same-origin", signal: controller.signal }).then(function (response) { return response.json().then(function (data) { if (!response.ok) throw new Error(data.error || "Could not read download status."); return data; }); }).then(function (job) { if (job.status === "paused") return showPaused(job); paint(job); if (job.status === "completed") return saveFile(); if (["failed", "canceled"].includes(job.status)) return showFailure(job.error || "The server stopped this download."); return new Promise(function (resolve, reject) { window.setTimeout(function () { poll().then(resolve).catch(reject); }, 1000); }); }); }
     function createJob() {
       if (existingJob) return Promise.resolve(existingJob);
       var parsed = new URL(url, window.location.origin), parts = parsed.pathname.split("/"), body = { subjectId: decodeURIComponent(parts[parts.length - 1]), slug: parsed.searchParams.get("slug") || "", se: parsed.searchParams.get("se") || "1", ep: parsed.searchParams.get("ep") || "1", res: parsed.searchParams.get("res") || "360", filename: filename };
       return fetch("/api/movies/download-jobs", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body), signal: controller.signal }).then(function (response) { return response.json().then(function (data) { if (!response.ok) throw new Error(data.error || "Could not start this download."); return data; }); });
     }
-    createJob().then(function (job) { jobId = job.id; paint(job); if (job.status === "failed") return showFailure(job.error); return poll(); }).catch(function (error) { if (error && error.name !== "AbortError") showFailure(error.message); });
+    createJob().then(function (job) { jobId = job.id; if (job.status === "paused") return showPaused(job); paint(job); if (job.status === "failed") return showFailure(job.error); return poll(); }).catch(function (error) { if (error && error.name !== "AbortError") showFailure(error.message); });
   }
   function restoreServerDownloads() {
     fetch("/api/movies/download-jobs", { credentials: "same-origin" }).then(function (response) { return response.ok ? response.json() : null; }).then(function (data) { (data && data.jobs || []).filter(function (job) { return ["queued", "running", "retrying", "paused", "failed"].includes(job.status); }).forEach(function (job) { var url = "/api/movies/download/" + encodeURIComponent(job.subjectId) + "?slug=" + encodeURIComponent(job.slug) + "&se=" + encodeURIComponent(job.se || 1) + "&ep=" + encodeURIComponent(job.ep || 1) + "&res=" + encodeURIComponent(job.resolution); startSiteDownload(url, job.filename, null, job); }); }).catch(function () {});

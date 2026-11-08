@@ -1,6 +1,6 @@
 import { Readable, pipeline } from "node:stream";
 import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, getStreams, proxyStream, MovieError } from "../services/moviebox.js";
-import { createMovieDownload, listMovieDownloads, getMovieDownload, retryMovieDownload, cancelMovieDownload, streamMovieDownload } from "../services/movie-download-manager.js";
+import { createMovieDownload, listMovieDownloads, getMovieDownload, retryMovieDownload, pauseMovieDownload, resumeMovieDownload, cancelMovieDownload, streamMovieDownload } from "../services/movie-download-manager.js";
 
 /* Movies API for the /movies page. Browsing needs a signed-in account, but not verification; verification only gates
    higher-resolution downloads below. Data comes from the Moviebox-API through services/moviebox.js. */
@@ -82,6 +82,14 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
   });
   router.post("/api/movies/download-jobs/:id/retry", requireAuth, requireSiteOrigin, limiter, async (req, res) => {
     const job = await retryMovieDownload(req.uid, req.params.id);
+    return job ? res.set("Cache-Control", "no-store").json(job) : res.status(404).json({ error: "Download job not found.", code: "not_found" });
+  });
+  router.post("/api/movies/download-jobs/:id/pause", requireAuth, requireSiteOrigin, limiter, async (req, res) => {
+    const job = await pauseMovieDownload(req.uid, req.params.id);
+    return job ? res.set("Cache-Control", "no-store").json(job) : res.status(404).json({ error: "Download job not found.", code: "not_found" });
+  });
+  router.post("/api/movies/download-jobs/:id/resume", requireAuth, requireSiteOrigin, limiter, async (req, res) => {
+    const job = await resumeMovieDownload(req.uid, req.params.id);
     return job ? res.set("Cache-Control", "no-store").json(job) : res.status(404).json({ error: "Download job not found.", code: "not_found" });
   });
   router.delete("/api/movies/download-jobs/:id", requireAuth, requireSiteOrigin, limiter, async (req, res) => {
