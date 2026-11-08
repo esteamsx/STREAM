@@ -450,7 +450,31 @@
       status.textContent = "Server downloading…";
     }
     function showFailure(message) { failed = true; title.textContent = "Download unavailable"; status.textContent = message || "The server could not finish this download."; meta.textContent = "Your partial bytes are kept on the server."; cancel.textContent = "Close"; restore.textContent = "Retry"; restore.onclick = retryDownload; dockMeta.textContent = "Failed · tap Retry"; dockCircle.textContent = "!"; dockCircle.classList.add("is-error"); dock.classList.add("is-failed"); dockCopy.querySelector(".mv-download-dock-title").textContent = "Download failed"; resetSource(); if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(status.textContent, "error", 8000); }
-    function saveFile() { title.textContent = "Download ready"; status.textContent = "Saving to your device…"; return fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId) + "/file", { credentials: "same-origin", signal: controller.signal }).then(function (response) { if (!response.ok) throw new Error("The completed file is not available yet."); return response.blob(); }).then(function (blob) { var objectUrl = URL.createObjectURL(blob), link = document.createElement("a"); link.href = objectUrl; link.download = filename; link.rel = "noopener"; link.style.display = "none"; document.body.appendChild(link); link.click(); window.setTimeout(function () { link.remove(); URL.revokeObjectURL(objectUrl); }, 1000); dockCircle.textContent = "✓"; dockCircle.classList.add("is-complete"); dockMeta.textContent = "Saved"; dockCopy.querySelector(".mv-download-dock-title").textContent = "Download complete"; cancel.textContent = "Done"; cancel.disabled = true; resetSource(); finishOverlay(); }); }
+    function saveFile() {
+      title.textContent = "Download ready";
+      status.textContent = "Saving to your device…";
+      // Do not fetch the completed movie into a Blob. That buffers the entire
+      // file in browser memory and can hang at the final "saving" stage for
+      // large movies, especially on mobile. Let the browser's native download
+      // manager stream the same-origin response directly to disk instead.
+      var link = document.createElement("a");
+      link.href = "/api/movies/download-jobs/" + encodeURIComponent(jobId) + "/file";
+      link.download = filename;
+      link.rel = "noopener";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      window.setTimeout(function () { link.remove(); }, 1000);
+      dockCircle.textContent = "✓";
+      dockCircle.classList.add("is-complete");
+      dockMeta.textContent = "Saved";
+      dockCopy.querySelector(".mv-download-dock-title").textContent = "Download complete";
+      cancel.textContent = "Done";
+      cancel.disabled = true;
+      resetSource();
+      finishOverlay();
+      return Promise.resolve();
+    }
     function poll() { return fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId), { credentials: "same-origin", signal: controller.signal }).then(function (response) { return response.json().then(function (data) { if (!response.ok) throw new Error(data.error || "Could not read download status."); return data; }); }).then(function (job) { paint(job); if (job.status === "completed") return saveFile(); if (["failed", "canceled"].includes(job.status)) return showFailure(job.error || "The server stopped this download."); return new Promise(function (resolve, reject) { window.setTimeout(function () { poll().then(resolve).catch(reject); }, 1000); }); }); }
     function createJob() {
       if (existingJob) return Promise.resolve(existingJob);
