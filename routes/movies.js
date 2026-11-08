@@ -1,5 +1,6 @@
 import { Readable, pipeline } from "node:stream";
 import { getStatus, getHome, getCatalog, getSearch, getSuggest, getDetail, getStreams, proxyStream, MovieError } from "../services/moviebox.js";
+import { createMovieDownload, listMovieDownloads, getMovieDownload, retryMovieDownload, cancelMovieDownload, streamMovieDownload } from "../services/movie-download-manager.js";
 
 /* Movies API for the /movies page. Browsing needs a signed-in account, but not verification; verification only gates
    higher-resolution downloads below. Data comes from the Moviebox-API through services/moviebox.js. */
@@ -62,6 +63,35 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
     const profile = req.userProfile || (getUserProfile ? await getUserProfile(req.uid) : null);
     return !!(profile && ((isVerificationActive && isVerificationActive(profile)) || (isAdminEmail && isAdminEmail(profile.email))));
   }
+  router.post("/api/movies/download-jobs", requireAuth, requireSiteOrigin, limiter, async (req, res) => {
+    try {
+      const premium = await premiumFor(req);
+      const resolution = String(req.body?.res || req.body?.resolution || "").replace(/p$/i, "");
+      if (!premium && resolution !== "360") return res.status(403).json({ error: "Higher resolutions require Premium.", code: "premium_required" });
+      const job = await createMovieDownload(req.uid, { ...req.body, resolution });
+      res.status(202).set("Cache-Control", "no-store").json(job);
+    } catch (e) {
+      const status = Number(e?.status) || (e instanceof MovieError ? e.status : 500);
+      res.status(status).json({ error: e?.message || "Could not start that download.", code: status === 429 ? "download_limit" : "download_unavailable" });
+    }
+  });
+  router.get("/api/movies/download-jobs", requireAuth, requireMovieSiteOrigin, limiter, async (req, res) => res.set("Cache-Control", "no-store").json({ jobs: await listMovieDownloads(req.uid) }));
+  router.get("/api/movies/download-jobs/:id", requireAuth, requireMovieSiteOrigin, limiter, async (req, res) => {
+    const job = await getMovieDownload(req.uid, req.params.id);
+    return job ? res.set("Cache-Control", "no-store").json(job) : res.status(404).json({ error: "Download job not found.", code: "not_found" });
+  });
+  router.post("/api/movies/download-jobs/:id/retry", requireAuth, requireSiteOrigin, limiter, async (req, res) => {
+    const job = await retryMovieDownload(req.uid, req.params.id);
+    return job ? res.set("Cache-Control", "no-store").json(job) : res.status(404).json({ error: "Download job not found.", code: "not_found" });
+  });
+  router.delete("/api/movies/download-jobs/:id", requireAuth, requireSiteOrigin, limiter, async (req, res) => {
+    const job = await cancelMovieDownload(req.uid, req.params.id);
+    return job ? res.set("Cache-Control", "no-store").json(job) : res.status(404).json({ error: "Download job not found.", code: "not_found" });
+  });
+  router.get("/api/movies/download-jobs/:id/file", requireAuth, requireMovieSiteOrigin, limiter, async (req, res) => {
+    const ok = await streamMovieDownload(req.uid, req.params.id, res);
+    if (!ok && !res.headersSent) return res.status(409).json({ error: "That download is not ready yet.", code: "download_not_ready" });
+  });
   router.get("/api/movies/detail/:slug", requireAuth, requireMovieSiteOrigin, limiter, (req, res) => send(res, () => getDetail(String(req.params.slug))));
   router.get("/api/movies/streams/:subjectId", requireAuth, requireMovieSiteOrigin, limiter, async (req, res) => {
     try {

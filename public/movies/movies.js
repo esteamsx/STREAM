@@ -402,90 +402,65 @@
     if (mins >= 60) return String(Math.floor(mins / 60)) + "h " + String(mins % 60).padStart(2, "0") + "m";
     return String(mins) + ":" + String(secs).padStart(2, "0");
   }
-  function startSiteDownload(url, filename, sourceButton) {
+  function startSiteDownload(url, filename, sourceButton, existingJob) {
     var taskId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "download-" + Date.now() + "-" + Math.random().toString(36).slice(2);
-    var controller = new AbortController();
+    var jobId = existingJob && existingJob.id || null, controller = new AbortController();
     var overlayId = "mvDownloadProgress-" + taskId, dockId = "mvDownloadDock-" + taskId, titleId = "mvDownloadProgressTitle-" + taskId;
     var overlay = el("div", { class: "mv-download-progress", id: overlayId, role: "dialog", "aria-modal": "true", "aria-labelledby": titleId });
     var card = el("div", { class: "mv-download-progress-card" });
-    var title = el("h2", { class: "mv-download-progress-title", id: titleId, text: "Preparing…" });
+    var title = el("h2", { class: "mv-download-progress-title", id: titleId, text: existingJob && existingJob.status === "failed" ? "Download failed" : "Preparing…" });
     var file = el("p", { class: "mv-download-progress-file", text: filename });
-    var track = el("div", { class: "mv-download-progress-track", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": "0", "aria-label": "Download progress" });
+    var track = el("div", { class: "mv-download-progress-track", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(existingJob?.progress || 0), "aria-label": "Download progress" });
     var fill = el("div", { class: "mv-download-progress-fill" }); track.appendChild(fill);
-    var status = el("p", { class: "mv-download-progress-status", role: "status", text: "Connecting to the movie server…" });
-    var meta = el("p", { class: "mv-download-progress-meta", text: "Downloaded 0 B" });
+    var status = el("p", { class: "mv-download-progress-status", role: "status", text: "Connecting to the download worker…" });
+    var meta = el("p", { class: "mv-download-progress-meta", text: "Queued on server" });
     var minimize = el("button", { type: "button", class: "mv-btn ghost mv-download-progress-minimize", text: "Minimize" });
     var cancel = el("button", { type: "button", class: "mv-btn ghost mv-download-progress-cancel", text: "Cancel" });
     var dock = el("div", { class: "mv-download-dock", id: dockId, role: "status", "aria-live": "polite" });
-    var dockCircle = el("button", { type: "button", class: "mv-download-dock-circle", "aria-label": "View download progress for " + filename, title: "View download progress", text: "0%" });
-    var dockCopy = el("div", { class: "mv-download-dock-copy" }, [el("strong", { class: "mv-download-dock-title", text: "Downloading" }), el("span", { class: "mv-download-dock-file", text: filename })]);
+    var dockCircle = el("button", { type: "button", class: "mv-download-dock-circle", "aria-label": "View download progress for " + filename, title: "View download progress", text: (existingJob?.progress || 0) + "%" });
+    var dockCopy = el("div", { class: "mv-download-dock-copy" }, [el("strong", { class: "mv-download-dock-title", text: "Server download" }), el("span", { class: "mv-download-dock-file", text: filename })]);
     var dockTrack = el("div", { class: "mv-download-progress-track mv-download-dock-track", "aria-hidden": "true" });
     var dockFill = el("div", { class: "mv-download-progress-fill" }); dockTrack.appendChild(dockFill);
-    var dockMeta = el("span", { class: "mv-download-dock-meta", text: "Preparing…" });
+    var dockMeta = el("span", { class: "mv-download-dock-meta", text: "Queued" });
     var restore = el("button", { type: "button", class: "mv-download-dock-restore", text: "View" });
     var dockCancel = el("button", { type: "button", class: "mv-download-dock-cancel", "aria-label": "Cancel download", title: "Cancel download", text: "×" });
     dock.append(dockCircle, dockCopy, dockTrack, dockMeta, restore, dockCancel);
-    var closed = false, failed = false;
+    var closed = false, failed = false, started = performance.now(), received = Number(existingJob?.bytes || 0), total = Number(existingJob?.total || 0);
+    function resetSource() { if (!sourceButton) return; sourceButton.disabled = false; sourceButton.removeAttribute("aria-busy"); sourceButton.textContent = "Download"; }
     function finishOverlay() { if (closed) return; closed = true; window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); }, 1400); }
-    function cancelDownload() {
-      if (failed) { if (overlay.isConnected) overlay.remove(); return; }
-      controller.abort(); title.textContent = "Download canceled"; status.textContent = "No file was saved."; dockMeta.textContent = "Canceled"; cancel.disabled = true; dockCancel.disabled = true;
-      window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); if (dock.isConnected) dock.remove(); }, 700);
-    }
+    function removeDownload() { controller.abort(); if (jobId) fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId), { method: "DELETE", credentials: "same-origin" }).catch(function () {}); if (overlay.isConnected) overlay.remove(); if (dock.isConnected) dock.remove(); resetSource(); }
     function retryDownload() {
-      if (!failed) return;
-      if (overlay.isConnected) overlay.remove();
-      if (dock.isConnected) dock.remove();
-      startSiteDownload(url, filename, sourceButton);
+      if (!failed || !jobId) return;
+      fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId) + "/retry", { method: "POST", credentials: "same-origin", signal: controller.signal }).then(function (response) { return response.json().then(function (job) { if (!response.ok) throw new Error(job.error || "Could not resume this download."); return job; }); }).then(function (job) { if (overlay.isConnected) overlay.remove(); if (dock.isConnected) dock.remove(); startSiteDownload(url, filename, sourceButton, job); }).catch(function (error) { showFailure(error.message); });
     }
-    cancel.addEventListener("click", cancelDownload); dockCancel.addEventListener("click", function () { if (failed && overlay.isConnected) overlay.remove(); if (dock.isConnected) dock.remove(); else cancelDownload(); });
-    function minimizeDownload() { overlay.classList.add("is-minimized"); if (!dock.isConnected) document.body.appendChild(dock); }
+    function cancelDownload() { if (failed) { if (overlay.isConnected) overlay.remove(); return; } removeDownload(); }
+    function minimizeDownload() { overlay.classList.add("is-minimized"); }
     function restoreDownload() { overlay.classList.remove("is-minimized"); }
-    minimize.addEventListener("click", minimizeDownload); restore.addEventListener("click", restoreDownload);
-    dockCircle.addEventListener("click", restoreDownload);
-    overlay.addEventListener("click", function (event) { if (event.target === overlay) cancel.click(); });
+    cancel.addEventListener("click", cancelDownload); dockCancel.addEventListener("click", removeDownload); minimize.addEventListener("click", minimizeDownload); restore.addEventListener("click", restoreDownload); dockCircle.addEventListener("click", restoreDownload);
     var dockIndex = document.querySelectorAll(".mv-download-dock").length; dock.style.setProperty("--dock-index", String(dockIndex));
+    overlay.addEventListener("click", function (event) { if (event.target === overlay) minimizeDownload(); });
     card.append(title, file, track, status, meta, el("div", { class: "mv-download-progress-actions" }, [minimize, cancel])); overlay.appendChild(card); document.body.appendChild(overlay); document.body.appendChild(dock);
-    if (sourceButton) { sourceButton.disabled = true; sourceButton.setAttribute("aria-busy", "true"); sourceButton.textContent = "Preparing…"; }
-    var started = performance.now(), received = 0, total = 0, lastPaint = 0;
-    function paint(force) {
-      var now = performance.now(); if (!force && now - lastPaint < 80) return; lastPaint = now;
-      var percent = total > 0 ? Math.min(100, received / total * 100) : 0;
-      var elapsed = Math.max(.001, (now - started) / 1000), speed = received / elapsed, remaining = total > 0 && speed > 0 ? (total - received) / speed : NaN;
-      fill.style.width = percent.toFixed(2) + "%"; track.setAttribute("aria-valuenow", String(Math.round(percent)));
-      dockFill.style.width = percent.toFixed(2) + "%";
-      dockCircle.style.setProperty("--download-progress", percent.toFixed(2) + "%"); dockCircle.textContent = total > 0 ? Math.round(percent) + "%" : "…";
-      meta.textContent = total > 0 ? formatBytes(received) + " of " + formatBytes(total) + " · " + formatBytes(Math.max(0, total - received)) + " left · " + formatDuration(remaining) + " remaining" : formatBytes(received) + " downloaded · calculating size…";
-      dockMeta.textContent = total > 0 ? Math.round(percent) + "% · " + formatBytes(Math.max(0, total - received)) + " left · " + formatDuration(remaining) + " remaining" : formatBytes(received) + " downloaded · preparing…";
-      status.textContent = total > 0 ? Math.round(percent) + "% downloaded" : "Downloading…";
+    if (sourceButton) { sourceButton.disabled = true; sourceButton.setAttribute("aria-busy", "true"); sourceButton.textContent = "Queued…"; }
+    function paint(job) {
+      received = Number(job.bytes || received); total = Number(job.total || total); var percent = Number(job.progress || (total ? received / total * 100 : 0));
+      fill.style.width = percent.toFixed(2) + "%"; dockFill.style.width = percent.toFixed(2) + "%"; track.setAttribute("aria-valuenow", String(Math.round(percent))); dockCircle.style.setProperty("--download-progress", percent.toFixed(2) + "%"); dockCircle.textContent = total ? Math.round(percent) + "%" : "…";
+      var elapsed = Math.max(.001, (performance.now() - started) / 1000), speed = received / elapsed, remaining = total > received && speed > 0 ? (total - received) / speed : NaN;
+      meta.textContent = total ? formatBytes(received) + " of " + formatBytes(total) + " · " + formatBytes(Math.max(0, total - received)) + " left · " + formatDuration(remaining) + " remaining" : formatBytes(received) + " received by server";
+      dockMeta.textContent = total ? Math.round(percent) + "% · " + formatBytes(Math.max(0, total - received)) + " left" : formatBytes(received) + " received";
+      status.textContent = "Server downloading…";
     }
-    fetch(url, { credentials: "same-origin", headers: { Accept: "video/mp4, application/octet-stream" }, signal: controller.signal }).then(async function (response) {
-      if (!response.ok) {
-        var body = await response.text().catch(function () { return ""; }), message = "Download failed (HTTP " + response.status + ").";
-        try { var payload = JSON.parse(body); message = payload.error || payload.detail || message; } catch (e) {}
-        throw new Error(message);
-      }
-      if (!response.body || !response.body.getReader) throw new Error("This browser cannot show download progress. Try again in a newer browser.");
-      total = Number(response.headers.get("content-length")) || 0;
-      var range = String(response.headers.get("content-range") || "").match(/\/([0-9]+)$/); if (!total && range) total = Number(range[1]) || 0;
-      var reader = response.body.getReader(), chunks = [];
-      while (true) { var part = await reader.read(); if (part.done) break; if (part.value && part.value.byteLength) { chunks.push(part.value); received += part.value.byteLength; paint(false); } }
-      paint(true); title.textContent = "Download ready"; status.textContent = "Saving to your device…";
-      var blob = new Blob(chunks, { type: response.headers.get("content-type") || "video/mp4" }), objectUrl = URL.createObjectURL(blob), link = document.createElement("a");
-      link.href = objectUrl; link.download = filename; link.rel = "noopener"; link.style.display = "none"; document.body.appendChild(link); link.click();
-      window.setTimeout(function () { link.remove(); URL.revokeObjectURL(objectUrl); }, 1000);
-      window.EsUI && typeof window.EsUI.toast === "function" && window.EsUI.toast("Download started: " + filename, "success", 5000);
-      cancel.textContent = "Done"; cancel.disabled = true; dockCancel.disabled = true; dockCircle.textContent = "✓"; dockCircle.classList.add("is-complete"); dockMeta.textContent = "Saved"; dockCopy.querySelector(".mv-download-dock-title").textContent = "Download complete"; finishOverlay();
-    }).catch(function (error) {
-      if (error && error.name === "AbortError") return;
-      failed = true;
-      title.textContent = "Download unavailable"; status.textContent = error.message || "No file was saved."; cancel.textContent = "Close";
-      restore.textContent = "Retry"; restore.onclick = retryDownload;
-      dockMeta.textContent = "Failed · tap Retry"; dockCircle.textContent = "!"; dockCircle.classList.add("is-error"); dock.classList.add("is-failed"); dockCopy.querySelector(".mv-download-dock-title").textContent = "Download failed";
-      if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(status.textContent, "error", 8000);
-    }).finally(function () {
-      if (!sourceButton) return; sourceButton.disabled = false; sourceButton.removeAttribute("aria-busy"); sourceButton.textContent = "Download";
-    });
+    function showFailure(message) { failed = true; title.textContent = "Download unavailable"; status.textContent = message || "The server could not finish this download."; meta.textContent = "Your partial bytes are kept on the server."; cancel.textContent = "Close"; restore.textContent = "Retry"; restore.onclick = retryDownload; dockMeta.textContent = "Failed · tap Retry"; dockCircle.textContent = "!"; dockCircle.classList.add("is-error"); dock.classList.add("is-failed"); dockCopy.querySelector(".mv-download-dock-title").textContent = "Download failed"; resetSource(); if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(status.textContent, "error", 8000); }
+    function saveFile() { title.textContent = "Download ready"; status.textContent = "Saving to your device…"; return fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId) + "/file", { credentials: "same-origin", signal: controller.signal }).then(function (response) { if (!response.ok) throw new Error("The completed file is not available yet."); return response.blob(); }).then(function (blob) { var objectUrl = URL.createObjectURL(blob), link = document.createElement("a"); link.href = objectUrl; link.download = filename; link.rel = "noopener"; link.style.display = "none"; document.body.appendChild(link); link.click(); window.setTimeout(function () { link.remove(); URL.revokeObjectURL(objectUrl); }, 1000); dockCircle.textContent = "✓"; dockCircle.classList.add("is-complete"); dockMeta.textContent = "Saved"; dockCopy.querySelector(".mv-download-dock-title").textContent = "Download complete"; cancel.textContent = "Done"; cancel.disabled = true; resetSource(); finishOverlay(); }); }
+    function poll() { return fetch("/api/movies/download-jobs/" + encodeURIComponent(jobId), { credentials: "same-origin", signal: controller.signal }).then(function (response) { return response.json().then(function (data) { if (!response.ok) throw new Error(data.error || "Could not read download status."); return data; }); }).then(function (job) { paint(job); if (job.status === "completed") return saveFile(); if (["failed", "canceled"].includes(job.status)) return showFailure(job.error || "The server stopped this download."); return new Promise(function (resolve, reject) { window.setTimeout(function () { poll().then(resolve).catch(reject); }, 1000); }); }); }
+    function createJob() {
+      if (existingJob) return Promise.resolve(existingJob);
+      var parsed = new URL(url, window.location.origin), parts = parsed.pathname.split("/"), body = { subjectId: decodeURIComponent(parts[parts.length - 1]), slug: parsed.searchParams.get("slug") || "", se: parsed.searchParams.get("se") || "1", ep: parsed.searchParams.get("ep") || "1", res: parsed.searchParams.get("res") || "360", filename: filename };
+      return fetch("/api/movies/download-jobs", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body), signal: controller.signal }).then(function (response) { return response.json().then(function (data) { if (!response.ok) throw new Error(data.error || "Could not start this download."); return data; }); });
+    }
+    createJob().then(function (job) { jobId = job.id; paint(job); if (job.status === "failed") return showFailure(job.error); return poll(); }).catch(function (error) { if (error && error.name !== "AbortError") showFailure(error.message); });
+  }
+  function restoreServerDownloads() {
+    fetch("/api/movies/download-jobs", { credentials: "same-origin" }).then(function (response) { return response.ok ? response.json() : null; }).then(function (data) { (data && data.jobs || []).filter(function (job) { return ["queued", "running", "retrying", "paused", "failed"].includes(job.status); }).forEach(function (job) { var url = "/api/movies/download/" + encodeURIComponent(job.subjectId) + "?slug=" + encodeURIComponent(job.slug) + "&se=" + encodeURIComponent(job.se || 1) + "&ep=" + encodeURIComponent(job.ep || 1) + "&res=" + encodeURIComponent(job.resolution); startSiteDownload(url, job.filename, null, job); }); }).catch(function () {});
   }
   function showPlayerPopup(d, source, season, episode) {
     var previous = document.getElementById("mvPlayerPopup"); if (previous) previous.remove();
@@ -869,4 +844,5 @@
 
   try { history.replaceState({ y: 0 }, ""); } catch (e) { /* ignore */ }
   route();
+  restoreServerDownloads();
 })();

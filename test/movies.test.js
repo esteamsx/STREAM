@@ -372,6 +372,33 @@ test("signed-in free accounts can browse movie lists without gaining premium dow
   assert.match(premiumStreams.body.sources[0].playUrl, /^\/api\/movies\/play\//);
 });
 
+test("server-side resumable movie download endpoints are registered behind auth and origin guards", () => {
+  const handlers = {};
+  const requireAuth = () => {};
+  const requireSiteOrigin = () => {};
+  class Limiter { middleware() { return () => {}; } }
+  const router = {
+    get: (path, ...fns) => { handlers["GET " + path] = fns; },
+    post: (path, ...fns) => { handlers["POST " + path] = fns; },
+    delete: (path, ...fns) => { handlers["DELETE " + path] = fns; },
+  };
+  registerMovieRoutes(router, {
+    requireAuth, requireSiteOrigin, SimpleRateLimiter: Limiter,
+    getUserProfile: async () => ({ verified: true }), isVerificationActive: () => true, isAdminEmail: () => false,
+  });
+  for (const key of [
+    "POST /api/movies/download-jobs",
+    "GET /api/movies/download-jobs",
+    "GET /api/movies/download-jobs/:id",
+    "POST /api/movies/download-jobs/:id/retry",
+    "DELETE /api/movies/download-jobs/:id",
+    "GET /api/movies/download-jobs/:id/file",
+  ]) {
+    assert.ok(handlers[key], key);
+    assert.equal(handlers[key][0], requireAuth, key + " auth");
+  }
+});
+
 test("Watch Later endpoints save, read and remove entries only for the authenticated account", async () => {
   reset();
   const handlers = {};
@@ -572,8 +599,11 @@ test("movie downloads name files with title and quality and report the same file
   assert.match(frontend, /if \(d\.kind === "tv" && season && episode\).*S" \+ String\(season\).*E" \+ String\(episode\)/);
   assert.match(frontend, /if \(\/\^\\d\+\$\/.test\(q\)\) title \+= " " \+ q \+ "p"/);
   assert.match(frontend, /filename=" \+ encodeURIComponent\(filename\)/);
-  assert.match(frontend, /window\.EsUI\.toast\("Download started: " \+ filename, "success", 5000\)/);
-  assert.match(frontend, /function startSiteDownload\(url, filename, sourceButton\)/);
+  assert.match(frontend, /function startSiteDownload\(url, filename, sourceButton, existingJob\)/);
+  assert.match(frontend, /\/api\/movies\/download-jobs/);
+  assert.match(frontend, /function restoreServerDownloads\(\)/);
+  assert.match(frontend, /function poll\(\)/);
+  assert.match(frontend, /\/file/);
   assert.match(frontend, /var overlayId = "mvDownloadProgress-" \+ taskId/);
   assert.match(frontend, /var overlayId = "mvDownloadProgress-" \+ taskId, dockId = "mvDownloadDock-" \+ taskId/);
   assert.match(frontend, /function minimizeDownload\(\)/);
@@ -581,9 +611,7 @@ test("movie downloads name files with title and quality and report the same file
   assert.match(frontend, /function retryDownload\(\)/);
   assert.match(frontend, /Failed · tap Retry/);
   assert.match(frontend, /dock\.classList\.add\("is-failed"\)/);
-  assert.match(frontend, /response\.body\.getReader\(\)/);
   assert.match(frontend, /remaining/);
-  assert.match(frontend, /new Blob\(chunks/);
   assert.match(css, /\.mv-download-progress\{/);
   assert.match(css, /\.mv-download-progress-fill\{/);
   assert.match(css, /\.mv-download-progress\.is-minimized/);
