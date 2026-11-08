@@ -633,7 +633,8 @@ test("movie downloads name files with title and quality and report the same file
   assert.doesNotMatch(frontend, /class: "mv-player-video", controls: true/);
   assert.match(frontend, /The server ignored the one-byte safety check/);
   assert.match(frontend, /class: "mv-player-watermark"/);
+  assert.match(frontend, /https:\/\/whatsapp\.com\/channel\/0029VatAyCwFy72JdZXFPm29/);
   assert.match(frontend, /text: "ES TEAMS TV"/);
-  assert.match(css, /\.mv-player-watermark\{[^}]*pointer-events:none/);
+  assert.match(css, /\.mv-player-watermark\{[^}]*pointer-events:auto/);
   assert.match(css, /\.mv-player-stage:hover \.media-controls/);
 });

@@ -574,7 +574,7 @@
       status.textContent = code === 2 ? "Network error while loading this video. Try again or choose another quality." : code === 3 ? "This video format could not be decoded by your browser." : "The video could not be played. Try another quality or download it.";
     });
     stage.appendChild(video);
-    var watermark = el("div", { class: "mv-player-watermark", "aria-hidden": "true" }, [
+    var watermark = el("a", { class: "mv-player-watermark", href: "https://whatsapp.com/channel/0029VatAyCwFy72JdZXFPm29", target: "_blank", rel: "noopener", "aria-label": "Join the ES TEAMS TV WhatsApp Channel", title: "Join the ES TEAMS TV WhatsApp Channel" }, [
       el("svg", { class: "mv-player-watermark-icon", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round" }, [
         el("path", { d: "M12 2L3 6v5c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V6z" }),
         el("path", { d: "M9 12l2 2 4-4", "stroke-width": "2" }),
