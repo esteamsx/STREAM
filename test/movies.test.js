@@ -574,8 +574,8 @@ test("movie downloads name files with title and quality and report the same file
   assert.match(frontend, /filename=" \+ encodeURIComponent\(filename\)/);
   assert.match(frontend, /window\.EsUI\.toast\("Download started: " \+ filename, "success", 5000\)/);
   assert.match(frontend, /function startSiteDownload\(url, filename, sourceButton\)/);
-  assert.match(frontend, /id: "mvDownloadProgress"/);
-  assert.match(frontend, /id: "mvDownloadDock"/);
+  assert.match(frontend, /var overlayId = "mvDownloadProgress-" \+ taskId/);
+  assert.match(frontend, /var overlayId = "mvDownloadProgress-" \+ taskId, dockId = "mvDownloadDock-" \+ taskId/);
   assert.match(frontend, /function minimizeDownload\(\)/);
   assert.match(frontend, /function restoreDownload\(\)/);
   assert.match(frontend, /response\.body\.getReader\(\)/);
@@ -585,6 +585,8 @@ test("movie downloads name files with title and quality and report the same file
   assert.match(css, /\.mv-download-progress-fill\{/);
   assert.match(css, /\.mv-download-progress\.is-minimized/);
   assert.match(css, /\.mv-download-dock\{/);
+  assert.match(css, /\.mv-download-dock-circle\{/);
+  assert.match(css, /conic-gradient/);
   assert.match(css, /backdrop-filter:blur\(24px\) saturate\(1\.45\)/);
   assert.match(frontend, /Range: "bytes=0-0"/);
   assert.match(frontend, /verifyDownloadReady\(url\)/);
