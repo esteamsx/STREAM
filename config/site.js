@@ -423,8 +423,8 @@ const GLASS_OVERLAY_CSS = `<style>
 .es-weekly-overlay,.st-full,.ch-down-overlay,.connecting-overlay,
 .countdown-overlay,.idle-overlay,.err-overlay{
   background:rgba(7,10,18,.18)!important;
-  -webkit-backdrop-filter:none!important;
-  backdrop-filter:none!important;
+  -webkit-backdrop-filter:blur(2px)!important;
+  backdrop-filter:blur(2px)!important;
 }
 .page-overlay> .overlay-card,.page-overlay> .flist-card,.page-overlay> .mpv-card,
 .page-overlay> .comments-card,.page-overlay> [class$="-card"],

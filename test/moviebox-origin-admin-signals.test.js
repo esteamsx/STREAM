@@ -79,11 +79,15 @@ test("site-wide liquid glass refinements use theme-aware, page-specific surfaces
   assert.doesNotMatch(glassRules, /\.cx-board\s*,|\.cx-sq\s*,|\.mv-card\s*,|\.music-player\s*,|(?:^|[ ,])input\s*,|(?:^|[ ,])textarea\s*,/);
   const overlayCss = shared.slice(shared.indexOf("const GLASS_OVERLAY_CSS"), start);
   assert.match(overlayCss, /background:rgba\(7,10,18,\.18\)!important/);
+  assert.match(overlayCss, /backdrop-filter:blur\(2px\)!important/);
   assert.match(overlayCss, /backdrop-filter:none!important/);
+  const blurFilters = overlayCss.match(/(?:-webkit-)?backdrop-filter:[^;]*blur\([^)]*\)[^;]*/g) || [];
+  assert.ok(blurFilters.length > 0);
+  assert.ok(blurFilters.every((filter) => filter.includes("blur(2px)")));
   assert.match(overlayCss, /transparent!important/);
   assert.match(glassRules, /--es-glass-fill:transparent/);
   assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?background-color:transparent!important/);
-  assert.doesNotMatch(overlayCss, /backdrop-filter:blur\(/);
+  assert.doesNotMatch(glassRules, /backdrop-filter:blur\(/);
   assert.match(glassRules, /Buttons and form fields intentionally retain their original visual styles/);
   assert.doesNotMatch(glassRules, /(?:^|\n)button\s*,|(?:^|\n)input\s*\{/);
   assert.match(glassRules, /prefers-reduced-transparency:reduce/);
