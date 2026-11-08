@@ -131,11 +131,68 @@ function parseByteRange(value, size) {
   if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start > end || start >= size) return null;
   return { start, end: Math.min(end, size - 1) };
 }
+function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+async function relayGrowingMovieFile(job, res, start = 0, end = null) {
+  let offset = start;
+  let closed = false;
+  const onClose = () => { closed = true; };
+  res.once("close", onClose);
+  try {
+    while (!closed && !res.destroyed) {
+      const stat = await fsp.stat(filePath(job)).catch(() => null);
+      const available = stat ? stat.size : 0;
+      const target = end == null ? available : Math.min(available, end + 1);
+      if (target > offset) {
+        const handle = await fsp.open(filePath(job), "r").catch(() => null);
+        if (handle) {
+          try {
+            while (offset < target && !closed && !res.destroyed) {
+              const length = Math.min(256 * 1024, target - offset);
+              const buffer = Buffer.allocUnsafe(length);
+              const read = await handle.read(buffer, 0, length, offset);
+              if (!read.bytesRead) break;
+              offset += read.bytesRead;
+              if (!res.write(buffer.subarray(0, read.bytesRead))) await new Promise((resolve) => res.once("drain", resolve));
+            }
+          } finally { await handle.close().catch(() => {}); }
+        }
+      }
+      const complete = job.status === "completed" && (end == null ? offset >= (stat?.size || 0) : offset >= end + 1);
+      const stopped = ["failed", "canceled"].includes(job.status);
+      if (complete || stopped || (end != null && offset >= end + 1)) break;
+      await wait(150);
+    }
+  } finally { res.removeListener("close", onClose); }
+  if (!closed && !res.destroyed) res.end();
+  return offset;
+}
 export async function streamMovieDownload(uid, id, res, rangeHeader) {
   await ensureReady(); const job = jobs.get(String(id));
   if (!job || job.uid !== String(uid)) return false;
+  const stat = await fsp.stat(filePath(job)).catch(() => null);
+  const knownSize = Math.max(Number(job.total) || 0, stat?.size || 0);
+  const active = ["queued", "running", "retrying", "paused"].includes(job.status);
+  if (active) {
+    const range = rangeHeader && knownSize ? parseByteRange(rangeHeader, knownSize) : null;
+    if (rangeHeader && !range) {
+      res.status(416).set({ "Content-Range": `bytes */${knownSize || "*"}`, "Accept-Ranges": "bytes", "Cache-Control": "private, no-store" }).end();
+      return true;
+    }
+    const start = range ? range.start : 0;
+    const end = range ? range.end : null;
+    res.status(range ? 206 : 200).set({
+      "Content-Type": "video/mp4",
+      ...(knownSize && !range ? { "Content-Length": String(knownSize) } : {}),
+      ...(range ? { "Content-Length": String(end - start + 1), "Content-Range": `bytes ${start}-${end}/${knownSize}` } : {}),
+      "Content-Disposition": `attachment; filename="${job.filename}"`,
+      "Cache-Control": "private, no-store",
+      "Accept-Ranges": "bytes",
+    });
+    await relayGrowingMovieFile(job, res, start, end);
+    return true;
+  }
   if (job.status !== "completed") return false;
-  const stat = await fsp.stat(filePath(job)).catch(() => null); if (!stat) return false;
+  if (!stat) return false;
   const range = rangeHeader ? parseByteRange(rangeHeader, stat.size) : null;
   if (rangeHeader && !range) {
     res.status(416).set({ "Content-Range": `bytes */${stat.size}`, "Accept-Ranges": "bytes", "Cache-Control": "private, no-store" }).end();
