@@ -425,10 +425,20 @@
     var restore = el("button", { type: "button", class: "mv-download-dock-restore", text: "View" });
     var dockCancel = el("button", { type: "button", class: "mv-download-dock-cancel", "aria-label": "Cancel download", title: "Cancel download", text: "×" });
     dock.append(dockCircle, dockCopy, dockTrack, dockMeta, restore, dockCancel);
-    var closed = false;
+    var closed = false, failed = false;
     function finishOverlay() { if (closed) return; closed = true; window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); }, 1400); }
-    function cancelDownload() { controller.abort(); title.textContent = "Download canceled"; status.textContent = "No file was saved."; dockMeta.textContent = "Canceled"; cancel.disabled = true; dockCancel.disabled = true; window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); if (dock.isConnected) dock.remove(); }, 700); }
-    cancel.addEventListener("click", cancelDownload); dockCancel.addEventListener("click", cancelDownload);
+    function cancelDownload() {
+      if (failed) { if (overlay.isConnected) overlay.remove(); return; }
+      controller.abort(); title.textContent = "Download canceled"; status.textContent = "No file was saved."; dockMeta.textContent = "Canceled"; cancel.disabled = true; dockCancel.disabled = true;
+      window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); if (dock.isConnected) dock.remove(); }, 700);
+    }
+    function retryDownload() {
+      if (!failed) return;
+      if (overlay.isConnected) overlay.remove();
+      if (dock.isConnected) dock.remove();
+      startSiteDownload(url, filename, sourceButton);
+    }
+    cancel.addEventListener("click", cancelDownload); dockCancel.addEventListener("click", function () { if (failed && overlay.isConnected) overlay.remove(); if (dock.isConnected) dock.remove(); else cancelDownload(); });
     function minimizeDownload() { overlay.classList.add("is-minimized"); if (!dock.isConnected) document.body.appendChild(dock); }
     function restoreDownload() { overlay.classList.remove("is-minimized"); }
     minimize.addEventListener("click", minimizeDownload); restore.addEventListener("click", restoreDownload);
@@ -468,8 +478,10 @@
       cancel.textContent = "Done"; cancel.disabled = true; dockCancel.disabled = true; dockCircle.textContent = "✓"; dockCircle.classList.add("is-complete"); dockMeta.textContent = "Saved"; dockCopy.querySelector(".mv-download-dock-title").textContent = "Download complete"; finishOverlay();
     }).catch(function (error) {
       if (error && error.name === "AbortError") return;
+      failed = true;
       title.textContent = "Download unavailable"; status.textContent = error.message || "No file was saved."; cancel.textContent = "Close";
-      dockMeta.textContent = "Unavailable"; dockCircle.textContent = "!"; dockCircle.classList.add("is-error");
+      restore.textContent = "Retry"; restore.onclick = retryDownload;
+      dockMeta.textContent = "Failed · tap Retry"; dockCircle.textContent = "!"; dockCircle.classList.add("is-error"); dock.classList.add("is-failed"); dockCopy.querySelector(".mv-download-dock-title").textContent = "Download failed";
       if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(status.textContent, "error", 8000);
     }).finally(function () {
       if (!sourceButton) return; sourceButton.disabled = false; sourceButton.removeAttribute("aria-busy"); sourceButton.textContent = "Download";

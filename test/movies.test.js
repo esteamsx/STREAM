@@ -578,6 +578,9 @@ test("movie downloads name files with title and quality and report the same file
   assert.match(frontend, /var overlayId = "mvDownloadProgress-" \+ taskId, dockId = "mvDownloadDock-" \+ taskId/);
   assert.match(frontend, /function minimizeDownload\(\)/);
   assert.match(frontend, /function restoreDownload\(\)/);
+  assert.match(frontend, /function retryDownload\(\)/);
+  assert.match(frontend, /Failed · tap Retry/);
+  assert.match(frontend, /dock\.classList\.add\("is-failed"\)/);
   assert.match(frontend, /response\.body\.getReader\(\)/);
   assert.match(frontend, /remaining/);
   assert.match(frontend, /new Blob\(chunks/);
@@ -586,6 +589,7 @@ test("movie downloads name files with title and quality and report the same file
   assert.match(css, /\.mv-download-progress\.is-minimized/);
   assert.match(css, /\.mv-download-dock\{/);
   assert.match(css, /\.mv-download-dock-circle\{/);
+  assert.match(css, /\.mv-download-dock\.is-failed/);
   assert.match(css, /conic-gradient/);
   assert.match(css, /backdrop-filter:blur\(24px\) saturate\(1\.45\)/);
   assert.match(frontend, /Range: "bytes=0-0"/);
