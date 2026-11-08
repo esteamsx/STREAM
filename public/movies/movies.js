@@ -404,6 +404,7 @@
   }
   function startSiteDownload(url, filename, sourceButton) {
     var old = document.getElementById("mvDownloadProgress"); if (old) old.remove();
+    var oldDock = document.getElementById("mvDownloadDock"); if (oldDock) oldDock.remove();
     var controller = new AbortController();
     var overlay = el("div", { class: "mv-download-progress", id: "mvDownloadProgress", role: "dialog", "aria-modal": "true", "aria-labelledby": "mvDownloadProgressTitle" });
     var card = el("div", { class: "mv-download-progress-card" });
@@ -413,12 +414,25 @@
     var fill = el("div", { class: "mv-download-progress-fill" }); track.appendChild(fill);
     var status = el("p", { class: "mv-download-progress-status", role: "status", text: "Connecting to the movie server…" });
     var meta = el("p", { class: "mv-download-progress-meta", text: "Downloaded 0 B" });
+    var minimize = el("button", { type: "button", class: "mv-btn ghost mv-download-progress-minimize", text: "Minimize" });
     var cancel = el("button", { type: "button", class: "mv-btn ghost mv-download-progress-cancel", text: "Cancel" });
+    var dock = el("div", { class: "mv-download-dock", id: "mvDownloadDock", role: "status", "aria-live": "polite" });
+    var dockCopy = el("div", { class: "mv-download-dock-copy" }, [el("strong", { class: "mv-download-dock-title", text: "Downloading" }), el("span", { class: "mv-download-dock-file", text: filename })]);
+    var dockTrack = el("div", { class: "mv-download-progress-track mv-download-dock-track", "aria-hidden": "true" });
+    var dockFill = el("div", { class: "mv-download-progress-fill" }); dockTrack.appendChild(dockFill);
+    var dockMeta = el("span", { class: "mv-download-dock-meta", text: "Preparing…" });
+    var restore = el("button", { type: "button", class: "mv-download-dock-restore", text: "View" });
+    var dockCancel = el("button", { type: "button", class: "mv-download-dock-cancel", "aria-label": "Cancel download", title: "Cancel download", text: "×" });
+    dock.append(dockCopy, dockTrack, dockMeta, restore, dockCancel);
     var closed = false;
     function finishOverlay() { if (closed) return; closed = true; window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); }, 1400); }
-    cancel.addEventListener("click", function () { controller.abort(); title.textContent = "Download canceled"; status.textContent = "No file was saved."; cancel.disabled = true; window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); }, 700); });
+    function cancelDownload() { controller.abort(); title.textContent = "Download canceled"; status.textContent = "No file was saved."; dockMeta.textContent = "Canceled"; cancel.disabled = true; dockCancel.disabled = true; window.setTimeout(function () { if (overlay.isConnected) overlay.remove(); if (dock.isConnected) dock.remove(); }, 700); }
+    cancel.addEventListener("click", cancelDownload); dockCancel.addEventListener("click", cancelDownload);
+    function minimizeDownload() { overlay.classList.add("is-minimized"); if (!dock.isConnected) document.body.appendChild(dock); }
+    function restoreDownload() { overlay.classList.remove("is-minimized"); }
+    minimize.addEventListener("click", minimizeDownload); restore.addEventListener("click", restoreDownload);
     overlay.addEventListener("click", function (event) { if (event.target === overlay) cancel.click(); });
-    card.append(title, file, track, status, meta, cancel); overlay.appendChild(card); document.body.appendChild(overlay);
+    card.append(title, file, track, status, meta, el("div", { class: "mv-download-progress-actions" }, [minimize, cancel])); overlay.appendChild(card); document.body.appendChild(overlay); document.body.appendChild(dock);
     if (sourceButton) { sourceButton.disabled = true; sourceButton.setAttribute("aria-busy", "true"); sourceButton.textContent = "Preparing…"; }
     var started = performance.now(), received = 0, total = 0, lastPaint = 0;
     function paint(force) {
@@ -426,7 +440,9 @@
       var percent = total > 0 ? Math.min(100, received / total * 100) : 0;
       var elapsed = Math.max(.001, (now - started) / 1000), speed = received / elapsed, remaining = total > 0 && speed > 0 ? (total - received) / speed : NaN;
       fill.style.width = percent.toFixed(2) + "%"; track.setAttribute("aria-valuenow", String(Math.round(percent)));
+      dockFill.style.width = percent.toFixed(2) + "%";
       meta.textContent = total > 0 ? formatBytes(received) + " of " + formatBytes(total) + " · " + formatBytes(Math.max(0, total - received)) + " left · " + formatDuration(remaining) + " remaining" : formatBytes(received) + " downloaded · calculating size…";
+      dockMeta.textContent = total > 0 ? Math.round(percent) + "% · " + formatBytes(Math.max(0, total - received)) + " left · " + formatDuration(remaining) + " remaining" : formatBytes(received) + " downloaded · preparing…";
       status.textContent = total > 0 ? Math.round(percent) + "% downloaded" : "Downloading…";
     }
     fetch(url, { credentials: "same-origin", headers: { Accept: "video/mp4, application/octet-stream" }, signal: controller.signal }).then(async function (response) {
@@ -445,10 +461,11 @@
       link.href = objectUrl; link.download = filename; link.rel = "noopener"; link.style.display = "none"; document.body.appendChild(link); link.click();
       window.setTimeout(function () { link.remove(); URL.revokeObjectURL(objectUrl); }, 1000);
       window.EsUI && typeof window.EsUI.toast === "function" && window.EsUI.toast("Download started: " + filename, "success", 5000);
-      cancel.textContent = "Done"; cancel.disabled = true; finishOverlay();
+      cancel.textContent = "Done"; cancel.disabled = true; dockCancel.disabled = true; dockMeta.textContent = "Saved"; dockCopy.querySelector(".mv-download-dock-title").textContent = "Download complete"; finishOverlay();
     }).catch(function (error) {
       if (error && error.name === "AbortError") return;
       title.textContent = "Download unavailable"; status.textContent = error.message || "No file was saved."; cancel.textContent = "Close";
+      dockMeta.textContent = "Unavailable";
       if (window.EsUI && typeof window.EsUI.toast === "function") window.EsUI.toast(status.textContent, "error", 8000);
     }).finally(function () {
       if (!sourceButton) return; sourceButton.disabled = false; sourceButton.removeAttribute("aria-busy"); sourceButton.textContent = "Download";

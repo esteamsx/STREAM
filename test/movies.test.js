@@ -575,11 +575,17 @@ test("movie downloads name files with title and quality and report the same file
   assert.match(frontend, /window\.EsUI\.toast\("Download started: " \+ filename, "success", 5000\)/);
   assert.match(frontend, /function startSiteDownload\(url, filename, sourceButton\)/);
   assert.match(frontend, /id: "mvDownloadProgress"/);
+  assert.match(frontend, /id: "mvDownloadDock"/);
+  assert.match(frontend, /function minimizeDownload\(\)/);
+  assert.match(frontend, /function restoreDownload\(\)/);
   assert.match(frontend, /response\.body\.getReader\(\)/);
   assert.match(frontend, /remaining/);
   assert.match(frontend, /new Blob\(chunks/);
   assert.match(css, /\.mv-download-progress\{/);
   assert.match(css, /\.mv-download-progress-fill\{/);
+  assert.match(css, /\.mv-download-progress\.is-minimized/);
+  assert.match(css, /\.mv-download-dock\{/);
+  assert.match(css, /backdrop-filter:blur\(24px\) saturate\(1\.45\)/);
   assert.match(frontend, /Range: "bytes=0-0"/);
   assert.match(frontend, /verifyDownloadReady\(url\)/);
   assert.match(frontend, /verifyMediaReady\(source\.playUrl, "playback"\)/);
