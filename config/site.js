@@ -439,10 +439,10 @@ const GLASS_OVERLAY_CSS = `<style>
 .st-full> .st-panel,.ch-down-overlay> .ch-down-card,
 .connecting-overlay> [class$="-card"],.countdown-overlay> [class$="-card"],
 .idle-overlay> [class$="-card"],.err-overlay> [class$="-card"]{
-  background:linear-gradient(145deg,rgba(255,255,255,.075),transparent 26%,transparent 78%,rgba(255,255,255,.02)),transparent!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.11),rgba(255,255,255,.018) 26%,rgba(255,255,255,.012) 78%,rgba(255,255,255,.035)),rgba(255,255,255,.035)!important;
   border:1px solid rgba(255,255,255,.25)!important;
-  -webkit-backdrop-filter:none!important;
-  backdrop-filter:none!important;
+  -webkit-backdrop-filter:blur(6px) saturate(1.08)!important;
+  backdrop-filter:blur(6px) saturate(1.08)!important;
   box-shadow:none!important;
 }
 :root[data-theme="light"] .page-overlay> .overlay-card,:root[data-theme="light"] .page-overlay> .flist-card,
@@ -460,23 +460,23 @@ const GLASS_OVERLAY_CSS = `<style>
 :root[data-theme="light"] .ch-down-overlay> .ch-down-card,:root[data-theme="light"] .connecting-overlay> [class$="-card"],
 :root[data-theme="light"] .countdown-overlay> [class$="-card"],:root[data-theme="light"] .idle-overlay> [class$="-card"],
 :root[data-theme="light"] .err-overlay> [class$="-card"]{
-  background:linear-gradient(145deg,rgba(255,255,255,.22),transparent 26%,transparent 78%,rgba(255,255,255,.035)),transparent!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.3),rgba(255,255,255,.08) 26%,rgba(255,255,255,.05) 78%,rgba(255,255,255,.12)),rgba(255,255,255,.12)!important;
   border-color:rgba(65,78,105,.2)!important;
-  -webkit-backdrop-filter:none!important;
-  backdrop-filter:none!important;
+  -webkit-backdrop-filter:blur(6px) saturate(1.08)!important;
+  backdrop-filter:blur(6px) saturate(1.08)!important;
   box-shadow:none!important;
 }
 #esSiteUiOverlays .overlay-card,#esSiteUiOverlays .flist-card,#esSiteUiOverlays .mpv-card,#esSiteUiOverlays .comments-card{
-  background:linear-gradient(145deg,rgba(255,255,255,.075),transparent 26%,transparent 78%,rgba(255,255,255,.02)),transparent!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.11),rgba(255,255,255,.018) 26%,rgba(255,255,255,.012) 78%,rgba(255,255,255,.035)),rgba(255,255,255,.035)!important;
   border-color:rgba(255,255,255,.25)!important;
-  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  -webkit-backdrop-filter:blur(6px) saturate(1.08)!important;backdrop-filter:blur(6px) saturate(1.08)!important;
   box-shadow:none!important;
 }
 :root[data-theme="light"] #esSiteUiOverlays .overlay-card,:root[data-theme="light"] #esSiteUiOverlays .flist-card,
 :root[data-theme="light"] #esSiteUiOverlays .mpv-card,:root[data-theme="light"] #esSiteUiOverlays .comments-card{
-  background:linear-gradient(145deg,rgba(255,255,255,.22),transparent 26%,transparent 78%,rgba(255,255,255,.035)),transparent!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.3),rgba(255,255,255,.08) 26%,rgba(255,255,255,.05) 78%,rgba(255,255,255,.12)),rgba(255,255,255,.12)!important;
   border-color:rgba(65,78,105,.2)!important;
-  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  -webkit-backdrop-filter:blur(6px) saturate(1.08)!important;backdrop-filter:blur(6px) saturate(1.08)!important;
   box-shadow:none!important;
 }
 

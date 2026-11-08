@@ -80,10 +80,10 @@ test("site-wide liquid glass refinements use theme-aware, page-specific surfaces
   const overlayCss = shared.slice(shared.indexOf("const GLASS_OVERLAY_CSS"), start);
   assert.match(overlayCss, /background:rgba\(7,10,18,\.18\)!important/);
   assert.match(overlayCss, /backdrop-filter:blur\(2px\)!important/);
-  assert.match(overlayCss, /backdrop-filter:none!important/);
+  assert.match(overlayCss, /backdrop-filter:blur\(6px\) saturate\(1\.08\)!important/);
   const blurFilters = overlayCss.match(/(?:-webkit-)?backdrop-filter:[^;]*blur\([^)]*\)[^;]*/g) || [];
-  assert.ok(blurFilters.length > 0);
-  assert.ok(blurFilters.every((filter) => filter.includes("blur(2px)")));
+  assert.ok(blurFilters.some((filter) => filter.includes("blur(2px)")));
+  assert.ok(blurFilters.some((filter) => filter.includes("blur(6px) saturate(1.08)")));
   assert.match(glassRules, /--es-glass-fill:transparent/);
   assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?background-color:color-mix\(in srgb,var\(--nav-bg,#10131d\) 58%,transparent\)!important/);
   assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?background-image:var\(--es-glass-sheen\)!important/);
