@@ -96,7 +96,10 @@ export function registerMovieRoutes(router, { requireAuth, requireSiteOrigin, Si
     const job = await cancelMovieDownload(req.uid, req.params.id);
     return job ? res.set("Cache-Control", "no-store").json(job) : res.status(404).json({ error: "Download job not found.", code: "not_found" });
   });
-  router.get("/api/movies/download-jobs/:id/file", requireAuth, requireMovieSiteOrigin, limiter, async (req, res) => {
+  // Native browser download managers may omit Origin, Referer, and sec-fetch-site after the
+  // anchor click. The session check still restricts this completed file to its owner; unlike
+  // the state-changing endpoints, this read-only transfer does not need the CSRF origin gate.
+  router.get("/api/movies/download-jobs/:id/file", requireAuth, limiter, async (req, res) => {
     const ok = await streamMovieDownload(req.uid, req.params.id, res, req.get("range"));
     if (!ok && !res.headersSent) return res.status(409).json({ error: "That download is not ready yet.", code: "download_not_ready" });
   });

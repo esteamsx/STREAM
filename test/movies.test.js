@@ -372,7 +372,7 @@ test("signed-in free accounts can browse movie lists without gaining premium dow
   assert.match(premiumStreams.body.sources[0].playUrl, /^\/api\/movies\/play\//);
 });
 
-test("server-side resumable movie download endpoints are registered behind auth and origin guards", () => {
+test("server-side resumable movie download endpoints are registered behind auth, with native file handoff allowed", () => {
   const handlers = {};
   const requireAuth = () => {};
   const requireSiteOrigin = () => {};
@@ -391,12 +391,15 @@ test("server-side resumable movie download endpoints are registered behind auth 
     "GET /api/movies/download-jobs",
     "GET /api/movies/download-jobs/:id",
     "POST /api/movies/download-jobs/:id/retry",
+    "POST /api/movies/download-jobs/:id/pause",
+    "POST /api/movies/download-jobs/:id/resume",
     "DELETE /api/movies/download-jobs/:id",
     "GET /api/movies/download-jobs/:id/file",
   ]) {
     assert.ok(handlers[key], key);
     assert.equal(handlers[key][0], requireAuth, key + " auth");
   }
+  assert.notEqual(handlers["GET /api/movies/download-jobs/:id/file"][1], requireSiteOrigin, "native file downloads must not require Origin/Referer");
 });
 
 test("Watch Later endpoints save, read and remove entries only for the authenticated account", async () => {
