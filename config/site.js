@@ -511,18 +511,18 @@ const GLASS_OVERLAY_CSS = `<style>
   background-color:var(--es-glass-fill)!important;
   border-color:var(--es-glass-edge)!important;
 }
-/* Existing fixed/sticky top bars retain their layout and scroll behavior, with a clearer transparent finish. */
+/* Existing fixed/sticky top bars retain their original opaque theme-aware surface. */
 .nav,.hm-nav,.mv-nav,.acc-nav,.pf-nav,.ad-nav,.cr-nav,.db-nav,.gv-nav,.pm-nav,.tr-nav,.cx-nav{
-  background-color:transparent!important;
-  background-image:var(--es-glass-sheen)!important;
-  border-bottom-color:var(--es-glass-edge)!important;
-  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  background-color:var(--nav-bg)!important;
+  background-image:none!important;
+  border-bottom-color:var(--border)!important;
+  -webkit-backdrop-filter:blur(20px)!important;backdrop-filter:blur(20px)!important;
 }
 :root[data-theme="light"] .nav,:root[data-theme="light"] .hm-nav,:root[data-theme="light"] .mv-nav,
 :root[data-theme="light"] .acc-nav,:root[data-theme="light"] .pf-nav,:root[data-theme="light"] .ad-nav,
 :root[data-theme="light"] .cr-nav,:root[data-theme="light"] .db-nav,:root[data-theme="light"] .gv-nav,
 :root[data-theme="light"] .pm-nav,:root[data-theme="light"] .tr-nav,:root[data-theme="light"] .cx-nav{
-  background-color:transparent!important;
+  background-color:var(--nav-bg)!important;
 }
 /* Buttons and form fields intentionally retain their original visual styles. */
 @media(prefers-reduced-transparency:reduce){

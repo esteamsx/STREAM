@@ -84,10 +84,9 @@ test("site-wide liquid glass refinements use theme-aware, page-specific surfaces
   const blurFilters = overlayCss.match(/(?:-webkit-)?backdrop-filter:[^;]*blur\([^)]*\)[^;]*/g) || [];
   assert.ok(blurFilters.length > 0);
   assert.ok(blurFilters.every((filter) => filter.includes("blur(2px)")));
-  assert.match(overlayCss, /transparent!important/);
   assert.match(glassRules, /--es-glass-fill:transparent/);
-  assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?background-color:transparent!important/);
-  assert.doesNotMatch(glassRules, /backdrop-filter:blur\(/);
+  assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?background-color:var\(--nav-bg\)!important/);
+  assert.match(glassRules, /\.nav,\.hm-nav,\.mv-nav,\.acc-nav[\s\S]*?backdrop-filter:blur\(20px\)!important/);
   assert.match(glassRules, /Buttons and form fields intentionally retain their original visual styles/);
   assert.doesNotMatch(glassRules, /(?:^|\n)button\s*,|(?:^|\n)input\s*\{/);
   assert.match(glassRules, /prefers-reduced-transparency:reduce/);
