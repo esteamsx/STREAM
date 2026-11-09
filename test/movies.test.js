@@ -194,6 +194,11 @@ test("detail copes with a different layout, missing data and unknown titles", ()
   assert.throws(() => normalizeDetail(null, "x-y"), (e) => e.status === 404);
 });
 
+test("list normalization keeps common Moviebox metadata aliases", () => {
+  const item = normalizeItem({ title: "Inception", id: "inception-1", poster: { url: img("inception") }, imdb_rating: "8.8", release_date: "2010-07-16", tag: "FEATURED" });
+  assert.deepEqual(item, { id: "inception-1", slug: "", title: "Inception", poster: img("inception"), rating: 8.8, year: "2010", badge: "FEATURED" });
+});
+
 test("detail rejects odd links before anything is called, and passes real errors through", async () => {
   reset();
   for (const bad of ["../../etc/passwd", "a/b", "a b", "x", "<script>", "a".repeat(200), "title?x=1", "..%2f"]) {

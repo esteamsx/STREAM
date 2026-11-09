@@ -955,7 +955,7 @@ async function getMovieApiUsage(uid, limits, bonusRequests = 0) {
   const keys = movieApiPeriodKeys(); const snap = await db.collection("movieApiUsage").doc(uid).get(); const data = snap.exists ? snap.data() : {};
   return { dailyRequests: data.dayKey === keys.day ? (data.dailyRequests || 0) : 0, weeklyRequests: data.weekKey === keys.week ? (data.weeklyRequests || 0) : 0, monthlyRequests: data.monthKey === keys.month ? (data.monthlyRequests || 0) : 0, dailyRequestsLimit: limits.dailyRequests, weeklyRequestsLimit: limits.weeklyRequests, monthlyRequestsLimit: limits.monthlyRequests + bonusRequests, bonusRequests };
 }
-async function checkAndIncrementMovieApiUsage(uid, limits, bonusRequests = 0) {
+async function checkAndIncrementMovieApiUsage(uid, limits, bonusRequests = 0, { enforceQuota = true } = {}) {
   const keys = movieApiPeriodKeys(); const ref = db.collection("movieApiUsage").doc(uid);
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref); const data = snap.exists ? snap.data() : {};
@@ -963,7 +963,7 @@ async function checkAndIncrementMovieApiUsage(uid, limits, bonusRequests = 0) {
     const weeklyRequests = data.weekKey === keys.week ? (data.weeklyRequests || 0) : 0;
     const monthlyRequests = data.monthKey === keys.month ? (data.monthlyRequests || 0) : 0;
     const quota = getMovieApiQuotaStatus({ dailyRequests, weeklyRequests, monthlyRequests }, limits, bonusRequests);
-    if (!quota.allowed) return quota;
+    if (enforceQuota && !quota.allowed) return quota;
     const next = { uid, dayKey: keys.day, weekKey: keys.week, monthKey: keys.month, dailyRequests: dailyRequests + 1, weeklyRequests: weeklyRequests + 1, monthlyRequests: monthlyRequests + 1, updatedAt: Date.now() };
     tx.set(ref, next, { merge: true });
     return { ...quota, ...next, allowed: true };
@@ -1030,13 +1030,13 @@ async function getAccountDevApiUsage(uid, monthlyLimit) {
   return { requestsThisMonth, monthlyLimit };
 }
 
-async function checkAndIncrementAccountDevApiUsage(uid, monthlyLimit) {
+async function checkAndIncrementAccountDevApiUsage(uid, monthlyLimit, { enforceQuota = true } = {}) {
   const nowMonth = currentUsageMonth();
   const ref = db.collection("devApiUsage").doc(uid);
   const snap = await ref.get();
   const data = snap.exists ? snap.data() : null;
   const current = data && data.usageMonth === nowMonth ? (data.requestsThisMonth || 0) : 0;
-  if (current >= monthlyLimit) {
+  if (enforceQuota && current >= monthlyLimit) {
     return { allowed: false, requestsThisMonth: current, monthlyLimit };
   }
   const requestsThisMonth = current + 1;

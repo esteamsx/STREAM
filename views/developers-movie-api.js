@@ -268,6 +268,9 @@ body:has(.page-overlay.show){overflow:hidden}
 .reveal-row code{flex:1;font-size:.76rem;word-break:break-all;background:transparent;padding:0}
 
 .usage-wrap{margin-top:14px}
+.movie-bonus-dock{position:fixed;right:20px;bottom:82px;z-index:61}
+.movie-bonus-dock .btn{white-space:nowrap;box-shadow:0 10px 26px rgba(0,0,0,.28)}
+@media(max-width:600px){.movie-bonus-dock{right:12px;bottom:78px}.movie-bonus-dock .btn{font-size:.72rem;padding:8px 12px}}
 .usage-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
 .usage-label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
 .usage-count{font-family:var(--font-mono);font-size:.74rem;color:var(--text);font-weight:600}
@@ -552,7 +555,7 @@ ${musicPlayerStyle()}
     <button class="overlay-cancel" id="tryitCancelBtn" type="button">Cancel</button>
   </div>
 </div>
-<button class="btn btn-primary" id="movieBonusOpenBtn" type="button" style="width:100%;justify-content:center;margin:0 0 12px">BONUS CODE</button>
+<div class="movie-bonus-dock"><button class="btn btn-primary" id="movieBonusOpenBtn" type="button">Redeem Bonus Code</button></div>
 ${musicPlayerHtml()}
 <div class="page-overlay" id="movieBonusOverlay">
   <div class="overlay-card">

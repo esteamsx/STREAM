@@ -206,6 +206,10 @@ function payloadPager(raw) {
   const data = payloadData(raw) || {};
   return data.pager && typeof data.pager === "object" ? data.pager : {};
 }
+function imageValue(value) {
+  if (value && typeof value === "object") return value.url || value.src || value.path || null;
+  return value;
+}
 
 /* one movie or series, from a banner row, a subject row, a catalog or a search result */
 export function normalizeItem(raw) {
@@ -215,13 +219,13 @@ export function normalizeItem(raw) {
   const slug = SLUG_RE.test(slugRaw) ? slugRaw : "";
   const id = str(raw.subject_id || raw.subjectId || raw.id, 40);
   if (!title || (!slug && !id)) return null;
-  const cover = raw.cover && typeof raw.cover === "object" ? raw.cover.url : raw.cover;
+  const cover = imageValue(raw.cover);
   return {
     id, slug, title,
-    poster: httpsUrl(raw.poster_url || raw.posterUrl || cover || raw.image || raw.poster),
-    rating: num(raw.rating != null ? raw.rating : raw.imdbRatingValue),
-    year: yearOf(raw.year != null ? raw.year : raw.releaseDate),
-    badge: str(raw.badge, 24) || null,
+    poster: httpsUrl(raw.poster_url || raw.posterUrl || cover || imageValue(raw.image) || imageValue(raw.poster)),
+    rating: num(raw.rating != null ? raw.rating : raw.imdbRatingValue != null ? raw.imdbRatingValue : raw.imdb_rating != null ? raw.imdb_rating : raw.imdb_rating_value != null ? raw.imdb_rating_value : raw.score != null ? raw.score : raw.vote_average),
+    year: yearOf(raw.year != null ? raw.year : raw.releaseDate != null ? raw.releaseDate : raw.release_date != null ? raw.release_date : raw.releaseYear != null ? raw.releaseYear : raw.release_year),
+    badge: str(raw.badge != null ? raw.badge : raw.tag != null ? raw.tag : raw.label != null ? raw.label : raw.quality, 24) || null,
   };
 }
 function normalizeList(list, limit = 60) {
@@ -244,7 +248,7 @@ export function normalizeDetail(raw, slug) {
   const s = (d.subject && typeof d.subject === "object" ? d.subject : null) || (d.detail && typeof d.detail === "object" ? d.detail : null) || d;
   const title = str(s.title || s.name, 200);
   if (!title) throw new MovieError(404, "not_found", "That title could not be found.");
-  const cover = s.cover && typeof s.cover === "object" ? s.cover.url : s.cover;
+  const cover = imageValue(s.cover);
   const stills = Array.isArray(d.stills) ? d.stills : Array.isArray(s.stills) ? s.stills : [];
   const still = stills.map((x) => (x && typeof x === "object" ? x.url : x)).map(httpsUrl).find(Boolean) || (s.stills && typeof s.stills === "object" ? httpsUrl(s.stills.url) : null);
   const genreRaw = s.genre != null ? s.genre : s.genres;
@@ -259,10 +263,10 @@ export function normalizeDetail(raw, slug) {
     slug, id: str(s.subjectId || s.subject_id || s.id, 40),
     title,
     description: str(s.description || s.overview || s.synopsis, 2500) || null,
-    poster: httpsUrl(cover || s.poster_url || s.poster),
+    poster: httpsUrl(cover || s.poster_url || s.posterUrl || imageValue(s.poster)),
     backdrop: still,
-    year: yearOf(s.releaseDate != null ? s.releaseDate : s.year),
-    rating: num(s.imdbRatingValue != null ? s.imdbRatingValue : s.rating),
+    year: yearOf(s.releaseDate != null ? s.releaseDate : s.release_date != null ? s.release_date : s.year != null ? s.year : s.releaseYear),
+    rating: num(s.imdbRatingValue != null ? s.imdbRatingValue : s.imdb_rating != null ? s.imdb_rating : s.rating != null ? s.rating : s.score != null ? s.score : s.vote_average),
     genres,
     country: str(s.countryName || s.country, 60) || null,
     minutes: Number.isFinite(durationSec) && durationSec > 0 ? Math.round(durationSec > 600 ? durationSec / 60 : durationSec) : null,

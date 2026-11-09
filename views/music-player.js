@@ -61,6 +61,7 @@ export function musicPlayerScript() {
   var STORE_KEY = 'mp_state';
   var idx = 0;
   var wantsPlaying = true;
+  var sourceErrors = 0;
 
   function writeState(){
     try {
@@ -137,7 +138,13 @@ export function musicPlayerScript() {
   document.getElementById('mpForward').addEventListener('click', function(){ load(idx + 1, true); writeState(); });
   audio.addEventListener('play', function(){ setPlayingUI(true); writeState(); });
   audio.addEventListener('pause', function(){ setPlayingUI(false); writeState(); });
+  audio.addEventListener('loadeddata', function(){ sourceErrors = 0; });
   audio.addEventListener('timeupdate', function(){ writeState(); });
+  audio.addEventListener('error', function(){
+    if(!wantsPlaying || sourceErrors >= TRACKS.length) return;
+    sourceErrors += 1;
+    load(idx + 1, true);
+  });
   audio.addEventListener('ended', function(){ load(idx + 1, true); writeState(); });
   window.addEventListener('pagehide', function(){ writeState(); });
 })();

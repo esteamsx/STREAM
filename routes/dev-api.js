@@ -131,10 +131,10 @@ async function requireDevApiKey(req, res, next) {
       return res.status(429).json({ error: "Too many requests per second for your plan." });
     }
 
-    if (!isAdminAccount) {
+    {
       const monthlyLimit = plan.monthlyRequests + getEffectiveBonusRequests(ownerProfile, "devapi");
-      const usage = await checkAndIncrementAccountDevApiUsage(found.uid, monthlyLimit);
-      if (!usage.allowed) {
+      const usage = await checkAndIncrementAccountDevApiUsage(found.uid, monthlyLimit, { enforceQuota: !isAdminAccount });
+      if (!isAdminAccount && !usage.allowed) {
         return res.status(429).json({
           error: "Monthly request limit reached for this account.",
           requests_this_month: usage.requestsThisMonth,

@@ -63,12 +63,10 @@ async function requireMovieApiKey(req, res, next) {
     const admin = isAdminEmail(profile?.email);
     const plan = admin ? MOVIE_API_PLANS.max : getMovieApiPlanConfig(profile);
     if (!admin && !rpsLimiter(plan.dailyRequests).check(found.id)) return res.status(429).json({ error: "Too many requests. Please slow down." });
-    if (!admin) {
-      const bonusRequests = getEffectiveBonusRequests(profile, "movieapi");
-      const usage = await checkAndIncrementMovieApiUsage(found.uid, plan, bonusRequests);
-      if (!usage.allowed) return res.status(429).json({ error: "Movie API request quota reached for this period.", daily_requests: usage.dailyRequests, daily_limit: usage.dailyRequestsLimit || plan.dailyRequests, weekly_requests: usage.weeklyRequests, weekly_limit: usage.weeklyRequestsLimit || plan.weeklyRequests, monthly_requests: usage.monthlyRequests, monthly_limit: usage.monthlyRequestsLimit || plan.monthlyRequests, bonus_requests: bonusRequests });
-      req.movieApiQuotaConsumed = true;
-    }
+    const bonusRequests = getEffectiveBonusRequests(profile, "movieapi");
+    const usage = await checkAndIncrementMovieApiUsage(found.uid, plan, bonusRequests, { enforceQuota: !admin });
+    if (!admin && !usage.allowed) return res.status(429).json({ error: "Movie API request quota reached for this period.", daily_requests: usage.dailyRequests, daily_limit: usage.dailyRequestsLimit || plan.dailyRequests, weekly_requests: usage.weeklyRequests, weekly_limit: usage.weeklyRequestsLimit || plan.weeklyRequests, monthly_requests: usage.monthlyRequests, monthly_limit: usage.monthlyRequestsLimit || plan.monthlyRequests, bonus_requests: bonusRequests });
+    req.movieApiQuotaConsumed = true;
     req.apiKeyId = found.id; req.apiKeyUid = found.uid; req.movieApiProfile = profile; req.movieApiPlan = plan; req.movieApiPlanKey = admin ? "max" : getEffectiveMovieApiPlan(profile); req.movieApiBranding = brandingFor(profile, plan);
     const originalJson = res.json.bind(res);
     res.json = (body) => originalJson(addBranding(body, req));

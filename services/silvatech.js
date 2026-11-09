@@ -136,8 +136,33 @@ async function runSaveTube(input, format) {
   };
 }
 
+async function runDirectYoutubeFallback(videoUrl, format) {
+  const module = await import("@distube/ytdl-core");
+  const ytdl = module.default || module;
+  const info = await ytdl.getInfo(videoUrl);
+  const isAudio = format === "mp3";
+  const candidates = info.formats.filter((item) => isAudio
+    ? item.hasAudio && !item.hasVideo
+    : item.hasAudio && item.hasVideo && item.container === "mp4");
+  candidates.sort((a, b) => (Number(b.audioBitrate || 0) + Number(b.height || 0)) - (Number(a.audioBitrate || 0) + Number(a.height || 0)));
+  const chosen = candidates[0];
+  if (!chosen?.url) throw new Error("YouTube did not return a compatible media format.");
+  const details = info.videoDetails || {};
+  return {
+    title: details.title || "Untitled",
+    thumbnail: details.thumbnails?.at(-1)?.url || null,
+    duration: Number(details.lengthSeconds) || 0,
+    download: chosen.url,
+  };
+}
+
 export async function fetchYoutubeMp3(videoUrl) {
-  const result = await runSaveTube(videoUrl, "mp3");
+  let result;
+  try { result = await runSaveTube(videoUrl, "mp3"); }
+  catch (primaryError) {
+    try { result = await runDirectYoutubeFallback(videoUrl, "mp3"); }
+    catch { throw primaryError; }
+  }
   return {
     title: result.title || "Untitled",
     thumbnail: result.thumbnail || null,
@@ -148,7 +173,12 @@ export async function fetchYoutubeMp3(videoUrl) {
 }
 
 export async function fetchYoutubeMp4(videoUrl) {
-  const result = await runSaveTube(videoUrl, "mp4");
+  let result;
+  try { result = await runSaveTube(videoUrl, "mp4"); }
+  catch (primaryError) {
+    try { result = await runDirectYoutubeFallback(videoUrl, "mp4"); }
+    catch { throw primaryError; }
+  }
   return {
     title: result.title || "Untitled",
     thumbnail: result.thumbnail || null,
