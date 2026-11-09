@@ -370,7 +370,6 @@ setTimeout(function(){
   f.appendChild(box);
 }, 6000);
 </script>
-<script src="/ios-physics-scroll.js" defer></script>
 </body>
 </html>`;
 }

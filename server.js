@@ -360,6 +360,7 @@ import { paymentsRouter } from "./routes/payments.js";
 import { cryptoDepositsRouter } from "./routes/crypto-deposits.js";
 import { promoteRouter } from "./routes/promote.js";
 import { injectPromoSlot } from "./middleware/promo-slot.js";
+import { enhanceIosPhysicsPage } from "./middleware/ios-physics-scroll.js";
 import { flushAdStats } from "./services/ads.js";
 import { rewardsRouter } from "./routes/rewards.js";
 import { initFakeCoins, startFakeCoinSchedule, runFakeCoinScan, listFakeCoinAlerts, banFakeCoinUser, dismissFakeCoinAlert, liftCoinRestriction, coinDeviceGuard } from "./services/fake-coins.js";
@@ -438,6 +439,7 @@ app.use(compression());
 
 app.use(cspNonce);
 app.use(injectPromoSlot);
+app.use(enhanceIosPhysicsPage);
 app.use(helmetMiddleware);
 app.use((req, res, next) => {
   res.setHeader("Accept-CH", "Sec-CH-UA-Model, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version");
