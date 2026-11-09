@@ -268,9 +268,6 @@ body:has(.page-overlay.show){overflow:hidden}
 .reveal-row code{flex:1;font-size:.76rem;word-break:break-all;background:transparent;padding:0}
 
 .usage-wrap{margin-top:14px}
-.movie-bonus-dock{position:fixed;right:20px;bottom:82px;z-index:61}
-.movie-bonus-dock .btn{white-space:nowrap;box-shadow:0 10px 26px rgba(0,0,0,.28)}
-@media(max-width:600px){.movie-bonus-dock{right:12px;bottom:78px}.movie-bonus-dock .btn{font-size:.72rem;padding:8px 12px}}
 .usage-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
 .usage-label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
 .usage-count{font-family:var(--font-mono);font-size:.74rem;color:var(--text);font-weight:600}
@@ -555,18 +552,7 @@ ${musicPlayerStyle()}
     <button class="overlay-cancel" id="tryitCancelBtn" type="button">Cancel</button>
   </div>
 </div>
-<div class="movie-bonus-dock"><button class="btn btn-primary" id="movieBonusOpenBtn" type="button">Redeem Bonus Code</button></div>
 ${musicPlayerHtml()}
-<div class="page-overlay" id="movieBonusOverlay">
-  <div class="overlay-card">
-    <div class="overlay-title">Redeem a Movie API code</div>
-    <div class="overlay-sub">A code can activate a Movie API plan or add monthly requests to your quota.</div>
-    <div class="field"><label for="movieBonusInput">Code</label><input type="text" id="movieBonusInput" maxlength="32" autocomplete="off" placeholder="Enter code"></div>
-    <div class="dcard-msg" id="movieBonusMsg" aria-live="polite"></div>
-    <button class="btn btn-primary" id="movieBonusRedeemBtn" type="button" style="width:100%;justify-content:center">Redeem code</button>
-    <button class="overlay-cancel" id="movieBonusCloseBtn" type="button">Cancel</button>
-  </div>
-</div>
 
 <script nonce="__CSP_NONCE__">
 (function(){
@@ -856,6 +842,15 @@ ${musicPlayerHtml()}
       '</div>';
     }
 
+    html += '<div class="field" style="margin-top:0;margin-bottom:16px">' +
+      '<label>Redeem Bonus Code</label>' +
+      '<div style="display:flex;gap:8px">' +
+        '<input type="text" id="bonusRedeemInput" placeholder="Enter code" style="flex:1" maxlength="16">' +
+        '<button class="btn btn-ghost" id="bonusRedeemBtn" type="button" style="flex-shrink:0">Redeem</button>' +
+      '</div>' +
+      '<div class="dcard-msg" id="bonusRedeemMsg"></div>' +
+    '</div>';
+
     if(!keys.length){
       html += '<div class="empty-state" id="noKeysMsg">You don\\'t have an API key yet. Create one to start making requests.</div>';
     } else {
@@ -935,6 +930,37 @@ ${musicPlayerHtml()}
           });
       });
     }
+
+    var bonusRedeemBtn = document.getElementById('bonusRedeemBtn');
+    var bonusRedeemInput = document.getElementById('bonusRedeemInput');
+    if(bonusRedeemBtn && bonusRedeemInput){
+      bonusRedeemBtn.addEventListener('click', function(){
+        var code = bonusRedeemInput.value.trim();
+        var msg = document.getElementById('bonusRedeemMsg');
+        if(!code){
+          msg.className = 'dcard-msg err';
+          msg.textContent = 'Enter a bonus code first.';
+          bonusRedeemInput.focus();
+          return;
+        }
+        var originalHtml = bonusRedeemBtn.innerHTML;
+        bonusRedeemBtn.disabled = true;
+        bonusRedeemBtn.innerHTML = '<span class="btn-spinner"></span> Redeeming…';
+        fetch('/api/movieapi/bonus-redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code }) })
+          .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error || 'Could not redeem that code.'); return d; }); })
+          .then(function(d){
+            loadKeys();
+            requestAnimationFrame(function(){
+              var newMsg = document.getElementById('bonusRedeemMsg');
+              if(newMsg){ newMsg.className = 'dcard-msg ok'; newMsg.textContent = d.type === 'plan' ? (d.planName || d.plan) + ' Movie API plan activated.' : '+' + d.amount + ' requests added to your monthly limit.'; }
+            });
+          })
+          .catch(function(err){
+            msg.className = 'dcard-msg err'; msg.textContent = err.message;
+            bonusRedeemBtn.disabled = false; bonusRedeemBtn.innerHTML = originalHtml;
+          });
+      });
+    }
   }
 
   function loadKeys(){
@@ -945,31 +971,6 @@ ${musicPlayerHtml()}
       renderPlans(r.data.plan || null, r.data.movieApiCustomAdsName || null, r.data.movieApiCustomAdsUrl || null, true);
     }).catch(function(){ premiumDiscountRate = 0; renderLoggedOutKeyCard(); renderPlans(null, null, null, false); });
   }
-
-  document.getElementById('movieBonusOpenBtn').addEventListener('click', function(){
-    document.getElementById('movieBonusMsg').className = 'dcard-msg';
-    document.getElementById('movieBonusMsg').textContent = '';
-    document.getElementById('movieBonusOverlay').classList.add('show');
-    document.getElementById('movieBonusInput').focus();
-  });
-  document.getElementById('movieBonusCloseBtn').addEventListener('click', function(){ document.getElementById('movieBonusOverlay').classList.remove('show'); });
-  document.getElementById('movieBonusRedeemBtn').addEventListener('click', async function(){
-    var btn = this, input = document.getElementById('movieBonusInput'), msg = document.getElementById('movieBonusMsg');
-    var code = input.value.trim();
-    if(!code){ msg.className = 'dcard-msg err'; msg.textContent = 'Enter a code first.'; input.focus(); return; }
-    btn.disabled = true; btn.textContent = 'Redeeming…';
-    try {
-      var result = await fetch('/api/movieapi/bonus-redeem', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ code:code }) });
-      var data = await result.json().catch(function(){ return {}; });
-      if(!result.ok) throw new Error(data.error || 'Could not redeem bonus code.');
-      msg.className = 'dcard-msg ok';
-      msg.textContent = data.type === 'plan'
-        ? (data.planName || data.plan) + ' Movie API plan activated until ' + new Date(data.expiresAt).toLocaleDateString() + (data.bonusRequests ? ' with +' + data.bonusRequests + ' monthly requests.' : '.')
-        : 'Added +' + data.amount + ' monthly Movie API requests.';
-      input.value = ''; loadKeys();
-    } catch(err) { msg.className = 'dcard-msg err'; msg.textContent = err.message || 'Could not redeem bonus code.'; }
-    finally { btn.disabled = false; btn.textContent = 'Redeem code'; }
-  });
 
   loadKeys();
 

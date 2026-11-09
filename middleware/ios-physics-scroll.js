@@ -1,4 +1,5 @@
 const PHYSICS_SCRIPT_TAG = '<script nonce="__CSP_NONCE__" src="/ios-physics-scroll.js" defer></script>';
+const MOTION_SCRIPT_TAG = '<script nonce="__CSP_NONCE__" src="/ios-motion.js" defer></script>';
 const HTML_PAGE_RE = /^\s*<(!doctype|html)/i;
 
 function addAttribute(tag, attribute) {
@@ -34,7 +35,9 @@ export function enhanceIosPhysicsPage(req, res, next) {
       body = markMainWrapper(body);
       body = markNativeScrollSurfaces(body);
       if (body.indexOf("/ios-physics-scroll.js") === -1) {
-        body = body.replace("</body>", `${PHYSICS_SCRIPT_TAG}</body>`);
+        body = body.replace("</body>", `${PHYSICS_SCRIPT_TAG}${MOTION_SCRIPT_TAG}</body>`);
+      } else if (body.indexOf("/ios-motion.js") === -1) {
+        body = body.replace("</body>", `${MOTION_SCRIPT_TAG}</body>`);
       }
     }
     return originalSend(body);
