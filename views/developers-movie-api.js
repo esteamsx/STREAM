@@ -817,6 +817,21 @@ ${musicPlayerHtml()}
   var keyCardBody = document.getElementById('keyCardBody');
   var movieApiKeyCount = 0;
 
+  function usageLevelClass(pct){
+    if(pct >= 90) return 'lvl-hot';
+    if(pct >= 65) return 'lvl-warn';
+    return '';
+  }
+  function usageBarHtml(label, current, limit, marginTop){
+    var used = Math.max(0, Number(current) || 0);
+    var max = Math.max(0, Number(limit) || 0);
+    var pct = max ? Math.min(100, Math.round((used / max) * 100)) : 0;
+    return '<div class="usage-wrap" style="margin-top:' + marginTop + 'px">' +
+      '<div class="usage-top"><span class="usage-label">' + label + '</span><span class="usage-count">' + used + ' / ' + max + '</span></div>' +
+      '<div class="usage-track"><div class="usage-fill ' + usageLevelClass(pct) + '" style="width:0%" data-pct="' + pct + '"></div></div>' +
+    '</div>';
+  }
+
   function renderLoggedOutKeyCard(){
     movieApiKeyCount = 0;
     keyCardBody.innerHTML =
@@ -831,10 +846,10 @@ ${musicPlayerHtml()}
     var expiresPart = plan && plan.expiresAt ? ' &middot; expires ' + fmtDate(plan.expiresAt) : '';
 
     if(usage){
-      html += '<div class="usage-wrap" style="margin-top:0;margin-bottom:16px">' +
-        '<div class="usage-top"><span class="usage-label">Daily requests</span><span class="usage-count">' + usage.dailyRequests + ' / ' + usage.dailyRequestsLimit + '</span></div>' +
-        '<div class="usage-top"><span class="usage-label">Weekly requests</span><span class="usage-count">' + usage.weeklyRequests + ' / ' + usage.weeklyRequestsLimit + '</span></div>' +
-        '<div class="usage-top"><span class="usage-label">Monthly requests</span><span class="usage-count">' + usage.monthlyRequests + ' / ' + usage.monthlyRequestsLimit + '</span></div>' +
+      html += '<div style="margin-bottom:16px">' +
+        usageBarHtml('Daily requests', usage.dailyRequests, usage.dailyRequestsLimit, 0) +
+        usageBarHtml('Weekly requests', usage.weeklyRequests, usage.weeklyRequestsLimit, 10) +
+        usageBarHtml('Monthly requests', usage.monthlyRequests, usage.monthlyRequestsLimit, 10) +
       '</div>';
     }
 
