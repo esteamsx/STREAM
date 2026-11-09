@@ -24,6 +24,11 @@
 .es-ios-pull-refresh.ready .es-ios-pull-icon{stroke:#3ddc84;transform:rotate(180deg);}\
 .es-ios-pull-refresh .es-ios-pull-label{position:absolute;top:72px;white-space:nowrap;color:var(--text);font-size:.68rem;font-weight:700;opacity:0;transform:translateY(-4px);transition:opacity .2s ease,transform .2s ease;}\
 .es-ios-pull-refresh.show .es-ios-pull-label{opacity:.82;transform:none;}\
+.ios-motion-enabled .es-ios-glass-item{position:relative;isolation:isolate;}\
+.ios-motion-enabled .es-ios-glass-glow{position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;background:radial-gradient(circle at var(--es-glass-x,50%) var(--es-glass-y,50%),rgba(255,255,255,.18),transparent 30%);opacity:0;mix-blend-mode:screen;transition:opacity .28s ease;}\
+.ios-motion-enabled .es-ios-glass-item:hover .es-ios-glass-glow{opacity:.72;}\
+.ios-motion-enabled .es-ios-glass-item > :not(.es-ios-glass-glow){position:relative;z-index:1;}\
+.ios-motion-enabled .es-ios-glass-item button:hover > svg,.ios-motion-enabled .es-ios-glass-item a:hover > svg{transform:translateY(-1px) rotate(-3deg);}\
 .ios-motion-enabled .es-ios-motion-item{opacity:0;transform:translateY(14px) scale(.985);transition:opacity .52s cubic-bezier(.22,.61,.36,1),transform .62s cubic-bezier(.22,.61,.36,1);will-change:opacity,transform;}\
 .ios-motion-enabled .es-ios-motion-item.es-ios-visible{opacity:1;transform:none;}\
 .ios-motion-enabled button:not([data-no-smooth]),.ios-motion-enabled a:not([data-no-smooth]){transition:transform .18s cubic-bezier(.22,.61,.36,1),filter .18s ease;}\
@@ -54,6 +59,23 @@
   items.forEach(function(el, index){
     el.classList.add('es-ios-motion-item');
     el.style.transitionDelay = Math.min(index * 28, 180) + 'ms';
+    if (window.matchMedia && window.matchMedia('(hover:hover)').matches) {
+      el.classList.add('es-ios-glass-item');
+      var glow = document.createElement('span');
+      glow.className = 'es-ios-glass-glow';
+      glow.setAttribute('aria-hidden', 'true');
+      el.appendChild(glow);
+      el.addEventListener('pointermove', function(event){
+        if (event.pointerType === 'touch') return;
+        var rect = el.getBoundingClientRect();
+        el.style.setProperty('--es-glass-x', ((event.clientX - rect.left) / rect.width * 100) + '%');
+        el.style.setProperty('--es-glass-y', ((event.clientY - rect.top) / rect.height * 100) + '%');
+      });
+      el.addEventListener('pointerleave', function(){
+        el.style.setProperty('--es-glass-x', '50%');
+        el.style.setProperty('--es-glass-y', '50%');
+      });
+    }
   });
 
   if ('IntersectionObserver' in window) {
