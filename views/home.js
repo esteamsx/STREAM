@@ -296,7 +296,7 @@ button{cursor:pointer}
     <div class="hm-side-foot"><a href="/privacy">Privacy</a><a href="/dmca">DMCA</a></div>
   </aside>
 
-  <main class="hm-main" id="hmMain">
+  <main class="hm-main" id="hmMain" data-ios-rubber>
     <div class="hm-verify-banner" id="hmVerifyBanner" role="status" aria-label="Verification information">
       <span class="info" aria-hidden="true">i</span>
       <div class="copy">Want to stop seeing ads? <a href="/account#verify" id="hmVerifyLink">Stop Ads</a></div>
@@ -370,6 +370,7 @@ setTimeout(function(){
   f.appendChild(box);
 }, 6000);
 </script>
+<script src="/ios-physics-scroll.js" defer></script>
 </body>
 </html>`;
 }
