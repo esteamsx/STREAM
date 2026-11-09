@@ -784,8 +784,8 @@ const DEV_API_PLAN_DAYS = 30;
 const DEV_API_PLANS = {
   free: { name: "Free", apiKeys: 1, requestsPerSecond: 3, monthlyRequests: 100, noAds: false, customAdsLink: false, priceNgn: 0 },
   starter: { name: "Starter", apiKeys: 3, requestsPerSecond: 10, monthlyRequests: 200, noAds: false, customAdsLink: false, priceNgn: 0 },
-  standard: { name: "Standard", apiKeys: 5, requestsPerSecond: 20, monthlyRequests: 350, noAds: false, customAdsLink: false, priceNgn: 4500 },
-  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: false, priceNgn: 7500 },
+  standard: { name: "Standard", apiKeys: 5, requestsPerSecond: 20, monthlyRequests: 350, noAds: false, customAdsLink: false, priceNgn: 7500 },
+  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: false, priceNgn: 12500 },
   max: { name: "Max", apiKeys: 15, requestsPerSecond: 50, monthlyRequests: 1000, noAds: true, customAdsLink: true, priceNgn: 15000 },
 };
 
@@ -3653,8 +3653,8 @@ const API_PLAN_DAYS = 30;
 const API_PLANS = {
   free: { name: "Free", apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 50 },
   starter: { name: "Starter", apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 50 },
-  standard: { name: "Standard", apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, priceNgn: 4500, monthlyRequests: 100 },
-  pro: { name: "Pro", apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, priceNgn: 7500, monthlyRequests: 100 },
+  standard: { name: "Standard", apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, priceNgn: 7500, monthlyRequests: 100 },
+  pro: { name: "Pro", apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, priceNgn: 12500, monthlyRequests: 100 },
   max: { name: "Max", apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, priceNgn: 15000, monthlyRequests: Infinity },
 };
 
