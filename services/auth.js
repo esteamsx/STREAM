@@ -884,7 +884,7 @@ async function setDevApiCustomAdsUrl(uid, url) {
 const MOVIE_API_PLANS = {
   free: { name: "Free", apiKeys: 1, dailyRequests: 5, weeklyRequests: 25, monthlyRequests: 50, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 0 },
   starter: { name: "Starter", apiKeys: 3, dailyRequests: 10, weeklyRequests: 50, monthlyRequests: 100, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 0 },
-  standard: { name: "Standard", apiKeys: 5, dailyRequests: 20, weeklyRequests: 100, monthlyRequests: 200, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 7500 },
+  standard: { name: "Standard", apiKeys: 5, dailyRequests: 20, weeklyRequests: 100, monthlyRequests: 200, noAds: true, customAdsName: false, customAdsLink: false, priceNgn: 7500 },
   pro: { name: "Pro", apiKeys: 10, dailyRequests: 40, weeklyRequests: 200, monthlyRequests: 400, noAds: true, customAdsName: true, customAdsLink: false, priceNgn: 12500 },
   max: { name: "Max", apiKeys: 15, dailyRequests: 80, weeklyRequests: 400, monthlyRequests: 800, noAds: true, customAdsName: true, customAdsLink: true, priceNgn: 15000 },
 };
@@ -954,14 +954,17 @@ async function getMovieApiUsage(uid, limits) {
   return { dailyRequests: data.dayKey === keys.day ? (data.dailyRequests || 0) : 0, weeklyRequests: data.weekKey === keys.week ? (data.weeklyRequests || 0) : 0, monthlyRequests: data.monthKey === keys.month ? (data.monthlyRequests || 0) : 0, dailyRequestsLimit: limits.dailyRequests, weeklyRequestsLimit: limits.weeklyRequests, monthlyRequestsLimit: limits.monthlyRequests };
 }
 async function checkAndIncrementMovieApiUsage(uid, limits) {
-  const keys = movieApiPeriodKeys(); const ref = db.collection("movieApiUsage").doc(uid); const snap = await ref.get(); const data = snap.exists ? snap.data() : {};
-  const dailyRequests = data.dayKey === keys.day ? (data.dailyRequests || 0) : 0;
-  const weeklyRequests = data.weekKey === keys.week ? (data.weeklyRequests || 0) : 0;
-  const monthlyRequests = data.monthKey === keys.month ? (data.monthlyRequests || 0) : 0;
-  if (dailyRequests >= limits.dailyRequests || weeklyRequests >= limits.weeklyRequests || monthlyRequests >= limits.monthlyRequests) return { allowed: false, dailyRequests, weeklyRequests, monthlyRequests, ...limits };
-  const next = { uid, dayKey: keys.day, weekKey: keys.week, monthKey: keys.month, dailyRequests: dailyRequests + 1, weeklyRequests: weeklyRequests + 1, monthlyRequests: monthlyRequests + 1, updatedAt: Date.now() };
-  await ref.set(next, { merge: true });
-  return { allowed: true, ...next, ...limits };
+  const keys = movieApiPeriodKeys(); const ref = db.collection("movieApiUsage").doc(uid);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref); const data = snap.exists ? snap.data() : {};
+    const dailyRequests = data.dayKey === keys.day ? (data.dailyRequests || 0) : 0;
+    const weeklyRequests = data.weekKey === keys.week ? (data.weeklyRequests || 0) : 0;
+    const monthlyRequests = data.monthKey === keys.month ? (data.monthlyRequests || 0) : 0;
+    if (dailyRequests >= limits.dailyRequests || weeklyRequests >= limits.weeklyRequests || monthlyRequests >= limits.monthlyRequests) return { allowed: false, dailyRequests, weeklyRequests, monthlyRequests, ...limits };
+    const next = { uid, dayKey: keys.day, weekKey: keys.week, monthKey: keys.month, dailyRequests: dailyRequests + 1, weeklyRequests: weeklyRequests + 1, monthlyRequests: monthlyRequests + 1, updatedAt: Date.now() };
+    tx.set(ref, next, { merge: true });
+    return { allowed: true, ...next, ...limits };
+  });
 }
 async function setMovieApiCustomAds(uid, { name, url }) {
   const profile = await getUserProfile(uid); if (!profile) throw new Error("Account not found.");

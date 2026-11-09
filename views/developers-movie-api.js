@@ -383,7 +383,7 @@ ${musicPlayerStyle()}
           <span class="dcard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/></svg></span>
           <div>
             <div class="dcard-title">Plans &amp; Pricing</div>
-            <div class="dcard-sub">More API keys, higher rate limits, no ads on the higher tiers</div>
+          <div class="dcard-sub">More API keys, higher rate limits, and no ads from Standard upwards</div>
           </div>
         </div>
         <div class="plans-grid" id="plansGrid" style="margin-top:16px"><div class="sk-grid"><div class="sk-card"><div class="sk-line w60"></div><div class="sk-line"></div><div class="sk-line w45"></div></div><div class="sk-card"><div class="sk-line w60"></div><div class="sk-line"></div><div class="sk-line w45"></div></div><div class="sk-card"><div class="sk-line w60"></div><div class="sk-line"></div><div class="sk-line w45"></div></div></div></div>
@@ -452,10 +452,10 @@ ${musicPlayerStyle()}
     </div>
 
     <h1>Movie Api</h1>
-    <p class="doc-p">Media and AI tools for your own site or bot: downloaders, AI, and OCR, all under one key. Endpoints are rolling out one at a time; anything marked LIVE below works today.</p>
+    <p class="doc-p">The ES TEAMS TV Movie API lets you search, browse, inspect, stream, and download movies and TV series from your own site, bot, or app. Every request uses one Movie API key, and every endpoint marked LIVE below is available today.</p>
 
     <h2 class="doc-h2">Getting a key</h2>
-    <p class="doc-p">Create an API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. This key is specific to the Movie Api, separate from the <a href="/developers/live-tv" target="_blank" rel="noopener">Live Tv Api</a>'s key, each has its own plan, limits, and usage. How many keys you can have depends on your plan; see <a href="#" id="docsToDashLink2">Plans &amp; Pricing</a>. You can revoke any key at any time.</p>
+    <p class="doc-p">Create a Movie API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. Your Movie API key belongs only to this Movie API product and has its own plan, limits, and usage. How many Movie API keys you can have depends on your Movie API plan; see <a href="#" id="docsToDashLink2">Plans &amp; Pricing</a>. You can revoke any key at any time.</p>
 
     <h2 class="doc-h2">Authentication</h2>
     <p class="doc-p">Pass your key in the <code>x-api-key</code> header on every request.</p>
@@ -475,10 +475,12 @@ ${musicPlayerStyle()}
     <h2 class="doc-h2">Server-side download jobs</h2>
     <p class="doc-p">Use <code>POST /download-jobs</code> with JSON such as <code>{"subjectId":"...","slug":"...","se":1,"ep":1,"res":"360"}</code>. Poll <code>GET /download-jobs</code> or <code>GET /download-jobs/:id</code>, control jobs with <code>POST /download-jobs/:id/pause</code>, <code>/resume</code>, or <code>/retry</code>, cancel with <code>DELETE /download-jobs/:id</code>, and fetch the file with <code>GET /download-jobs/:id/file</code>.</p>
     <h2 class="doc-h2">Branding and ads</h2>
-    <p class="doc-p">Free, Starter, and Standard responses include a <code>branding</code> object for ES TEAMS TV attribution and a client-side Adsterra placement notice. Pro and Max have no ES TEAMS TV or Adsterra requirement. Pro users can set a custom stream-player name; Max users can set both a custom name and link. Stream responses also include <code>X-ES-Teams-TV-Name</code> and <code>X-ES-Teams-TV-Link</code> headers.</p>
+    <p class="doc-p">Free and Starter responses include a <code>branding</code> object for ES TEAMS TV attribution and a client-side Adsterra placement notice. Standard, Pro, and Max responses have no ES TEAMS TV or Adsterra requirement. Pro users can set a custom stream-player name; Max users can set both a custom name and link. Stream responses also include <code>X-ES-Teams-TV-Name</code> and <code>X-ES-Teams-TV-Link</code> headers.</p>
     <h2 class="doc-h2">Errors</h2>
     <table><tr><th>Status</th><th>Meaning</th></tr><tr><td>400</td><td>Invalid query, slug, subject, quality, or range.</td></tr><tr><td>401</td><td>Missing, invalid, or revoked Movie API key.</td></tr><tr><td>404</td><td>Title, source, or download job was not found.</td></tr><tr><td>429</td><td>Daily, weekly, monthly, or upstream service limit reached.</td></tr><tr><td>502/503</td><td>The Moviebox API or selected source is temporarily unavailable.</td></tr></table>
-    <div class="note">Free starts at 5 daily, 25 weekly, and 50 monthly requests. Each higher tier doubles those limits. Keep the API key server-side.</div>
+    <h2 class="doc-h2">Rate limits &amp; usage</h2>
+    <p class="doc-p">Free starts at 5 daily, 25 weekly, and 50 monthly requests. Each higher tier doubles those limits. Requests past any plan limit receive a <code>429</code> response until that period resets. Track daily, weekly, and monthly usage from the <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
+    <div class="note">This is an early version of the Movie API. Endpoints and limits may change, and more useful movie features will be added over time.</div>
   </div>
 </div>
 <div class="page-overlay" id="planPayOverlay">
@@ -581,7 +583,7 @@ ${musicPlayerHtml()}
   var PLAN_DEFS = [
     { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, dailyRequests: 5, weeklyRequests: 25, monthlyRequests: 50, noAds: false, customAdsName: false, customAdsLink: false, note: 'Default plan' },
     { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, dailyRequests: 10, weeklyRequests: 50, monthlyRequests: 100, noAds: false, customAdsName: false, customAdsLink: false, note: 'Auto with account verification' },
-    { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, dailyRequests: 20, weeklyRequests: 100, monthlyRequests: 200, noAds: false, customAdsName: false, customAdsLink: false, note: '30 days' },
+    { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, dailyRequests: 20, weeklyRequests: 100, monthlyRequests: 200, noAds: true, customAdsName: false, customAdsLink: false, note: '30 days' },
     { key: 'pro', name: 'Pro', priceNgn: 12500, apiKeys: 10, dailyRequests: 40, weeklyRequests: 200, monthlyRequests: 400, noAds: true, customAdsName: true, customAdsLink: false, note: '30 days', highlight: true },
     { key: 'max', name: 'Max', priceNgn: 15000, apiKeys: 15, dailyRequests: 80, weeklyRequests: 400, monthlyRequests: 800, noAds: true, customAdsName: true, customAdsLink: true, note: '30 days' },
   ];
