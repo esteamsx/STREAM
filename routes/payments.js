@@ -20,6 +20,12 @@ import {
   DEV_API_PLANS,
   PURCHASABLE_DEV_API_PLANS,
   setDevApiCustomAdsUrl,
+  createMovieApiPlanPayment,
+  getMovieApiPlanPayment,
+  finalizeMovieApiPlanPayment,
+  getEffectiveMovieApiPlan,
+  MOVIE_API_PLANS,
+  PURCHASABLE_MOVIE_API_PLANS,
   COIN_PACKAGES,
   createCoinPurchasePayment,
   getCoinPurchasePayment,
@@ -277,6 +283,33 @@ router.get("/api/trading-plan/status", requireAuth, confirmLimiter, async (req, 
     console.error(err);
     res.status(500).json({ error: "Could not load plan status." });
   }
+});
+
+router.post("/api/movieplan/initialize", requireAuth, initLimiter, async (req, res) => {
+  try {
+    const plan = String(req.body?.plan || "").trim();
+    if (!PURCHASABLE_MOVIE_API_PLANS.includes(plan)) return res.status(400).json({ error: "Unknown plan." });
+    const profile = await getUserProfile(req.uid, 0);
+    if (!profile) return res.status(404).json({ error: "Account not found." });
+    if (!profile.email) return res.status(400).json({ error: "Add an email to your account before upgrading." });
+    if (getEffectiveMovieApiPlan(profile) === plan) return res.status(400).json({ error: `You're already on the ${MOVIE_API_PLANS[plan].name} plan.` });
+    const priceNgn = discountedCashPrice(MOVIE_API_PLANS[plan].priceNgn, profile);
+    const amountKobo = priceNgn * 100;
+    const data = await initializeTransaction({ method: normalizePaymentMethod(req.body?.method), email: profile.email, amountKobo, metadata: { uid: req.uid, purpose: "movie_api_plan", plan } });
+    await createMovieApiPlanPayment(req.uid, data.reference, amountKobo, plan);
+    res.json({ reference: data.reference, accessCode: data.access_code, publicKey: PAYSTACK_PUBLIC_KEY, method: normalizePaymentMethod(req.body?.method), ngnPerUsd: NGN_PER_USD, amountUsd: ngnToUsd(amountKobo / 100), email: profile.email, amountKobo, priceNgn, plan });
+  } catch (err) { console.error(err); res.status(err.status || 400).json({ error: err.message || "Could not start plan payment." }); }
+});
+router.post("/api/movieplan/confirm", requireAuth, confirmLimiter, async (req, res) => {
+  try {
+    const reference = String(req.body?.reference || "").trim();
+    if (!reference) return res.status(400).json({ error: "Missing payment reference." });
+    const record = await getMovieApiPlanPayment(reference);
+    if (!record || record.uid !== req.uid) return res.status(404).json({ error: "Payment not found." });
+    if (record.status === "success") { const profile = await getUserProfile(req.uid); return res.json({ plan: profile?.movieApiPlanPaid || record.plan, expiresAt: profile?.movieApiPlanExpiresAt || null }); }
+    const result = await finalizeMovieApiPlanPayment(reference, await verifyTransaction(reference));
+    res.json({ plan: result.plan || record.plan, expiresAt: result.expiresAt || null });
+  } catch (err) { console.error(err); res.status(err.status || 400).json({ error: err.message || "Could not confirm payment." }); }
 });
 
 router.post("/api/devplan/initialize", requireAuth, initLimiter, async (req, res) => {

@@ -27,6 +27,7 @@ import { renderPrivacy } from "./views/privacy.js";
 import { renderDevelopers } from "./views/developers.js";
 import { renderDevelopersLiveTv } from "./views/developers-live-tv.js";
 import { renderDevelopersApi } from "./views/developers-api.js";
+import { renderDevelopersMovieApi } from "./views/developers-movie-api.js";
 import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
@@ -327,6 +328,8 @@ import {
   deleteCommunityMessage,
   COMMUNITY_CHAT_NAME,
   API_PLANS,
+  getEffectiveMovieApiPlan,
+  MOVIE_API_PLANS,
   SESSION_TTL_MS,
   createBonusCode,
   broadcastNotification,
@@ -367,6 +370,7 @@ import { registerWhotRoutes } from "./routes/whot.js";
 import { registerSnakesRoutes } from "./routes/snakes.js";
 import { registerTttRoutes } from "./routes/tictactoe.js";
 import { registerMovieRoutes } from "./routes/movies.js";
+import { movieApiRouter } from "./routes/movie-api.js";
 import { registerChannelRoutes } from "./routes/channel-tools.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
@@ -769,6 +773,7 @@ app.use(tttRouter);
 const moviesRouter = express.Router();
 registerMovieRoutes(moviesRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, isVerificationActive, isAdminEmail, listMovieWatchLater, getMovieWatchLater, saveMovieWatchLater, removeMovieWatchLater });
 app.use(moviesRouter);
+app.use(movieApiRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
 app.use(devicesRouter);
@@ -892,6 +897,7 @@ const cachedPrivacyHtml = renderPrivacy(authPageConfig);
 const cachedDevelopersHtml = renderDevelopers(authPageConfig);
 const cachedDevelopersLiveTvHtml = renderDevelopersLiveTv(authPageConfig);
 const cachedDevelopersApiHtml = renderDevelopersApi(authPageConfig);
+const cachedDevelopersMovieApiHtml = renderDevelopersMovieApi(authPageConfig);
 const cachedDeployBotHtml = renderDeployBot(authPageConfig);
 const cachedChannelReactHtml = renderChannelReact(authPageConfig);
 const cachedToolsIndexHtml = renderToolsIndex(authPageConfig);
@@ -1930,6 +1936,10 @@ app.get("/developers/live-tv", scrapeGate, (req, res) => {
 
 app.get("/developers/api", scrapeGate, (req, res) => {
   res.send(cachedDevelopersApiHtml);
+});
+
+app.get("/developers/movie-api", scrapeGate, (req, res) => {
+  res.send(cachedDevelopersMovieApiHtml);
 });
 
 app.get("/deploy-bot", scrapeGate, requireUser, (req, res) => {
@@ -3711,6 +3721,12 @@ app.get("/api/profile", requireAuth, async (req, res) => {
         if (planKey === "starter") expiresAt = profile.verifiedExpiresAt || null;
         else if (planKey !== "free") expiresAt = profile.apiPlanExpiresAt || null;
         return { key: planKey, name: plan.name, apiKeys: plan.apiKeys, streamHours: plan.streamHours, watermark: plan.watermark, customVisitPage: plan.customVisitPage, expiresAt };
+      })(),
+      movieApiPlan: (() => {
+        const planKey = getEffectiveMovieApiPlan(profile);
+        const plan = MOVIE_API_PLANS[planKey];
+        const expiresAt = planKey === "starter" ? profile.verifiedExpiresAt || null : profile.movieApiPlanExpiresAt || null;
+        return { key: planKey, name: plan.name, apiKeys: plan.apiKeys, dailyRequests: plan.dailyRequests, weeklyRequests: plan.weeklyRequests, monthlyRequests: plan.monthlyRequests, noAds: plan.noAds, customAdsName: plan.customAdsName, customAdsLink: plan.customAdsLink, expiresAt };
       })(),
       customVisitPageUrl: profile.customVisitPageUrl || "",
     });

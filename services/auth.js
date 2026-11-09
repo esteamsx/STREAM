@@ -881,6 +881,102 @@ async function setDevApiCustomAdsUrl(uid, url) {
   return { devApiCustomAdsUrl: trimmed };
 }
 
+const MOVIE_API_PLANS = {
+  free: { name: "Free", apiKeys: 1, dailyRequests: 5, weeklyRequests: 25, monthlyRequests: 50, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 0 },
+  starter: { name: "Starter", apiKeys: 3, dailyRequests: 10, weeklyRequests: 50, monthlyRequests: 100, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 0 },
+  standard: { name: "Standard", apiKeys: 5, dailyRequests: 20, weeklyRequests: 100, monthlyRequests: 200, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 7500 },
+  pro: { name: "Pro", apiKeys: 10, dailyRequests: 40, weeklyRequests: 200, monthlyRequests: 400, noAds: true, customAdsName: true, customAdsLink: false, priceNgn: 12500 },
+  max: { name: "Max", apiKeys: 15, dailyRequests: 80, weeklyRequests: 400, monthlyRequests: 800, noAds: true, customAdsName: true, customAdsLink: true, priceNgn: 15000 },
+};
+const PURCHASABLE_MOVIE_API_PLANS = ["standard", "pro", "max"];
+function getEffectiveMovieApiPlan(data) {
+  if (isAdminEmail(data && data.email)) return "max";
+  if (!data) return "free";
+  if (data.movieApiPlanPaid && MOVIE_API_PLANS[data.movieApiPlanPaid] && data.movieApiPlanExpiresAt && Date.now() < data.movieApiPlanExpiresAt) return data.movieApiPlanPaid;
+  if (isVerificationActive(data)) return "starter";
+  return "free";
+}
+function getMovieApiPlanConfig(data) { return MOVIE_API_PLANS[getEffectiveMovieApiPlan(data)]; }
+async function createMovieApiPlanPayment(uid, reference, amountKobo, plan) {
+  await db.collection("movieApiPlanPayments").doc(reference).set({ uid, plan, amountKobo, status: "pending", createdAt: Date.now() });
+}
+async function getMovieApiPlanPayment(reference) {
+  const snap = await db.collection("movieApiPlanPayments").doc(reference).get();
+  return snap.exists ? snap.data() : null;
+}
+async function finalizeMovieApiPlanPayment(reference, paystackData) {
+  const ref = db.collection("movieApiPlanPayments").doc(reference);
+  const claim = await claimPendingPayment(ref, paystackData);
+  if (claim.notOurs) return { notOurs: true };
+  if (claim.alreadyProcessed) return { alreadyProcessed: true, uid: claim.uid };
+  if (claim.inProgress) return { alreadyProcessed: true };
+  if (claim.failed) throw new Error("Payment was not successful.");
+  const record = claim.record;
+  const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+  await db.collection("users").doc(record.uid).update({ movieApiPlanPaid: record.plan, movieApiPlanPurchasedAt: Date.now(), movieApiPlanExpiresAt: expiresAt });
+  await ref.update({ status: "success", confirmedAt: Date.now() });
+  await saveBillingAuthorization(record.uid, paystackData);
+  const planName = MOVIE_API_PLANS[record.plan]?.name || record.plan;
+  await addNotification(record.uid, "movie_api_plan", `Your ${planName} Movie API plan is now active`, { plan: record.plan, expiresAt });
+  await creditReferralCommission(record.uid, record.amountKobo / 100, "Movie API plan purchase");
+  return { alreadyProcessed: false, uid: record.uid, plan: record.plan, expiresAt };
+}
+async function createMovieApiKey(uid, label) {
+  const rawKey = "estv_movie_" + crypto.randomBytes(24).toString("hex");
+  const keyHash = hashApiKey(rawKey);
+  await db.collection("movieApiKeys").doc(keyHash).set({ uid, label: (label || "").slice(0, 60) || "Unnamed key", last4: rawKey.slice(-4), createdAt: Date.now(), lastUsedAt: null, revoked: false });
+  return { id: keyHash, rawKey };
+}
+async function listMovieApiKeysForUser(uid) {
+  const q = await db.collection("movieApiKeys").where("uid", "==", uid).get();
+  return q.docs.map((d) => ({ id: d.id, ...d.data() })).filter((k) => !k.revoked).sort((a, b) => b.createdAt - a.createdAt);
+}
+async function revokeMovieApiKey(uid, keyId) {
+  const ref = db.collection("movieApiKeys").doc(keyId); const snap = await ref.get();
+  if (!snap.exists || snap.data().uid !== uid) throw new Error("Key not found.");
+  await ref.update({ revoked: true });
+}
+async function findMovieApiKeyByRawKey(rawKey) {
+  if (!rawKey || typeof rawKey !== "string") return null;
+  const ref = db.collection("movieApiKeys").doc(hashApiKey(rawKey)); const snap = await ref.get();
+  if (!snap.exists || snap.data().revoked) return null;
+  ref.update({ lastUsedAt: Date.now() }).catch(() => {});
+  return { id: snap.id, uid: snap.data().uid };
+}
+function movieApiPeriodKeys(now = new Date()) {
+  const date = new Date(now); const day = date.toISOString().slice(0, 10);
+  const year = date.getUTCFullYear(); const weekStart = new Date(Date.UTC(year, date.getUTCMonth(), date.getUTCDate()));
+  const weekday = weekStart.getUTCDay() || 7; weekStart.setUTCDate(weekStart.getUTCDate() - weekday + 1);
+  return { day, week: weekStart.toISOString().slice(0, 10), month: `${year}-${String(date.getUTCMonth() + 1).padStart(2, "0")}` };
+}
+async function getMovieApiUsage(uid, limits) {
+  const keys = movieApiPeriodKeys(); const snap = await db.collection("movieApiUsage").doc(uid).get(); const data = snap.exists ? snap.data() : {};
+  return { dailyRequests: data.dayKey === keys.day ? (data.dailyRequests || 0) : 0, weeklyRequests: data.weekKey === keys.week ? (data.weeklyRequests || 0) : 0, monthlyRequests: data.monthKey === keys.month ? (data.monthlyRequests || 0) : 0, dailyRequestsLimit: limits.dailyRequests, weeklyRequestsLimit: limits.weeklyRequests, monthlyRequestsLimit: limits.monthlyRequests };
+}
+async function checkAndIncrementMovieApiUsage(uid, limits) {
+  const keys = movieApiPeriodKeys(); const ref = db.collection("movieApiUsage").doc(uid); const snap = await ref.get(); const data = snap.exists ? snap.data() : {};
+  const dailyRequests = data.dayKey === keys.day ? (data.dailyRequests || 0) : 0;
+  const weeklyRequests = data.weekKey === keys.week ? (data.weeklyRequests || 0) : 0;
+  const monthlyRequests = data.monthKey === keys.month ? (data.monthlyRequests || 0) : 0;
+  if (dailyRequests >= limits.dailyRequests || weeklyRequests >= limits.weeklyRequests || monthlyRequests >= limits.monthlyRequests) return { allowed: false, dailyRequests, weeklyRequests, monthlyRequests, ...limits };
+  const next = { uid, dayKey: keys.day, weekKey: keys.week, monthKey: keys.month, dailyRequests: dailyRequests + 1, weeklyRequests: weeklyRequests + 1, monthlyRequests: monthlyRequests + 1, updatedAt: Date.now() };
+  await ref.set(next, { merge: true });
+  return { allowed: true, ...next, ...limits };
+}
+async function setMovieApiCustomAds(uid, { name, url }) {
+  const profile = await getUserProfile(uid); if (!profile) throw new Error("Account not found.");
+  const plan = getMovieApiPlanConfig(profile); if (!plan.customAdsName && !plan.customAdsLink) throw new Error("Custom ads are a Pro or Max plan feature.");
+  const data = {};
+  if (plan.customAdsName) data.movieApiCustomAdsName = String(name || "").trim().slice(0, 80) || admin.firestore.FieldValue.delete();
+  if (plan.customAdsLink) {
+    const trimmed = String(url || "").trim();
+    if (trimmed && !/^https:\/\/[^\s"'<>]{3,300}$/i.test(trimmed)) throw new Error("Enter a valid https:// URL, without spaces or quote characters.");
+    data.movieApiCustomAdsUrl = trimmed || admin.firestore.FieldValue.delete();
+  }
+  await db.collection("users").doc(uid).update(data);
+  return { movieApiCustomAdsName: data.movieApiCustomAdsName || null, movieApiCustomAdsUrl: data.movieApiCustomAdsUrl || null };
+}
+
 async function createDevApiKey(uid, label) {
   const rawKey = "estv_" + crypto.randomBytes(24).toString("hex");
   const keyHash = hashApiKey(rawKey);
@@ -6165,6 +6261,20 @@ export {
   getDevApiPlanPayment,
   finalizeDevApiPlanPayment,
   setDevApiCustomAdsUrl,
+  MOVIE_API_PLANS,
+  PURCHASABLE_MOVIE_API_PLANS,
+  getEffectiveMovieApiPlan,
+  getMovieApiPlanConfig,
+  createMovieApiKey,
+  listMovieApiKeysForUser,
+  revokeMovieApiKey,
+  findMovieApiKeyByRawKey,
+  getMovieApiUsage,
+  checkAndIncrementMovieApiUsage,
+  setMovieApiCustomAds,
+  createMovieApiPlanPayment,
+  getMovieApiPlanPayment,
+  finalizeMovieApiPlanPayment,
   createDevApiKey,
   listDevApiKeysForUser,
   revokeDevApiKey,

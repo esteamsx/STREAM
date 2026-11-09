@@ -154,6 +154,14 @@ a{color:var(--accent);text-decoration:none}
       <span class="tile-cta">Get Started<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
     </a>
 
+    <a href="/developers/movie-api" class="tile">
+      <span class="tile-badge show" id="movieApiBadge">Free</span>
+      <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4l3 4M14 4l3 4M7 20l3-4M14 20l3-4M3 9h18M3 15h18"/></svg></div>
+      <div class="tile-title">Movie Api</div>
+      <div class="tile-desc">Search, browse, stream, and download movies and TV series through the ES TEAMS TV Movie API.</div>
+      <span class="tile-cta">Get Started<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+
   </div>
 
 </div>
@@ -163,6 +171,11 @@ fetch('/api/profile').then(function(r){ return r.ok ? r.json() : null; }).then(f
   var badge = document.getElementById('liveTvBadge');
   badge.textContent = data.apiPlan.name;
   badge.classList.add('show');
+  if (data.movieApiPlan) {
+    var movieBadge = document.getElementById('movieApiBadge');
+    movieBadge.textContent = data.movieApiPlan.name;
+    movieBadge.classList.add('show');
+  }
 }).catch(function(){});
 </script>
 </body>
