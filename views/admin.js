@@ -138,6 +138,7 @@ input{font-family:inherit}
 .api-aa-product{border:1px solid var(--border-strong);border-radius:13px;padding:12px;background:linear-gradient(155deg,rgba(255,255,255,.07),rgba(255,255,255,.015))}
 .api-aa-product h4{margin:0 0 10px;font:700 .82rem var(--font-display);color:var(--accent)}
 .api-aa-product-grid .api-aa-product:nth-child(2) h4{color:var(--accent2)}
+.api-aa-product-grid .api-aa-product:nth-child(3) h4{color:#a78bfa}
 .api-aa-mini{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--border);font-size:.68rem;color:var(--muted)}
 .api-aa-mini b{color:var(--text);font-variant-numeric:tabular-nums}
 .api-aa-chart{border:1px solid var(--border);border-radius:13px;padding:12px;background:var(--card2);margin-bottom:14px}
@@ -952,6 +953,25 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div></div>
   </div>
 
+  <div class="ad-card accent-gold" id="movieApiAllocationCard">
+    <div class="ad-card-header" id="movieApiAllocationHeader">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <div class="ad-card-header-title">Movie API Access &amp; Bonus</div>
+      <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="bonus-form"><input type="text" id="movieApiAllocationUid" placeholder="User account ID" maxlength="128" autocomplete="off"></div>
+      <div class="bonus-form" style="margin-top:8px">
+        <select id="movieApiAllocationPlan" aria-label="Movie API plan"><option value="free">Free</option><option value="starter">Starter</option><option value="standard">Standard</option><option value="pro">Pro</option><option value="max">Max</option></select>
+        <input type="number" id="movieApiAllocationDays" min="1" max="3650" step="1" value="30" aria-label="Plan duration in days">
+        <input type="number" id="movieApiAllocationBonus" min="0" max="1000000" step="1" value="0" aria-label="Monthly bonus requests">
+        <button type="button" id="movieApiAllocationBtn">Assign</button>
+      </div>
+      <div class="bonus-msg" id="movieApiAllocationMsg" aria-live="polite"></div>
+      <div style="font-size:.72rem;color:var(--muted);line-height:1.5">Enter a user account ID, choose a time-limited plan, and optionally add monthly bonus requests. Admin grants are separate from paid plan history.</div>
+    </div></div>
+  </div>
+
   <div class="ad-card accent-gold" id="withdrawalsCard">
     <div class="ad-card-header" id="withdrawalsHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
@@ -1313,7 +1333,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
   </div>
   <div class="ad-analytics-body">
     <div class="ad-analytics-tabs" role="tablist" aria-label="Analytics type">
-      <button type="button" class="ad-analytics-tab active" id="analyticsApiTab" role="tab" aria-selected="true" aria-controls="apiAnalyticsPanel">API Requests</button>
+      <button type="button" class="ad-analytics-tab active" id="analyticsApiTab" role="tab" aria-selected="true" aria-controls="apiAnalyticsPanel">API Analytics</button>
       <button type="button" class="ad-analytics-tab" id="analyticsSiteTab" role="tab" aria-selected="false" aria-controls="siteAnalyticsPanel">Site Views</button>
     </div>
 
@@ -1336,6 +1356,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
       <div class="api-aa-columns">
         <div class="api-aa-list"><div class="api-aa-list-title">Most-used Developer API endpoints</div><div id="apiAnalyticsTopDev"></div></div>
         <div class="api-aa-list"><div class="api-aa-list-title">Most-used Live TV API endpoints</div><div id="apiAnalyticsTopTv"></div></div>
+        <div class="api-aa-list"><div class="api-aa-list-title">Most-used Movie API endpoints</div><div id="apiAnalyticsTopMovie"></div></div>
       </div>
       <div class="api-aa-columns">
         <div class="api-aa-list"><div class="api-aa-list-title">Recent errors</div><div class="api-aa-scroll" id="apiAnalyticsErrors"></div></div>
@@ -2574,6 +2595,27 @@ document.getElementById('bonusGenerateBtn').addEventListener('click', () => {
     bonusMsg.className = 'bonus-msg err';
     bonusMsg.textContent = err.message || 'Could not generate bonus code.';
   }).finally(() => { btn.disabled = false; btn.textContent = 'Generate'; });
+});
+document.getElementById('movieApiAllocationHeader').addEventListener('click', () => {
+  document.getElementById('movieApiAllocationCard').classList.toggle('open');
+});
+document.getElementById('movieApiAllocationBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('movieApiAllocationBtn');
+  const msg = document.getElementById('movieApiAllocationMsg');
+  const uid = document.getElementById('movieApiAllocationUid').value.trim();
+  const plan = document.getElementById('movieApiAllocationPlan').value;
+  const durationDays = Number(document.getElementById('movieApiAllocationDays').value);
+  const bonusRequests = Number(document.getElementById('movieApiAllocationBonus').value || 0);
+  msg.className = 'bonus-msg'; msg.textContent = '';
+  if (!uid) { msg.className = 'bonus-msg err'; msg.textContent = 'Enter the user account ID.'; return; }
+  btn.disabled = true; btn.innerHTML = '<span class="ad-spinner"></span> Assigning…';
+  try {
+    const result = await postJSON('/api/admin/movie-api/allocation', { uid, plan, durationDays, bonusRequests });
+    msg.className = 'bonus-msg ok';
+    msg.textContent = result.allocation.plan.toUpperCase() + ' assigned for ' + durationDays + ' days' + (bonusRequests ? ' with +' + bonusRequests + ' monthly requests.' : '.');
+  } catch (err) {
+    msg.className = 'bonus-msg err'; msg.textContent = err.message || 'Could not assign Movie API access.';
+  } finally { btn.disabled = false; btn.textContent = 'Assign'; }
 });
 const PROFILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/></svg>';
 const PROFILE_VERIFIED_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/><g transform="translate(13.5,12.5) scale(0.6)"><path fill="currentColor" stroke="none" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke="var(--card2)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></g></svg>';
@@ -4069,7 +4111,7 @@ function apiAnalyticsStat(label, value){
 }
 function apiAnalyticsCount(value){ return formatCompactNumber(Math.max(0, Number(value) || 0)); }
 function apiAnalyticsSigned(value){ const n = Number(value) || 0; return (n < 0 ? '−' : '') + formatCompactNumber(Math.abs(n)); }
-function apiAnalyticsName(api){ return api === 'developer' ? 'Developer API' : 'Live TV API'; }
+function apiAnalyticsName(api){ return api === 'developer' ? 'Developer API' : api === 'movie' ? 'Movie API' : 'Live TV API'; }
 function apiAnalyticsEndpointRows(rows){
   if (!rows || !rows.length) return '<div class="ad-empty">No endpoint requests recorded for this range.</div>';
   return rows.map((row) => '<div class="api-aa-row"><span class="api-aa-path">' + escHtml(row.endpoint) + '</span><span class="api-aa-count">' + apiAnalyticsCount(row.requests) + '</span></div>').join('');
@@ -4085,14 +4127,15 @@ function apiAnalyticsEventRows(rows, isError){
 function apiAnalyticsTrend(series){
   if (!series || !series.length || !series.some((point) => point.total > 0)) return '<div class="ad-empty">No API requests recorded yet.</div>';
   const width = 640, height = 170, left = 28, right = 10, top = 14, bottom = 24;
-  const maxValue = Math.max(1, ...series.map((point) => Math.max(Number(point.developer) || 0, Number(point.livetv) || 0)));
+  const maxValue = Math.max(1, ...series.map((point) => Math.max(Number(point.developer) || 0, Number(point.livetv) || 0, Number(point.movie) || 0)));
   const x = (index) => left + (series.length < 2 ? 0 : index * (width - left - right) / (series.length - 1));
   const y = (value) => height - bottom - (Number(value || 0) / maxValue) * (height - top - bottom);
   const dev = series.map((point, index) => x(index).toFixed(1) + ',' + y(point.developer).toFixed(1)).join(' ');
   const tv = series.map((point, index) => x(index).toFixed(1) + ',' + y(point.livetv).toFixed(1)).join(' ');
-  const dots = series.length === 1 ? '<circle cx="' + x(0) + '" cy="' + y(series[0].developer) + '" r="4" fill="var(--accent)"/><circle cx="' + x(0) + '" cy="' + y(series[0].livetv) + '" r="4" fill="var(--accent2)"/>' : '';
+  const movie = series.map((point, index) => x(index).toFixed(1) + ',' + y(point.movie).toFixed(1)).join(' ');
+  const dots = series.length === 1 ? '<circle cx="' + x(0) + '" cy="' + y(series[0].developer) + '" r="4" fill="var(--accent)"/><circle cx="' + x(0) + '" cy="' + y(series[0].livetv) + '" r="4" fill="var(--accent2)"/><circle cx="' + x(0) + '" cy="' + y(series[0].movie) + '" r="4" fill="#a78bfa"/>' : '';
   const labels = '<text x="' + left + '" y="' + (height - 4) + '">' + escHtml(series[0].date) + '</text><text x="' + (width - right) + '" y="' + (height - 4) + '" text-anchor="end">' + escHtml(series[series.length - 1].date) + '</text>';
-  return '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Daily Developer API and Live TV API request trend"><line x1="' + left + '" y1="' + (height - bottom) + '" x2="' + (width - right) + '" y2="' + (height - bottom) + '" stroke="var(--border-strong)"/><line x1="' + left + '" y1="' + top + '" x2="' + (width - right) + '" y2="' + top + '" stroke="var(--border)"/><polyline points="' + dev + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/><polyline points="' + tv + '" fill="none" stroke="var(--accent2)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' + dots + labels + '</svg><div class="api-aa-legend"><span><i style="background:var(--accent)"></i>Developer API</span><span><i style="background:var(--accent2)"></i>Live TV API</span></div>';
+  return '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Daily Developer, Live TV, and Movie API request trend"><line x1="' + left + '" y1="' + (height - bottom) + '" x2="' + (width - right) + '" y2="' + (height - bottom) + '" stroke="var(--border-strong)"/><line x1="' + left + '" y1="' + top + '" x2="' + (width - right) + '" y2="' + top + '" stroke="var(--border)"/><polyline points="' + dev + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/><polyline points="' + tv + '" fill="none" stroke="var(--accent2)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/><polyline points="' + movie + '" fill="none" stroke="#a78bfa" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' + dots + labels + '</svg><div class="api-aa-legend"><span><i style="background:var(--accent)"></i>Developer API</span><span><i style="background:var(--accent2)"></i>Live TV API</span><span><i style="background:#a78bfa"></i>Movie API</span></div>';
 }
 function renderApiAnalyticsActivity(rows, append){
   const el = document.getElementById('apiAnalyticsActivity');
@@ -4113,6 +4156,7 @@ async function loadApiAnalytics(range){
   document.getElementById('apiAnalyticsChart').innerHTML = '<div class="ad-empty">Loading…</div>';
   document.getElementById('apiAnalyticsTopDev').innerHTML = '';
   document.getElementById('apiAnalyticsTopTv').innerHTML = '';
+  document.getElementById('apiAnalyticsTopMovie').innerHTML = '';
   document.getElementById('apiAnalyticsNotice').textContent = 'Loading server-recorded API requests and coin-ledger entries…';
   document.getElementById('apiAnalyticsActivity').innerHTML = '<div class="ad-empty">Loading…</div>';
   document.getElementById('apiAnalyticsErrors').innerHTML = '<div class="ad-empty">Loading…</div>';
@@ -4121,6 +4165,7 @@ async function loadApiAnalytics(range){
     const data = await getJSON('/api/admin/api-analytics?range=' + encodeURIComponent(range));
     if (loadId !== apiAnalyticsLoadId) return;
     const totals = data.totals || {};
+    const apis = data.apis || {};
     const coinLedgerAvailable = !data.coinAccounting || data.coinAccounting.available !== false;
     const coinDisplay = (value) => coinLedgerAvailable ? apiAnalyticsCount(value) : 'Unavailable';
     const signedCoinDisplay = (value) => coinLedgerAvailable ? apiAnalyticsSigned(value) : 'Unavailable';
@@ -4128,6 +4173,7 @@ async function loadApiAnalytics(range){
       apiAnalyticsStat('Combined requests', apiAnalyticsCount(totals.requests)),
       apiAnalyticsStat('Successful', apiAnalyticsCount(totals.successful)),
       apiAnalyticsStat('Failed', apiAnalyticsCount(totals.failed)),
+      apiAnalyticsStat('Movie API quota consumed', apiAnalyticsCount(apis.movie && apis.movie.quotaConsumed)),
       apiAnalyticsStat('Error rate', (Number(totals.errorRate) || 0).toFixed(2) + '%'),
       apiAnalyticsStat('Coins spent on request packs', coinDisplay(totals.coinsSpent) + (coinLedgerAvailable ? ' coins' : '')),
       apiAnalyticsStat('Request-pack refunds', coinDisplay(totals.coinsRefunded) + (coinLedgerAvailable ? ' coins' : '')),
@@ -4135,12 +4181,12 @@ async function loadApiAnalytics(range){
       apiAnalyticsStat('Admin coins earned from packs', coinDisplay(totals.coinsEarned) + (coinLedgerAvailable ? ' coins' : '')),
       apiAnalyticsStat('Coins charged per request', 'None'),
     ].join('');
-    const apis = data.apis || {};
-    document.getElementById('apiAnalyticsProducts').innerHTML = ['developer','livetv'].map((api) => {
+    document.getElementById('apiAnalyticsProducts').innerHTML = ['developer','livetv','movie'].map((api) => {
       const item = apis[api] || {};
       return '<div class="api-aa-product"><h4>' + apiAnalyticsName(api) + '</h4>' +
         '<div class="api-aa-mini"><span>Selected range requests</span><b>' + apiAnalyticsCount(item.requests) + '</b></div>' +
         '<div class="api-aa-mini"><span>Successful / failed</span><b>' + apiAnalyticsCount(item.successful) + ' / ' + apiAnalyticsCount(item.failed) + '</b></div>' +
+        (api === 'movie' ? '<div class="api-aa-mini"><span>Quota-consuming requests</span><b>' + apiAnalyticsCount(item.quotaConsumed) + '</b></div>' : '') +
         '<div class="api-aa-mini"><span>Error rate</span><b>' + (Number(item.errorRate) || 0).toFixed(2) + '%</b></div>' +
         '<div class="api-aa-mini"><span>Today / week / month</span><b>' + apiAnalyticsCount(item.today && item.today.requests) + ' / ' + apiAnalyticsCount(item.week && item.week.requests) + ' / ' + apiAnalyticsCount(item.month && item.month.requests) + '</b></div>' +
         '<div class="api-aa-mini"><span>Request-pack spend / refunds</span><b>' + coinDisplay(item.coinsSpent) + ' / ' + coinDisplay(item.coinsRefunded) + '</b></div>' +
@@ -4154,6 +4200,7 @@ async function loadApiAnalytics(range){
     document.getElementById('apiAnalyticsChart').innerHTML = apiAnalyticsTrend(data.series || []);
     document.getElementById('apiAnalyticsTopDev').innerHTML = apiAnalyticsEndpointRows(data.topEndpoints && data.topEndpoints.developer);
     document.getElementById('apiAnalyticsTopTv').innerHTML = apiAnalyticsEndpointRows(data.topEndpoints && data.topEndpoints.livetv);
+    document.getElementById('apiAnalyticsTopMovie').innerHTML = apiAnalyticsEndpointRows(data.topEndpoints && data.topEndpoints.movie);
     document.getElementById('apiAnalyticsErrors').innerHTML = data.errorsAvailable === false ? '<div class="ad-empty">Recent error records could not be loaded.</div>' : apiAnalyticsEventRows(data.recentErrors || [], true);
     if (data.activityAvailable === false) document.getElementById('apiAnalyticsActivity').innerHTML = '<div class="ad-empty">Recent activity records could not be loaded.</div>';
     else renderApiAnalyticsActivity(data.activity || [], false);
@@ -4162,7 +4209,7 @@ async function loadApiAnalytics(range){
     const trackingLabel = data.trackingStartedAt ? 'Since ' + new Date(data.trackingStartedAt).toLocaleDateString() : 'Tracking pending';
     const historyLabel = data.trackingStartedAt ? 'Earlier history unavailable' : 'No earlier history';
     const coinLabel = coinLedgerAvailable ? 'Coins: request-pack totals' : 'Coin totals unavailable (Firestore indexes)';
-    document.getElementById('apiAnalyticsNotice').textContent = [trackingLabel, historyLabel, coinLabel].join(' · ');
+    document.getElementById('apiAnalyticsNotice').textContent = [trackingLabel, historyLabel, 'Movie quota counts tracked from this release', coinLabel].join(' · ');
   } catch (err) {
     if (loadId !== apiAnalyticsLoadId) return;
     document.getElementById('apiAnalyticsNotice').textContent = err.message || 'Could not load API analytics.';
@@ -4171,6 +4218,7 @@ async function loadApiAnalytics(range){
     document.getElementById('apiAnalyticsPeriods').innerHTML = '';
     document.getElementById('apiAnalyticsTopDev').innerHTML = '';
     document.getElementById('apiAnalyticsTopTv').innerHTML = '';
+    document.getElementById('apiAnalyticsTopMovie').innerHTML = '';
     document.getElementById('apiAnalyticsChart').innerHTML = '<div class="ad-empty">Could not load request trends.</div>';
     document.getElementById('apiAnalyticsErrors').innerHTML = '<div class="ad-empty">Could not load recent errors.</div>';
     document.getElementById('apiAnalyticsActivity').innerHTML = '<div class="ad-empty">Could not load recent API activity.</div>';

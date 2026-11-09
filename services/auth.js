@@ -20,6 +20,7 @@ import { fetchVisibleFollowingPosts } from "./following-feed-queries.js";
 import { fetchCommunityMessagePage } from "./community-chat-queries.js";
 import { analyzePromotionalContent, legacyTextLooksPromotional, blockLegacyPromotionalPost } from "./promotional-moderation.js";
 import { isFollowSitePromotion, isFollowSiteRuleBlock } from "./promotional-text-signals.js";
+import { getMovieApiQuotaStatus } from "./movie-api-quota.js";
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -892,6 +893,7 @@ const PURCHASABLE_MOVIE_API_PLANS = ["standard", "pro", "max"];
 function getEffectiveMovieApiPlan(data) {
   if (isAdminEmail(data && data.email)) return "max";
   if (!data) return "free";
+  if (data.movieApiPlanGranted && MOVIE_API_PLANS[data.movieApiPlanGranted] && data.movieApiPlanGrantExpiresAt && Date.now() < data.movieApiPlanGrantExpiresAt) return data.movieApiPlanGranted;
   if (data.movieApiPlanPaid && MOVIE_API_PLANS[data.movieApiPlanPaid] && data.movieApiPlanExpiresAt && Date.now() < data.movieApiPlanExpiresAt) return data.movieApiPlanPaid;
   if (isVerificationActive(data)) return "starter";
   return "free";
@@ -949,22 +951,48 @@ function movieApiPeriodKeys(now = new Date()) {
   const weekday = weekStart.getUTCDay() || 7; weekStart.setUTCDate(weekStart.getUTCDate() - weekday + 1);
   return { day, week: weekStart.toISOString().slice(0, 10), month: `${year}-${String(date.getUTCMonth() + 1).padStart(2, "0")}` };
 }
-async function getMovieApiUsage(uid, limits) {
+async function getMovieApiUsage(uid, limits, bonusRequests = 0) {
   const keys = movieApiPeriodKeys(); const snap = await db.collection("movieApiUsage").doc(uid).get(); const data = snap.exists ? snap.data() : {};
-  return { dailyRequests: data.dayKey === keys.day ? (data.dailyRequests || 0) : 0, weeklyRequests: data.weekKey === keys.week ? (data.weeklyRequests || 0) : 0, monthlyRequests: data.monthKey === keys.month ? (data.monthlyRequests || 0) : 0, dailyRequestsLimit: limits.dailyRequests, weeklyRequestsLimit: limits.weeklyRequests, monthlyRequestsLimit: limits.monthlyRequests };
+  return { dailyRequests: data.dayKey === keys.day ? (data.dailyRequests || 0) : 0, weeklyRequests: data.weekKey === keys.week ? (data.weeklyRequests || 0) : 0, monthlyRequests: data.monthKey === keys.month ? (data.monthlyRequests || 0) : 0, dailyRequestsLimit: limits.dailyRequests, weeklyRequestsLimit: limits.weeklyRequests, monthlyRequestsLimit: limits.monthlyRequests + bonusRequests, bonusRequests };
 }
-async function checkAndIncrementMovieApiUsage(uid, limits) {
+async function checkAndIncrementMovieApiUsage(uid, limits, bonusRequests = 0) {
   const keys = movieApiPeriodKeys(); const ref = db.collection("movieApiUsage").doc(uid);
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref); const data = snap.exists ? snap.data() : {};
     const dailyRequests = data.dayKey === keys.day ? (data.dailyRequests || 0) : 0;
     const weeklyRequests = data.weekKey === keys.week ? (data.weeklyRequests || 0) : 0;
     const monthlyRequests = data.monthKey === keys.month ? (data.monthlyRequests || 0) : 0;
-    if (dailyRequests >= limits.dailyRequests || weeklyRequests >= limits.weeklyRequests || monthlyRequests >= limits.monthlyRequests) return { allowed: false, dailyRequests, weeklyRequests, monthlyRequests, ...limits };
+    const quota = getMovieApiQuotaStatus({ dailyRequests, weeklyRequests, monthlyRequests }, limits, bonusRequests);
+    if (!quota.allowed) return quota;
     const next = { uid, dayKey: keys.day, weekKey: keys.week, monthKey: keys.month, dailyRequests: dailyRequests + 1, weeklyRequests: weeklyRequests + 1, monthlyRequests: monthlyRequests + 1, updatedAt: Date.now() };
     tx.set(ref, next, { merge: true });
-    return { allowed: true, ...next, ...limits };
+    return { ...quota, ...next, allowed: true };
   });
+}
+async function setMovieApiAdminAllocation(uid, { plan, durationDays, bonusRequests, grantedBy }) {
+  const selectedPlan = String(plan || "");
+  if (!MOVIE_API_PLANS[selectedPlan]) throw new Error("Choose a valid Movie API plan.");
+  const days = Number(durationDays);
+  const amount = Number(bonusRequests || 0);
+  if (!Number.isInteger(days) || days < 1 || days > 3650) throw new Error("Plan duration must be between 1 and 3650 days.");
+  if (!Number.isInteger(amount) || amount < 0 || amount > 1000000) throw new Error("Bonus requests must be a whole number between 0 and 1,000,000.");
+  const ref = db.collection("users").doc(String(uid || "").trim());
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("User not found.");
+  const patch = { movieApiPlanGranted: selectedPlan, movieApiPlanGrantExpiresAt: Date.now() + days * 24 * 60 * 60 * 1000, movieApiPlanGrantedBy: String(grantedBy || "admin").slice(0, 128), movieApiPlanGrantedAt: Date.now() };
+  if (amount) {
+    await db.runTransaction(async (tx) => {
+      const current = await tx.get(ref);
+      const profile = current.exists ? current.data() : {};
+      const month = currentUsageMonth();
+      const prior = profile.bonusMovieApiRequestsMonth === month ? Number(profile.bonusMovieApiRequests) || 0 : 0;
+      tx.set(ref, { ...patch, bonusMovieApiRequests: prior + amount, bonusMovieApiRequestsMonth: month }, { merge: true });
+    });
+  } else {
+    await ref.set(patch, { merge: true });
+  }
+  invalidateUserProfileCache(ref.id);
+  return { uid: ref.id, plan: selectedPlan, expiresAt: patch.movieApiPlanGrantExpiresAt, bonusRequests: amount };
 }
 async function setMovieApiCustomAds(uid, { name, url }) {
   const profile = await getUserProfile(uid); if (!profile) throw new Error("Account not found.");
@@ -4281,7 +4309,7 @@ async function listBonusCodes() {
 }
 
 function bonusRequestFields(product) {
-  const field = product === "devapi" ? "bonusDevApiRequests" : "bonusApiRequests";
+  const field = product === "devapi" ? "bonusDevApiRequests" : product === "movieapi" ? "bonusMovieApiRequests" : "bonusApiRequests";
   return { field, monthField: `${field}Month` };
 }
 
@@ -4300,6 +4328,7 @@ function addMonthlyBonusRequests(tx, userRef, priorData, product, amount) {
 }
 
 async function redeemBonusCode(uid, rawCode, product) {
+  if (!["devapi", "livetv", "movieapi"].includes(product)) throw Object.assign(new Error("Unknown bonus-code product."), { status: 400 });
   const code = String(rawCode || "").trim().toUpperCase();
   if (!code) throw Object.assign(new Error("Enter a bonus code."), { status: 400 });
   if (!/^[A-Z0-9]{1,32}$/.test(code)) {
@@ -4321,7 +4350,8 @@ async function redeemBonusCode(uid, rawCode, product) {
     addMonthlyBonusRequests(tx, userRef, userSnap.exists ? userSnap.data() : {}, product, data.amount);
     return { amount: data.amount, product };
   });
-  const productLabel = product === "devapi" ? "Developer API" : "Live TV API";
+  const productLabel = product === "devapi" ? "Developer API" : product === "movieapi" ? "Movie API" : "Live TV API";
+  invalidateUserProfileCache(uid);
   await addNotification(uid, "bonus_code", `You've received +${result.amount} request limit on your ${productLabel}`, { amount: result.amount, product });
   return result;
 }
@@ -6274,6 +6304,7 @@ export {
   findMovieApiKeyByRawKey,
   getMovieApiUsage,
   checkAndIncrementMovieApiUsage,
+  setMovieApiAdminAllocation,
   setMovieApiCustomAds,
   createMovieApiPlanPayment,
   getMovieApiPlanPayment,

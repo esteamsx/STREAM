@@ -330,6 +330,7 @@ import {
   API_PLANS,
   getEffectiveMovieApiPlan,
   MOVIE_API_PLANS,
+  setMovieApiAdminAllocation,
   SESSION_TTL_MS,
   createBonusCode,
   broadcastNotification,
@@ -415,6 +416,7 @@ import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./mi
 import { canonicalPath, pageGuards } from "./middleware/navigation.js";
 import { WEB_MANIFEST, siteHead, siteHeadFor, siteOrigin } from "./config/site.js";
 import { createApiAnalyticsMiddleware, getApiAnalytics, getApiActivityPage } from "./services/api-analytics.js";
+import { movieApiCors } from "./middleware/movie-api-cors.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -440,6 +442,7 @@ app.use((req, res, next) => {
   next();
 });
 app.use(securityHeaders);
+app.use(movieApiCors);
 app.use(permissionsPolicy);
 app.use(hppGuard);
 app.use(probePathTrap);
@@ -1291,7 +1294,23 @@ app.get("/api/admin/api-analytics/activity", requireAuth, requireAdmin, async (r
     res.status(500).set("Cache-Control", "no-store").json({ error: "Could not load API activity." });
   }
 });
-
+app.post("/api/admin/movie-api/allocation", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const uid = String(req.body?.uid || "").trim().slice(0, 128);
+    if (!uid) return res.status(400).json({ error: "Enter the user's account ID." });
+    const allocation = await setMovieApiAdminAllocation(uid, {
+      plan: req.body?.plan,
+      durationDays: req.body?.durationDays,
+      bonusRequests: req.body?.bonusRequests,
+      grantedBy: req.uid,
+    });
+    const planName = MOVIE_API_PLANS[allocation.plan]?.name || allocation.plan;
+    await addNotification(uid, "movie_api_plan", `An administrator assigned you the ${planName} Movie API plan`, { plan: allocation.plan, expiresAt: allocation.expiresAt, bonusRequests: allocation.bonusRequests }).catch(() => {});
+    res.set("Cache-Control", "no-store").json({ ok: true, allocation });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not assign Movie API access." });
+  }
+});
 app.get("/api/admin/coin-ledger/:uid/verify", requireAuth, requireAdmin, async (req, res) => {
   try {
     const result = await verifyCoinLedgerChain(db, String(req.params.uid || ""));

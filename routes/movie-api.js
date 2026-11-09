@@ -16,6 +16,8 @@ import {
   getMovieApiUsage,
   checkAndIncrementMovieApiUsage,
   setMovieApiCustomAds,
+  getEffectiveBonusRequests,
+  redeemBonusCode,
   isVerificationActive,
   isAdminEmail,
 } from "../services/auth.js";
@@ -26,6 +28,7 @@ const WHATSAPP_CHANNEL_URL = "https://whatsapp.com/channel/0029VatAyCwFy72JdZXFP
 const DEFAULT_AD_NAME = "ES TEAMS TV";
 const DEFAULT_AD_LINK = WHATSAPP_CHANNEL_URL;
 const rpsLimiters = new Map();
+const bonusRedeemLimiter = new SimpleRateLimiter(10, 60 * 1000, (req) => req.uid).middleware();
 function rpsLimiter(rate) {
   if (!rpsLimiters.has(rate)) rpsLimiters.set(rate, new SimpleRateLimiter(rate, 1000));
   return rpsLimiters.get(rate);
@@ -61,8 +64,10 @@ async function requireMovieApiKey(req, res, next) {
     const plan = admin ? MOVIE_API_PLANS.max : getMovieApiPlanConfig(profile);
     if (!admin && !rpsLimiter(plan.dailyRequests).check(found.id)) return res.status(429).json({ error: "Too many requests. Please slow down." });
     if (!admin) {
-      const usage = await checkAndIncrementMovieApiUsage(found.uid, plan);
-      if (!usage.allowed) return res.status(429).json({ error: "Movie API request quota reached for this period.", daily_requests: usage.dailyRequests, daily_limit: usage.dailyRequestsLimit || plan.dailyRequests, weekly_requests: usage.weeklyRequests, weekly_limit: plan.weeklyRequests, monthly_requests: usage.monthlyRequests, monthly_limit: plan.monthlyRequests });
+      const bonusRequests = getEffectiveBonusRequests(profile, "movieapi");
+      const usage = await checkAndIncrementMovieApiUsage(found.uid, plan, bonusRequests);
+      if (!usage.allowed) return res.status(429).json({ error: "Movie API request quota reached for this period.", daily_requests: usage.dailyRequests, daily_limit: usage.dailyRequestsLimit || plan.dailyRequests, weekly_requests: usage.weeklyRequests, weekly_limit: usage.weeklyRequestsLimit || plan.weeklyRequests, monthly_requests: usage.monthlyRequests, monthly_limit: usage.monthlyRequestsLimit || plan.monthlyRequests, bonus_requests: bonusRequests });
+      req.movieApiQuotaConsumed = true;
     }
     req.apiKeyId = found.id; req.apiKeyUid = found.uid; req.movieApiProfile = profile; req.movieApiPlan = plan; req.movieApiPlanKey = admin ? "max" : getEffectiveMovieApiPlan(profile); req.movieApiBranding = brandingFor(profile, plan);
     const originalJson = res.json.bind(res);
@@ -85,12 +90,17 @@ router.post("/api/movieapi/keys", requireAuth, async (req, res) => {
 router.get("/api/movieapi/keys", requireAuth, async (req, res) => {
   try {
     const planKey = getEffectiveMovieApiPlan(req.userProfile); const plan = MOVIE_API_PLANS[planKey];
-    const [keys, usage] = await Promise.all([listMovieApiKeysForUser(req.uid), getMovieApiUsage(req.uid, plan)]);
-    res.set("Cache-Control", "no-store").json({ premiumDiscountRate: isVerificationActive(req.userProfile) ? 0.15 : 0, keys: keys.map((k) => ({ id: k.id, label: k.label, last4: k.last4, createdAt: k.createdAt, lastUsedAt: k.lastUsedAt })), usage, plan: { key: planKey, name: plan.name, apiKeys: plan.apiKeys, dailyRequests: plan.dailyRequests, weeklyRequests: plan.weeklyRequests, monthlyRequests: plan.monthlyRequests, noAds: plan.noAds, customAdsName: plan.customAdsName, customAdsLink: plan.customAdsLink, expiresAt: planKey === "starter" ? req.userProfile.verifiedExpiresAt || null : req.userProfile.movieApiPlanExpiresAt || null }, movieApiCustomAdsName: req.userProfile.movieApiCustomAdsName || null, movieApiCustomAdsUrl: req.userProfile.movieApiCustomAdsUrl || null });
+    const bonusRequests = getEffectiveBonusRequests(req.userProfile, "movieapi");
+    const [keys, usage] = await Promise.all([listMovieApiKeysForUser(req.uid), getMovieApiUsage(req.uid, plan, bonusRequests)]);
+    res.set("Cache-Control", "no-store").json({ premiumDiscountRate: isVerificationActive(req.userProfile) ? 0.15 : 0, keys: keys.map((k) => ({ id: k.id, label: k.label, last4: k.last4, createdAt: k.createdAt, lastUsedAt: k.lastUsedAt })), usage, plan: { key: planKey, name: plan.name, apiKeys: plan.apiKeys, dailyRequests: plan.dailyRequests, weeklyRequests: plan.weeklyRequests, monthlyRequests: plan.monthlyRequests, noAds: plan.noAds, customAdsName: plan.customAdsName, customAdsLink: plan.customAdsLink, expiresAt: req.userProfile.movieApiPlanGranted === planKey ? req.userProfile.movieApiPlanGrantExpiresAt || null : planKey === "starter" ? req.userProfile.verifiedExpiresAt || null : req.userProfile.movieApiPlanExpiresAt || null }, movieApiCustomAdsName: req.userProfile.movieApiCustomAdsName || null, movieApiCustomAdsUrl: req.userProfile.movieApiCustomAdsUrl || null });
   } catch (e) { res.status(500).json({ error: "Could not load Movie API keys." }); }
 });
 router.delete("/api/movieapi/keys/:id", requireAuth, async (req, res) => { try { await revokeMovieApiKey(req.uid, req.params.id); res.json({ ok: true }); } catch (e) { res.status(400).json({ error: e.message || "Could not revoke key." }); } });
 router.post("/api/movieapi/custom-ads", requireAuth, async (req, res) => { try { res.json({ ok: true, ...(await setMovieApiCustomAds(req.uid, { name: req.body?.name, url: req.body?.url })) }); } catch (e) { res.status(400).json({ error: e.message || "Could not save custom ads settings." }); } });
+router.post("/api/movieapi/bonus-redeem", requireAuth, bonusRedeemLimiter, async (req, res) => {
+  try { res.json({ ok: true, ...(await redeemBonusCode(req.uid, req.body?.code, "movieapi")) }); }
+  catch (e) { res.status(e.status || 400).json({ error: e.message || "Could not redeem bonus code." }); }
+});
 
 const api = "/api/v1/movie";
 router.get(`${api}/status`, requireMovieApiKey, (req, res) => res.set("Cache-Control", "no-store").json(getStatus()));

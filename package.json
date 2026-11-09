@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "test": "node --test",
     "obfuscate:server": "javascript-obfuscator server.js --output dist/server.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
     "obfuscate:admin": "javascript-obfuscator views/admin.js --output dist/views/admin.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",
     "obfuscate:account": "javascript-obfuscator views/account.js --output dist/views/account.js --compact true --control-flow-flattening true --string-array true --string-array-encoding base64 --self-defending true",

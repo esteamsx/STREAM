@@ -458,7 +458,7 @@ ${musicPlayerStyle()}
     <p class="doc-p">Create a Movie API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. Your Movie API key belongs only to this Movie API product and has its own plan, limits, and usage. How many Movie API keys you can have depends on your Movie API plan; see <a href="#" id="docsToDashLink2">Plans &amp; Pricing</a>. You can revoke any key at any time.</p>
 
     <h2 class="doc-h2">Authentication</h2>
-    <p class="doc-p">Pass your key in the <code>x-api-key</code> header on every request.</p>
+    <p class="doc-p">Pass your key in the <code>x-api-key</code> header on every request. The keyed Movie API supports browser requests from third-party origins; keep the key in server-side code or a trusted backend where possible, because keys placed in public client JavaScript can be copied and misused.</p>
     <pre>x-api-key: estv_your_key_here</pre>
 
     <h2 class="doc-h2">Movie API endpoints</h2>
@@ -552,7 +552,18 @@ ${musicPlayerStyle()}
     <button class="overlay-cancel" id="tryitCancelBtn" type="button">Cancel</button>
   </div>
 </div>
+<button class="btn btn-primary" id="movieBonusOpenBtn" type="button" style="width:100%;justify-content:center;margin:0 0 12px">BONUS CODE</button>
 ${musicPlayerHtml()}
+<div class="page-overlay" id="movieBonusOverlay">
+  <div class="overlay-card">
+    <div class="overlay-title">Redeem a Movie API bonus code</div>
+    <div class="overlay-sub">Bonus requests extend your Movie API monthly quota for this calendar month.</div>
+    <div class="field"><label for="movieBonusInput">Bonus code</label><input type="text" id="movieBonusInput" maxlength="32" autocomplete="off" placeholder="Enter code"></div>
+    <div class="dcard-msg" id="movieBonusMsg" aria-live="polite"></div>
+    <button class="btn btn-primary" id="movieBonusRedeemBtn" type="button" style="width:100%;justify-content:center">Redeem code</button>
+    <button class="overlay-cancel" id="movieBonusCloseBtn" type="button">Cancel</button>
+  </div>
+</div>
 
 <script nonce="__CSP_NONCE__">
 (function(){
@@ -916,6 +927,28 @@ ${musicPlayerHtml()}
       renderPlans(r.data.plan || null, r.data.movieApiCustomAdsName || null, r.data.movieApiCustomAdsUrl || null, true);
     }).catch(function(){ premiumDiscountRate = 0; renderLoggedOutKeyCard(); renderPlans(null, null, null, false); });
   }
+
+  document.getElementById('movieBonusOpenBtn').addEventListener('click', function(){
+    document.getElementById('movieBonusMsg').className = 'dcard-msg';
+    document.getElementById('movieBonusMsg').textContent = '';
+    document.getElementById('movieBonusOverlay').classList.add('show');
+    document.getElementById('movieBonusInput').focus();
+  });
+  document.getElementById('movieBonusCloseBtn').addEventListener('click', function(){ document.getElementById('movieBonusOverlay').classList.remove('show'); });
+  document.getElementById('movieBonusRedeemBtn').addEventListener('click', async function(){
+    var btn = this, input = document.getElementById('movieBonusInput'), msg = document.getElementById('movieBonusMsg');
+    var code = input.value.trim();
+    if(!code){ msg.className = 'dcard-msg err'; msg.textContent = 'Enter a bonus code first.'; input.focus(); return; }
+    btn.disabled = true; btn.textContent = 'Redeeming…';
+    try {
+      var result = await fetch('/api/movieapi/bonus-redeem', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ code:code }) });
+      var data = await result.json().catch(function(){ return {}; });
+      if(!result.ok) throw new Error(data.error || 'Could not redeem bonus code.');
+      msg.className = 'dcard-msg ok'; msg.textContent = 'Added +' + data.amount + ' monthly Movie API requests.';
+      input.value = ''; loadKeys();
+    } catch(err) { msg.className = 'dcard-msg err'; msg.textContent = err.message || 'Could not redeem bonus code.'; }
+    finally { btn.disabled = false; btn.textContent = 'Redeem code'; }
+  });
 
   loadKeys();
 

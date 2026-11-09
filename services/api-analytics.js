@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
-const API_TYPES = ["developer", "livetv"];
-const API_PRODUCTS = { developer: "devapi", livetv: "livetv" };
+const API_TYPES = ["developer", "livetv", "movie"];
+const API_PRODUCTS = { developer: "devapi", livetv: "livetv", movie: "movieapi" };
 const DAILY_SHARDS = 8;
 const MAX_RANGE_DAYS = 90;
 const PAGE_SIZE = 25;
@@ -27,14 +27,16 @@ function normalizeRange(range, now) {
   };
 }
 
-function apiTypeForPath(path) {
+export function apiTypeForPath(path) {
   if (path.startsWith("/api/v1/dev/")) return "developer";
   if (path === "/api/v1/channels" || path.startsWith("/api/v1/stream/")) return "livetv";
+  if (path.startsWith("/api/v1/movie/")) return "movie";
   return null;
 }
 
 function endpointFallback(path, api) {
   if (api === "developer") return "/api/v1/dev/:unmatched";
+  if (api === "movie") return "/api/v1/movie/:unmatched";
   if (path === "/api/v1/channels") return "/api/v1/channels";
   return "/api/v1/stream/:channel";
 }
@@ -46,7 +48,7 @@ function safeRoutePath(req, path, api) {
 }
 
 function emptyMetrics() {
-  return { requests: 0, successful: 0, failed: 0, errorRate: 0, coinsSpent: 0, coinsRefunded: 0, netCoinsSpent: 0, coinsEarned: 0, requestPackPurchases: 0 };
+  return { requests: 0, successful: 0, failed: 0, quotaConsumed: 0, errorRate: 0, coinsSpent: 0, coinsRefunded: 0, netCoinsSpent: 0, coinsEarned: 0, requestPackPurchases: 0 };
 }
 
 function markCoinMetricsUnavailable(metrics) {
@@ -66,14 +68,15 @@ function addCounts(target, source) {
   target.requests += Number(source.requests) || 0;
   target.successful += Number(source.successful) || 0;
   target.failed += Number(source.failed) || 0;
+  target.quotaConsumed += Number(source.quotaConsumed) || 0;
 }
 
 function makeApiMap() {
-  return { developer: emptyMetrics(), livetv: emptyMetrics() };
+  return { developer: emptyMetrics(), livetv: emptyMetrics(), movie: emptyMetrics() };
 }
 
 function makeCoinDay() {
-  return { developer: 0, livetv: 0, developerRefunded: 0, livetvRefunded: 0, developerEarned: 0, livetvEarned: 0, developerPurchases: 0, livetvPurchases: 0 };
+  return { developer: 0, livetv: 0, movie: 0, developerRefunded: 0, livetvRefunded: 0, movieRefunded: 0, developerEarned: 0, livetvEarned: 0, movieEarned: 0, developerPurchases: 0, livetvPurchases: 0, moviePurchases: 0 };
 }
 
 function makeDateMap(startDate, endDate) {
@@ -202,6 +205,7 @@ async function persistApiEvent(db, event, increment) {
     requests: increment(1),
     successful: increment(event.successful ? 1 : 0),
     failed: increment(event.failed ? 1 : 0),
+    quotaConsumed: increment(event.quotaConsumed ? 1 : 0),
     endpointCounts: {
       [event.endpoint]: {
         requests: increment(1),
@@ -243,6 +247,7 @@ export function createApiAnalyticsMiddleware(db, { now = () => Date.now(), rando
         status,
         successful,
         failed,
+        quotaConsumed: api === "movie" && !!req.movieApiQuotaConsumed,
         durationMs: Math.max(0, Math.min(10 * 60 * 1000, at - startedAt)),
         shard: randomShard(),
       };
@@ -272,7 +277,7 @@ export async function getApiActivityPage(db, { range = "30d", cursor = null, now
   const docs = hasMore ? snapshot.docs.slice(0, limit) : snapshot.docs;
   const events = docs.map((doc) => {
     const event = doc.data() || {};
-    return { id: doc.id, at: Number(event.at) || 0, api: event.api, method: event.method, endpoint: event.endpoint, status: Number(event.status) || 0, successful: !!event.successful, failed: !!event.failed, durationMs: Number(event.durationMs) || 0 };
+    return { id: doc.id, at: Number(event.at) || 0, api: event.api, method: event.method, endpoint: event.endpoint, status: Number(event.status) || 0, successful: !!event.successful, failed: !!event.failed, quotaConsumed: !!event.quotaConsumed, durationMs: Number(event.durationMs) || 0 };
   });
   return { events, nextCursor: hasMore && docs.length ? docs[docs.length - 1].id : null };
 }
@@ -375,7 +380,8 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
       date,
       developer: day.developer.requests,
       livetv: day.livetv.requests,
-      total: day.developer.requests + day.livetv.requests,
+      movie: day.movie.requests,
+      total: day.developer.requests + day.livetv.requests + day.movie.requests,
       developerCoins: coinLedgerAvailable ? coins.developer : null,
       livetvCoins: coinLedgerAvailable ? coins.livetv : null,
       developerCoinRefunds: coinLedgerAvailable ? coins.developerRefunded : null,
@@ -385,7 +391,7 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
     });
   }
 
-  const topEndpoints = { developer: [], livetv: [] };
+  const topEndpoints = { developer: [], livetv: [], movie: [] };
   for (const api of API_TYPES) {
     const endpoints = new Map();
     for (const doc of dailySnapshot.docs) {
@@ -416,6 +422,7 @@ export async function getApiAnalytics(db, { range = "30d", activityCursor = null
   const apis = {
     developer: { ...selected.developer, today: currentDay.developer, week: currentWeek.developer, month: currentMonth.developer },
     livetv: { ...selected.livetv, today: currentDay.livetv, week: currentWeek.livetv, month: currentMonth.livetv },
+    movie: { ...selected.movie, today: currentDay.movie, week: currentWeek.movie, month: currentMonth.movie },
   };
 
   return {
