@@ -969,31 +969,6 @@ async function checkAndIncrementMovieApiUsage(uid, limits, bonusRequests = 0) {
     return { ...quota, ...next, allowed: true };
   });
 }
-async function setMovieApiAdminAllocation(uid, { plan, durationDays, bonusRequests, grantedBy }) {
-  const selectedPlan = String(plan || "");
-  if (!MOVIE_API_PLANS[selectedPlan]) throw new Error("Choose a valid Movie API plan.");
-  const days = Number(durationDays);
-  const amount = Number(bonusRequests || 0);
-  if (!Number.isInteger(days) || days < 1 || days > 3650) throw new Error("Plan duration must be between 1 and 3650 days.");
-  if (!Number.isInteger(amount) || amount < 0 || amount > 1000000) throw new Error("Bonus requests must be a whole number between 0 and 1,000,000.");
-  const ref = db.collection("users").doc(String(uid || "").trim());
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error("User not found.");
-  const patch = { movieApiPlanGranted: selectedPlan, movieApiPlanGrantExpiresAt: Date.now() + days * 24 * 60 * 60 * 1000, movieApiPlanGrantedBy: String(grantedBy || "admin").slice(0, 128), movieApiPlanGrantedAt: Date.now() };
-  if (amount) {
-    await db.runTransaction(async (tx) => {
-      const current = await tx.get(ref);
-      const profile = current.exists ? current.data() : {};
-      const month = currentUsageMonth();
-      const prior = profile.bonusMovieApiRequestsMonth === month ? Number(profile.bonusMovieApiRequests) || 0 : 0;
-      tx.set(ref, { ...patch, bonusMovieApiRequests: prior + amount, bonusMovieApiRequestsMonth: month }, { merge: true });
-    });
-  } else {
-    await ref.set(patch, { merge: true });
-  }
-  invalidateUserProfileCache(ref.id);
-  return { uid: ref.id, plan: selectedPlan, expiresAt: patch.movieApiPlanGrantExpiresAt, bonusRequests: amount };
-}
 async function setMovieApiCustomAds(uid, { name, url }) {
   const profile = await getUserProfile(uid); if (!profile) throw new Error("Account not found.");
   const plan = getMovieApiPlanConfig(profile); if (!plan.customAdsName && !plan.customAdsLink) throw new Error("Custom ads are a Pro or Max plan feature.");
@@ -4434,6 +4409,76 @@ async function redeemTradingPlanCode(uid, rawCode) {
   return result;
 }
 
+async function createMovieApiPlanCode(adminUid, plan, durationDays, maxRedemptions, bonusRequests = 0) {
+  if (!Object.hasOwn(MOVIE_API_PLANS, plan)) throw new Error(`Plan must be one of: ${Object.keys(MOVIE_API_PLANS).join(", ")}.`);
+  const days = Number(durationDays);
+  if (!Number.isInteger(days) || days < 1 || days > 3650) throw new Error("Duration must be between 1 and 3650 whole days.");
+  const limit = Number(maxRedemptions);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100000) throw new Error("Max redemptions must be between 1 and 100,000.");
+  const bonus = Number(bonusRequests || 0);
+  if (!Number.isInteger(bonus) || bonus < 0 || bonus > 1000000) throw new Error("Monthly bonus requests must be between 0 and 1,000,000.");
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const code = generateTradingPlanCodeString();
+    const ref = db.collection("movieApiPlanCodes").doc(code);
+    if ((await ref.get()).exists) continue;
+    const entry = { code, product: "movieapi", plan, durationDays: days, bonusRequests: bonus, maxRedemptions: limit, redemptionsCount: 0, createdAt: Date.now(), createdBy: adminUid };
+    await ref.set(entry);
+    return entry;
+  }
+  throw new Error("Could not generate a unique Movie API code. Try again.");
+}
+
+async function listMovieApiPlanCodes() {
+  const snap = await db.collection("movieApiPlanCodes").orderBy("createdAt", "desc").limit(200).get();
+  return snap.docs.map((d) => d.data());
+}
+
+async function redeemMovieApiPlanCode(uid, rawCode) {
+  const code = String(rawCode || "").trim().toUpperCase();
+  if (!code) throw Object.assign(new Error("Enter a code."), { status: 400 });
+  if (!/^[A-Z0-9]{1,32}$/.test(code)) throw Object.assign(new Error("That code doesn't exist."), { status: 404 });
+  const codeRef = db.collection("movieApiPlanCodes").doc(code);
+  const redemptionRef = codeRef.collection("redemptions").doc(uid);
+  const userRef = db.collection("users").doc(uid);
+  const result = await db.runTransaction(async (tx) => {
+    const [codeSnap, redemptionSnap, userSnap] = await Promise.all([tx.get(codeRef), tx.get(redemptionRef), tx.get(userRef)]);
+    if (!codeSnap.exists) throw Object.assign(new Error("That code doesn't exist."), { status: 404 });
+    if (!userSnap.exists) throw Object.assign(new Error("Account not found."), { status: 404 });
+    const data = codeSnap.data();
+    if (redemptionSnap.exists) throw Object.assign(new Error("You've already used this code."), { status: 400 });
+    if (data.redemptionsCount >= data.maxRedemptions) throw Object.assign(new Error("This code has expired."), { status: 400 });
+    if (!Object.hasOwn(MOVIE_API_PLANS, data.plan)) throw Object.assign(new Error("This Movie API code is invalid."), { status: 400 });
+    const now = Date.now();
+    const expiresAt = now + data.durationDays * 24 * 60 * 60 * 1000;
+    const bonusRequests = Math.max(0, Number(data.bonusRequests) || 0);
+    const userPatch = { movieApiPlanGranted: data.plan, movieApiPlanGrantExpiresAt: expiresAt, movieApiPlanGrantedBy: "plan-code", movieApiPlanGrantedAt: now };
+    if (bonusRequests) {
+      const profile = userSnap.data();
+      const month = currentUsageMonth();
+      const existingBonus = profile.bonusMovieApiRequestsMonth === month ? Number(profile.bonusMovieApiRequests) || 0 : 0;
+      userPatch.bonusMovieApiRequests = existingBonus + bonusRequests;
+      userPatch.bonusMovieApiRequestsMonth = month;
+    }
+    tx.set(redemptionRef, { uid, redeemedAt: now });
+    tx.update(codeRef, { redemptionsCount: data.redemptionsCount + 1 });
+    tx.set(userRef, userPatch, { merge: true });
+    return { plan: data.plan, expiresAt, bonusRequests };
+  });
+  invalidateUserProfileCache(uid);
+  const planName = MOVIE_API_PLANS[result.plan].name;
+  await addNotification(uid, "movie_api_plan_code", `You've received the ${planName} Movie API plan`, { plan: result.plan, expiresAt: result.expiresAt, bonusRequests: result.bonusRequests });
+  return { type: "plan", ...result, planName };
+}
+
+async function redeemMovieApiCode(uid, rawCode) {
+  const code = String(rawCode || "").trim().toUpperCase();
+  if (!code) throw Object.assign(new Error("Enter a code."), { status: 400 });
+  if (!/^[A-Z0-9]{1,32}$/.test(code)) throw Object.assign(new Error("That code doesn't exist."), { status: 404 });
+  const planCode = await db.collection("movieApiPlanCodes").doc(code).get();
+  if (planCode.exists) return redeemMovieApiPlanCode(uid, code);
+  return { type: "bonus", ...(await redeemBonusCode(uid, code, "movieapi")) };
+}
+
 const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const REFERRAL_SIGNUP_COINS = 3;
 const REFERRAL_COMMISSION_RATE = 0.15;
@@ -6304,7 +6349,6 @@ export {
   findMovieApiKeyByRawKey,
   getMovieApiUsage,
   checkAndIncrementMovieApiUsage,
-  setMovieApiAdminAllocation,
   setMovieApiCustomAds,
   createMovieApiPlanPayment,
   getMovieApiPlanPayment,
@@ -6510,6 +6554,9 @@ export {
   createTradingPlanCode,
   listTradingPlanCodes,
   redeemTradingPlanCode,
+  createMovieApiPlanCode,
+  listMovieApiPlanCodes,
+  redeemMovieApiCode,
 };
 
 export {

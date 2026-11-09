@@ -953,22 +953,39 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div></div>
   </div>
 
-  <div class="ad-card accent-gold" id="movieApiAllocationCard">
-    <div class="ad-card-header" id="movieApiAllocationHeader">
+  <div class="ad-card accent-gold" id="movieApiCodeCard">
+    <div class="ad-card-header" id="movieApiCodeHeader">
       <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-      <div class="ad-card-header-title">Movie API Access &amp; Bonus</div>
+      <div class="ad-card-header-title">Movie API Plan Codes</div>
+      <div class="ad-card-count" id="movieApiCodeCount" style="display:none">0</div>
       <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
     </div>
     <div class="ad-card-body"><div class="ad-card-body-inner">
-      <div class="bonus-form"><input type="text" id="movieApiAllocationUid" placeholder="User account ID" maxlength="128" autocomplete="off"></div>
-      <div class="bonus-form" style="margin-top:8px">
-        <select id="movieApiAllocationPlan" aria-label="Movie API plan"><option value="free">Free</option><option value="starter">Starter</option><option value="standard">Standard</option><option value="pro">Pro</option><option value="max">Max</option></select>
-        <input type="number" id="movieApiAllocationDays" min="1" max="3650" step="1" value="30" aria-label="Plan duration in days">
-        <input type="number" id="movieApiAllocationBonus" min="0" max="1000000" step="1" value="0" aria-label="Monthly bonus requests">
-        <button type="button" id="movieApiAllocationBtn">Assign</button>
+      <div class="bonus-form tp-code-form">
+        <div class="tp-code-form-row">
+          <div class="custom-select" id="movieApiCodePlanSelectWrap">
+            <button type="button" class="custom-select-btn">
+              <span>Standard</span>
+              <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <input type="hidden" id="movieApiCodePlanSelect" value="standard">
+            <div class="custom-select-list">
+              <div class="custom-select-option" data-value="free">Free</div>
+              <div class="custom-select-option" data-value="starter">Starter</div>
+              <div class="custom-select-option active" data-value="standard">Standard</div>
+              <div class="custom-select-option" data-value="pro">Pro</div>
+              <div class="custom-select-option" data-value="max">Max</div>
+            </div>
+          </div>
+          <input type="number" id="movieApiCodeMaxRedemptions" placeholder="Max users" min="1" step="1" value="1">
+        </div>
+        <input type="date" id="movieApiCodeExpiryDate" class="tp-code-date" aria-label="Plan expiry date">
+        <input type="number" id="movieApiCodeBonusRequests" class="tp-code-date" placeholder="Monthly bonus requests (optional)" min="0" max="1000000" step="1" value="0" aria-label="Monthly bonus requests">
+        <button type="button" id="movieApiCodeGenerateBtn" class="tp-code-generate-btn">Generate</button>
       </div>
-      <div class="bonus-msg" id="movieApiAllocationMsg" aria-live="polite"></div>
-      <div style="font-size:.72rem;color:var(--muted);line-height:1.5">Enter a user account ID, choose a time-limited plan, and optionally add monthly bonus requests. Admin grants are separate from paid plan history.</div>
+      <div class="bonus-msg" id="movieApiCodeMsg" aria-live="polite"></div>
+      <div class="bonus-list" id="movieApiCodeList"><div class="sk-stack"><div class="sk-row"><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div></div></div>
+      <div style="font-size:.72rem;color:var(--muted);line-height:1.5">Choose a plan, the requested expiry date, and how many users can redeem the code. Monthly bonus requests are optional.</div>
     </div></div>
   </div>
 
@@ -1522,8 +1539,16 @@ document.getElementById('bonusHeader').addEventListener('click', () => {
 document.getElementById('tpCodeHeader').addEventListener('click', () => {
   document.getElementById('tpCodeCard').classList.toggle('open');
 });
+document.getElementById('movieApiCodeHeader').addEventListener('click', () => {
+  document.getElementById('movieApiCodeCard').classList.toggle('open');
+});
 (() => {
   const dateInput = document.getElementById('tpCodeExpiryDate');
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  dateInput.min = tomorrow.toISOString().slice(0, 10);
+})();
+(() => {
+  const dateInput = document.getElementById('movieApiCodeExpiryDate');
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
   dateInput.min = tomorrow.toISOString().slice(0, 10);
 })();
@@ -1631,6 +1656,41 @@ function loadTpCodes(){
     tpCodeCount.textContent = String(codes.length);
     renderTpCodeList(codes);
   }).catch(() => { tpCodeList.innerHTML = '<div class="ad-empty">Could not load trading plan codes.</div>'; });
+}
+
+const MOVIE_API_PLAN_LABELS = { free: 'Free', starter: 'Starter', standard: 'Standard', pro: 'Pro', max: 'Max' };
+const movieApiCodeList = document.getElementById('movieApiCodeList');
+const movieApiCodeCount = document.getElementById('movieApiCodeCount');
+
+function movieApiCodeCardHtml(c){
+  const used = c.redemptionsCount || 0;
+  const max = c.maxRedemptions || 0;
+  const active = used < max;
+  const created = c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '';
+  const planLabel = MOVIE_API_PLAN_LABELS[c.plan] || c.plan;
+  const bonus = Number(c.bonusRequests) || 0;
+  return '<div class="bonus-code-card">' +
+    '<div class="bonus-code-head">' +
+      '<div class="bonus-code-text">' + esc(c.code) + '</div>' +
+      '<button type="button" class="bonus-copy-btn" data-code="' + esc(c.code) + '" aria-label="Copy code">' + COPY_ICON + '</button>' +
+      '<span class="status-pill ' + (active ? 'ok' : 'bad') + '">' + (active ? 'Active' : 'Expired') + '</span>' +
+    '</div>' +
+    '<div class="bonus-code-meta">' + esc(planLabel) + ' plan · ' + (c.durationDays || 0) + ' days' + (bonus ? ' · +' + bonus.toLocaleString() + ' monthly requests' : '') + ' · ' + used + '/' + max + ' used' + (created ? ' · ' + created : '') + '</div>' +
+  '</div>';
+}
+
+function loadMovieApiCodes(){
+  getJSON('/api/admin/movie-api/plan-codes').then((data) => {
+    const codes = data.codes || [];
+    movieApiCodeCount.style.display = codes.length ? '' : 'none';
+    movieApiCodeCount.textContent = String(codes.length);
+    movieApiCodeList.innerHTML = codes.length ? codes.map(movieApiCodeCardHtml).join('') : '<div class="ad-empty">No Movie API codes generated yet.</div>';
+    movieApiCodeList.querySelectorAll('.bonus-copy-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        navigator.clipboard.writeText(btn.getAttribute('data-code')).then(() => showToast('Code copied.')).catch(() => {});
+      });
+    });
+  }).catch(() => { movieApiCodeList.innerHTML = '<div class="ad-empty">Could not load Movie API codes.</div>'; });
 }
 
 document.getElementById('tpCodeGenerateBtn').addEventListener('click', () => {
@@ -2596,26 +2656,26 @@ document.getElementById('bonusGenerateBtn').addEventListener('click', () => {
     bonusMsg.textContent = err.message || 'Could not generate bonus code.';
   }).finally(() => { btn.disabled = false; btn.textContent = 'Generate'; });
 });
-document.getElementById('movieApiAllocationHeader').addEventListener('click', () => {
-  document.getElementById('movieApiAllocationCard').classList.toggle('open');
-});
-document.getElementById('movieApiAllocationBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('movieApiAllocationBtn');
-  const msg = document.getElementById('movieApiAllocationMsg');
-  const uid = document.getElementById('movieApiAllocationUid').value.trim();
-  const plan = document.getElementById('movieApiAllocationPlan').value;
-  const durationDays = Number(document.getElementById('movieApiAllocationDays').value);
-  const bonusRequests = Number(document.getElementById('movieApiAllocationBonus').value || 0);
+document.getElementById('movieApiCodeGenerateBtn').addEventListener('click', () => {
+  const btn = document.getElementById('movieApiCodeGenerateBtn');
+  const plan = document.getElementById('movieApiCodePlanSelect').value;
+  const expiryDateStr = document.getElementById('movieApiCodeExpiryDate').value;
+  const maxRedemptions = Number(document.getElementById('movieApiCodeMaxRedemptions').value);
+  const bonusRequests = Number(document.getElementById('movieApiCodeBonusRequests').value || 0);
+  const msg = document.getElementById('movieApiCodeMsg');
   msg.className = 'bonus-msg'; msg.textContent = '';
-  if (!uid) { msg.className = 'bonus-msg err'; msg.textContent = 'Enter the user account ID.'; return; }
-  btn.disabled = true; btn.innerHTML = '<span class="ad-spinner"></span> Assigning…';
-  try {
-    const result = await postJSON('/api/admin/movie-api/allocation', { uid, plan, durationDays, bonusRequests });
-    msg.className = 'bonus-msg ok';
-    msg.textContent = result.allocation.plan.toUpperCase() + ' assigned for ' + durationDays + ' days' + (bonusRequests ? ' with +' + bonusRequests + ' monthly requests.' : '.');
-  } catch (err) {
-    msg.className = 'bonus-msg err'; msg.textContent = err.message || 'Could not assign Movie API access.';
-  } finally { btn.disabled = false; btn.textContent = 'Assign'; }
+  if (!expiryDateStr) { msg.className = 'bonus-msg err'; msg.textContent = 'Pick when the Movie API plan should expire.'; return; }
+  const durationDays = Math.ceil((new Date(expiryDateStr + 'T23:59:59').getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  if (!Number.isFinite(durationDays) || durationDays < 1) { msg.className = 'bonus-msg err'; msg.textContent = 'Pick a date in the future.'; return; }
+  if (!Number.isInteger(maxRedemptions) || maxRedemptions < 1) { msg.className = 'bonus-msg err'; msg.textContent = 'Enter how many users can use this code.'; return; }
+  if (!Number.isInteger(bonusRequests) || bonusRequests < 0) { msg.className = 'bonus-msg err'; msg.textContent = 'Monthly bonus requests must be a whole number of zero or more.'; return; }
+  btn.disabled = true; btn.innerHTML = '<span class="ad-spinner"></span> Generating…';
+  postJSON('/api/admin/movie-api/plan-codes', { plan, durationDays, maxRedemptions, bonusRequests }).then((data) => {
+    msg.className = 'bonus-msg ok'; msg.textContent = 'Generated code: ' + data.code.code;
+    loadMovieApiCodes();
+  }).catch((err) => {
+    msg.className = 'bonus-msg err'; msg.textContent = err.message || 'Could not generate Movie API code.';
+  }).finally(() => { btn.disabled = false; btn.textContent = 'Generate'; });
 });
 const PROFILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/></svg>';
 const PROFILE_VERIFIED_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1" stroke-linecap="round"/><g transform="translate(13.5,12.5) scale(0.6)"><path fill="currentColor" stroke="none" d="M12 2l2.2 1.8 2.9-.6.9 2.8 2.8.9-.6 2.9L22 12l-1.8 2.2.6 2.9-2.8.9-.9 2.8-2.9-.6L12 22l-2.2-1.8-2.9.6-.9-2.8-2.8-.9.6-2.9L2 12l1.8-2.2-.6-2.9 2.8-.9.9-2.8 2.9.6z"/><path stroke="var(--card2)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M8.3 12.2l2.4 2.3 4.7-5.1"/></g></svg>';
@@ -4179,7 +4239,7 @@ async function loadApiAnalytics(range){
       apiAnalyticsStat('Request-pack refunds', coinDisplay(totals.coinsRefunded) + (coinLedgerAvailable ? ' coins' : '')),
       apiAnalyticsStat('Net API-pack coin consumption', signedCoinDisplay(totals.netCoinsSpent) + (coinLedgerAvailable ? ' coins' : '')),
       apiAnalyticsStat('Admin coins earned from packs', coinDisplay(totals.coinsEarned) + (coinLedgerAvailable ? ' coins' : '')),
-      apiAnalyticsStat('Coins charged per request', 'None'),
+      apiAnalyticsStat('Coins charged per request', '0'),
     ].join('');
     document.getElementById('apiAnalyticsProducts').innerHTML = ['developer','livetv','movie'].map((api) => {
       const item = apis[api] || {};
@@ -4474,6 +4534,7 @@ loadMaintenanceStatus();
 loadPromotionalReviews();
 loadBonusCodes();
 loadTpCodes();
+loadMovieApiCodes();
 loadWithdrawals();
 loadCryptoDeposits();
 loadDeviceBans();

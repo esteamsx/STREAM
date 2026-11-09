@@ -556,9 +556,9 @@ ${musicPlayerStyle()}
 ${musicPlayerHtml()}
 <div class="page-overlay" id="movieBonusOverlay">
   <div class="overlay-card">
-    <div class="overlay-title">Redeem a Movie API bonus code</div>
-    <div class="overlay-sub">Bonus requests extend your Movie API monthly quota for this calendar month.</div>
-    <div class="field"><label for="movieBonusInput">Bonus code</label><input type="text" id="movieBonusInput" maxlength="32" autocomplete="off" placeholder="Enter code"></div>
+    <div class="overlay-title">Redeem a Movie API code</div>
+    <div class="overlay-sub">A code can activate a Movie API plan or add monthly requests to your quota.</div>
+    <div class="field"><label for="movieBonusInput">Code</label><input type="text" id="movieBonusInput" maxlength="32" autocomplete="off" placeholder="Enter code"></div>
     <div class="dcard-msg" id="movieBonusMsg" aria-live="polite"></div>
     <button class="btn btn-primary" id="movieBonusRedeemBtn" type="button" style="width:100%;justify-content:center">Redeem code</button>
     <button class="overlay-cancel" id="movieBonusCloseBtn" type="button">Cancel</button>
@@ -953,13 +953,16 @@ ${musicPlayerHtml()}
   document.getElementById('movieBonusRedeemBtn').addEventListener('click', async function(){
     var btn = this, input = document.getElementById('movieBonusInput'), msg = document.getElementById('movieBonusMsg');
     var code = input.value.trim();
-    if(!code){ msg.className = 'dcard-msg err'; msg.textContent = 'Enter a bonus code first.'; input.focus(); return; }
+    if(!code){ msg.className = 'dcard-msg err'; msg.textContent = 'Enter a code first.'; input.focus(); return; }
     btn.disabled = true; btn.textContent = 'Redeeming…';
     try {
       var result = await fetch('/api/movieapi/bonus-redeem', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ code:code }) });
       var data = await result.json().catch(function(){ return {}; });
       if(!result.ok) throw new Error(data.error || 'Could not redeem bonus code.');
-      msg.className = 'dcard-msg ok'; msg.textContent = 'Added +' + data.amount + ' monthly Movie API requests.';
+      msg.className = 'dcard-msg ok';
+      msg.textContent = data.type === 'plan'
+        ? (data.planName || data.plan) + ' Movie API plan activated until ' + new Date(data.expiresAt).toLocaleDateString() + (data.bonusRequests ? ' with +' + data.bonusRequests + ' monthly requests.' : '.')
+        : 'Added +' + data.amount + ' monthly Movie API requests.';
       input.value = ''; loadKeys();
     } catch(err) { msg.className = 'dcard-msg err'; msg.textContent = err.message || 'Could not redeem bonus code.'; }
     finally { btn.disabled = false; btn.textContent = 'Redeem code'; }

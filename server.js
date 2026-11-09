@@ -330,7 +330,9 @@ import {
   API_PLANS,
   getEffectiveMovieApiPlan,
   MOVIE_API_PLANS,
-  setMovieApiAdminAllocation,
+  createMovieApiPlanCode,
+  listMovieApiPlanCodes,
+  redeemMovieApiCode,
   SESSION_TTL_MS,
   createBonusCode,
   broadcastNotification,
@@ -1294,21 +1296,24 @@ app.get("/api/admin/api-analytics/activity", requireAuth, requireAdmin, async (r
     res.status(500).set("Cache-Control", "no-store").json({ error: "Could not load API activity." });
   }
 });
-app.post("/api/admin/movie-api/allocation", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/admin/movie-api/plan-codes", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const uid = String(req.body?.uid || "").trim().slice(0, 128);
-    if (!uid) return res.status(400).json({ error: "Enter the user's account ID." });
-    const allocation = await setMovieApiAdminAllocation(uid, {
-      plan: req.body?.plan,
-      durationDays: req.body?.durationDays,
-      bonusRequests: req.body?.bonusRequests,
-      grantedBy: req.uid,
-    });
-    const planName = MOVIE_API_PLANS[allocation.plan]?.name || allocation.plan;
-    await addNotification(uid, "movie_api_plan", `An administrator assigned you the ${planName} Movie API plan`, { plan: allocation.plan, expiresAt: allocation.expiresAt, bonusRequests: allocation.bonusRequests }).catch(() => {});
-    res.set("Cache-Control", "no-store").json({ ok: true, allocation });
+    res.set("Cache-Control", "no-store").json({ codes: await listMovieApiPlanCodes() });
   } catch (err) {
-    res.status(400).json({ error: err.message || "Could not assign Movie API access." });
+    console.error("admin Movie API codes load failed:", err && err.message);
+    res.status(500).json({ error: "Could not load Movie API codes." });
+  }
+});
+app.post("/api/admin/movie-api/plan-codes", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const plan = String(req.body?.plan || "");
+    const durationDays = Number(req.body?.durationDays);
+    const maxRedemptions = Number(req.body?.maxRedemptions);
+    const bonusRequests = Number(req.body?.bonusRequests || 0);
+    const code = await createMovieApiPlanCode(req.uid, plan, durationDays, maxRedemptions, bonusRequests);
+    res.set("Cache-Control", "no-store").json({ ok: true, code });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not create Movie API code." });
   }
 });
 app.get("/api/admin/coin-ledger/:uid/verify", requireAuth, requireAdmin, async (req, res) => {

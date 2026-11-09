@@ -17,7 +17,7 @@ import {
   checkAndIncrementMovieApiUsage,
   setMovieApiCustomAds,
   getEffectiveBonusRequests,
-  redeemBonusCode,
+  redeemMovieApiCode,
   isVerificationActive,
   isAdminEmail,
 } from "../services/auth.js";
@@ -98,7 +98,7 @@ router.get("/api/movieapi/keys", requireAuth, async (req, res) => {
 router.delete("/api/movieapi/keys/:id", requireAuth, async (req, res) => { try { await revokeMovieApiKey(req.uid, req.params.id); res.json({ ok: true }); } catch (e) { res.status(400).json({ error: e.message || "Could not revoke key." }); } });
 router.post("/api/movieapi/custom-ads", requireAuth, async (req, res) => { try { res.json({ ok: true, ...(await setMovieApiCustomAds(req.uid, { name: req.body?.name, url: req.body?.url })) }); } catch (e) { res.status(400).json({ error: e.message || "Could not save custom ads settings." }); } });
 router.post("/api/movieapi/bonus-redeem", requireAuth, bonusRedeemLimiter, async (req, res) => {
-  try { res.json({ ok: true, ...(await redeemBonusCode(req.uid, req.body?.code, "movieapi")) }); }
+  try { res.json({ ok: true, ...(await redeemMovieApiCode(req.uid, req.body?.code)) }); }
   catch (e) { res.status(e.status || 400).json({ error: e.message || "Could not redeem bonus code." }); }
 });
 
