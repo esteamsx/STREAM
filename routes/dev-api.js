@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { extractTextFromImageUrl } from "../services/ocr.js";
 import { fetchMp3ByQuery, fetchMp4ByQuery } from "../services/song.js";
+import { resolveCapcut } from "../services/capcut.js";
 import { analyzeImage } from "../services/vision.js";
 import { resolveFacebookVideo } from "../services/facebook.js";
 import { resolveInstagramMedia, getInstagramProfile } from "../services/instagram.js";
@@ -243,6 +244,7 @@ router.delete("/api/devapi/keys/:id", requireAuth, async (req, res) => {
 const ocrLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const mp3Limiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const mp4Limiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
+const capcutLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const facebookLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const aiLimiter = new SimpleRateLimiter(15, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
 const qrcodeLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
@@ -355,6 +357,17 @@ router.get("/api/v1/dev/mp4", requireDevApiKey, mp4Limiter, async (req, res) => 
     });
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || "Could not fetch that video." });
+  }
+});
+
+router.get("/api/v1/dev/capcut", requireDevApiKey, capcutLimiter, async (req, res) => {
+  const url = String(req.query.url || "").trim();
+  if (!url) return res.status(400).json({ error: "Missing url query parameter." });
+
+  try {
+    res.json(await resolveCapcut(url));
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || "Could not fetch that CapCut template." });
   }
 });
 

@@ -2,18 +2,26 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const silvatech = readFileSync(new URL("../services/silvatech.js", import.meta.url), "utf8");
+const downloader = readFileSync(new URL("../services/silvatech.js", import.meta.url), "utf8");
+const capcut = readFileSync(new URL("../services/capcut.js", import.meta.url), "utf8");
 const song = readFileSync(new URL("../services/song.js", import.meta.url), "utf8");
 const route = readFileSync(new URL("../routes/dev-api.js", import.meta.url), "utf8");
 const proxy = readFileSync(new URL("../services/download-proxy.js", import.meta.url), "utf8");
 const avMux = readFileSync(new URL("../services/av-mux.js", import.meta.url), "utf8");
 
-test("MP3 downloads preserve a direct audio fallback and normalize chunked provider streams", () => {
-  assert.match(silvatech, /directAudioUrl: details\.direct_audio_url/);
-  assert.match(silvatech, /callSilvatech\("audio", videoUrl\)/);
-  assert.match(silvatech, /result\.download_url \|\| result\.downloadUrl/);
+test("MP3 and MP4 downloads use the supplied SaveTube engine without changing their adapter contract", () => {
+  assert.match(downloader, /media\.savetube\.vip\/api\/random-cdn/);
+  assert.match(downloader, /aes-128-cbc/);
+  assert.match(downloader, /async function runSaveTube/);
+  assert.match(downloader, /audioUrl: result\.download/);
+  assert.match(downloader, /videoUrl: result\.download/);
   assert.match(song, /audioFallbackUrl: result\.directAudioUrl \|\| null/);
   assert.match(route, /audioFallbackUrl: song\.audioFallbackUrl \|\| null/);
+  assert.match(route, /"\/api\/v1\/dev\/mp3"/);
+  assert.match(route, /"\/api\/v1\/dev\/mp4"/);
+  assert.match(capcut, /BASE_URL.*snapvideotools\.com/);
+  assert.match(capcut, /BASE_URL}\/id\/api\/snap/);
+  assert.match(route, /"\/api\/v1\/dev\/capcut"/);
   assert.match(proxy, /!upstream\.headers\.get\("content-length"\)/);
   assert.match(proxy, /transcodeRemoteAudioToMp3\(payload\.audioFallbackUrl\)/);
   assert.match(proxy, /res\.set\("Content-Length", String\(out\.length\)\)/);

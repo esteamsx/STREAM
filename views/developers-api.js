@@ -23,6 +23,16 @@ const FEATURES = [
     example: "GET /api/v1/dev/mp4?query=your video here",
   },
   {
+    key: "capcut",
+    title: "CapCut Downloader",
+    desc: "Download media from a public CapCut template share link.",
+    icon: '<path d="M5 7h14M5 17h14M8 7l8 10M16 7L8 17" stroke-linecap="round"/>',
+    category: "Downloaders",
+    endpoint: "GET /api/v1/dev/capcut?url=",
+    live: true,
+    example: "GET /api/v1/dev/capcut?url=https://www.capcut.com/t/...",
+  },
+  {
     key: "facebook",
     title: "Facebook Downloader",
     desc: "Pull a direct video file from a Facebook link.",
@@ -1045,7 +1055,7 @@ ${musicPlayerStyle()}
     </table>
 
     <h2 class="doc-h2">Downloaded files &amp; links</h2>
-    <p class="doc-p">MP3, MP4, Facebook Downloader, Instagram Downloader, and TikTok Downloader don't hand back a raw source URL. Instead they return a <code>download_url</code> (or <code>hd_download_url</code> / <code>sd_download_url</code> for Facebook, or <code>image_urls</code> for TikTok photo posts) hosted on <code>esteamstv.devs.surf</code>, the same way the <a href="/developers/live-tv" target="_blank" rel="noopener">Live Tv Api</a>'s <code>embed_url</code> never exposes the real stream source. Each link is signed and expires after 6 hours; fetch a fresh one by calling the endpoint again.</p>
+    <p class="doc-p">MP3, MP4, Facebook Downloader, Instagram Downloader, and TikTok Downloader don't hand back a raw source URL. Instead they return a <code>download_url</code> (or <code>hd_download_url</code> / <code>sd_download_url</code> for Facebook, or <code>image_urls</code> for TikTok photo posts) hosted on <code>esteamstv.devs.surf</code>, the same way the <a href="/developers/live-tv" target="_blank" rel="noopener">Live Tv Api</a>'s <code>embed_url</code> never exposes the real stream source. Each link is signed and expires after 6 hours; fetch a fresh one by calling the endpoint again. CapCut returns the provider's template-download response for the submitted public share link.</p>
 
     <h2 class="doc-h2">MP3 Downloader</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/mp3?query=</code></p>
@@ -1070,6 +1080,12 @@ ${musicPlayerStyle()}
   "download_url": "https://esteamstv.devs.surf/api/v1/dev/dl/eyJ1cmwi...",
   "expires_at": "2026-08-05T20:00:00.000Z"
 }</pre>
+
+    <h2 class="doc-h2">CapCut Downloader</h2>
+    <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/capcut?url=</code></p>
+    <p class="doc-p">Give it a public CapCut template share link. The response is passed through from the CapCut download provider.</p>
+    <pre>curl -H "x-api-key: estv_your_key_here" \\
+  "https://esteamstv.devs.surf/api/v1/dev/capcut?url=https://www.capcut.com/t/..."</pre>
 
     <h2 class="doc-h2">Facebook Downloader</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/facebook?url=</code></p>
@@ -2183,6 +2199,7 @@ ${musicPlayerHtml()}
     ocr: { title: 'Try it - OCR', method: 'GET', path: '/api/v1/dev/ocr', param: 'url', label: 'Image URL', placeholder: 'https://example.com/image.png' },
     mp3: { title: 'Try it - MP3 Downloader', method: 'GET', path: '/api/v1/dev/mp3', param: 'query', label: 'Search', placeholder: 'Song title or artist' },
     mp4: { title: 'Try it - MP4 Downloader', method: 'GET', path: '/api/v1/dev/mp4', param: 'query', label: 'Search', placeholder: 'Video title' },
+    capcut: { title: 'Try it - CapCut Downloader', method: 'GET', path: '/api/v1/dev/capcut', param: 'url', label: 'CapCut URL', placeholder: 'https://www.capcut.com/t/...' },
     facebook: { title: 'Try it - Facebook Downloader', method: 'GET', path: '/api/v1/dev/facebook', param: 'url', label: 'Facebook URL', placeholder: 'https://facebook.com/watch/?v=...' },
     instagram: { title: 'Try it - Instagram Downloader', method: 'GET', path: '/api/v1/dev/instagram', param: 'url', label: 'Instagram post/reel URL', placeholder: 'https://www.instagram.com/reel/...' },
     tiktok: { title: 'Try it - TikTok Downloader', method: 'GET', path: '/api/v1/dev/tiktok', param: 'url', label: 'TikTok URL', placeholder: 'https://www.tiktok.com/@user/video/...' },
