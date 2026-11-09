@@ -607,8 +607,8 @@ ${musicPlayerHtml()}
     { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, monthlyRequests: 50, note: 'Default plan' },
     { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, monthlyRequests: 50, note: 'Auto with account verification' },
     { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, monthlyRequests: 100, note: '30 days' },
-    { key: 'pro', name: 'Pro', priceNgn: 12500, apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, monthlyRequests: 100, note: '30 days' },
-    { key: 'max', name: 'Max', priceNgn: 15000, apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, monthlyRequests: null, note: '30 days', highlight: true },
+    { key: 'pro', name: 'Pro', priceNgn: 13500, apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, monthlyRequests: 100, note: '30 days' },
+    { key: 'max', name: 'Max', priceNgn: 20500, apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, monthlyRequests: null, note: '30 days', highlight: true },
   ];
 
   function fmtNgn(n){ return '₦' + n.toLocaleString('en-NG'); }

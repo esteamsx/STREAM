@@ -786,8 +786,8 @@ const DEV_API_PLANS = {
   free: { name: "Free", apiKeys: 1, requestsPerSecond: 3, monthlyRequests: 100, noAds: false, customAdsLink: false, priceNgn: 0 },
   starter: { name: "Starter", apiKeys: 3, requestsPerSecond: 10, monthlyRequests: 200, noAds: false, customAdsLink: false, priceNgn: 0 },
   standard: { name: "Standard", apiKeys: 5, requestsPerSecond: 20, monthlyRequests: 350, noAds: false, customAdsLink: false, priceNgn: 7500 },
-  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: false, priceNgn: 12500 },
-  max: { name: "Max", apiKeys: 15, requestsPerSecond: 50, monthlyRequests: 1000, noAds: true, customAdsLink: true, priceNgn: 15000 },
+  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: false, priceNgn: 13500 },
+  max: { name: "Max", apiKeys: 15, requestsPerSecond: 50, monthlyRequests: 1000, noAds: true, customAdsLink: true, priceNgn: 20500 },
 };
 
 const PURCHASABLE_DEV_API_PLANS = ["standard", "pro", "max"];
@@ -886,8 +886,8 @@ const MOVIE_API_PLANS = {
   free: { name: "Free", apiKeys: 1, dailyRequests: 5, weeklyRequests: 25, monthlyRequests: 50, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 0 },
   starter: { name: "Starter", apiKeys: 3, dailyRequests: 10, weeklyRequests: 50, monthlyRequests: 100, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 0 },
   standard: { name: "Standard", apiKeys: 5, dailyRequests: 20, weeklyRequests: 100, monthlyRequests: 200, noAds: true, customAdsName: false, customAdsLink: false, priceNgn: 7500 },
-  pro: { name: "Pro", apiKeys: 10, dailyRequests: 40, weeklyRequests: 200, monthlyRequests: 400, noAds: true, customAdsName: true, customAdsLink: false, priceNgn: 12500 },
-  max: { name: "Max", apiKeys: 15, dailyRequests: 80, weeklyRequests: 400, monthlyRequests: 800, noAds: true, customAdsName: true, customAdsLink: true, priceNgn: 15000 },
+  pro: { name: "Pro", apiKeys: 10, dailyRequests: 50, weeklyRequests: 250, monthlyRequests: 450, noAds: true, customAdsName: true, customAdsLink: false, priceNgn: 13500 },
+  max: { name: "Max", apiKeys: 15, dailyRequests: 100, weeklyRequests: 500, monthlyRequests: 1000, noAds: true, customAdsName: true, customAdsLink: true, priceNgn: 20500 },
 };
 const PURCHASABLE_MOVIE_API_PLANS = ["standard", "pro", "max"];
 function getEffectiveMovieApiPlan(data) {
@@ -3756,8 +3756,8 @@ const API_PLANS = {
   free: { name: "Free", apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 50 },
   starter: { name: "Starter", apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 50 },
   standard: { name: "Standard", apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, priceNgn: 7500, monthlyRequests: 100 },
-  pro: { name: "Pro", apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, priceNgn: 12500, monthlyRequests: 100 },
-  max: { name: "Max", apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, priceNgn: 15000, monthlyRequests: Infinity },
+  pro: { name: "Pro", apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, priceNgn: 13500, monthlyRequests: 100 },
+  max: { name: "Max", apiKeys: 15, streamHours: 168, watermark: false, customVisitPage: true, priceNgn: 20500, monthlyRequests: Infinity },
 };
 
 const MAX_PASSKEYS_VERIFIED = 3;

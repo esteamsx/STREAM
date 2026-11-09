@@ -595,8 +595,8 @@ ${musicPlayerHtml()}
     { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, dailyRequests: 5, weeklyRequests: 25, monthlyRequests: 50, noAds: false, customAdsName: false, customAdsLink: false, note: 'Default plan' },
     { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, dailyRequests: 10, weeklyRequests: 50, monthlyRequests: 100, noAds: false, customAdsName: false, customAdsLink: false, note: 'Auto with account verification' },
     { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, dailyRequests: 20, weeklyRequests: 100, monthlyRequests: 200, noAds: true, customAdsName: false, customAdsLink: false, note: '30 days' },
-    { key: 'pro', name: 'Pro', priceNgn: 12500, apiKeys: 10, dailyRequests: 40, weeklyRequests: 200, monthlyRequests: 400, noAds: true, customAdsName: true, customAdsLink: false, note: '30 days', highlight: true },
-    { key: 'max', name: 'Max', priceNgn: 15000, apiKeys: 15, dailyRequests: 80, weeklyRequests: 400, monthlyRequests: 800, noAds: true, customAdsName: true, customAdsLink: true, note: '30 days' },
+    { key: 'pro', name: 'Pro', priceNgn: 13500, apiKeys: 10, dailyRequests: 50, weeklyRequests: 250, monthlyRequests: 450, noAds: true, customAdsName: true, customAdsLink: false, note: '30 days', highlight: true },
+    { key: 'max', name: 'Max', priceNgn: 20500, apiKeys: 15, dailyRequests: 100, weeklyRequests: 500, monthlyRequests: 1000, noAds: true, customAdsName: true, customAdsLink: true, note: '30 days' },
   ];
 
   function fmtNgn(n){ return '₦' + n.toLocaleString('en-NG'); }
