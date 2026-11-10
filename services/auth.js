@@ -783,10 +783,10 @@ async function getApiKeyOwnerUid(keyId) {
 const DEV_API_PLAN_DAYS = 30;
 
 const DEV_API_PLANS = {
-  free: { name: "Free", apiKeys: 1, requestsPerSecond: 3, monthlyRequests: 100, noAds: false, customAdsLink: false, priceNgn: 0 },
+  free: { name: "Free", apiKeys: 1, requestsPerSecond: 6, monthlyRequests: 200, noAds: false, customAdsLink: false, priceNgn: 0 },
   starter: { name: "Starter", apiKeys: 3, requestsPerSecond: 50, monthlyRequests: 1000, noAds: false, customAdsLink: false, priceNgn: 0 },
   standard: { name: "Standard", apiKeys: 5, requestsPerSecond: 100, monthlyRequests: 1750, noAds: false, customAdsLink: false, priceNgn: 7500 },
-  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 175, monthlyRequests: 2500, noAds: true, customAdsLink: false, priceNgn: 13500 },
+  pro: { name: "Pro", apiKeys: 10, requestsPerSecond: 200, monthlyRequests: 2500, noAds: true, customAdsLink: false, priceNgn: 13500 },
   max: { name: "Max", apiKeys: 15, requestsPerSecond: 250, monthlyRequests: 5000, noAds: true, customAdsLink: true, priceNgn: 20500 },
 };
 
@@ -883,10 +883,10 @@ async function setDevApiCustomAdsUrl(uid, url) {
 }
 
 const MOVIE_API_PLANS = {
-  free: { name: "Free", apiKeys: 1, dailyRequests: 5, weeklyRequests: 25, monthlyRequests: 50, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 0 },
+  free: { name: "Free", apiKeys: 1, dailyRequests: 10, weeklyRequests: 50, monthlyRequests: 100, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 0 },
   starter: { name: "Starter", apiKeys: 3, dailyRequests: 50, weeklyRequests: 250, monthlyRequests: 500, noAds: false, customAdsName: false, customAdsLink: false, priceNgn: 0 },
   standard: { name: "Standard", apiKeys: 5, dailyRequests: 100, weeklyRequests: 500, monthlyRequests: 1000, noAds: true, customAdsName: false, customAdsLink: false, priceNgn: 7500 },
-  pro: { name: "Pro", apiKeys: 10, dailyRequests: 250, weeklyRequests: 1250, monthlyRequests: 2250, noAds: true, customAdsName: true, customAdsLink: false, priceNgn: 13500 },
+  pro: { name: "Pro", apiKeys: 10, dailyRequests: 300, weeklyRequests: 1300, monthlyRequests: 2300, noAds: true, customAdsName: true, customAdsLink: false, priceNgn: 13500 },
   max: { name: "Max", apiKeys: 15, dailyRequests: 500, weeklyRequests: 2500, monthlyRequests: 5000, noAds: true, customAdsName: true, customAdsLink: true, priceNgn: 20500 },
 };
 const PURCHASABLE_MOVIE_API_PLANS = ["standard", "pro", "max"];
@@ -3753,7 +3753,7 @@ async function finalizeVerificationPayment(reference, paystackData) {
 const API_PLAN_DAYS = 30;
 
 const API_PLANS = {
-  free: { name: "Free", apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 50 },
+  free: { name: "Free", apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 100 },
   starter: { name: "Starter", apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, priceNgn: 0, monthlyRequests: 250 },
   standard: { name: "Standard", apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, priceNgn: 7500, monthlyRequests: 500 },
   pro: { name: "Pro", apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, priceNgn: 13500, monthlyRequests: 500 },

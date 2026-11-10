@@ -533,7 +533,7 @@ ${musicPlayerStyle()}
     <p class="doc-p">Every link is also tied to the specific API key that generated it. If you revoke that key (from the dashboard, whether or not the link has hit its expiry yet), the link stops working immediately too. There's no way to keep a link alive past its key's lifetime, so revoking a key is a clean, complete way to cut off everything it was used for.</p>
 
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
-    <p class="doc-p">30 requests per minute per API key on the issuance endpoints, plenty for normal use, since it's one call per viewer session, not per segment. The account-wide monthly allowance is shared across all your keys: Free 50, Starter 250, Standard and Pro 500 each, and Max unlimited. It's tied to your account, so revoking a key and creating a new one doesn't reset it. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink2">API Dashboard</a>.</p>
+    <p class="doc-p">30 requests per minute per API key on the issuance endpoints, plenty for normal use, since it's one call per viewer session, not per segment. The account-wide monthly allowance is shared across all your keys: Free 100, Starter 250, Standard and Pro 500 each, and Max unlimited. It's tied to your account, so revoking a key and creating a new one doesn't reset it. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink2">API Dashboard</a>.</p>
 
     <h2 class="doc-h2">Errors</h2>
     <table>
@@ -604,7 +604,7 @@ ${musicPlayerHtml()}
   var currentProfile = null;
 
   var PLAN_DEFS = [
-    { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, monthlyRequests: 50, note: 'Default plan' },
+    { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, streamHours: 6, watermark: true, customVisitPage: false, monthlyRequests: 100, note: 'Default plan' },
     { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, streamHours: 12, watermark: true, customVisitPage: false, monthlyRequests: 250, note: 'Auto with account verification' },
     { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, streamHours: 24, watermark: true, customVisitPage: false, monthlyRequests: 500, note: '30 days' },
     { key: 'pro', name: 'Pro', priceNgn: 13500, apiKeys: 10, streamHours: 72, watermark: false, customVisitPage: false, monthlyRequests: 500, note: '30 days' },
