@@ -381,24 +381,14 @@ button{font-family:inherit;cursor:pointer}
 .ch-down-retry:hover::after{left:130%}
 
 .ch-down-retry-icon{
-  position:relative;width:14px;height:14px;flex-shrink:0;
+  position:relative;width:14px;height:14px;flex-shrink:0;display:inline-flex;
 }
-.ch-down-retry-icon::before{
-  content:'';position:absolute;inset:0;
-  border:2px solid var(--text);border-radius:50%;
-  border-top-color:transparent;
-  transition:transform .0s;
+.ch-down-retry-icon svg{
+  width:100%;height:100%;display:block;
+  fill:none;stroke:var(--text);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;
+  transform-origin:50% 50%;
 }
-.ch-down-retry-icon::after{
-  content:'';position:absolute;
-  top:-2px;right:1px;
-  width:0;height:0;
-  border-left:4px solid transparent;
-  border-right:4px solid transparent;
-  border-bottom:5px solid var(--text);
-  transform:rotate(45deg);
-}
-.ch-down-retry.spinning .ch-down-retry-icon::before{
+.ch-down-retry.spinning .ch-down-retry-icon svg{
   animation:retrySpin .65s cubic-bezier(.4,0,.2,1) forwards;
 }
 @keyframes retrySpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
@@ -1461,7 +1451,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
             </div>
             <div class="ch-down-sub">Please try again later<span class="ch-down-dot1">.</span><span class="ch-down-dot2">.</span><span class="ch-down-dot3">.</span></div>
             <button class="ch-down-retry" id="chDownRetry" type="button">
-              <span class="ch-down-retry-icon"></span>
+              <span class="ch-down-retry-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></span>
               RETRY
             </button>
           </div>

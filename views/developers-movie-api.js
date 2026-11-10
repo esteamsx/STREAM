@@ -531,9 +531,19 @@ ${musicPlayerStyle()}
       <input type="text" id="tryitKeyInput" placeholder="estv_… (pasted, never stored)" autocomplete="off">
     </div>
 
-    <div class="field">
+    <div class="field" id="tryitParamWrap">
       <label id="tryitParamLabel">Image URL</label>
-      <input type="text" id="tryitParamInput" placeholder="https://example.com/image.png">
+      <input type="text" id="tryitParamInput" placeholder="https://example.com/image.png" autocomplete="off">
+    </div>
+
+    <div class="field" id="tryitParam2Wrap" style="display:none">
+      <label id="tryitParam2Label">Field 2</label>
+      <input type="text" id="tryitParam2Input" autocomplete="off">
+    </div>
+
+    <div class="field" id="tryitParam3Wrap" style="display:none">
+      <label id="tryitParam3Label">Field 3</label>
+      <input type="text" id="tryitParam3Input" autocomplete="off">
     </div>
 
     <button class="btn btn-primary" id="tryitSendBtn" type="button" style="width:100%;justify-content:center;margin-bottom:4px">
@@ -1017,11 +1027,28 @@ ${musicPlayerHtml()}
     catalog: { title: 'Try it - Catalog', method: 'GET', path: '/api/v1/movie/catalog/movies', param: 'page', label: 'Page', placeholder: '1', optional: true },
     search: { title: 'Try it - Movie Search', method: 'GET', path: '/api/v1/movie/search', param: 'q', label: 'Title', placeholder: 'Inception' },
     suggest: { title: 'Try it - Suggestions', method: 'GET', path: '/api/v1/movie/suggest', param: 'q', label: 'Search text', placeholder: 'breaking' },
-    detail: { title: 'Try it - Title Details', method: 'GET', path: '/api/v1/movie/detail/example-slug', optional: true },
-    streams: { title: 'Try it - Stream Sources', method: 'GET', path: '/api/v1/movie/streams/subject-id', param: 'slug', label: 'Title slug', placeholder: 'title-slug' },
-    play: { title: 'Try it - Stream Playback', method: 'GET', path: '/api/v1/movie/play/subject-id', param: 'slug', label: 'Title slug', placeholder: 'title-slug' },
-    download: { title: 'Try it - Direct Download', method: 'GET', path: '/api/v1/movie/download/subject-id', param: 'slug', label: 'Title slug', placeholder: 'title-slug' },
-    jobs: { title: 'Try it - Download Jobs', method: 'POST', path: '/api/v1/movie/download-jobs', param: 'subjectId', label: 'Subject ID', placeholder: 'subject-id', body: true }
+    detail: { title: 'Try it - Title Details', method: 'GET', path: '/api/v1/movie/detail/{slug}', fields: [
+      { key: 'slug', where: 'path', label: 'Title slug', placeholder: 'slug from search results' }
+    ] },
+    streams: { title: 'Try it - Stream Sources', method: 'GET', path: '/api/v1/movie/streams/{subjectId}', fields: [
+      { key: 'subjectId', where: 'path', label: 'Subject ID', placeholder: 'id from search results' },
+      { key: 'slug', where: 'query', label: 'Title slug', placeholder: 'slug from search results' }
+    ] },
+    play: { title: 'Try it - Stream Playback', method: 'GET', path: '/api/v1/movie/play/{subjectId}', fields: [
+      { key: 'subjectId', where: 'path', label: 'Subject ID', placeholder: 'id from search results' },
+      { key: 'slug', where: 'query', label: 'Title slug', placeholder: 'slug from search results' },
+      { key: 'res', where: 'query', label: 'Quality (360, 480, 720 or 1080)', placeholder: '360', def: '360' }
+    ] },
+    download: { title: 'Try it - Direct Download', method: 'GET', path: '/api/v1/movie/download/{subjectId}', fields: [
+      { key: 'subjectId', where: 'path', label: 'Subject ID', placeholder: 'id from search results' },
+      { key: 'slug', where: 'query', label: 'Title slug', placeholder: 'slug from search results' },
+      { key: 'res', where: 'query', label: 'Quality (360, 480, 720 or 1080)', placeholder: '360', def: '360' }
+    ] },
+    jobs: { title: 'Try it - Download Jobs', method: 'POST', path: '/api/v1/movie/download-jobs', body: true, fields: [
+      { key: 'subjectId', where: 'body', label: 'Subject ID', placeholder: 'id from search results' },
+      { key: 'slug', where: 'body', label: 'Title slug', placeholder: 'slug from search results' },
+      { key: 'res', where: 'body', label: 'Quality (360, 480, 720 or 1080)', placeholder: '360', def: '360' }
+    ] }
   };
 
   function buildQueryParams(ep, val){
@@ -1036,12 +1063,34 @@ ${musicPlayerHtml()}
     return single;
   }
 
+  function tryitFields(ep){
+    if(ep.fields) return ep.fields;
+    if(ep.param) return [{ key: ep.param, where: ep.body ? 'body' : 'query', label: ep.label, placeholder: ep.placeholder, optional: !!ep.optional }];
+    return [];
+  }
+  function tryitInputs(){ return [tryitParamInput, tryitParam2Input, tryitParam3Input]; }
+  function tryitResolve(ep, forCurl){
+    var inputs = tryitInputs();
+    var path = ep.path, query = {}, body = {};
+    tryitFields(ep).forEach(function(f, i){
+      var v = inputs[i].value.trim();
+      if(!v && f.def) v = f.def;
+      if(!v && forCurl) v = f.placeholder;
+      if(f.where === 'path') path = path.replace('{' + f.key + '}', encodeURIComponent(v));
+      else if(f.where === 'body') body[f.key] = v;
+      else query[f.key] = v;
+    });
+    return { path: path, query: query, body: body };
+  }
+
   var tryitEndpoint = 'ocr';
   var tryitOverlay = document.getElementById('tryitOverlay');
   var tryitOverlayTitle = document.getElementById('tryitOverlayTitle');
   var tryitKeyInput = document.getElementById('tryitKeyInput');
   var tryitParamLabel = document.getElementById('tryitParamLabel');
   var tryitParamInput = document.getElementById('tryitParamInput');
+  var tryitParam2Input = document.getElementById('tryitParam2Input');
+  var tryitParam3Input = document.getElementById('tryitParam3Input');
   var tryitCurlEl = document.getElementById('tryitCurl');
   var tryitResultBox = document.getElementById('tryitResultBox');
   var tryitResultStatus = document.getElementById('tryitResultStatus');
@@ -1051,9 +1100,19 @@ ${musicPlayerHtml()}
     tryitEndpoint = name;
     var ep = TRYIT_ENDPOINTS[name];
     tryitOverlayTitle.textContent = ep.title;
-    tryitParamLabel.textContent = ep.label;
-    tryitParamInput.placeholder = ep.placeholder;
-    tryitParamInput.value = '';
+    var fields = tryitFields(ep);
+    var wraps = ['tryitParamWrap', 'tryitParam2Wrap', 'tryitParam3Wrap'];
+    var labels = ['tryitParamLabel', 'tryitParam2Label', 'tryitParam3Label'];
+    var inputs = tryitInputs();
+    for(var i = 0; i < 3; i++){
+      var f = fields[i];
+      document.getElementById(wraps[i]).style.display = f ? '' : 'none';
+      if(f){
+        document.getElementById(labels[i]).textContent = f.label;
+        inputs[i].placeholder = f.placeholder;
+      }
+      inputs[i].value = '';
+    }
     tryitResultBox.style.display = 'none';
     updateTryitCurl();
     tryitOverlay.classList.add('show');
@@ -1082,19 +1141,20 @@ ${musicPlayerHtml()}
     var origin = window.location.origin;
     var ep = TRYIT_ENDPOINTS[tryitEndpoint];
     var key = tryitKeyInput.value.trim() || 'estv_your_key_here';
-    var val = tryitParamInput.value.trim() || ep.placeholder;
+    var resolved = tryitResolve(ep, true);
     if(ep.body){
-      var bodyObj = {}; bodyObj[ep.param] = val;
-      var bodyJson = JSON.stringify(bodyObj);
-      tryitCurlEl.textContent = 'curl -X POST -H "x-api-key: ' + key + '" -H "Content-Type: application/json" \\\\\\n  -d \\'' + bodyJson + '\\' \\\\\\n  "' + origin + ep.path + '"';
+      var bodyJson = JSON.stringify(resolved.body);
+      tryitCurlEl.textContent = 'curl -X POST -H "x-api-key: ' + key + '" -H "Content-Type: application/json" \\\\\\n  -d \\'' + bodyJson + '\\' \\\\\\n  "' + origin + resolved.path + '"';
     } else {
-      var params = buildQueryParams(ep, val);
+      var params = resolved.query;
       var qs = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
-      tryitCurlEl.textContent = 'curl -H "x-api-key: ' + key + '" \\\\\\n  "' + origin + ep.path + '?' + qs + '"';
+      tryitCurlEl.textContent = 'curl -H "x-api-key: ' + key + '" \\\\\\n  "' + origin + resolved.path + (qs ? '?' + qs : '') + '"';
     }
   }
   tryitKeyInput.addEventListener('input', updateTryitCurl);
   tryitParamInput.addEventListener('input', updateTryitCurl);
+  tryitParam2Input.addEventListener('input', updateTryitCurl);
+  tryitParam3Input.addEventListener('input', updateTryitCurl);
 
   document.getElementById('tryitCopyCurl').addEventListener('click', function(){
     navigator.clipboard.writeText(tryitCurlEl.textContent).catch(function(){});
@@ -1107,30 +1167,32 @@ ${musicPlayerHtml()}
     var btn = this;
     var ep = TRYIT_ENDPOINTS[tryitEndpoint];
     var key = tryitKeyInput.value.trim();
-    var val = tryitParamInput.value.trim();
     if(!key){
       tryitResultBox.style.display = 'block';
       tryitResultStatus.innerHTML = '<span class="status-pill bad">-</span>';
       tryitResultBody.textContent = 'Paste your API key above first.';
       return;
     }
-    if(!val && !ep.optional){
-      tryitResultBox.style.display = 'block';
-      tryitResultStatus.innerHTML = '<span class="status-pill bad">-</span>';
-      tryitResultBody.textContent = 'Fill in ' + ep.label + ' first.';
-      return;
+    var sendFields = tryitFields(ep), sendInputs = tryitInputs();
+    for(var fi = 0; fi < sendFields.length; fi++){
+      if(!sendFields[fi].optional && !sendFields[fi].def && !sendInputs[fi].value.trim()){
+        tryitResultBox.style.display = 'block';
+        tryitResultStatus.innerHTML = '<span class="status-pill bad">-</span>';
+        tryitResultBody.textContent = 'Fill in ' + sendFields[fi].label + ' first.';
+        return;
+      }
     }
     var url, opts = { headers: { 'x-api-key': key } };
+    var resolved = tryitResolve(ep, false);
     if(ep.body){
-      url = ep.path;
+      url = resolved.path;
       opts.method = 'POST';
       opts.headers['Content-Type'] = 'application/json';
-      var b = buildQueryParams(ep, val);
-      opts.body = JSON.stringify(b);
+      opts.body = JSON.stringify(resolved.body);
     } else {
-      var params = buildQueryParams(ep, val);
+      var params = resolved.query;
       var qs = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
-      url = ep.path + '?' + qs;
+      url = resolved.path + (qs ? '?' + qs : '');
     }
     var start = performance.now();
     var originalHtml = btn.innerHTML;
@@ -1146,6 +1208,14 @@ ${musicPlayerHtml()}
           tryitResultStatus.innerHTML = statusHtml;
           tryitResultBody.innerHTML = '<img src="' + objUrl + '" style="max-width:100%;border-radius:8px;display:block">';
         });
+      }
+      var contentType = res.headers.get('content-type') || '';
+      if(res.ok && contentType.indexOf('json') === -1){
+        if(res.body && res.body.cancel) res.body.cancel();
+        tryitResultBox.style.display = 'block';
+        tryitResultStatus.innerHTML = statusHtml;
+        tryitResultBody.textContent = 'Stream started (' + contentType + ', ' + (res.headers.get('content-length') || 'unknown') + ' bytes). The test stopped early so it does not download the whole file.';
+        return;
       }
       return res.json().catch(function(){ return {}; }).then(function(data){
         tryitResultBox.style.display = 'block';

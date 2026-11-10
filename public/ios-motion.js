@@ -12,6 +12,7 @@
   style.textContent = '\
 @keyframes esIosScrollGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}\
 @keyframes esIosSoftPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.08)}}\
+@keyframes esIosRefreshSpin{to{transform:rotate(360deg)}}\
 #esIosScrollProgress{position:fixed;top:0;left:0;width:100%;height:2px;z-index:1001;pointer-events:none;transform:scaleX(0);transform-origin:0 50%;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 12px color-mix(in srgb,var(--accent) 55%,transparent);}\
 .ios-motion-enabled #esIosScrollProgress{animation:esIosScrollGrow linear;animation-timeline:scroll(root block)}\
 .es-ios-pull-refresh{position:fixed;top:max(12px,env(safe-area-inset-top));left:50%;width:68px;height:68px;z-index:1002;display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(155deg,rgba(255,255,255,.18),rgba(255,255,255,.05)),rgba(20,20,28,.68);border:1px solid rgba(255,255,255,.24);box-shadow:0 14px 34px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.24);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);transform:translate(-50%,-150%) scale(.72);opacity:0;pointer-events:none;transition:transform .42s cubic-bezier(.22,.61,.36,1),opacity .22s ease;}\
@@ -19,9 +20,10 @@
 .es-ios-pull-refresh svg{position:absolute;width:42px;height:42px;}\
 .es-ios-pull-refresh .es-ios-pull-track{fill:none;stroke:rgba(255,255,255,.18);stroke-width:3.2;}\
 .es-ios-pull-refresh .es-ios-pull-progress{fill:none;stroke:#ffd447;stroke-width:3.2;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke .18s ease;}\
-.es-ios-pull-refresh .es-ios-pull-icon{fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s cubic-bezier(.22,.61,.36,1),stroke .18s ease;}\
+.es-ios-pull-refresh .es-ios-pull-icon{fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transform-box:fill-box;transform-origin:center;transition:stroke .18s ease;}\
 .es-ios-pull-refresh.ready .es-ios-pull-progress{stroke:#3ddc84;}\
-.es-ios-pull-refresh.ready .es-ios-pull-icon{stroke:#3ddc84;transform:rotate(180deg);}\
+.es-ios-pull-refresh.ready .es-ios-pull-icon{stroke:#3ddc84;}\
+.es-ios-pull-refresh.refreshing .es-ios-pull-icon{animation:esIosRefreshSpin .8s linear infinite;}\
 .es-ios-pull-refresh .es-ios-pull-label{position:absolute;top:72px;white-space:nowrap;color:var(--text);font-size:.68rem;font-weight:700;opacity:0;transform:translateY(-4px);transition:opacity .2s ease,transform .2s ease;}\
 .es-ios-pull-refresh.show .es-ios-pull-label{opacity:.82;transform:none;}\
 .ios-motion-enabled .es-ios-glass-item{position:relative;isolation:isolate;}\
@@ -43,7 +45,7 @@
   var pullRefresh = document.createElement('div');
   pullRefresh.className = 'es-ios-pull-refresh';
   pullRefresh.setAttribute('aria-hidden', 'true');
-  pullRefresh.innerHTML = '<svg viewBox="0 0 52 52"><circle class="es-ios-pull-track" cx="26" cy="26" r="22"></circle><circle class="es-ios-pull-progress" cx="26" cy="26" r="22" pathLength="100"></circle><path class="es-ios-pull-icon" d="M34 19a11 11 0 10.8 13.5M34 19v7h-7"></path></svg><span class="es-ios-pull-label">Hold to refresh</span>';
+  pullRefresh.innerHTML = '<svg viewBox="0 0 52 52"><circle class="es-ios-pull-track" cx="26" cy="26" r="22"></circle><circle class="es-ios-pull-progress" cx="26" cy="26" r="22" pathLength="100"></circle><g transform="translate(12 12) scale(1.1667)"><g class="es-ios-pull-icon"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></g></g></svg><span class="es-ios-pull-label">Hold to refresh</span>';
   document.body.appendChild(pullRefresh);
 
   if (reduceMotion) return;
@@ -115,6 +117,7 @@
   var PULL_TRIGGER_PX = 28;
   var progressCircle = pullRefresh.querySelector('.es-ios-pull-progress');
   var pullLabel = pullRefresh.querySelector('.es-ios-pull-label');
+  var pullIcon = pullRefresh.querySelector('.es-ios-pull-icon');
   var pullExcluded = function(target){
     return !!(target && target.closest && target.closest('[data-no-smooth],video,iframe,canvas,input,textarea,select,button,a,[class*="chat"],[class*="comment"],[class*="feed"],[class*="map"],.page-overlay,.music-player'));
   };
@@ -127,7 +130,8 @@
     pullActive = false;
     pullComplete = false;
     pullStartedAt = 0;
-    pullRefresh.classList.remove('show','ready');
+    pullRefresh.classList.remove('show','ready','refreshing');
+    pullIcon.style.transform = '';
     progressCircle.style.strokeDasharray = '0 100';
     progressCircle.style.stroke = '#ffd447';
     pullLabel.textContent = 'Hold to refresh';
@@ -136,6 +140,7 @@
     if (!pullActive || pullComplete) return;
     var amount = Math.min(1, Math.max(0, (now - pullStartedAt) / PULL_HOLD_MS));
     progressCircle.style.strokeDasharray = (amount * 100) + ' 100';
+    pullIcon.style.transform = 'rotate(' + (amount * 360) + 'deg)';
     if (amount >= .84) {
       pullRefresh.classList.add('ready');
       progressCircle.style.stroke = '#3ddc84';
@@ -146,6 +151,7 @@
     }
     if (amount >= 1) {
       pullComplete = true;
+      pullRefresh.classList.add('refreshing');
       pullLabel.textContent = 'Refreshing…';
       progressCircle.style.stroke = '#3ddc84';
       setTimeout(function(){ window.location.reload(); }, 120);

@@ -50,8 +50,11 @@ function countActive(uid) { return [...jobs.values()].filter((j) => j.uid === ui
 function cleanText(value, max = 180) { return String(value || "").replace(/[\u0000-\u001f]/g, "").slice(0, max); }
 function parseSpec(input) {
   const subjectId = cleanText(input.subjectId, 120), slug = cleanText(input.slug, 180), resolution = cleanText(input.resolution || input.res, 8).replace(/p$/i, "");
-  const se = cleanText(input.se, 12), ep = cleanText(input.ep, 12), filename = cleanText(input.filename, 140).replace(/[^\w .()\-]/g, "_");
-  if (!subjectId || !slug || !/^\d+$/.test(resolution) || !/^[\w .()\-]+\.mp4$/i.test(filename)) throw Object.assign(new Error("That download selection is invalid."), { status: 400 });
+  const se = cleanText(input.se, 12), ep = cleanText(input.ep, 12);
+  let filename = cleanText(input.filename, 140).replace(/[^\w .()\-]/g, "_").trim();
+  if (!filename) filename = "es-teams-movie-" + resolution + "p.mp4";
+  else if (!/\.mp4$/i.test(filename)) filename += ".mp4";
+  if (!/^[A-Za-z0-9_-]{2,64}$/.test(subjectId) || !/^[A-Za-z0-9._~-]{2,160}$/.test(slug) || !/^(?:360|480|720|1080)$/.test(resolution) || !/^[\w .()\-]+\.mp4$/i.test(filename)) throw Object.assign(new Error("That download selection is invalid. Send subjectId, slug and a res of 360, 480, 720 or 1080."), { status: 400 });
   return { subjectId, slug, se, ep, resolution, filename };
 }
 async function startWorker(job) {

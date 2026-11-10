@@ -46,6 +46,7 @@ function brandingFor(profile, plan) {
 }
 function movieError(res, e, fallback = "Movie API request failed.") {
   if (e instanceof MovieError) return res.status(e.status).json({ error: e.message, code: e.code });
+  if (e && Number.isInteger(e.status) && e.status >= 400 && e.status < 500) return res.status(e.status).json({ error: e.message || fallback, code: e.status === 429 ? "rate_limited" : "bad_request" });
   console.error("[movie-api]", e?.message || e);
   return res.status(500).json({ error: fallback, code: "server" });
 }

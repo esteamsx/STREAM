@@ -59,6 +59,15 @@ async function servesMedia(url) {
   }
 }
 
+function pickVideoQuality(meta, wanted) {
+  const formats = Array.isArray(meta && meta.video_formats) ? meta.video_formats : [];
+  const levels = [...new Set(formats.map((item) => parseInt(item && item.quality, 10)).filter((n) => Number.isFinite(n) && n > 0))].sort((a, b) => b - a);
+  const target = parseInt(wanted, 10) || 720;
+  if (!levels.length || levels.includes(target)) return String(target);
+  const below = levels.find((n) => n < target);
+  return String(below || levels[levels.length - 1]);
+}
+
 async function attempt(videoUrl, id, isAudio, quality) {
   const headers = {
     "content-type": "application/json",
@@ -79,6 +88,7 @@ async function attempt(videoUrl, id, isAudio, quality) {
   const meta = decryptPayload(infoResponse.data);
 
   let downloadUrl = null;
+  if (!isAudio) quality = pickVideoQuality(meta, quality);
   if (!isAudio && Array.isArray(meta.video_formats)) {
     const format = meta.video_formats.find((item) => String(item.quality) === quality && item.url);
     if (format) downloadUrl = `${format.url}${format.url.includes("?") ? "&" : "?"}title=${meta.titleSlug || "video"}`;
@@ -92,7 +102,7 @@ async function attempt(videoUrl, id, isAudio, quality) {
     downloadUrl = downloadResponse?.data?.downloadUrl;
   }
   if (!downloadUrl) throw new Error("The service did not return a download link.");
-  return { meta, downloadUrl };
+  return { meta, downloadUrl, quality };
 }
 
 async function runSaveTube(input, format) {
@@ -130,6 +140,7 @@ async function runSaveTube(input, format) {
     videoId: id,
     url,
     format: isAudio ? "mp3" : "mp4",
+    quality: best.quality,
     download: downloadUrl,
     download_url: downloadUrl,
     cover: meta.thumbnail || null,
@@ -183,7 +194,7 @@ export async function fetchYoutubeMp4(videoUrl) {
     title: result.title || "Untitled",
     thumbnail: result.thumbnail || null,
     duration: result.duration,
-    quality: "720",
+    quality: result.quality || "720",
     videoUrl: result.download,
     fallbackVideoUrl: null,
     fallbackAudioUrl: null,

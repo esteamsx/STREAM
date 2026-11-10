@@ -80,7 +80,10 @@ async function upstream(path, params = {}) {
         await pause(retryDelay(res));
         continue;
       }
-      if (!res.ok) throw new MovieError(502, "upstream", "The movie service had a problem (" + res.status + ").");
+      if (!res.ok) {
+        console.warn("[moviebox] " + path + " answered " + res.status + ": " + (await responseDetail(res)));
+        throw new MovieError(502, "upstream", "The movie service had a problem (" + res.status + ").");
+      }
       const text = await res.text();
       if (text.length > MAX_BODY_CHARS) throw new MovieError(502, "upstream", "The movie service sent too much data.");
       try { return JSON.parse(text); } catch { throw new MovieError(502, "upstream", "The movie service sent something unreadable."); }
