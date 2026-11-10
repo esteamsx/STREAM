@@ -13,6 +13,8 @@
 @keyframes esIosScrollGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}\
 @keyframes esIosSoftPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.08)}}\
 @keyframes esIosRefreshSpin{to{transform:rotate(360deg)}}\
+@view-transition{navigation:auto;}\
+::view-transition-old(root),::view-transition-new(root){animation-duration:.24s;animation-timing-function:cubic-bezier(.22,.61,.36,1)}\
 #esIosScrollProgress{position:fixed;top:0;left:0;width:100%;height:2px;z-index:1001;pointer-events:none;transform:scaleX(0);transform-origin:0 50%;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 12px color-mix(in srgb,var(--accent) 55%,transparent);}\
 .ios-motion-enabled #esIosScrollProgress{animation:esIosScrollGrow linear;animation-timeline:scroll(root block)}\
 .es-ios-pull-refresh{position:fixed;top:max(12px,env(safe-area-inset-top));left:50%;width:68px;height:68px;z-index:1002;display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(155deg,rgba(255,255,255,.18),rgba(255,255,255,.05)),rgba(20,20,28,.68);border:1px solid rgba(255,255,255,.24);box-shadow:0 14px 34px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.24);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);transform:translate(-50%,-150%) scale(.72);opacity:0;pointer-events:none;transition:transform .42s cubic-bezier(.22,.61,.36,1),opacity .22s ease;}\
@@ -35,7 +37,7 @@
 .ios-motion-enabled .es-ios-motion-item.es-ios-visible{opacity:1;transform:none;}\
 .ios-motion-enabled button:not([data-no-smooth]),.ios-motion-enabled a:not([data-no-smooth]){transition:transform .18s cubic-bezier(.22,.61,.36,1),filter .18s ease;}\
 .ios-motion-enabled button:not([data-no-smooth]):active,.ios-motion-enabled a:not([data-no-smooth]):active{transform:scale(.97);}\
-@media(prefers-reduced-motion:reduce){#esIosScrollProgress{display:none!important}.es-ios-motion-item{opacity:1!important;transform:none!important;transition:none!important}}';
+@media(prefers-reduced-motion:reduce){#esIosScrollProgress{display:none!important}.es-ios-motion-item{opacity:1!important;transform:none!important;transition:none!important}::view-transition-group(root),::view-transition-image-pair(root),::view-transition-old(root),::view-transition-new(root){animation-duration:0s!important;animation-delay:0s!important}}';
   (document.head || document.documentElement).appendChild(style);
 
   var progress = document.createElement('div');
