@@ -479,7 +479,7 @@ ${musicPlayerStyle()}
     <h2 class="doc-h2">Errors</h2>
     <table><tr><th>Status</th><th>Meaning</th></tr><tr><td>400</td><td>Invalid query, slug, subject, quality, or range.</td></tr><tr><td>401</td><td>Missing, invalid, or revoked Movie API key.</td></tr><tr><td>404</td><td>Title, source, or download job was not found.</td></tr><tr><td>429</td><td>Daily, weekly, monthly, or upstream service limit reached.</td></tr><tr><td>502/503</td><td>The Moviebox API or selected source is temporarily unavailable.</td></tr></table>
     <h2 class="doc-h2">Rate limits &amp; usage</h2>
-    <p class="doc-p">Free starts at 5 daily, 25 weekly, and 50 monthly requests. Each higher tier doubles those limits. Requests past any plan limit receive a <code>429</code> response until that period resets. Track daily, weekly, and monthly usage from the <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
+    <p class="doc-p">Free includes 5 daily, 25 weekly, and 50 monthly requests. Starter includes 50 daily, 250 weekly, and 500 monthly; Standard 100 daily, 500 weekly, and 1,000 monthly; Pro 250 daily, 1,250 weekly, and 2,250 monthly; and Max 500 daily, 2,500 weekly, and 5,000 monthly. Requests past any plan limit receive a <code>429</code> response until that period resets. Track daily, weekly, and monthly usage from the <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
     <div class="note">This is an early version of the Movie API. Endpoints and limits may change, and more useful movie features will be added over time.</div>
   </div>
 </div>
@@ -592,10 +592,10 @@ ${musicPlayerHtml()}
 
   var PLAN_DEFS = [
     { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, dailyRequests: 5, weeklyRequests: 25, monthlyRequests: 50, noAds: false, customAdsName: false, customAdsLink: false, note: 'Default plan' },
-    { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, dailyRequests: 10, weeklyRequests: 50, monthlyRequests: 100, noAds: false, customAdsName: false, customAdsLink: false, note: 'Auto with account verification' },
-    { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, dailyRequests: 20, weeklyRequests: 100, monthlyRequests: 200, noAds: true, customAdsName: false, customAdsLink: false, note: '30 days' },
-    { key: 'pro', name: 'Pro', priceNgn: 13500, apiKeys: 10, dailyRequests: 50, weeklyRequests: 250, monthlyRequests: 450, noAds: true, customAdsName: true, customAdsLink: false, note: '30 days', highlight: true },
-    { key: 'max', name: 'Max', priceNgn: 20500, apiKeys: 15, dailyRequests: 100, weeklyRequests: 500, monthlyRequests: 1000, noAds: true, customAdsName: true, customAdsLink: true, note: '30 days' },
+    { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, dailyRequests: 50, weeklyRequests: 250, monthlyRequests: 500, noAds: false, customAdsName: false, customAdsLink: false, note: 'Auto with account verification' },
+    { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, dailyRequests: 100, weeklyRequests: 500, monthlyRequests: 1000, noAds: true, customAdsName: false, customAdsLink: false, note: '30 days' },
+    { key: 'pro', name: 'Pro', priceNgn: 13500, apiKeys: 10, dailyRequests: 250, weeklyRequests: 1250, monthlyRequests: 2250, noAds: true, customAdsName: true, customAdsLink: false, note: '30 days', highlight: true },
+    { key: 'max', name: 'Max', priceNgn: 20500, apiKeys: 15, dailyRequests: 500, weeklyRequests: 2500, monthlyRequests: 5000, noAds: true, customAdsName: true, customAdsLink: true, note: '30 days' },
   ];
 
   function fmtNgn(n){ return '₦' + n.toLocaleString('en-NG'); }

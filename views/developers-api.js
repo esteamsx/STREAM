@@ -1783,10 +1783,10 @@ ${musicPlayerHtml()}
 
   var PLAN_DEFS = [
     { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, requestsPerSecond: 3, monthlyRequests: 100, noAds: false, customAdsLink: false, note: 'Default plan' },
-    { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, requestsPerSecond: 10, monthlyRequests: 200, noAds: false, customAdsLink: false, note: 'Auto with account verification' },
-    { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, requestsPerSecond: 20, monthlyRequests: 350, noAds: false, customAdsLink: false, note: '30 days' },
-    { key: 'pro', name: 'Pro', priceNgn: 13500, apiKeys: 10, requestsPerSecond: 35, monthlyRequests: 500, noAds: true, customAdsLink: false, note: '30 days', highlight: true },
-    { key: 'max', name: 'Max', priceNgn: 20500, apiKeys: 15, requestsPerSecond: 50, monthlyRequests: 1000, noAds: true, customAdsLink: true, note: '30 days' },
+    { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, requestsPerSecond: 50, monthlyRequests: 1000, noAds: false, customAdsLink: false, note: 'Auto with account verification' },
+    { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, requestsPerSecond: 100, monthlyRequests: 1750, noAds: false, customAdsLink: false, note: '30 days' },
+    { key: 'pro', name: 'Pro', priceNgn: 13500, apiKeys: 10, requestsPerSecond: 175, monthlyRequests: 2500, noAds: true, customAdsLink: false, note: '30 days', highlight: true },
+    { key: 'max', name: 'Max', priceNgn: 20500, apiKeys: 15, requestsPerSecond: 250, monthlyRequests: 5000, noAds: true, customAdsLink: true, note: '30 days' },
   ];
 
   function fmtNgn(n){ return '₦' + n.toLocaleString('en-NG'); }
