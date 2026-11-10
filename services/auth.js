@@ -1998,31 +1998,49 @@ async function getNotifications(uid, limit = 50) {
 
 const NOTIF_STATE_TTL_MS = 3 * 60 * 1000;
 const notifStateCache = new Map();
+const notifStateInflight = new Map();
 
 function invalidateNotifState(uid) {
-  if (uid) notifStateCache.delete(uid);
-  else notifStateCache.clear();
+  if (uid) {
+    notifStateCache.delete(uid);
+    const pending = notifStateInflight.get(uid);
+    if (pending) pending.invalidated = true;
+  } else {
+    notifStateCache.clear();
+    for (const pending of notifStateInflight.values()) pending.invalidated = true;
+  }
 }
 
 async function unreadNotifState(uid) {
   const hit = notifStateCache.get(uid);
   if (hit && Date.now() - hit.at < NOTIF_STATE_TTL_MS) return hit;
-  let count;
-  try {
-    const base = db.collection("notifications").where("uid", "==", uid).where("read", "==", false);
-    const [all, comments] = await Promise.all([
-      base.limit(100).count().get(),
-      base.where("type", "==", "comment").limit(100).count().get(),
-    ]);
-    count = Math.max(0, all.data().count - comments.data().count);
-  } catch {
-    const snap = await db.collection("notifications").where("uid", "==", uid).where("read", "==", false).limit(100).get();
-    count = snap.docs.filter((d) => d.data().type !== "comment").length;
-  }
-  const state = { count, at: Date.now() };
-  if (notifStateCache.size >= 5000) notifStateCache.clear();
-  notifStateCache.set(uid, state);
-  return state;
+  const existing = notifStateInflight.get(uid);
+  if (existing) return existing.promise;
+  const pending = { invalidated: false, promise: null };
+  pending.promise = (async () => {
+    let count;
+    try {
+      const base = db.collection("notifications").where("uid", "==", uid).where("read", "==", false);
+      const [all, comments] = await Promise.all([
+        base.limit(100).count().get(),
+        base.where("type", "==", "comment").limit(100).count().get(),
+      ]);
+      count = Math.max(0, all.data().count - comments.data().count);
+    } catch {
+      const snap = await db.collection("notifications").where("uid", "==", uid).where("read", "==", false).limit(100).get();
+      count = snap.docs.filter((d) => d.data().type !== "comment").length;
+    }
+    const state = { count, at: Date.now() };
+    if (!pending.invalidated) {
+      if (notifStateCache.size >= 5000) notifStateCache.clear();
+      notifStateCache.set(uid, state);
+    }
+    return state;
+  })().finally(() => {
+    if (notifStateInflight.get(uid) === pending) notifStateInflight.delete(uid);
+  });
+  notifStateInflight.set(uid, pending);
+  return pending.promise;
 }
 
 async function hasUnreadNotifications(uid) {

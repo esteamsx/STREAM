@@ -1087,7 +1087,7 @@ body:has(.page-overlay.show){overflow:hidden}
   <div class="acc-nav-title">Account Settings</div>
   <button type="button" class="notif-bell" id="notifBellBtn" aria-label="Notifications">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-    <span class="notif-dot" id="notifDot"></span>
+    <span class="notif-dot js-dot" id="notifDot"></span>
   </button>
 </div>
 
@@ -3046,12 +3046,6 @@ document.getElementById('notifList').addEventListener('click', async (e) => {
 function isFaceScanActive(){
   return document.documentElement.classList.contains('face-scan-active') || !!document.getElementById('faceScanOverlay');
 }
-async function loadNotifDot(){
-  try {
-    const data = await getJSON('/api/notifications/unread');
-    document.getElementById('notifDot').classList.toggle('show', !!data.hasUnread);
-  } catch (err) {}
-}
 async function openNotifOverlay(){
   const overlay = document.getElementById('notifOverlay');
   document.getElementById('notifList').innerHTML = '<div class="sk-stack"><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div><div class="sk-row"><div class="sk-avatar"></div><div class="sk-row-body"><div class="sk-line w60"></div><div class="sk-line w30"></div></div></div></div>';
@@ -3122,12 +3116,6 @@ document.getElementById('notifMarkReadBtn').addEventListener('click', async () =
   btn.textContent = originalText;
   btn.disabled = false;
 });
-loadNotifDot();
-setInterval(() => { if (!document.hidden && !isFaceScanActive()) loadNotifDot(); }, 20000);
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && !isFaceScanActive()) loadNotifDot();
-});
-
 function flashMsg(el, msg, ok){
   el.textContent = msg;
   el.className = 'acc-msg show ' + (ok ? 'ok' : 'err');
