@@ -458,14 +458,20 @@ document.getElementById('esNotifMarkReadBtn').addEventListener('click', async ()
 
 var LG_ICONS = {
   success: '<svg class="lg-face" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/><circle cx="9" cy="10" r=".65" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".65" fill="currentColor" stroke="none"/><path d="M9 15c1 1 5 1 6 0"/></svg><svg class="lg-check-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path check" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>',
-  error: '<svg class="lg-check-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path cross" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>'
+  error: '<svg class="lg-check-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path class="lg-icon-path cross" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>',
+  warning: '<svg class="lg-check-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.8 19h18.4L12 3z"/><path d="M12 9v4"/><path d="M12 16.5h.01"/></svg>'
 };
 function showLiquidToast(message, type, durationMs){
-  var kind = type === 'error' ? 'error' : 'success';
+  var kind = type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'success';
   var toast = document.createElement('div');
   toast.className = 'lg-toast';
   toast.innerHTML = '<span class="lg-icon ' + kind + '">' + LG_ICONS[kind] + '</span><span></span>';
   toast.querySelector('span:last-child').textContent = message;
+  if(kind === 'warning'){
+    toast.querySelector('.lg-icon svg').style.color = '#ffd447';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+  }
   document.body.appendChild(toast);
   requestAnimationFrame(function(){ requestAnimationFrame(function(){ toast.classList.add('show'); }); });
   setTimeout(function(){
@@ -1328,6 +1334,29 @@ function esWelcomeToast(me) {
   } catch (e) {}
 }
 
+var esApiQuota80Shown = new Set();
+function esNotifyApiQuota80(product, label, used, limit, keys){
+  var usedCount = Number(used);
+  var limitCount = Number(limit);
+  if(!Number.isFinite(usedCount) || !Number.isFinite(limitCount) || usedCount < 0 || limitCount <= 0 || usedCount * 100 < limitCount * 80) return false;
+  var month = new Date().toISOString().slice(0, 7);
+  var keyIds = Array.isArray(keys) ? keys.map(function(key){ return String(key && key.id || ''); }).filter(Boolean).sort() : [];
+  var scope = keyIds.length ? keyIds[0] : 'no-key';
+  var storageKey = 'es-api-quota-80:' + product + ':' + month + ':' + Math.floor(limitCount) + ':' + scope;
+  if(esApiQuota80Shown.has(storageKey)) return false;
+  try {
+    if(window.localStorage.getItem(storageKey) === '1'){
+      esApiQuota80Shown.add(storageKey);
+      return false;
+    }
+    window.localStorage.setItem(storageKey, '1');
+  } catch (e) {}
+  esApiQuota80Shown.add(storageKey);
+  var percent = Math.floor((usedCount / limitCount) * 100);
+  showLiquidToast('Monthly ' + label + ' usage reached ' + percent + '% (' + usedCount.toLocaleString() + ' / ' + limitCount.toLocaleString() + ').', 'warning', 5500);
+  return true;
+}
+
 window.EsUI = {
   openNotifications: esOpenNotifications,
   openSearch: esOpenSearch,
@@ -1336,6 +1365,7 @@ window.EsUI = {
   openProfile: function (username) { openMiniPreview(username); },
   refreshDots: esRefreshDots,
   toast: showLiquidToast,
+  notifyApiQuota80: esNotifyApiQuota80,
   setBusy: esBusyOn,
   me: function () { return esState.me; },
   onReady: function (fn) { if (esState.ready) fn(esState.me); else (esState.waiters = esState.waiters || []).push(fn); }

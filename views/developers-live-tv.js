@@ -858,7 +858,22 @@ ${musicPlayerHtml()}
       '<a class="btn btn-primary" href="/login?next=%2Fdevelopers">Log in</a>';
   }
 
+  function checkMonthlyQuotaWarning(usage, keys){
+    if(!usage) return;
+    var attempts = 0;
+    function notifyWhenReady(){
+      var ui = window.EsUI;
+      if(ui && typeof ui.notifyApiQuota80 === 'function'){
+        ui.notifyApiQuota80('livetv', 'Live TV API', usage.requestsThisMonth, usage.monthlyLimit, keys || []);
+      } else if(attempts++ < 20){
+        setTimeout(notifyWhenReady, 100);
+      }
+    }
+    notifyWhenReady();
+  }
+
   function renderKeys(keys, usage, plan){
+    checkMonthlyQuotaWarning(usage, keys);
     var html = '';
     var keyLimit = plan ? plan.apiKeys : 1;
     var expiresPart = plan && plan.expiresAt ? ' &middot; expires ' + fmtDate(plan.expiresAt) : '';
@@ -1005,6 +1020,15 @@ ${musicPlayerHtml()}
       renderKeys(r.data.keys || [], r.data.usage || null, r.data.plan || null);
     }).catch(function(){ renderLoggedOutKeyCard(); });
   }
+
+  function pollMonthlyQuotaWarning(){
+    if(document.visibilityState !== 'visible') return;
+    getJSON('/api/dev/keys').then(function(r){
+      if(r.ok) checkMonthlyQuotaWarning(r.data.usage || null, r.data.keys || []);
+    }).catch(function(){});
+  }
+  window.setInterval(pollMonthlyQuotaWarning, 60000);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') pollMonthlyQuotaWarning(); });
 
   var linksList = document.getElementById('linksList');
   var linksSearchInput = document.getElementById('linksSearchInput');

@@ -838,7 +838,22 @@ ${musicPlayerHtml()}
       '<a class="btn btn-primary" href="/login?next=%2Fdevelopers%2Fmovie-api">Log in</a>';
   }
 
+  function checkMonthlyQuotaWarning(usage, keys){
+    if(!usage) return;
+    var attempts = 0;
+    function notifyWhenReady(){
+      var ui = window.EsUI;
+      if(ui && typeof ui.notifyApiQuota80 === 'function'){
+        ui.notifyApiQuota80('movieapi', 'Movie API', usage.monthlyRequests, usage.monthlyRequestsLimit, keys || []);
+      } else if(attempts++ < 20){
+        setTimeout(notifyWhenReady, 100);
+      }
+    }
+    notifyWhenReady();
+  }
+
   function renderKeys(keys, usage, plan){
+    checkMonthlyQuotaWarning(usage, keys);
     movieApiKeyCount = keys.length;
     var html = '';
     var keyLimit = plan ? plan.apiKeys : 1;
@@ -981,6 +996,15 @@ ${musicPlayerHtml()}
       renderPlans(r.data.plan || null, r.data.movieApiCustomAdsName || null, r.data.movieApiCustomAdsUrl || null, true);
     }).catch(function(){ premiumDiscountRate = 0; renderLoggedOutKeyCard(); renderPlans(null, null, null, false); });
   }
+
+  function pollMonthlyQuotaWarning(){
+    if(document.visibilityState !== 'visible') return;
+    getJSON('/api/movieapi/keys').then(function(r){
+      if(r.ok) checkMonthlyQuotaWarning(r.data.usage || null, r.data.keys || []);
+    }).catch(function(){});
+  }
+  window.setInterval(pollMonthlyQuotaWarning, 60000);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') pollMonthlyQuotaWarning(); });
 
   loadKeys();
 
