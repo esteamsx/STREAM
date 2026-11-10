@@ -151,7 +151,15 @@
     }
 
     function excluded(target) {
-      return !target || !target.closest || !!target.closest('[data-no-overview],[data-no-smooth],[data-no-status-swipe],video,iframe,canvas,input,textarea,select,button,a,[contenteditable],[role="slider"],[class*="game"],[class*="board"],[class*="player"],[class*="chat"],[class*="comment"],[class*="feed"],[class*="map"],.music-player,.st-panel,.st-full,.st-over,.page-overlay.show');
+      if (!target || !target.closest) return true;
+      var protectedSurface = target.closest('[data-no-overview],[data-no-status-swipe],video,iframe,canvas,input,textarea,select,button,a,[contenteditable],[role="slider"],[class*="game"],[class*="board"],[class*="player"],[class*="chat"],[class*="comment"],[class*="map"],.music-player,.st-panel,.st-full,.st-over,.page-overlay.show');
+      if (protectedSurface) return true;
+      var homeFeed = target.closest('.hm-feed-card');
+      if (homeFeed) {
+        var nestedNoSmooth = target.closest('[data-no-smooth]');
+        return !!(nestedNoSmooth && nestedNoSmooth !== homeFeed);
+      }
+      return !!target.closest('[data-no-smooth],[class*="feed"]');
     }
 
     function touchesWithinOverview(touches) {

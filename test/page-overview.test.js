@@ -29,6 +29,18 @@ test("overview has a scrollable three-column glass grid with lightweight skeleto
   assert.doesNotMatch(motion, /es-overview-preview[\s\S]{0,240}<img/);
 });
 
+test("the home feed's generic scroll marker no longer suppresses the overview pinch", () => {
+  const motion = read("../public/ios-motion.js");
+  const home = read("../views/home.js");
+  const physics = read("../middleware/ios-physics-scroll.js");
+  assert.match(home, /class="hm-glass hm-feed-card"/);
+  assert.match(physics, /comments\?\|feed\|messages\?/);
+  assert.match(motion, /var homeFeed = target\.closest\('\.hm-feed-card'\)/);
+  assert.match(motion, /nestedNoSmooth && nestedNoSmooth !== homeFeed/);
+  assert.match(motion, /\[data-no-smooth\],\[class\*="feed"\]/);
+  assert.match(motion, /\[class\*="comment"\],\[class\*="map"\]/);
+});
+
 test("pinch gestures skip interactive and immersive zones; zoom is constrained only while overview is open", () => {
   const motion = read("../public/ios-motion.js");
   assert.match(motion, /function excluded\(target\)[\s\S]*?video,iframe,canvas,input,textarea,select,button,a/);
