@@ -415,6 +415,7 @@ import {
   crossOriginWriteGuard,
   requireSiteOrigin,
 } from "./middleware/security-middleware.js";
+import { blockedApiOriginGuard } from "./middleware/blocked-api-origin.js";
 import { requestId, responseWatchdog, notFoundHandler, errorHandler } from "./middleware/error-pages.js";
 import { canonicalPath, pageGuards } from "./middleware/navigation.js";
 import { WEB_MANIFEST, siteHead, siteHeadFor, siteOrigin } from "./config/site.js";
@@ -429,6 +430,7 @@ app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
 app.use(requestId);
+app.use(blockedApiOriginGuard);
 app.use(createApiAnalyticsMiddleware(db, { increment: (value) => admin.firestore.FieldValue.increment(value) }));
 
 app.use(responseWatchdog({ timeoutMs: 30000, exemptPrefixes: ["/api/v1/hls/"] }));
