@@ -3119,6 +3119,7 @@ document.getElementById('notifMarkReadBtn').addEventListener('click', async () =
 function flashMsg(el, msg, ok){
   el.textContent = msg;
   el.className = 'acc-msg show ' + (ok ? 'ok' : 'err');
+  if (window.ESIOSFeedback) window.ESIOSFeedback.result(ok ? 'success' : 'error');
   setTimeout(() => el.classList.remove('show'), 3500);
 }
 

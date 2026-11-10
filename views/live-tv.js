@@ -2664,6 +2664,7 @@ var LG_ICONS = {
 };
 function showLiquidToast(message, type){
   var kind = type === 'error' ? 'error' : 'success';
+  if (window.ESIOSFeedback) window.ESIOSFeedback.result(kind);
   var toast = document.createElement('div');
   toast.className = 'lg-toast';
   toast.innerHTML = '<span class="lg-icon ' + kind + '">' + LG_ICONS[kind] + '</span><span></span>';

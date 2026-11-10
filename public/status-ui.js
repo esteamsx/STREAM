@@ -38,6 +38,7 @@
     ".st-panel-card{height:640px;max-height:84vh}",
     ".st-panel{position:fixed;inset:0;z-index:9300;background:rgba(10,10,15,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);color:var(--text,#F3F3FA);transform:translateX(100%);transition:transform .35s cubic-bezier(.22,.61,.36,1);display:flex;flex-direction:column;font-family:var(--font-body,Inter,-apple-system,sans-serif)}",
     ".st-panel.open{transform:none}",
+    "@media(prefers-reduced-motion:reduce){.st-ov.show .st-glass,.st-ov.st-sheet-ov .st-glass{animation:none!important}.st-panel{transition:none!important}}",
     ":root[data-theme=\"light\"] .st-panel{background:rgba(244,246,250,.78)}",
     ".st-phd{display:flex;align-items:center;gap:6px;padding:max(14px,env(safe-area-inset-top)) 12px 10px;border-bottom:1px solid var(--border,rgba(255,255,255,.07))}",
     ".st-phd .st-title{flex:1;font-size:1.2rem}",
@@ -559,23 +560,26 @@
     state.panel = panel;
     state.list = list;
 
-    var sx = 0, sy = 0, tracking = false;
+    var sx = 0, sy = 0, tracking = false, startTarget = null;
     document.addEventListener("touchstart", function (e) {
-      sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true;
+      if (e.touches.length !== 1) { tracking = false; startTarget = null; return; }
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; startTarget = e.target; tracking = true;
     }, { passive: true });
     document.addEventListener("touchend", function (e) {
       if (!tracking) return;
       tracking = false;
+      var start = startTarget; startTarget = null;
       var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
       if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
       if (!panelOpen() && dx < 0 && !anyOverlayOpen()) {
-        var t = e.target;
-        if (t && t.closest && t.closest("input,textarea,select,[contenteditable]")) return;
+        var t = start;
+        if (t && t.closest && t.closest("input,textarea,select,[contenteditable],video,iframe,canvas,[data-no-status-swipe],[class*='game'],[class*='board'],[class*='chat'],[class*='comment'],[class*='feed'],[class*='player'],.music-player")) return;
         openPanel();
-      } else if (panelOpen() && dx > 0 && !document.querySelector(".st-full,.st-over.show")) {
+      } else if (panelOpen() && dx > 0 && start && state.panel.contains(start) && !document.querySelector(".st-full,.st-over.show")) {
         closePanel();
       }
     }, { passive: true });
+    document.addEventListener("touchcancel", function () { tracking = false; startTarget = null; }, { passive: true });
 
     loadFeed().catch(function () {});
   }

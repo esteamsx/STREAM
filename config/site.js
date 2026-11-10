@@ -480,6 +480,35 @@ const GLASS_OVERLAY_CSS = `<style>
   box-shadow:none!important;
 }
 
+/* Progressive enter/exit motion for common glass dialogs; old browsers keep current display behavior. */
+@supports (transition-behavior:allow-discrete){
+  .page-overlay,.ad-overlay,.pm-overlay,.cr-verify-overlay,.db-overlay,.tr-overlay,.es-pay-overlay{
+    opacity:0;transition:opacity .2s ease,display .2s allow-discrete;
+  }
+  .page-overlay.show,.ad-overlay.show,.pm-overlay.show,.cr-verify-overlay.show,.db-overlay.show,.tr-overlay.show,.es-pay-overlay.show{opacity:1}
+  .page-overlay>.overlay-card,.page-overlay>.flist-card,.page-overlay>.mpv-card,.page-overlay>[class$="-card"],
+  .page-overlay>[class$="-panel"],.page-overlay>[class$="-modal"],.ad-overlay>[class$="-card"],
+  .pm-overlay>[class$="-modal"],.cr-verify-overlay>[class$="-card"],.db-overlay>[class$="-card"],
+  .tr-overlay>[class$="-panel"],.tr-overlay>[class$="-card"],.tr-overlay>[class$="-modal"],.es-pay-overlay>[class$="-card"],.es-pay-overlay>[class$="-panel"]{
+    scale:.985;transition:scale .24s cubic-bezier(.34,1.35,.64,1);
+  }
+  .page-overlay.show>.overlay-card,.page-overlay.show>.flist-card,.page-overlay.show>.mpv-card,.page-overlay.show>[class$="-card"],
+  .page-overlay.show>[class$="-panel"],.page-overlay.show>[class$="-modal"],.ad-overlay.show>[class$="-card"],
+  .pm-overlay.show>[class$="-modal"],.cr-verify-overlay.show>[class$="-card"],.db-overlay.show>[class$="-card"],
+  .tr-overlay.show>[class$="-panel"],.tr-overlay.show>[class$="-card"],.tr-overlay.show>[class$="-modal"],.es-pay-overlay.show>[class$="-card"],.es-pay-overlay.show>[class$="-panel"]{scale:1}
+  @starting-style{
+    .page-overlay.show,.ad-overlay.show,.pm-overlay.show,.cr-verify-overlay.show,.db-overlay.show,.tr-overlay.show,.es-pay-overlay.show{opacity:0}
+    .page-overlay.show>.overlay-card,.page-overlay.show>.flist-card,.page-overlay.show>.mpv-card,.page-overlay.show>[class$="-card"],
+    .page-overlay.show>[class$="-panel"],.page-overlay.show>[class$="-modal"],.ad-overlay.show>[class$="-card"],
+    .pm-overlay.show>[class$="-modal"],.cr-verify-overlay.show>[class$="-card"],.db-overlay.show>[class$="-card"],
+    .tr-overlay.show>[class$="-panel"],.tr-overlay.show>[class$="-card"],.tr-overlay.show>[class$="-modal"],.es-pay-overlay.show>[class$="-card"],.es-pay-overlay.show>[class$="-panel"]{scale:.985}
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .page-overlay,.ad-overlay,.pm-overlay,.cr-verify-overlay,.db-overlay,.tr-overlay,.es-pay-overlay,
+  .page-overlay>*,.ad-overlay>*,.pm-overlay>*,.cr-verify-overlay>*,.db-overlay>*,.tr-overlay>*,.es-pay-overlay>*{transition:none!important;scale:1!important}
+}
+
 /* Site-wide liquid-glass finish: paint-only refinements on audited page shells. */
 :root{
   --es-glass-sheen:linear-gradient(145deg,rgba(255,255,255,.075),transparent 26%,transparent 78%,rgba(255,255,255,.02));

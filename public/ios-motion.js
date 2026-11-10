@@ -7,6 +7,28 @@
   var root = document.querySelector('[data-ios-rubber]') || document.querySelector('main') || document.body;
   if (!root) return;
 
+  var lastTapHapticAt = 0;
+  function vibrate(pattern){
+    if (reduceMotion || !navigator || typeof navigator.vibrate !== 'function') return false;
+    try { return navigator.vibrate(pattern) !== false; } catch (e) { return false; }
+  }
+  window.ESIOSFeedback = {
+    tap: function(){
+      var now = Date.now();
+      if (now - lastTapHapticAt < 55) return false;
+      lastTapHapticAt = now;
+      return vibrate(8);
+    },
+    result: function(kind){ return vibrate(kind === 'error' ? [12, 28, 12] : [8, 22, 8]); }
+  };
+  document.addEventListener('click', function(event){
+    if (!event.isTrusted || !event.target || !event.target.closest) return;
+    var control = event.target.closest('button,a,[role="button"],[role="tab"],[role="menuitem"]');
+    if (!control || control.disabled || control.getAttribute('aria-disabled') === 'true') return;
+    if (control.closest('input,textarea,select,[role="slider"],[data-no-haptic],video,iframe,canvas,[contenteditable="true"]')) return;
+    window.ESIOSFeedback.tap();
+  }, true);
+
   var style = document.createElement('style');
   style.id = 'es-ios-motion-style';
   style.textContent = '\
@@ -35,7 +57,7 @@
 .ios-motion-enabled .es-ios-glass-item button:hover > svg,.ios-motion-enabled .es-ios-glass-item a:hover > svg{transform:translateY(-1px) rotate(-3deg);}\
 .ios-motion-enabled .es-ios-motion-item{opacity:0;transform:translateY(14px) scale(.985);transition:opacity .52s cubic-bezier(.22,.61,.36,1),transform .62s cubic-bezier(.22,.61,.36,1);will-change:opacity,transform;}\
 .ios-motion-enabled .es-ios-motion-item.es-ios-visible{opacity:1;transform:none;}\
-.ios-motion-enabled button:not([data-no-smooth]),.ios-motion-enabled a:not([data-no-smooth]){transition:transform .18s cubic-bezier(.22,.61,.36,1),filter .18s ease;}\
+.ios-motion-enabled button:not([data-no-smooth]),.ios-motion-enabled a:not([data-no-smooth]){transition:transform .26s cubic-bezier(.34,1.35,.64,1),filter .18s ease;}\
 .ios-motion-enabled button:not([data-no-smooth]):active,.ios-motion-enabled a:not([data-no-smooth]):active{transform:scale(.97);}\
 @media(prefers-reduced-motion:reduce){#esIosScrollProgress{display:none!important}.es-ios-motion-item{opacity:1!important;transform:none!important;transition:none!important}::view-transition-group(root),::view-transition-image-pair(root),::view-transition-old(root),::view-transition-new(root){animation-duration:0s!important;animation-delay:0s!important}}';
   (document.head || document.documentElement).appendChild(style);
@@ -47,7 +69,7 @@
   var pullRefresh = document.createElement('div');
   pullRefresh.className = 'es-ios-pull-refresh';
   pullRefresh.setAttribute('aria-hidden', 'true');
-  pullRefresh.innerHTML = '<svg viewBox="0 0 52 52"><circle class="es-ios-pull-track" cx="26" cy="26" r="22"></circle><circle class="es-ios-pull-progress" cx="26" cy="26" r="22" pathLength="100"></circle><g transform="translate(12 12) scale(1.1667)"><g class="es-ios-pull-icon"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></g></g></svg><span class="es-ios-pull-label">Hold to refresh</span>';
+  pullRefresh.innerHTML = '<svg viewBox="0 0 52 52"><circle class="es-ios-pull-track" cx="26" cy="26" r="22"></circle><circle class="es-ios-pull-progress" cx="26" cy="26" r="22" pathLength="100"></circle><g transform="translate(12 12) scale(1.1667)"><g class="es-ios-pull-icon"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></g></g></svg><span class="es-ios-pull-label">Pull to refresh</span>';
   document.body.appendChild(pullRefresh);
 
   if (reduceMotion) return;
@@ -111,78 +133,86 @@
 
   var touchStartY = 0;
   var touchStartX = 0;
+  var pullTracking = false;
   var pullActive = false;
   var pullComplete = false;
-  var pullStartedAt = 0;
-  var pullFrame = 0;
-  var PULL_HOLD_MS = 3000;
   var PULL_TRIGGER_PX = 28;
+  var PULL_REFRESH_PX = 112;
   var progressCircle = pullRefresh.querySelector('.es-ios-pull-progress');
   var pullLabel = pullRefresh.querySelector('.es-ios-pull-label');
   var pullIcon = pullRefresh.querySelector('.es-ios-pull-icon');
   var pullExcluded = function(target){
     return !!(target && target.closest && target.closest('[data-no-smooth],video,iframe,canvas,input,textarea,select,button,a,[class*="chat"],[class*="comment"],[class*="feed"],[class*="map"],.page-overlay,.music-player'));
   };
-  var stopPullFrame = function(){
-    if (pullFrame) cancelAnimationFrame(pullFrame);
-    pullFrame = 0;
-  };
   var resetPull = function(){
-    stopPullFrame();
     pullActive = false;
     pullComplete = false;
-    pullStartedAt = 0;
     pullRefresh.classList.remove('show','ready','refreshing');
     pullIcon.style.transform = '';
     progressCircle.style.strokeDasharray = '0 100';
     progressCircle.style.stroke = '#ffd447';
-    pullLabel.textContent = 'Hold to refresh';
+    pullLabel.textContent = 'Pull to refresh';
   };
-  var animatePull = function(now){
-    if (!pullActive || pullComplete) return;
-    var amount = Math.min(1, Math.max(0, (now - pullStartedAt) / PULL_HOLD_MS));
+  var updatePull = function(distance){
+    if (!pullActive) return;
+    var amount = Math.min(1, Math.max(0, (distance - PULL_TRIGGER_PX) / (PULL_REFRESH_PX - PULL_TRIGGER_PX)));
     progressCircle.style.strokeDasharray = (amount * 100) + ' 100';
-    pullIcon.style.transform = 'rotate(' + (amount * 360) + 'deg)';
-    if (amount >= .84) {
+    pullIcon.style.transform = 'rotate(' + (amount * 180) + 'deg)';
+    if (amount >= 1) {
+      pullComplete = true;
       pullRefresh.classList.add('ready');
       progressCircle.style.stroke = '#3ddc84';
       pullLabel.textContent = 'Release to refresh';
     } else {
+      pullComplete = false;
       pullRefresh.classList.remove('ready');
       progressCircle.style.stroke = '#ffd447';
+      pullLabel.textContent = 'Pull to refresh';
     }
-    if (amount >= 1) {
-      pullComplete = true;
-      pullRefresh.classList.add('refreshing');
-      pullLabel.textContent = 'Refreshing…';
-      progressCircle.style.stroke = '#3ddc84';
-      setTimeout(function(){ window.location.reload(); }, 120);
-      return;
-    }
-    pullFrame = requestAnimationFrame(animatePull);
   };
   var beginPull = function(){
     pullActive = true;
     pullComplete = false;
-    pullStartedAt = performance.now();
     pullRefresh.classList.add('show');
-    pullFrame = requestAnimationFrame(animatePull);
   };
   document.addEventListener('touchstart', function(event){
-    if (reduceMotion || event.touches.length !== 1 || window.scrollY > 0 || pullExcluded(event.target)) return;
+    pullTracking = !reduceMotion && event.touches.length === 1 && window.scrollY <= 0 && !pullExcluded(event.target);
+    if (!pullTracking) return;
     touchStartY = event.touches[0].clientY;
     touchStartX = event.touches[0].clientX;
   }, { passive:true });
   document.addEventListener('touchmove', function(event){
-    if (reduceMotion || !event.touches.length || window.scrollY > 0 || pullExcluded(event.target)) return;
+    if (!pullTracking) return;
+    if (reduceMotion || event.touches.length !== 1 || window.scrollY > 0 || pullExcluded(event.target)) {
+      pullTracking = false;
+      if (pullActive) resetPull();
+      return;
+    }
     var dy = event.touches[0].clientY - touchStartY;
     var dx = Math.abs(event.touches[0].clientX - touchStartX);
-    if (dy <= 0 || dx > dy || dy < PULL_TRIGGER_PX) return;
+    if (dy <= 0 || dx > dy) {
+      if (pullActive) { pullTracking = false; resetPull(); }
+      return;
+    }
+    if (dy < PULL_TRIGGER_PX) {
+      if (pullActive) { updatePull(dy); if (event.cancelable) event.preventDefault(); }
+      return;
+    }
     if (!pullActive) beginPull();
+    updatePull(dy);
     if (event.cancelable) event.preventDefault();
   }, { passive:false });
-  document.addEventListener('touchend', function(){
-    if (!pullComplete) resetPull();
+  document.addEventListener('touchend', function(event){
+    if (event.touches && event.touches.length) { pullTracking = false; if (pullActive) resetPull(); return; }
+    pullTracking = false;
+    if (!pullActive) return;
+    if (pullComplete) {
+      pullActive = false;
+      pullRefresh.classList.add('refreshing');
+      pullLabel.textContent = 'Refreshing…';
+      if (window.ESIOSFeedback) window.ESIOSFeedback.result('success');
+      setTimeout(function(){ window.location.reload(); }, 120);
+    } else resetPull();
   }, { passive:true });
-  document.addEventListener('touchcancel', resetPull, { passive:true });
+  document.addEventListener('touchcancel', function(){ pullTracking = false; resetPull(); }, { passive:true });
 })();

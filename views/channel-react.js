@@ -541,6 +541,7 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
   function setMsg(text, kind){
     msg.textContent = text || '';
     msg.className = 'cr-msg' + (kind ? ' ' + kind : '');
+    if (text && (kind === 'ok' || kind === 'err') && window.ESIOSFeedback) window.ESIOSFeedback.result(kind === 'ok' ? 'success' : 'error');
   }
 
   function blockedReason(){

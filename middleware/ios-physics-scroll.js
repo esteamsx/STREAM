@@ -34,11 +34,10 @@ export function enhanceIosPhysicsPage(req, res, next) {
     if (typeof body === "string" && res.statusCode < 400 && HTML_PAGE_RE.test(body) && body.indexOf("</body>") !== -1) {
       body = markMainWrapper(body);
       body = markNativeScrollSurfaces(body);
-      if (body.indexOf("/ios-physics-scroll.js") === -1) {
-        body = body.replace("</body>", `${PHYSICS_SCRIPT_TAG}${MOTION_SCRIPT_TAG}</body>`);
-      } else if (body.indexOf("/ios-motion.js") === -1) {
-        body = body.replace("</body>", `${MOTION_SCRIPT_TAG}</body>`);
-      }
+      let scripts = "";
+      if (body.indexOf("/ios-physics-scroll.js") === -1) scripts += PHYSICS_SCRIPT_TAG;
+      if (body.indexOf("/ios-motion.js") === -1) scripts += MOTION_SCRIPT_TAG;
+      if (scripts) body = body.replace("</body>", `${scripts}</body>`);
     }
     return originalSend(body);
   };
