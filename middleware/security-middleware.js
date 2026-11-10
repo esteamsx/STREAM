@@ -25,6 +25,7 @@ function sessionUid(req) {
 }
 
 const PRIVATE_GUARD_TAG = '<script nonce="__CSP_NONCE__" src="/incognito-guard.js" defer></script>';
+const IOS_MOTION_TAG = '<script nonce="__CSP_NONCE__" src="/ios-motion.js" defer></script>';
 const PRIVATE_GUARD_SKIP = ["/api/", "/embed/", "/s/", "/.well-known/"];
 const ALLOW_PRIVATE = /^(1|true|yes)$/i.test(String(process.env.ALLOW_PRIVATE_BROWSING || process.env.ALLOW_PRIVATE_LOGIN || ""));
 
@@ -33,6 +34,16 @@ export const cspNonce = (req, res, next) => {
   res.locals.nonce = nonce;
   const originalSend = res.send.bind(res);
   res.send = (body) => {
+    if (
+      typeof body === "string" &&
+      res.statusCode < 400 &&
+      /^\s*<(!doctype|html)/i.test(body) &&
+      body.indexOf("</head>") !== -1 &&
+      body.indexOf("/ios-motion.js") === -1 &&
+      !PRIVATE_GUARD_SKIP.some((p) => req.path.startsWith(p))
+    ) {
+      body = body.replace("</head>", IOS_MOTION_TAG + "</head>");
+    }
     if (
       !ALLOW_PRIVATE &&
       typeof body === "string" &&
