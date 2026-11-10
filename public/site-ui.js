@@ -1381,6 +1381,7 @@ window.EsUI = {
   function start(me) {
     esBuildMenu();
     if (!document.body.hasAttribute("data-es-no-nav")) esBuildBottomNav();
+    document.dispatchEvent(new Event("es-site-ui-ready"));
     if (me) { esState.me = me; esApplyMe(); }
     esState.ready = true;
     esWelcomeToast(esState.me);
