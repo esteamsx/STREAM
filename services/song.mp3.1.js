@@ -1,5 +1,5 @@
 import ytsearch from "yt-search";
-import { fetchYoutubeMp3, fetchYoutubeMp4 } from "./silvatech.js";
+import { fetchYoutubeMp3, fetchYoutubeMp4 } from "./youtube-downloader.js";
 
 async function findVideo(query) {
   const searched = await ytsearch(query).catch(() => null);

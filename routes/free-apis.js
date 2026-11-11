@@ -3,8 +3,10 @@ import crypto from "node:crypto";
 import QRCode from "qrcode";
 import sharp from "sharp";
 import * as cheerio from "cheerio";
-import { fetchYoutubeMp3, fetchYoutubeMp4 } from "../services/silvatech.js";
+import { fetchYoutubeMp3, fetchYoutubeMp4 } from "../services/youtube-downloader.js";
 import { fetchMp3ByQuery } from "../services/song.js";
+import { resolveTikTokViaEmmy, getTikTokProfileViaEmmy } from "../services/tiktok.js";
+import { resolveInstagramMedia } from "../services/instagram.js";
 import ytsearch from "yt-search";
 import { removeBackground } from "@imgly/background-removal-node";
 import { db } from "../config/firebase.js";
@@ -332,6 +334,18 @@ freeApiRouter.get("/api/free/tiktok", async (req, res) => {
   try {
     const url = String(req.query.url || "").trim();
     if (!url) return res.status(400).json({ error: "Missing ?url=" });
+    const viaEmmy = await resolveTikTokViaEmmy(url).catch(() => null);
+    if (viaEmmy && viaEmmy.videoUrl) {
+      return res.json({
+        title: viaEmmy.title,
+        author: viaEmmy.author,
+        cover: viaEmmy.cover,
+        videoNoWatermark: viaEmmy.videoUrl,
+        videoWatermarked: null,
+        audio: viaEmmy.audioUrl,
+        duration: viaEmmy.duration,
+      });
+    }
     const data = await fetchJson(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
     if (!data || data.code !== 0 || !data.data) return res.status(404).json({ error: "Could not fetch that TikTok video." });
     const d = data.data;
@@ -353,6 +367,8 @@ freeApiRouter.get("/api/free/tiktok/stalk", async (req, res) => {
   try {
     const username = String(req.query.username || "").trim().replace(/^@/, "");
     if (!username) return res.status(400).json({ error: "Missing ?username=" });
+    const viaEmmy = await getTikTokProfileViaEmmy(username).catch(() => null);
+    if (viaEmmy) return res.json(viaEmmy);
     const data = await fetchJson(`https://www.tikwm.com/api/user/info?unique_id=${encodeURIComponent(username)}`);
     if (!data || data.code !== 0 || !data.data) return res.status(404).json({ error: "Could not find that TikTok user." });
     const u = data.data.user || {};
@@ -443,6 +459,8 @@ freeApiRouter.get("/api/free/instagram", async (req, res) => {
   try {
     const url = String(req.query.url || "").trim();
     if (!url) return res.status(400).json({ error: "Missing ?url=" });
+    const viaEmmy = await resolveInstagramMedia(url).catch(() => null);
+    if (viaEmmy && viaEmmy.videoUrl) return res.json({ video: viaEmmy.videoUrl });
     const clean = url.split("?")[0].replace(/\/$/, "");
     const embedRes = await fetch(`${clean}/embed/captioned/`, { headers: { "User-Agent": "Mozilla/5.0" } });
     const html = await embedRes.text();

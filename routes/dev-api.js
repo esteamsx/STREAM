@@ -48,6 +48,7 @@ import {
   getAnimeInfo,
 } from "../services/lookup.js";
 import { signDownloadToken, inspectDownloadToken, streamProxiedFile, sanitizeFilename } from "../services/download-proxy.js";
+import { registerEmmyDevRoutes } from "./dev-api-emmy.js";
 import { watermarkImageBuffer } from "../services/image-watermark.js";
 import { generatePassword, encodeBase64, decodeBase64, hashText, translateText, captureScreenshot, getLinkPreview, buildChartUrl, makeSticker, resolveDirectUrl } from "../services/utils-tools.js";
 import {
@@ -1133,6 +1134,15 @@ router.get("/api/v1/dev/dl/:token", dlLimiter, async (req, res) => {
     if (!res.headersSent) return res.status(500).json({ error: "Download failed" });
     res.end();
   }
+});
+
+registerEmmyDevRoutes(router, {
+  requireDevApiKey,
+  SimpleRateLimiter,
+  signDownloadToken,
+  sanitizeFilename,
+  publicBase: PUBLIC_BASE,
+  dlTtlMs: DL_TTL_MS,
 });
 
 export { router as devApiRouter };

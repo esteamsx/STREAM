@@ -1,5 +1,6 @@
 import { siteHeadFor, ASSET_VERSION } from "../config/site.js";
 import { musicPlayerStyle, musicPlayerHtml, musicPlayerScript } from "./music-player.js";
+import { EMMY_FEATURES, EMMY_TRYIT, EMMY_DOCS_HTML } from "./developers-api-emmy.js";
 
 const FEATURES = [
   {
@@ -604,6 +605,8 @@ const FEATURES = [
   },
 ];
 
+
+FEATURES.push(...EMMY_FEATURES);
 
 const CATEGORIES = [];
 FEATURES.forEach((f) => {
@@ -1662,6 +1665,8 @@ ${musicPlayerStyle()}
   "songLink": "https://lis.tn/..."
 }</pre>
 
+${EMMY_DOCS_HTML}
+
     <h2 class="doc-h2">Rate limits &amp; monthly usage</h2>
     <p class="doc-p">20 requests per minute per API key on each endpoint (15 for AI, 15 for Temp Mail, 2 per hour for AI Video Generation). On top of that, every account has a monthly allowance shared across <strong>all</strong> your Developer Api keys, separate from the Live Tv Api's own allowance. Requests past the monthly limit get a <code>429</code> until it resets the following month. Track it on your <a href="#" id="docsToDashLink3">API Dashboard</a>.</p>
 
@@ -2281,6 +2286,7 @@ ${musicPlayerHtml()}
     fakewa: { title: 'Try it - Fake WhatsApp Card', method: 'GET', path: '/api/v1/dev/fakewa', label: 'Name | Number | Status', placeholder: 'John | 2348012345678 | Busy', parts: ['name', 'number', 'status'], splitOn: ' | ', isImage: true },
     caption: { title: 'Try it - Caption Meme', method: 'GET', path: '/api/v1/dev/caption', label: 'Image URL | Caption text', placeholder: 'https://example.com/pic.jpg | hello', parts: ['image', 'text'], splitOn: ' | ', isImage: true },
   };
+  Object.assign(TRYIT_ENDPOINTS, ${JSON.stringify(EMMY_TRYIT)});
 
   function buildQueryParams(ep, val){
     if(ep.parts){

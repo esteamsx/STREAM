@@ -2,19 +2,21 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const downloader = readFileSync(new URL("../services/silvatech.js", import.meta.url), "utf8");
+const downloader = readFileSync(new URL("../services/youtube-downloader.js", import.meta.url), "utf8");
 const capcut = readFileSync(new URL("../services/capcut.js", import.meta.url), "utf8");
 const song = readFileSync(new URL("../services/song.js", import.meta.url), "utf8");
 const route = readFileSync(new URL("../routes/dev-api.js", import.meta.url), "utf8");
 const proxy = readFileSync(new URL("../services/download-proxy.js", import.meta.url), "utf8");
 const avMux = readFileSync(new URL("../services/av-mux.js", import.meta.url), "utf8");
 
-test("MP3 and MP4 downloads use the supplied SaveTube engine without changing their adapter contract", () => {
-  assert.match(downloader, /media\.savetube\.vip\/api\/random-cdn/);
-  assert.match(downloader, /aes-128-cbc/);
-  assert.match(downloader, /async function runSaveTube/);
+test("MP3 and MP4 downloads use the Emmy API providers without changing their adapter contract", () => {
+  assert.match(downloader, /emmyGet\(endpoint/);
+  assert.match(downloader, /endpoint: "savetube"/);
+  assert.match(downloader, /endpoint: "ytshortdown"/);
+  assert.match(downloader, /async function runDirectYoutubeFallback/);
   assert.match(downloader, /audioUrl: result\.download/);
   assert.match(downloader, /videoUrl: result\.download/);
+  assert.doesNotMatch(downloader, /silvatech|media\.savetube\.vip/i);
   assert.match(song, /audioFallbackUrl: result\.directAudioUrl \|\| null/);
   assert.match(route, /audioFallbackUrl: song\.audioFallbackUrl \|\| null/);
   assert.match(route, /"\/api\/v1\/dev\/mp3"/);

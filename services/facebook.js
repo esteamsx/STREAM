@@ -1,3 +1,5 @@
+import { emmyGet, collectUrls, pickMediaUrl, pickText, TITLE_KEYS } from "./emmy-api.js";
+
 const FETCH_TIMEOUT_MS = 15000;
 const UA = "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
 
@@ -85,6 +87,16 @@ function extractFromHtml(html) {
   return { hd, sd };
 }
 
+async function resolveFacebookViaEmmy(url) {
+  const result = await emmyGet("fbdown", { url });
+  const links = collectUrls(result).filter((c) => !/\.(jpe?g|png|webp|gif)(\?|$)/i.test(c.url) && !/(thumb|cover|poster|preview|avatar)/.test(c.path));
+  const hd = (links.find((c) => /(hd|high|1080|720)/.test(c.path)) || {}).url || null;
+  const sd = (links.find((c) => /(sd|low|normal|standard|480|360)/.test(c.path) && c.url !== hd) || {}).url || null;
+  const fallback = !hd && !sd ? pickMediaUrl(result, "video", null) : null;
+  if (!hd && !sd && !fallback) return null;
+  return { hd, sd: sd || fallback, title: pickText(result, TITLE_KEYS) || "facebook-video" };
+}
+
 export async function resolveFacebookVideo(url) {
   let parsed;
   try {
@@ -94,6 +106,13 @@ export async function resolveFacebookVideo(url) {
   }
   if (!/(^|\.)facebook\.com$|(^|\.)fb\.watch$/.test(parsed.hostname)) {
     throw Object.assign(new Error("URL must be a facebook.com or fb.watch link."), { status: 400 });
+  }
+
+  try {
+    const viaEmmy = await resolveFacebookViaEmmy(url);
+    if (viaEmmy) return viaEmmy;
+  } catch (err) {
+    console.error(`facebook emmy provider failed, using fallback: ${err && err.message ? err.message : err}`);
   }
 
   let canonicalUrl = url;

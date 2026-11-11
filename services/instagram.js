@@ -1,3 +1,5 @@
+import { emmyGet, firstSuccessful, pickMediaUrl, pickText, TITLE_KEYS } from "./emmy-api.js";
+
 const FETCH_TIMEOUT_MS = 15000;
 const UA = "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36 Instagram 302.0.0.23.114";
 
@@ -29,6 +31,31 @@ async function fetchHtml(url) {
   }
 }
 
+const EMMY_INSTAGRAM_PROVIDERS = ["snapsave", "igexport", "aio-rapidapi"];
+
+async function resolveInstagramViaEmmy(url) {
+  const steps = EMMY_INSTAGRAM_PROVIDERS.map((endpoint) => ({
+    name: endpoint,
+    run: async () => {
+      const result = await emmyGet(endpoint, { url });
+      const videoUrl = pickMediaUrl(result, "video", url);
+      const imageUrl = videoUrl ? null : pickMediaUrl(result, "image", url);
+      if (!videoUrl && !imageUrl) {
+        throw Object.assign(new Error("The service did not return an Instagram download link."), { status: 502 });
+      }
+      const title = pickText(result, ["title", "caption", "description", "text"]) || "instagram-media";
+      return {
+        type: videoUrl ? "video" : "image",
+        videoUrl,
+        imageUrl,
+        title: title.replace(/\s*•.*$/, "").trim().slice(0, 120) || "instagram-media",
+        caption: pickText(result, ["caption", "description", "text", ...TITLE_KEYS]) || null,
+      };
+    },
+  }));
+  return firstSuccessful(steps, { budgetMs: 45000 });
+}
+
 export async function resolveInstagramMedia(url) {
   let parsed;
   try {
@@ -41,6 +68,12 @@ export async function resolveInstagramMedia(url) {
   }
   if (!/^\/(p|reel|reels|tv)\//.test(parsed.pathname)) {
     throw Object.assign(new Error("URL must be a post, reel, or IGTV link."), { status: 400 });
+  }
+
+  try {
+    return await resolveInstagramViaEmmy(url);
+  } catch (err) {
+    console.error(`instagram emmy providers failed, using fallback: ${err && err.message ? err.message : err}`);
   }
 
   const html = await fetchHtml(parsed);
