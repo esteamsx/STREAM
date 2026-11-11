@@ -35,6 +35,13 @@
     let pointerId = null;
     let dragging = false;
     let completing = false;
+    let armed = false;
+
+    function haptic(pattern) {
+      try {
+        if (navigator.vibrate) navigator.vibrate(pattern);
+      } catch (error) {}
+    }
 
     function maxPosition() {
       return Math.max(0, track.clientWidth - thumb.offsetWidth - 8);
@@ -48,6 +55,7 @@
       root.style.setProperty("--slide-progress-pct", (ratio * 100) + "%");
       root.style.setProperty("--slide-fill-opacity", String(.22 + ratio * .78));
       thumb.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+      thumb.setAttribute("aria-valuetext", ratio >= .8 ? "Release to log out" : "Slide to logout");
       if (animate) root.classList.add("is-springing");
       else root.classList.remove("is-springing");
       if (label) label.style.opacity = String(Math.max(0.16, 1 - (max ? position / max : 0) * 1.2));
@@ -55,6 +63,7 @@
 
     function reset() {
       root.classList.remove("is-dragging", "is-armed", "is-completing", "is-error");
+      armed = false;
       setPosition(0, !reducedMotion());
       window.setTimeout(function () { root.classList.remove("is-springing"); }, reducedMotion() ? 0 : SPRING_MS);
     }
@@ -77,8 +86,10 @@
       const max = maxPosition();
       root.classList.remove("is-dragging", "is-armed");
       root.classList.add("is-completing");
+      armed = false;
       root.setAttribute("aria-busy", "true");
       setPosition(max, !reducedMotion());
+      haptic([10, 24, 18]);
       if (label) label.textContent = "Logging out…";
       if (overlay) overlay.classList.add("slide-logout-fade");
 
@@ -101,7 +112,10 @@
       const max = maxPosition();
       const remaining = max - position;
       if (remaining <= Math.min(COMPLETE_GAP_PX, max * 0.2)) complete();
-      else reset();
+      else {
+        haptic(7);
+        reset();
+      }
       if (pointerId !== null && thumb.hasPointerCapture && thumb.hasPointerCapture(pointerId)) {
         thumb.releasePointerCapture(pointerId);
       }
@@ -117,14 +131,18 @@
       startPosition = position;
       root.classList.add("is-dragging");
       root.classList.remove("is-springing", "is-error");
-      thumb.setPointerCapture(event.pointerId);
+      haptic(5);
+      if (thumb.setPointerCapture) thumb.setPointerCapture(event.pointerId);
     });
 
     thumb.addEventListener("pointermove", function (event) {
       if (!dragging || completing || (pointerId !== null && event.pointerId !== pointerId)) return;
       const max = maxPosition();
       setPosition(startPosition + event.clientX - startX, false);
-      root.classList.toggle("is-armed", max - position <= Math.min(COMPLETE_GAP_PX, max * 0.2));
+      const nextArmed = max - position <= Math.min(COMPLETE_GAP_PX, max * 0.2);
+      root.classList.toggle("is-armed", nextArmed);
+      if (nextArmed && !armed) haptic(10);
+      armed = nextArmed;
     });
 
     thumb.addEventListener("pointerup", release);
@@ -137,7 +155,10 @@
       if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
         event.preventDefault();
         setPosition(position + (event.key === "ArrowRight" ? Math.max(12, max * 0.08) : -Math.max(12, max * 0.08)), false);
-        root.classList.toggle("is-armed", max - position <= Math.min(COMPLETE_GAP_PX, max * 0.2));
+        const nextArmed = max - position <= Math.min(COMPLETE_GAP_PX, max * 0.2);
+        root.classList.toggle("is-armed", nextArmed);
+        if (nextArmed && !armed) haptic(10);
+        armed = nextArmed;
       } else if (event.key === "End") {
         event.preventDefault();
         setPosition(max, false);

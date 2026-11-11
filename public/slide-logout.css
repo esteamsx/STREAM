@@ -71,8 +71,11 @@
   will-change: transform;
 }
 .slide-logout-thumb svg { width: 19px; height: 19px; pointer-events: none; }
+.slide-logout-icon { display: block; overflow: visible; transition: transform .18s ease; }
+.slide-logout-thumb:focus-visible { outline: 3px solid rgba(255,255,255,.82); outline-offset: 3px; }
 .slide-logout.is-dragging .slide-logout-thumb { cursor: grabbing; transition: none; box-shadow: 0 10px 26px rgba(255,59,92,.56), inset 0 1px 0 rgba(255,255,255,.35); }
 .slide-logout.is-armed .slide-logout-thumb { background: linear-gradient(145deg, #ff8a9d, #ff3b5c); box-shadow: 0 10px 30px rgba(255,59,92,.68), 0 0 0 4px rgba(255,59,92,.14); }
+.slide-logout.is-armed .slide-logout-icon { transform: translateX(1px); }
 .slide-logout.is-completing .slide-logout-thumb { cursor: default; }
 .slide-logout.is-error { border-color: rgba(255,59,92,.7); }
 .slide-logout-fade { animation: slideLogoutFade .28s ease forwards; pointer-events: none; }

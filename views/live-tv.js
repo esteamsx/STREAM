@@ -1657,7 +1657,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         <div class="slide-logout-progress"></div>
         <div class="slide-logout-label" data-slide-label>Slide to Logout</div>
         <div class="slide-logout-thumb" data-slide-thumb role="slider" tabindex="0" aria-label="Slide to Logout" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          <svg class="slide-logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 17l5-5-5-5M21 12H9"/></svg>
         </div>
       </div>
     </div>

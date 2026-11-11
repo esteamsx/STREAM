@@ -887,7 +887,7 @@ body:has(.page-overlay.show){overflow:hidden}
 .overlay-timer.expired b{color:var(--red)}
 .overlay-resend{background:transparent;border:none;color:var(--accent);font-size:.78rem;font-weight:600;align-self:center}
 .overlay-resend:disabled{color:var(--muted2);cursor:not-allowed}
-.overlay-cancel{background:transparent;border:none;color:var(--muted);font-size:.78rem;align-self:center;text-decoration:underline}
+.overlay-cancel{background:transparent;border:none;color:var(--muted);font-size:.78rem;align-self:center;text-decoration:underline;cursor:pointer;padding:0}
 .acc-loader{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
   min-height:70vh;position:relative;z-index:1;
@@ -2018,7 +2018,7 @@ body:has(.page-overlay.show){overflow:hidden}
         <div class="slide-logout-progress"></div>
         <div class="slide-logout-label" data-slide-label>Slide to Logout</div>
         <div class="slide-logout-thumb" data-slide-thumb role="slider" tabindex="0" aria-label="Slide to Logout" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          <svg class="slide-logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 17l5-5-5-5M21 12H9"/></svg>
         </div>
       </div>
     </div>
