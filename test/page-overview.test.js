@@ -4,18 +4,44 @@ import fs from "node:fs";
 
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("overview derives page cards from visible shared-menu links, not a duplicate route list", () => {
+test("overview derives page cards from visible shared-menu links and only falls back to the built-in list when no menu exists", () => {
   const motion = read("../public/ios-motion.js");
   const siteUi = read("../public/site-ui.js");
   assert.match(motion, /querySelectorAll\('#esMenuList a\[data-es-href\],#esBottomNav a\[data-es-href\]'\)/);
   assert.match(motion, /if \(anchor\.hidden \|\| anchor\.closest\('\[hidden\]'\)\) return/);
   assert.match(motion, /url\.origin !== window\.location\.origin/);
   assert.match(motion, /seenPaths\[key\]/);
+  assert.match(motion, /if \(!pages\.length\) \{\s*OVERVIEW_FALLBACK_PAGES\.forEach/);
   assert.match(motion, /Page overview/);
   assert.match(siteUi, /document\.dispatchEvent\(new Event\("es-site-ui-ready"\)\)/);
-  assert.match(motion, /addEventListener\('es-site-ui-ready', initPageOverview, \{ once: true \}\)/);
-  const setup = motion.slice(motion.indexOf("function initPageOverview()"), motion.indexOf("if (document.getElementById('esMenuList'))"));
+  const setup = motion.slice(motion.indexOf("function initPageOverview()"), motion.indexOf("function getDistance"));
   assert.doesNotMatch(setup, /\bfetch\s*\(|collection\s*\(/);
+});
+
+test("overview runs on every page and adds nothing to the shared menu list", () => {
+  const motion = read("../public/ios-motion.js");
+  assert.doesNotMatch(motion, /es-page-overview-launch|menu\.insertBefore|getElementById\('esMenuList'\)/);
+  assert.doesNotMatch(motion, /addEventListener\('es-site-ui-ready'/);
+  assert.match(motion, /\n  initPageOverview\(\);\n/);
+  assert.match(motion, /window\.ESIOSPageOverview = \{ open:/);
+});
+
+test("the built-in fallback list covers every page link in the shared menu", () => {
+  const motion = read("../public/ios-motion.js");
+  const siteUi = read("../public/site-ui.js");
+  const fallback = [...motion.slice(motion.indexOf("var OVERVIEW_FALLBACK_PAGES"), motion.indexOf("function initPageOverview()")).matchAll(/href: '([^']+)', label: '([^']+)'/g)].map((m) => [m[1], m[2]]);
+  const menuStart = siteUi.indexOf("function esBuildMenu()");
+  const menu = siteUi.slice(menuStart, siteUi.indexOf("const admin = item(", menuStart));
+  const links = new Map([...siteUi.matchAll(/\{ href: "([^"]+)", label: "([^"]+)"/g)].map((m) => [m[1], m[2]]));
+  const expected = new Map();
+  for (const m of menu.matchAll(/list\.appendChild\(link\("([^"]+)"\)\)/g)) expected.set(m[1], links.get(m[1]));
+  for (const m of menu.matchAll(/item\(\{ href: "([^"]+)", label: "([^"]+)"/g)) expected.set(m[1], m[2]);
+  assert.ok(expected.size >= 18, "menu parsing found " + expected.size + " pages");
+  assert.deepEqual(new Map(fallback).size, fallback.length);
+  for (const [href, label] of expected) {
+    assert.ok(fallback.some(([h, l]) => h === href && l === label), "fallback list is missing " + href + " (" + label + ")");
+  }
+  assert.equal(fallback.length, expected.size);
 });
 
 test("overview has a scrollable three-column glass grid with lightweight skeleton-only previews", () => {
@@ -43,10 +69,11 @@ test("the home feed's generic scroll marker no longer suppresses the overview pi
 
 test("pinch gestures skip interactive and immersive zones; zoom is constrained only while overview is open", () => {
   const motion = read("../public/ios-motion.js");
-  assert.match(motion, /function excluded\(target\)[\s\S]*?video,iframe,canvas,input,textarea,select,button,a/);
+  assert.match(motion, /function excluded\(target\)[\s\S]*?video,iframe,canvas,input,textarea,select,\[contenteditable\]/);
+  const excludedBody = motion.slice(motion.indexOf("function excluded(target)"), motion.indexOf("function touchesWithinOverview"));
+  assert.doesNotMatch(excludedBody, /select,button|,a,/);
   assert.match(motion, /function touchesWithinOverview\(touches\)[\s\S]*?overlay\.contains\(touches\[i\]\.target\)/);
   assert.match(motion, /function touchesEnterExcludedSurface\(touches\)[\s\S]*?excluded\(pointTarget\)/);
-  assert.match(motion, /launcher\.setAttribute\('data-nospin', ''\)/);
   assert.match(motion, /document\.elementFromPoint\(touch\.clientX, touch\.clientY\)/);
   assert.doesNotMatch(motion, /card\.setAttribute\('role', 'listitem'\)/);
   assert.match(motion, /OPEN_PINCH_RATIO = 0\.72/);

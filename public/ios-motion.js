@@ -110,17 +110,29 @@
   pullRefresh.innerHTML = '<svg viewBox="0 0 52 52"><circle class="es-ios-pull-track" cx="26" cy="26" r="22"></circle><circle class="es-ios-pull-progress" cx="26" cy="26" r="22" pathLength="100"></circle><g transform="translate(12 12) scale(1.1667)"><g class="es-ios-pull-icon"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></g></g></svg><span class="es-ios-pull-label">Pull to refresh</span>';
   document.body.appendChild(pullRefresh);
 
-  function initPageOverview() {
-    var menu = document.getElementById('esMenuList');
-    if (!menu || document.getElementById('esPageOverview')) return;
+  var OVERVIEW_FALLBACK_PAGES = [
+    { href: '/', label: 'Home' },
+    { href: '/live', label: 'Live TV' },
+    { href: '/movies', label: 'Movies' },
+    { href: '/football', label: 'Football' },
+    { href: '/profile', label: 'Profile' },
+    { href: '/tools', label: 'Tools' },
+    { href: '/tools/trading', label: 'Trading' },
+    { href: '/promote', label: 'Promote' },
+    { href: '/giveaway', label: 'Giveaway' },
+    { href: '/channel-react', label: 'Channel Reaction' },
+    { href: '/chess', label: 'Chess' },
+    { href: '/ludo', label: 'Ludo' },
+    { href: '/whot', label: 'Whot' },
+    { href: '/snakes', label: 'Snakes and Ladders' },
+    { href: '/tictactoe', label: 'Tic-Tac-Toe' },
+    { href: '/deploy-bot', label: 'Deploy Bot' },
+    { href: '/developers', label: 'Developers' },
+    { href: '/account', label: 'Account' }
+  ];
 
-    var launcher = document.createElement('button');
-    launcher.type = 'button';
-    launcher.className = 'user-menu-item es-page-overview-launch';
-    launcher.setAttribute('aria-label', 'Page overview');
-    launcher.setAttribute('data-nospin', '');
-    launcher.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg><span>Page overview</span>';
-    menu.insertBefore(launcher, menu.firstChild);
+  function initPageOverview() {
+    if (document.getElementById('esPageOverview')) return;
 
     var overlay = document.createElement('div');
     overlay.id = 'esPageOverview';
@@ -152,7 +164,7 @@
 
     function excluded(target) {
       if (!target || !target.closest) return true;
-      var protectedSurface = target.closest('[data-no-overview],[data-no-status-swipe],video,iframe,canvas,input,textarea,select,button,a,[contenteditable],[role="slider"],[class*="game"],[class*="board"],[class*="player"],[class*="chat"],[class*="comment"],[class*="map"],.music-player,.st-panel,.st-full,.st-over,.page-overlay.show');
+      var protectedSurface = target.closest('[data-no-overview],[data-no-status-swipe],video,iframe,canvas,input,textarea,select,[contenteditable],[role="slider"],[class*="game"],[class*="board"],[class*="player"],[class*="chat"],[class*="comment"],[class*="map"],.music-player,.st-panel,.st-full,.st-over,.page-overlay.show');
       if (protectedSurface) return true;
       var homeFeed = target.closest('.hm-feed-card');
       if (homeFeed) {
@@ -196,6 +208,11 @@
         seenPaths[key] = true;
         pages.push({ href: url.pathname + url.search + url.hash, path: key, label: label });
       });
+      if (!pages.length) {
+        OVERVIEW_FALLBACK_PAGES.forEach(function(page) {
+          pages.push({ href: page.href, path: page.href.replace(/\/+$/, '') || '/', label: page.label });
+        });
+      }
       return pages;
     }
 
@@ -316,7 +333,6 @@
       window.setTimeout(function() { window.location.assign(destination.href); }, reduceMotion ? 0 : 360);
     }
 
-    launcher.addEventListener('click', function() { showOverview(false, 0); });
     closeButton.addEventListener('click', function() { closeOverview(false); });
     overlay.addEventListener('click', function(event) {
       if (event.target === overlay) closeOverview(false);
@@ -380,8 +396,7 @@
     window.ESIOSPageOverview = { open: function() { showOverview(false, 0); }, close: function() { closeOverview(false); } };
   }
 
-  if (document.getElementById('esMenuList')) initPageOverview();
-  else document.addEventListener('es-site-ui-ready', initPageOverview, { once: true });
+  initPageOverview();
 
   if (reduceMotion) return;
   document.documentElement.classList.add('ios-motion-enabled');
