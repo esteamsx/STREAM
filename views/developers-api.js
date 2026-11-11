@@ -1787,9 +1787,9 @@ ${musicPlayerHtml()}
   var PAYSTACK_PUBLIC_KEY = ${JSON.stringify(cfg.paystackPublicKey || "")};
 
   var PLAN_DEFS = [
-    { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, requestsPerSecond: 6, monthlyRequests: 200, noAds: false, customAdsLink: false, note: 'Default plan' },
-    { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, requestsPerSecond: 50, monthlyRequests: 1000, noAds: false, customAdsLink: false, note: 'Auto with account verification' },
-    { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, requestsPerSecond: 100, monthlyRequests: 1750, noAds: false, customAdsLink: false, note: '30 days' },
+    { key: 'free', name: 'Free', priceNgn: 0, apiKeys: 1, requestsPerSecond: 6, monthlyRequests: 100, noAds: false, customAdsLink: false, note: 'Default plan' },
+    { key: 'starter', name: 'Starter', priceNgn: 0, apiKeys: 3, requestsPerSecond: 50, monthlyRequests: 500, noAds: false, customAdsLink: false, note: 'Auto with account verification' },
+    { key: 'standard', name: 'Standard', priceNgn: 7500, apiKeys: 5, requestsPerSecond: 100, monthlyRequests: 1000, noAds: false, customAdsLink: false, note: '30 days' },
     { key: 'pro', name: 'Pro', priceNgn: 13500, apiKeys: 10, requestsPerSecond: 200, monthlyRequests: 2500, noAds: true, customAdsLink: false, note: '30 days', highlight: true },
     { key: 'max', name: 'Max', priceNgn: 20500, apiKeys: 15, requestsPerSecond: 250, monthlyRequests: 5000, noAds: true, customAdsLink: true, note: '30 days' },
   ];
