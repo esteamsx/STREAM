@@ -341,7 +341,9 @@ button{cursor:pointer}
   </aside>
 </div>
 
+<link rel="stylesheet" href="/slide-logout.css?v=${BUILD}">
 <script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defer></script>
+<script nonce="__CSP_NONCE__" src="/slide-logout.js?v=${BUILD}" defer></script>
 <script nonce="__CSP_NONCE__" src="/devtools-guard.js?v=${BUILD}" defer></script>
 <script nonce="__CSP_NONCE__" src="/post-ui.js?v=${BUILD}" defer></script>
 <script nonce="__CSP_NONCE__" src="/status-ui.js?v=${BUILD}" defer></script>

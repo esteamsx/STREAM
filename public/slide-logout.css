@@ -1,0 +1,85 @@
+.slide-logout {
+  position: relative;
+  width: 100%;
+  padding: 4px;
+  border: 1px solid rgba(255, 59, 92, .34);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 59, 92, .12), rgba(255, 255, 255, .06));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 8px 24px rgba(0,0,0,.16);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  color: var(--text);
+}
+.slide-logout-track {
+  position: relative;
+  height: 48px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.slide-logout-track::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255,59,92,.18), rgba(255,59,92,.04) 55%, transparent);
+  opacity: var(--slide-fill-opacity, .22);
+  pointer-events: none;
+}
+.slide-logout-progress {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--slide-progress-pct, 0%);
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255,59,92,.18), rgba(255,59,92,.34));
+  pointer-events: none;
+}
+.slide-logout-label {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 54px;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  pointer-events: none;
+  transition: opacity .12s ease;
+}
+.slide-logout-thumb {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(255,255,255,.46);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  background: linear-gradient(145deg, #ff6b83, #ff3b5c);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(255,59,92,.42), inset 0 1px 0 rgba(255,255,255,.35);
+  transform: translate3d(var(--slide-x, 0px), 0, 0);
+  transition: transform .52s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease, background .18s ease;
+  will-change: transform;
+}
+.slide-logout-thumb svg { width: 19px; height: 19px; pointer-events: none; }
+.slide-logout.is-dragging .slide-logout-thumb { cursor: grabbing; transition: none; box-shadow: 0 10px 26px rgba(255,59,92,.56), inset 0 1px 0 rgba(255,255,255,.35); }
+.slide-logout.is-armed .slide-logout-thumb { background: linear-gradient(145deg, #ff8a9d, #ff3b5c); box-shadow: 0 10px 30px rgba(255,59,92,.68), 0 0 0 4px rgba(255,59,92,.14); }
+.slide-logout.is-completing .slide-logout-thumb { cursor: default; }
+.slide-logout.is-error { border-color: rgba(255,59,92,.7); }
+.slide-logout-fade { animation: slideLogoutFade .28s ease forwards; pointer-events: none; }
+@keyframes slideLogoutFade { to { opacity: 0; transform: scale(.985); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .slide-logout-thumb { transition: none; }
+  .slide-logout-label { transition: none; }
+  .slide-logout-fade { animation: none; opacity: 0; }
+}

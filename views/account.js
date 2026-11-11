@@ -2012,12 +2012,17 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="logoutOverlay">
   <div class="overlay-card">
     <div class="overlay-title">Log out?</div>
-    <div class="overlay-sub">Are you sure you want to logout?</div>
-    <button class="acc-btn acc-btn-danger" id="confirmLogoutBtn" style="width:100%;border-color:var(--red)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:15px;height:15px;vertical-align:-2px;margin-right:6px"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-      Logout
-    </button>
-    <button class="overlay-cancel" id="cancelLogoutBtn">Cancel</button>
+    <div class="overlay-sub">Slide all the way to the right to safely sign out.</div>
+    <div class="slide-logout" data-slide-logout data-logout-endpoint="/api/logout" data-logout-redirect="/login?logged_out=1">
+      <div class="slide-logout-track" data-slide-track>
+        <div class="slide-logout-progress"></div>
+        <div class="slide-logout-label" data-slide-label>Slide to Logout</div>
+        <div class="slide-logout-thumb" data-slide-thumb role="slider" tabindex="0" aria-label="Slide to Logout" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        </div>
+      </div>
+    </div>
+    <button class="overlay-cancel" id="cancelLogoutBtn" data-slide-cancel>Cancel</button>
   </div>
 </div>
 
@@ -3521,10 +3526,6 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 });
 document.getElementById('cancelLogoutBtn').addEventListener('click', () => {
   document.getElementById('logoutOverlay').classList.remove('show');
-});
-document.getElementById('confirmLogoutBtn').addEventListener('click', async () => {
-  await postJSON('/api/logout');
-  window.location.href = '/login?logged_out=1';
 });
 
 document.getElementById('dangerHeader').addEventListener('click', () => {

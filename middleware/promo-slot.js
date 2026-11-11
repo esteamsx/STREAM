@@ -85,6 +85,8 @@ const POPUNDER_TAG = `<script nonce="__CSP_NONCE__" src="/popunder.js?v=${BUILD}
 const NATIVE_TAG = `<script nonce="__CSP_NONCE__" src="/native-banner.js?v=${BUILD}" defer></script>`;
 const THEME_TAG = `<script nonce="__CSP_NONCE__" src="/site-theme.js?v=${BUILD}"></script>`;
 const NAV_TAG = `<script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defer></script>`;
+const SLIDE_LOGOUT_CSS_TAG = `<link rel="stylesheet" href="/slide-logout.css?v=${BUILD}">`;
+const SLIDE_LOGOUT_TAG = `<script nonce="__CSP_NONCE__" src="/slide-logout.js?v=${BUILD}" defer></script>`;
 const SEASONAL_TAG = `<script nonce="__CSP_NONCE__" src="/christmas-theme.js?v=${BUILD}" defer></script>`;
 
 function matches(path, list) {
@@ -119,7 +121,7 @@ export function injectPromoSlot(req, res, next) {
         if (at !== -1) {
           const adsOk = !(res.locals && res.locals.noAds);
           const tags =
-            (wantsNav ? NAV_TAG : "") +
+            (wantsNav ? SLIDE_LOGOUT_CSS_TAG + NAV_TAG + SLIDE_LOGOUT_TAG : "") +
             (wantsAds ? SPONSOR_TAG : "") +
             (wantsPresence ? PRESENCE_TAG : "") +
             (wantsRewards ? WEEKLY_REWARDS_TAG : "") +
