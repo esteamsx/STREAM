@@ -10,8 +10,15 @@ import { renderAccount } from "../views/account.js";
 
 const auth = readFileSync(new URL("../services/auth.js", import.meta.url), "utf8");
 const account = readFileSync(new URL("../views/account.js", import.meta.url), "utf8");
+const siteUi = readFileSync(new URL("../public/site-ui.js", import.meta.url), "utf8");
 const rewardsRoute = readFileSync(new URL("../routes/rewards.js", import.meta.url), "utf8");
 const indexes = JSON.parse(readFileSync(new URL("../firestore.indexes.json", import.meta.url), "utf8"));
+
+test("Account and main-page Premium benefits include the AI coding agent", () => {
+  const accountHtml = renderAccount({});
+  assert.ok(accountHtml.includes("AI coding agent (Cod" + String.fromCharCode(92) + "NG) for code help and downloadable file fixes"));
+  assert.match(siteUi, /the COD\\\\NG AI coding agent for coding help and downloadable file fixes/);
+});
 
 test("first Premium payment awards ₦350, ₦150, and ₦50 through at most three eligible generations", () => {
   const awards = planPremiumReferralAwards([

@@ -130,6 +130,10 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /aria-pressed="false"/);
   assert.match(html, /speaking=false/);
   assert.match(html, /codingSpeakSlash/);
+  assert.match(html, /class="coding-speak-slash" d="M4 4L20 20"/);
+  assert.match(html, /\.coding-speak-muted \.coding-speak-slash\{display:block\}/);
+  assert.match(html, /thinking-word/);
+  assert.match(html, /thinkingShimmer/);
   assert.match(html, /window\.scrollTo/);
   assert.doesNotMatch(html, /scrollIntoView/);
   assert.match(html, /\/api\/coding\/chat/);
