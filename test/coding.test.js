@@ -79,6 +79,9 @@ test("COD\\NG builds an Anthropic-compatible Coarena payload without exposing cr
     assert.equal(payload.stream, true);
     assert.equal(payload.messages[0].content[0].type, "text");
     assert.equal(payload.messages[0].content[1].type, "image");
+    assert.match(payload.system, /complete contents \(not a diff\)/);
+    assert.match(payload.system, /```js filename=src\/app\.js/);
+    assert.match(payload.system, /```text filename=image-prompt\.txt/);
     assert.equal(JSON.stringify(payload).includes("COARENA_API_KEY"), false);
   } finally {
     if (previousScanner == null) delete process.env.CODING_CLAMSCAN_BIN; else process.env.CODING_CLAMSCAN_BIN = previousScanner;
@@ -132,6 +135,9 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /\/api\/coding\/chat/);
   assert.match(html, /SpeechRecognition|webkitSpeechRecognition/);
   assert.match(html, /Download/);
+  assert.match(html, /thinking-indicator/);
+  assert.match(html, /thinkingPulse/);
+  assert.match(html, /a\.download=safeName/);
   assert.match(html, /overflow-y:auto/);
   assert.doesNotMatch(html, /COARENA_API_KEY|ANTHROPIC_AUTH_TOKEN|test-secret/);
 });
