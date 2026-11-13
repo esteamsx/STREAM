@@ -41,7 +41,10 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       console.info(`[COD\\NG] Coarena stream complete uid=${req.uid} chunks=${chunkCount} chars=${textChars} ms=${Date.now() - startedAt}`);
     } catch (error) {
       console.warn(`[COD\\NG] Coarena stream failed uid=${req.uid} code=${error?.code || "unknown"} message=${error?.message || "unknown"}`);
-      if (res.headersSent) return res.end();
+      if (res.headersSent) {
+        if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "error", error: error?.message || "COD\\NG could not finish the response." })}\n\n`);
+        return res.end();
+      }
       const status = Number(error?.status) || 502;
       res.status(status).json({ error: error?.message || "COD\\NG could not reach the AI service.", code: error?.code || "coding_error" });
     }
