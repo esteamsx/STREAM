@@ -71,6 +71,12 @@ export const PAGES = {
     description: "The ES TEAMS TV Developer API: media and AI tools for your own site or bot.",
     auth: "public",
   },
+  coding: {
+    path: "/coding",
+    title: `CODING | ${SITE.name}`,
+    description: "Premium coding, debugging, file analysis and code generation with CODING.",
+    auth: "required",
+  },
   live: {
     path: "/live",
     title: `Live TV | ${SITE.name}`,

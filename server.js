@@ -28,6 +28,7 @@ import { renderDevelopers } from "./views/developers.js";
 import { renderDevelopersLiveTv } from "./views/developers-live-tv.js";
 import { renderDevelopersApi } from "./views/developers-api.js";
 import { renderDevelopersMovieApi } from "./views/developers-movie-api.js";
+import { renderCoding } from "./views/coding.js";
 import { renderAdmin } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
@@ -374,6 +375,7 @@ import { registerWhotRoutes } from "./routes/whot.js";
 import { registerSnakesRoutes } from "./routes/snakes.js";
 import { registerTttRoutes } from "./routes/tictactoe.js";
 import { registerMovieRoutes } from "./routes/movies.js";
+import { registerCodingRoutes } from "./routes/coding.js";
 import { movieApiRouter } from "./routes/movie-api.js";
 import { registerChannelRoutes } from "./routes/channel-tools.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
@@ -782,6 +784,8 @@ app.use(tttRouter);
 const moviesRouter = express.Router();
 registerMovieRoutes(moviesRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, isVerificationActive, isAdminEmail, listMovieWatchLater, getMovieWatchLater, saveMovieWatchLater, removeMovieWatchLater });
 app.use(moviesRouter);
+const codingRouter = registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRateLimiter });
+app.use(codingRouter);
 app.use(movieApiRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
@@ -907,6 +911,7 @@ const cachedDevelopersHtml = renderDevelopers(authPageConfig);
 const cachedDevelopersLiveTvHtml = renderDevelopersLiveTv(authPageConfig);
 const cachedDevelopersApiHtml = renderDevelopersApi(authPageConfig);
 const cachedDevelopersMovieApiHtml = renderDevelopersMovieApi(authPageConfig);
+const cachedCodingHtml = renderCoding(authPageConfig);
 const cachedDeployBotHtml = renderDeployBot(authPageConfig);
 const cachedChannelReactHtml = renderChannelReact(authPageConfig);
 const cachedToolsIndexHtml = renderToolsIndex(authPageConfig);
@@ -1968,6 +1973,12 @@ app.get("/developers/api", scrapeGate, (req, res) => {
 
 app.get("/developers/movie-api", scrapeGate, (req, res) => {
   res.send(cachedDevelopersMovieApiHtml);
+});
+
+app.get("/coding", scrapeGate, requireUser, async (req, res) => {
+  const profile = req.userProfile || await getUserProfile(req.uid);
+  if (!profile || (!isVerificationActive(profile) && !isAdminEmail(profile.email))) return res.redirect("/account?premium=1");
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private").send(cachedCodingHtml);
 });
 
 app.get("/deploy-bot", scrapeGate, requireUser, (req, res) => {

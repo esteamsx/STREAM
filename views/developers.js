@@ -162,6 +162,14 @@ a{color:var(--accent);text-decoration:none}
       <span class="tile-cta">Get Started<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
     </a>
 
+    <a href="/coding" class="tile">
+      <span class="tile-badge show">Premium</span>
+      <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H4z"/><path d="M8 20h8M12 16v4M8 10l2 2-2 2m4 0h4"/></svg></div>
+      <div class="tile-title">CODING</div>
+      <div class="tile-desc">A Premium coding workspace for debugging, file analysis, voice-assisted development, and complete downloadable code files.</div>
+      <span class="tile-cta">Open CODING<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+
   </div>
 
 </div>
