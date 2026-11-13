@@ -713,7 +713,7 @@ async function verifyCaptcha(payload) {
 app.use(crossOriginWriteGuard);
 
 app.use(express.json({
-  // COD/NG accepts up to 30 MB of decoded files; JSON/base64 overhead needs a larger transient body limit.
+  // COD\NG accepts up to 30 MB of decoded files; JSON/base64 overhead needs a larger transient body limit.
   limit: "42mb",
   type: ["application/json", "application/csp-report"],
   verify: (req, res, buf) => { req.rawBody = buf; },

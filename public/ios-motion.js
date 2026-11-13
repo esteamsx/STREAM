@@ -128,6 +128,7 @@
     { href: '/tictactoe', label: 'Tic-Tac-Toe' },
     { href: '/deploy-bot', label: 'Deploy Bot' },
     { href: '/developers', label: 'Developers' },
+    { href: '/coding', label: 'COD\\NG' },
     { href: '/account', label: 'Account' }
   ];
 
