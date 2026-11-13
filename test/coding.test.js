@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildCodingPayload, createCoarenaRequest } from "../services/coarena-coding.js";
+import { buildCodingPayload, createCoarenaRequest, readCoarenaStream } from "../services/coarena-coding.js";
 import { renderCoding } from "../views/coding.js";
 
-test("CODING builds an Anthropic-compatible Coarena payload without exposing credentials", () => {
+test("COD/NG builds an Anthropic-compatible Coarena payload without exposing credentials", () => {
   const image = Buffer.from("image-bytes").toString("base64");
   const payload = buildCodingPayload({
     messages: [{ role: "user", content: "Review this image and file." }],
@@ -16,7 +16,7 @@ test("CODING builds an Anthropic-compatible Coarena payload without exposing cre
   assert.equal(JSON.stringify(payload).includes("COARENA_API_KEY"), false);
 });
 
-test("CODING uses the configured Anthropic base URL and server-side token", async () => {
+test("COD/NG uses the configured Anthropic base URL and server-side token", async () => {
   const oldBase = process.env.ANTHROPIC_BASE_URL;
   const oldToken = process.env.COARENA_API_KEY;
   const oldFetch = global.fetch;
@@ -40,11 +40,23 @@ test("CODING uses the configured Anthropic base URL and server-side token", asyn
   }
 });
 
-test("CODING view is premium-branded and keeps secrets out of frontend HTML", () => {
+test("COD/NG view is premium-branded and keeps secrets out of frontend HTML", () => {
   const html = renderCoding({ devToolsBlock: "", protectionCSS: "" });
-  assert.match(html, /CODING/);
+  assert.match(html, /COD\/NG/);
   assert.match(html, /\/api\/coding\/chat/);
   assert.match(html, /SpeechRecognition|webkitSpeechRecognition/);
   assert.match(html, /Download/);
   assert.doesNotMatch(html, /COARENA_API_KEY|ANTHROPIC_AUTH_TOKEN|test-secret/);
+});
+
+test("COD/NG reads streamed Anthropic text deltas correctly", async () => {
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"type":"content_block_delta","delta":{"text":"Hello "}}\n\ndata: {"type":"content_block_delta","delta":{"text":"world"}}\n\ndata: {"type":"message_stop"}\n\n'));
+      controller.close();
+    },
+  });
+  const events = [];
+  for await (const event of readCoarenaStream(new Response(body))) events.push(event);
+  assert.deepEqual(events, [{ type: "text", text: "Hello " }, { type: "text", text: "world" }, { type: "done" }]);
 });

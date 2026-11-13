@@ -73,8 +73,8 @@ export const PAGES = {
   },
   coding: {
     path: "/coding",
-    title: `CODING | ${SITE.name}`,
-    description: "Premium coding, debugging, file analysis and code generation with CODING.",
+    title: `COD/NG | ${SITE.name}`,
+    description: "Premium coding, debugging, file analysis and code generation with COD/NG.",
     auth: "required",
   },
   live: {

@@ -1,8 +1,9 @@
 const DEFAULT_BASE_URL = "https://coarena.ai/api";
 const DEFAULT_MODEL = "claude-fable-5-2";
-const MAX_MESSAGES = 40;
+const MAX_MESSAGES = 80;
 const MAX_ATTACHMENTS = 6;
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+const MAX_TOTAL_ATTACHMENT_BYTES = 18 * 1024 * 1024;
 
 function cleanText(value, max = 20000) {
   return String(value == null ? "" : value).slice(0, max);
@@ -44,6 +45,10 @@ export function buildCodingPayload(input = {}) {
     throw Object.assign(new Error("Send a user message first."), { status: 400 });
   }
   const attachments = Array.isArray(input.attachments) ? input.attachments.slice(0, MAX_ATTACHMENTS).map(attachmentContent).filter(Boolean) : [];
+  const attachmentBytes = attachments.reduce((total, item) => total + (item.source?.data ? Math.floor(item.source.data.length * 0.75) : Buffer.byteLength(item.text || "")), 0);
+  if (attachmentBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+    throw Object.assign(new Error("Attachments are too large together. Keep the total under 18 MB."), { status: 413, code: "attachments_too_large" });
+  }
   if (attachments.length) {
     const last = messages[messages.length - 1];
     const content = [{ type: "text", text: last.content }, ...attachments.map((item) => { const copy = { ...item }; delete copy._name; return copy; })];
@@ -52,7 +57,7 @@ export function buildCodingPayload(input = {}) {
   return {
     model: coarenaConfig().model,
     max_tokens: Math.min(12000, Math.max(1024, Number(input.max_tokens) || 8192)),
-    system: "You are CODING, the ES TEAMS TV premium coding assistant. Help with programming, debugging, architecture, and code review. Be precise. When the user asks for a completed file, return a fenced code block with the filename on the fence, for example ```js filename=src/app.js, and include the complete file. Never claim to have executed code you did not execute.",
+    system: "You are COD/NG, the ES TEAMS TV premium coding assistant. Help with programming, debugging, architecture, and code review. Be precise. When the user asks for a completed file, return a fenced code block with the filename on the fence, for example ```js filename=src/app.js, and include the complete file. Never claim to have executed code you did not execute.",
     messages,
     stream: true,
   };
@@ -60,7 +65,7 @@ export function buildCodingPayload(input = {}) {
 
 export async function createCoarenaRequest(payload, { signal } = {}) {
   const { base, token } = coarenaConfig();
-  if (!token) throw Object.assign(new Error("CODING is not configured yet. Set COARENA_API_KEY or ANTHROPIC_AUTH_TOKEN on the server."), { status: 503, code: "coding_not_configured" });
+  if (!token) throw Object.assign(new Error("COD/NG is not configured yet. Set COARENA_API_KEY or ANTHROPIC_AUTH_TOKEN on the server."), { status: 503, code: "coding_not_configured" });
   const response = await fetch(endpointFor(base), {
     method: "POST",
     headers: {
@@ -106,4 +111,4 @@ export async function* readCoarenaStream(response) {
   } finally { reader.releaseLock(); }
 }
 
-export const codingLimits = { MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES };
+export const codingLimits = { MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, MAX_TOTAL_ATTACHMENT_BYTES, MAX_MESSAGES };
