@@ -17,9 +17,10 @@ export function registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, Simp
   const readLimiter = new SimpleRateLimiter(90, 60 * 1000, (req) => req.uid || req.ip).middleware();
   const writeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid || req.ip).middleware();
   const oauthLimiter = new SimpleRateLimiter(10, 10 * 60 * 1000, (req) => req.uid || req.ip).middleware();
-  const protectedApi = [requireAuth, requireSiteOrigin];
+  const protectedReadApi = [requireAuth];
+  const protectedWriteApi = [requireAuth, requireSiteOrigin];
 
-  router.get("/api/coding/github/status", ...protectedApi, readLimiter, async (req, res) => {
+  router.get("/api/coding/github/status", ...protectedReadApi, readLimiter, async (req, res) => {
     try { res.json(await getConnectionStatus(req.uid)); } catch (error) { jsonError(res, error); }
   });
 
@@ -57,41 +58,41 @@ export function registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, Simp
     }
   });
 
-  router.post("/api/coding/github/disconnect", ...protectedApi, writeLimiter, async (req, res) => {
+  router.post("/api/coding/github/disconnect", ...protectedWriteApi, writeLimiter, async (req, res) => {
     try { await disconnect(req.uid); res.json({ ok: true }); } catch (error) { jsonError(res, error); }
   });
 
-  router.get("/api/coding/github/repos", ...protectedApi, readLimiter, async (req, res) => {
+  router.get("/api/coding/github/repos", ...protectedReadApi, readLimiter, async (req, res) => {
     try { res.json({ repositories: await listRepositories(req.uid) }); } catch (error) { jsonError(res, error); }
   });
-  router.post("/api/coding/github/repo", ...protectedApi, writeLimiter, async (req, res) => {
+  router.post("/api/coding/github/repo", ...protectedWriteApi, writeLimiter, async (req, res) => {
     try { res.json({ repository: await selectRepository(req.uid, req.body || {}) }); } catch (error) { jsonError(res, error); }
   });
-  router.get("/api/coding/github/tree", ...protectedApi, readLimiter, async (req, res) => {
+  router.get("/api/coding/github/tree", ...protectedReadApi, readLimiter, async (req, res) => {
     try { res.json(await getTree(req.uid, req.query || {})); } catch (error) { jsonError(res, error); }
   });
-  router.get("/api/coding/github/file", ...protectedApi, readLimiter, async (req, res) => {
+  router.get("/api/coding/github/file", ...protectedReadApi, readLimiter, async (req, res) => {
     try { res.json(await readFile(req.uid, req.query || {})); } catch (error) { jsonError(res, error); }
   });
-  router.get("/api/coding/github/search", ...protectedApi, readLimiter, async (req, res) => {
+  router.get("/api/coding/github/search", ...protectedReadApi, readLimiter, async (req, res) => {
     try { res.json(await searchCode(req.uid, req.query || {})); } catch (error) { jsonError(res, error); }
   });
-  router.post("/api/coding/github/changes", ...protectedApi, writeLimiter, async (req, res) => {
+  router.post("/api/coding/github/changes", ...protectedWriteApi, writeLimiter, async (req, res) => {
     try { res.json(await stageChanges(req.uid, req.body || {})); } catch (error) { jsonError(res, error); }
   });
-  router.get("/api/coding/github/changes/:id", ...protectedApi, readLimiter, async (req, res) => {
+  router.get("/api/coding/github/changes/:id", ...protectedReadApi, readLimiter, async (req, res) => {
     try { res.json(await getWorkspace(req.uid, req.params.id)); } catch (error) { jsonError(res, error); }
   });
-  router.post("/api/coding/github/changes/:id/approve", ...protectedApi, writeLimiter, async (req, res) => {
+  router.post("/api/coding/github/changes/:id/approve", ...protectedWriteApi, writeLimiter, async (req, res) => {
     try { res.json(await approveWorkspace(req.uid, req.params.id)); } catch (error) { jsonError(res, error); }
   });
-  router.post("/api/coding/github/changes/:id/commit", ...protectedApi, writeLimiter, async (req, res) => {
+  router.post("/api/coding/github/changes/:id/commit", ...protectedWriteApi, writeLimiter, async (req, res) => {
     try { res.json(await commitWorkspace(req.uid, req.params.id, req.body || {})); } catch (error) { jsonError(res, error); }
   });
-  router.get("/api/coding/github/history", ...protectedApi, readLimiter, async (req, res) => {
+  router.get("/api/coding/github/history", ...protectedReadApi, readLimiter, async (req, res) => {
     try { res.json({ commits: await getHistory(req.uid, req.query || {}) }); } catch (error) { jsonError(res, error); }
   });
-  router.get("/api/coding/github/tests", ...protectedApi, readLimiter, async (req, res) => {
+  router.get("/api/coding/github/tests", ...protectedReadApi, readLimiter, async (req, res) => {
     try { res.json(await detectTests(req.uid, req.query || {})); } catch (error) { jsonError(res, error); }
   });
 
