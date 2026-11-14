@@ -183,6 +183,13 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /retryFailedMessage/);
   assert.match(html, /message-retry/);
   assert.match(html, /activity-panel/);
+  assert.match(html, /activity-progress-mark/);
+  assert.match(html, /activity-progress-skeleton/);
+  assert.match(html, /document\.createElementNS\('http:\/\/www\.w3\.org\/2000\/svg','svg'\)/);
+  assert.doesNotMatch(html, /activity-row\.completed:before|content:'✓'/);
+  assert.match(html, /message-body\.message-collapsed\{max-height:10\.9em;overflow:auto/);
+  assert.match(html, /approximateLines>5/);
+  assert.match(html, /textContent=expanded\?'Show less':'Show more'/);
   assert.match(html, /conversationId:chat\.id/);
   assert.match(html, /\/api\/coding\/activity\//);
   assert.match(html, /codingCommandRun/);
