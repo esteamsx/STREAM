@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { deflateRawSync } from "node:zlib";
-import { assertSafeCodingRequest, buildCodingPayload, createCoarenaRequest, readCoarenaStream } from "../services/coarena-coding.js";
+import { assertSafeCodingRequest, buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError } from "../services/coarena-coding.js";
 import { renderCoding } from "../views/coding.js";
 
 const markdownSource = readFileSync(new URL("../public/coding-markdown.js", import.meta.url), "utf8");
@@ -405,4 +405,11 @@ test("COD\\NG rejects more than 30 MB of attachments", () => {
     { name: "three.txt", mime: "text/plain", data: chunk },
     { name: "four.txt", mime: "text/plain", data: chunk },
   ] }), /under 30 MB/);
+});
+
+test("COD\\NG sanitizes provider failures without exposing infrastructure details", () => {
+  const error = safeCodingError(Object.assign(new Error("Coarena returned HTTP 503: https://internal.example/secret"), { status: 503, code: "coarena_error", retryable: true }));
+  assert.equal(error.message, "The AI service is temporarily unavailable. Please try again shortly.");
+  assert.equal(error.retryable, true);
+  assert.doesNotMatch(error.message, /Coarena|internal\\.example|503/);
 });

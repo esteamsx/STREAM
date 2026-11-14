@@ -19,6 +19,8 @@ const MAX_REPOSITORY_CONTEXT_CHARS = 80000;
 const MAX_REPOSITORY_CONTEXT_FILES = 12;
 const MAX_PROJECT_TREE_CHARS = 24000;
 const QUARANTINE_DIR = path.join(os.tmpdir(), "stream-coding-quarantine");
+const PROVIDER_RETRY_ATTEMPTS = 3;
+const PROVIDER_RETRY_BASE_MS = 350;
 const UNSUPPORTED_ARCHIVE_MIMES = new Set(["application/x-rar-compressed", "application/vnd.rar", "application/x-7z-compressed", "application/x-tar", "application/gzip", "application/x-bzip2", "application/x-xz", "application/java-archive"]);
 const BLOCKED_EXTENSIONS = /\.(?:rar|7z|tar|gz|bz2|xz|tgz|exe|dll|so|dylib|msi|com|scr|bat|cmd|ps1|psm1|psd1|vbs|vbe|jse|wsf|wsh|jar|apk|deb|rpm|dmg|iso|sys|ocx|cpl|pif|appx|appxbundle|hta|gadget|reg|lnk|url|command|app)$/i;
 const TEXT_MIMES = /^(?:text\/.*|application\/(?:json|javascript|x-javascript|typescript|xml|yaml|x-yaml|graphql|sql|toml|x-sh|x-httpd-php|wasm))$/i;
@@ -63,6 +65,36 @@ function endpointFor(base) {
 
 function attachmentError(message, code = "unsafe_attachment", status = 400) {
   return Object.assign(new Error(message), { status, code });
+}
+
+function providerError(message, status = 502, code = "coding_provider_error", retryable = false) {
+  return Object.assign(new Error(message), { status, code, retryable });
+}
+
+function providerUserMessage(error) {
+  const status = Number(error?.status) || 0;
+  if (error?.code === "coding_not_configured") return "The AI service is not available right now.";
+  if (error?.code === "coding_request_aborted") return "The request was cancelled.";
+  if (status === 429) return "The AI is busy handling many requests. Please try again shortly.";
+  if ([500, 502, 503, 504].includes(status) || error?.retryable) return "The AI service is temporarily unavailable. Please try again shortly.";
+  if (error?.code?.startsWith("coarena_") || error?.code === "coding_provider_error") return "Your request could not be completed. Please retry.";
+  return null;
+}
+
+export function safeCodingError(error) {
+  const message = providerUserMessage(error);
+  if (!message) return error;
+  return Object.assign(new Error(message), { status: Number(error?.status) || 502, code: "coding_provider_unavailable", retryable: error?.retryable !== false });
+}
+
+function retryDelay(attempt, response) {
+  const retryAfter = Number(response?.headers?.get?.("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter >= 0 && retryAfter <= 30) return retryAfter * 1000;
+  return PROVIDER_RETRY_BASE_MS * (2 ** attempt) + Math.floor(Math.random() * 180);
+}
+
+function isRetryableProviderFailure(error) {
+  return [429, 500, 502, 503, 504].includes(Number(error?.status)) || ["UND_ERR_CONNECT_TIMEOUT", "ECONNRESET", "ETIMEDOUT", "ECONNREFUSED"].includes(error?.cause?.code || error?.code);
 }
 
 export function assertSafeCodingRequest(messages, attachmentTexts = []) {
@@ -321,27 +353,37 @@ export function buildCodingPayload(input = {}) {
 
 export async function createCoarenaRequest(payload, { signal } = {}) {
   const { base, token } = coarenaConfig();
-  if (!token) throw Object.assign(new Error("COD\\NG is not configured yet. Set COARENA_API_KEY or ANTHROPIC_AUTH_TOKEN on the server."), { status: 503, code: "coding_not_configured" });
-  const response = await fetch(endpointFor(base), {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "text/event-stream, application/json", "anthropic-version": "2023-06-01", "x-api-key": token, authorization: `Bearer ${token}` },
-    body: JSON.stringify(payload),
-    signal,
-  });
-  if (!response.ok) {
-    const raw = (await response.text()).slice(0, 800);
-    let detail = raw;
-    try { detail = JSON.parse(raw).error?.message || JSON.parse(raw).error || raw; } catch {}
-    throw Object.assign(new Error(`Coarena returned HTTP ${response.status}: ${detail || "request failed"}`), { status: response.status, code: "coarena_error" });
+  if (!token) throw providerError("AI service is not configured.", 503, "coding_not_configured", true);
+  for (let attempt = 0; attempt < PROVIDER_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(endpointFor(base), {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "text/event-stream, application/json", "anthropic-version": "2023-06-01", "x-api-key": token, authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+        signal,
+      });
+      if (!response.ok) {
+        const status = response.status;
+        await response.text().catch(() => "");
+        const error = providerError("The AI provider returned an unsuccessful response.", status, "coarena_error", isRetryableProviderFailure({ status }));
+        if (error.retryable && attempt < PROVIDER_RETRY_ATTEMPTS - 1) { await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt, response))); continue; }
+        throw error;
+      }
+      const contentType = response.headers?.get("content-type") || "";
+      if (!/\btext\/event-stream\b/i.test(contentType)) {
+        const raw = (await response.text().catch(() => "")).slice(0, 800);
+        let detail = raw;
+        try { const parsed = JSON.parse(raw); detail = parsed.error?.message || parsed.error || parsed.message || raw; } catch {}
+        throw Object.assign(new Error(`Coarena returned an unexpected streaming response${detail ? `: ${detail}` : "."}`), { status: 502, code: "coarena_invalid_response", retryable: false });
+      }
+      return response;
+    } catch (error) {
+      if (signal?.aborted) throw Object.assign(new Error("The request was cancelled."), { status: 499, code: "coding_request_aborted", retryable: false });
+      if (!isRetryableProviderFailure(error) || attempt >= PROVIDER_RETRY_ATTEMPTS - 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt)));
+    }
   }
-  const contentType = response.headers?.get("content-type") || "";
-  if (!/\btext\/event-stream\b/i.test(contentType)) {
-    const raw = (await response.text()).slice(0, 800);
-    let detail = raw;
-    try { const parsed = JSON.parse(raw); detail = parsed.error?.message || parsed.error || parsed.message || raw; } catch {}
-    throw Object.assign(new Error(`Coarena returned an unexpected streaming response${detail ? `: ${detail}` : "."}`), { status: 502, code: "coarena_invalid_response" });
-  }
-  return response;
+  throw providerError("The AI service is temporarily unavailable.", 503, "coding_provider_unavailable", true);
 }
 
 export async function* readCoarenaStream(response) {
@@ -364,7 +406,7 @@ export async function* readCoarenaStream(response) {
         let event; try { event = JSON.parse(data); } catch { continue; }
         if (event?.type === "error" || event?.error) {
           const detail = event.error?.message || event.error || event.message || "The AI service returned an error.";
-          throw Object.assign(new Error(String(detail).slice(0, 500)), { code: "coarena_stream_error" });
+          throw Object.assign(new Error(String(detail).slice(0, 500)), { status: 502, code: "coarena_stream_error", retryable: false });
         }
         const text = event.delta?.text || event.content_block?.text || (event.type === "message_start" ? "" : "");
         if (text) yield { type: "text", text };
@@ -374,7 +416,7 @@ export async function* readCoarenaStream(response) {
     if (buffer.trim()) {
       const data = buffer.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\n");
       if (data === "[DONE]") { if (!terminalEvent) yield { type: "done" }; terminalEvent = true; }
-      else if (data) { let event; try { event = JSON.parse(data); } catch { event = null; } if (event?.type === "error" || event?.error) { const detail = event.error?.message || event.error || event.message || "The AI service returned an error."; throw Object.assign(new Error(String(detail).slice(0, 500)), { code: "coarena_stream_error" }); } const text = event?.delta?.text || event?.content_block?.text; if (text) yield { type: "text", text }; if (event?.type === "message_stop") { if (!terminalEvent) yield { type: "done" }; terminalEvent = true; } }
+      else if (data) { let event; try { event = JSON.parse(data); } catch { event = null; } if (event?.type === "error" || event?.error) { const detail = event.error?.message || event.error || event.message || "The AI service returned an error."; throw Object.assign(new Error(String(detail).slice(0, 500)), { status: 502, code: "coarena_stream_error", retryable: false }); } const text = event?.delta?.text || event?.content_block?.text; if (text) yield { type: "text", text }; if (event?.type === "message_stop") { if (!terminalEvent) yield { type: "done" }; terminalEvent = true; } }
     }
     if (!terminalEvent) throw Object.assign(new Error("The AI connection ended before the response was complete."), { code: "coarena_incomplete_stream" });
   } finally { reader.releaseLock(); }

@@ -1,6 +1,6 @@
 import express from "express";
 import { isAdminEmail, isVerificationActive } from "../services/auth.js";
-import { buildCodingPayload, createCoarenaRequest, readCoarenaStream } from "../services/coarena-coding.js";
+import { buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError } from "../services/coarena-coding.js";
 import { getRepositoryContext } from "../services/github-agent.js";
 
 export function isCodingPremium(profile) {
@@ -57,13 +57,14 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       res.end();
       console.info(`[COD\\NG] Coarena stream complete uid=${req.uid} chunks=${chunkCount} chars=${textChars} ms=${Date.now() - startedAt}`);
     } catch (error) {
-      console.warn(`[COD\\NG] Coarena stream failed uid=${req.uid} code=${error?.code || "unknown"} message=${error?.message || "unknown"}`);
+      console.warn(`[COD\\NG] AI stream failed uid=${req.uid} code=${error?.code || "unknown"} status=${error?.status || "unknown"} detail=${error?.message || "unknown"}`);
+      const safeError = safeCodingError(error);
       if (res.headersSent) {
-        if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "error", error: error?.message || "COD\\NG could not finish the response." })}\n\n`);
+        if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "error", error: safeError.message, retryable: safeError.retryable !== false })}\n\n`);
         return res.end();
       }
-      const status = Number(error?.status) || 502;
-      res.status(status).json({ error: error?.message || "COD\\NG could not reach the AI service.", code: error?.code || "coding_error" });
+      const status = Number(safeError?.status) || 502;
+      res.status(status).json({ error: safeError.message, code: safeError.code || "coding_error", retryable: safeError.retryable === true });
     }
   });
   return router;

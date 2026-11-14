@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { db } from "../config/firebase.js";
 import { encryptGithubToken, decryptGithubToken, validateRepo, parseGithubRepositoryInput, validateRef, validatePath } from "./github-agent-guards.js";
-import { getCodingGithubOAuthConfig } from "./github-agent-config.js";
+import { getCodingGithubOAuthConfig, CODING_GITHUB_OAUTH_SCOPE } from "./github-agent-config.js";
 
 const GITHUB_API = "https://api.github.com";
 const USER_AGENT = "ES-TEAMS-TV-CODING-GITHUB-AGENT";
@@ -71,7 +71,8 @@ export async function getConnection(uid) {
 
 export async function getConnectionStatus(uid) {
   const data = await getConnection(uid);
-  return data ? { connected: true, login: data.login, avatarUrl: data.avatarUrl || null, scopes: data.scopes || [], selectedRepo: data.selectedRepo || null, connectedAt: data.connectedAt || null } : { connected: false, selectedRepo: null };
+  const scopes = Array.isArray(data?.scopes) ? data.scopes : [];
+  return data ? { connected: true, login: data.login, avatarUrl: data.avatarUrl || null, scopes, needsPermissionUpgrade: !scopes.includes(CODING_GITHUB_OAUTH_SCOPE), selectedRepo: data.selectedRepo || null, connectedAt: data.connectedAt || null } : { connected: false, selectedRepo: null, needsPermissionUpgrade: false };
 }
 
 export async function disconnect(uid) {
@@ -84,6 +85,12 @@ async function tokenFor(uid) {
   if (!connection?.token) fail("Connect GitHub before using the repository Agent.", 401, "github_not_connected");
   await db.collection("github_agent_connections").doc(String(uid)).set({ lastUsedAt: Date.now() }, { merge: true });
   return connection;
+}
+
+function ensureWritePermission(connection, chosen) {
+  if (connection?.selectedRepo?.owner?.toLowerCase() === chosen.owner.toLowerCase() && connection?.selectedRepo?.repo?.toLowerCase() === chosen.repo.toLowerCase() && connection.selectedRepo.permissions?.push === false) {
+    fail("This GitHub account can read the repository but cannot modify it. Choose a repository where you have write access or reconnect GitHub with the required permission.", 403, "github_write_permission_required");
+  }
 }
 
 export async function exchangeOAuthCode(code) {
@@ -110,9 +117,37 @@ export async function selectRepository(uid, input) {
   const repo = await githubRequest(connection.token, `/repos/${encodeURIComponent(selected.owner)}/${encodeURIComponent(selected.repo)}`);
   if (repo.owner?.login?.toLowerCase() !== selected.owner.toLowerCase()) fail("Repository owner did not match GitHub.", 403);
   selected.branch = validateRef(input?.branch || repo.default_branch || "main");
-  await db.collection("github_agent_connections").doc(String(uid)).set({ selectedRepo: { ...selected, fullName: repo.full_name, htmlUrl: repo.html_url, private: !!repo.private }, selectedAt: Date.now() }, { merge: true });
+  await db.collection("github_agent_connections").doc(String(uid)).set({ selectedRepo: { ...selected, fullName: repo.full_name, htmlUrl: repo.html_url, private: !!repo.private, permissions: repo.permissions || {} }, selectedAt: Date.now() }, { merge: true });
   await audit(uid, "select_repository", selected);
-  return { ...selected, fullName: repo.full_name, htmlUrl: repo.html_url, private: !!repo.private };
+  return { ...selected, fullName: repo.full_name, htmlUrl: repo.html_url, private: !!repo.private, permissions: repo.permissions || {} };
+}
+
+export async function createBranch(uid, input = {}) {
+  const connection = await tokenFor(uid);
+  const owner = String(input.owner || connection.selectedRepo?.owner || "");
+  const repo = String(input.repo || connection.selectedRepo?.repo || "");
+  const branch = validateRef(input.branch);
+  const base = validateRef(input.base || connection.selectedRepo?.branch || "main");
+  if (!owner || !repo) fail("Select a GitHub repository first.", 400, "github_repository_required");
+  ensureWritePermission(connection, { owner, repo });
+  if (["main", "master"].includes(branch.toLowerCase())) fail("The GitHub Agent cannot create a writable work branch named main or master.", 409, "github_protected_branch");
+  const source = await githubRequest(connection.token, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/ref/heads/${encodeURIComponent(base)}`);
+  await githubRequest(connection.token, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/refs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: source.object.sha }) });
+  await audit(uid, "create_branch", { owner, repo, branch, base });
+  return { owner, repo, branch, base, sha: source.object.sha };
+}
+
+export async function openPullRequest(uid, input = {}) {
+  const { connection, chosen } = await selected(uid, input);
+  ensureWritePermission(connection, chosen);
+  const head = validateRef(input.head || chosen.branch);
+  const base = validateRef(input.base || "main");
+  if (["main", "master"].includes(head.toLowerCase())) fail("Pull requests must originate from a review branch.", 409, "github_protected_branch");
+  const title = String(input.title || "COD\\NG reviewed changes").trim().slice(0, 200);
+  const body = String(input.body || "Created after explicit COD\\NG review and approval.").trim().slice(0, 10000);
+  const pr = await githubRequest(connection.token, `/repos/${encodeURIComponent(chosen.owner)}/${encodeURIComponent(chosen.repo)}/pulls`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, body, head, base }) });
+  await audit(uid, "open_pull_request", { ...chosen, head, base, number: pr.number });
+  return { number: pr.number, title: pr.title, state: pr.state, htmlUrl: pr.html_url, head, base };
 }
 
 async function selected(uid, input = {}) {
@@ -247,6 +282,7 @@ export async function commitWorkspace(uid, id, input = {}) {
   const workspace = await getWorkspace(uid, id);
   if (!workspace.approvedAt) fail("Explicit approval is required before committing changes.", 403, "github_approval_required");
   const { connection, chosen } = await selected(uid, workspace.repo);
+  ensureWritePermission(connection, chosen);
   if (chosen.branch.toLowerCase() === "main" || chosen.branch.toLowerCase() === "master") fail("Direct commits to main are blocked by the GitHub Agent.", 409, "github_protected_branch");
   const message = String(input.message || "COD\\NG: apply reviewed changes").trim().slice(0, 200); if (!message) fail("Commit message is required.");
   const ref = await githubRequest(connection.token, `/repos/${chosen.owner}/${chosen.repo}/git/ref/heads/${encodeURIComponent(chosen.branch)}`);

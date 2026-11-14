@@ -8,7 +8,7 @@ import {
   validateRef,
   validatePath,
 } from "../services/github-agent-guards.js";
-import { getCodingGithubOAuthConfig } from "../services/github-agent-config.js";
+import { getCodingGithubOAuthConfig, CODING_GITHUB_OAUTH_SCOPE } from "../services/github-agent-config.js";
 
 test("GitHub Agent OAuth uses dedicated credentials and callback variables", () => {
   assert.deepEqual(getCodingGithubOAuthConfig({
@@ -55,4 +55,8 @@ test("GitHub Agent encrypts tokens without returning plaintext storage", () => {
     if (oldGenericKey == null) delete process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
     else process.env.GITHUB_TOKEN_ENCRYPTION_KEY = oldGenericKey;
   }
+});
+
+test("GitHub Agent requests only the repository scope needed for write operations", () => {
+  assert.equal(CODING_GITHUB_OAUTH_SCOPE, "repo");
 });

@@ -1,3 +1,5 @@
+export const CODING_GITHUB_OAUTH_SCOPE = "repo";
+
 export function getCodingGithubOAuthConfig(env = process.env) {
   const clientId = String(env.CODING_GITHUB_CLIENT_ID || "").trim();
   const clientSecret = String(env.CODING_GITHUB_CLIENT_SECRET || "").trim();

@@ -1,10 +1,10 @@
 import express from "express";
 import {
   createOAuthState, consumeOAuthState, exchangeOAuthCode, getGithubUser, saveConnection, getConnectionStatus, disconnect,
-  listRepositories, selectRepository, getTree, readFile, searchCode, stageChanges, getWorkspace, approveWorkspace, commitWorkspace,
+  listRepositories, selectRepository, createBranch, openPullRequest, getTree, readFile, searchCode, stageChanges, getWorkspace, approveWorkspace, commitWorkspace,
   getHistory, detectTests,
 } from "../services/github-agent.js";
-import { getCodingGithubOAuthConfig } from "../services/github-agent-config.js";
+import { getCodingGithubOAuthConfig, CODING_GITHUB_OAUTH_SCOPE } from "../services/github-agent-config.js";
 
 function jsonError(res, error) {
   const status = Number(error?.status) || 500;
@@ -34,7 +34,11 @@ export function registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, Simp
       const url = new URL("https://github.com/login/oauth/authorize");
       url.searchParams.set("client_id", clientId);
       url.searchParams.set("redirect_uri", redirectUri);
-      url.searchParams.set("scope", "repo read:user user:email");
+      // `repo` is the single classic OAuth scope required for private-repository
+      // contents, branch, commit, and pull-request operations. GitHub shows the
+      // consent screen again when the existing token lacks it.
+      url.searchParams.set("scope", CODING_GITHUB_OAUTH_SCOPE);
+      if (String(req.query.upgrade || "") === "1") url.searchParams.set("prompt", "select_account");
       url.searchParams.set("state", state);
       res.redirect(url.toString());
     } catch (error) { jsonError(res, error); }
@@ -68,6 +72,9 @@ export function registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, Simp
   router.post("/api/coding/github/repo", ...protectedWriteApi, writeLimiter, async (req, res) => {
     try { res.json({ repository: await selectRepository(req.uid, req.body || {}) }); } catch (error) { jsonError(res, error); }
   });
+  router.post("/api/coding/github/branch", ...protectedWriteApi, writeLimiter, async (req, res) => {
+    try { res.json({ branch: await createBranch(req.uid, req.body || {}) }); } catch (error) { jsonError(res, error); }
+  });
   router.get("/api/coding/github/tree", ...protectedReadApi, readLimiter, async (req, res) => {
     try { res.json(await getTree(req.uid, req.query || {})); } catch (error) { jsonError(res, error); }
   });
@@ -88,6 +95,9 @@ export function registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, Simp
   });
   router.post("/api/coding/github/changes/:id/commit", ...protectedWriteApi, writeLimiter, async (req, res) => {
     try { res.json(await commitWorkspace(req.uid, req.params.id, req.body || {})); } catch (error) { jsonError(res, error); }
+  });
+  router.post("/api/coding/github/pull-requests", ...protectedWriteApi, writeLimiter, async (req, res) => {
+    try { res.json({ pullRequest: await openPullRequest(req.uid, req.body || {}) }); } catch (error) { jsonError(res, error); }
   });
   router.get("/api/coding/github/history", ...protectedReadApi, readLimiter, async (req, res) => {
     try { res.json({ commits: await getHistory(req.uid, req.query || {}) }); } catch (error) { jsonError(res, error); }
