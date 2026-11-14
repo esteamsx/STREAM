@@ -1,10 +1,13 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 const MAX_EXTRACTED_FILES = 200;
 const MAX_EXTRACTED_BYTES = 24 * 1024 * 1024;
-const MAX_FILE_BYTES = 12 * 1024 * 1024;
+const MAX_FILE_BYTES = 24 * 1024 * 1024;
+export const CODING_WORKSPACE_UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
+const TEMP_WORKSPACE_MARKER_ROOT = path.join(os.tmpdir(), "es-teams-coding-workspace-expiry");
 const workspaceLocks = new Map();
 
 function fail(message, status = 400, code = "coding_workspace_error") {
@@ -226,7 +229,110 @@ export async function writeCodingWorkspaceArchives(uid, conversationId, archives
     files.push(...archive.files);
     if (files.length > MAX_EXTRACTED_FILES) fail("The uploaded project contains too many files.", 413, "coding_workspace_project_too_large");
   }
-  return writeCodingWorkspaceFiles(uid, conversationId, files);
+  return withCodingWorkspaceLock(uid, conversationId, async () => {
+    const result = await writeCodingWorkspaceFilesLocked(uid, conversationId, files);
+    try {
+      await recordTemporaryWorkspaceFiles(uid, conversationId, files.map((file) => file.name));
+      return result;
+    } catch (error) {
+      for (const name of files.map((file) => file.name)) {
+        try {
+          const relative = safeRelativePath(name);
+          const parent = await workspaceParentsIfPresent(result.workspace, relative);
+          if (!parent) continue;
+          const candidate = path.join(parent, path.posix.basename(relative));
+          const stat = await fs.lstat(candidate);
+          if (stat.isFile() && !stat.isSymbolicLink() && isWithin(result.workspace, await fs.realpath(candidate))) await fs.unlink(candidate);
+        } catch {}
+      }
+      throw error;
+    }
+  });
+}
+
+function temporaryWorkspaceMarkerPath(uid, conversationId) {
+  return path.join(TEMP_WORKSPACE_MARKER_ROOT, `user-${digest(uid)}`, `conversation-${digest(conversationId)}.json`);
+}
+
+async function writeTemporaryWorkspaceMarker(markerPath, marker) {
+  await fs.mkdir(path.dirname(markerPath), { recursive: true, mode: 0o700 });
+  const temporaryPath = `${markerPath}.${crypto.randomUUID()}.part`;
+  try {
+    await fs.writeFile(temporaryPath, JSON.stringify(marker), { flag: "wx", mode: 0o600 });
+    await fs.rename(temporaryPath, markerPath);
+  } catch (error) {
+    await fs.unlink(temporaryPath).catch(() => {});
+    throw error;
+  }
+}
+
+async function recordTemporaryWorkspaceFiles(uid, conversationId, names) {
+  const markerPath = temporaryWorkspaceMarkerPath(uid, conversationId);
+  let previous = [];
+  try {
+    const parsed = JSON.parse(await fs.readFile(markerPath, "utf8"));
+    if (Array.isArray(parsed.files)) previous = parsed.files.filter((file) => typeof file?.path === "string" && Number.isFinite(Number(file.expiresAt)));
+  } catch (error) { if (error?.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error; }
+  const expiresAt = Date.now() + CODING_WORKSPACE_UPLOAD_TTL_MS;
+  const files = new Map(previous.filter((file) => Number(file.expiresAt) > Date.now()).map((file) => [file.path, Number(file.expiresAt)]));
+  for (const name of names) files.set(safeRelativePath(name), expiresAt);
+  await writeTemporaryWorkspaceMarker(markerPath, { files: Array.from(files, ([filePath, expiry]) => ({ path: filePath, expiresAt: expiry })) });
+}
+
+export async function cleanupExpiredCodingWorkspaceFiles({ now = Date.now(), root: suppliedRoot } = {}) {
+  let workspaceRoot;
+  try { workspaceRoot = suppliedRoot ? path.resolve(suppliedRoot) : configuredRoot(); }
+  catch (error) { if (error?.code === "coding_workspace_unavailable") return 0; throw error; }
+  const markerRootStat = await fs.lstat(TEMP_WORKSPACE_MARKER_ROOT).catch((error) => error?.code === "ENOENT" ? null : Promise.reject(error));
+  if (!markerRootStat) return 0;
+  if (markerRootStat.isSymbolicLink() || !markerRootStat.isDirectory()) return 0;
+  const workspaceRootStat = await fs.lstat(workspaceRoot).catch((error) => error?.code === "ENOENT" ? null : Promise.reject(error));
+  if (!workspaceRootStat) return 0;
+  if (workspaceRootStat.isSymbolicLink() || !workspaceRootStat.isDirectory()) return 0;
+  const realRoot = await fs.realpath(workspaceRoot);
+  let removed = 0;
+  for (const userEntry of await fs.readdir(TEMP_WORKSPACE_MARKER_ROOT, { withFileTypes: true })) {
+    if (!userEntry.isDirectory() || !/^user-[a-f0-9]{64}$/.test(userEntry.name)) continue;
+    const markerUserDirectory = path.join(TEMP_WORKSPACE_MARKER_ROOT, userEntry.name);
+    const userHash = userEntry.name.slice(5);
+    const workspaceUser = path.join(realRoot, userEntry.name);
+    const userStat = await fs.lstat(workspaceUser).catch((error) => error?.code === "ENOENT" ? null : Promise.reject(error));
+    if (!userStat || userStat.isSymbolicLink() || !userStat.isDirectory() || !isWithin(realRoot, await fs.realpath(workspaceUser))) continue;
+    for (const markerEntry of await fs.readdir(markerUserDirectory, { withFileTypes: true })) {
+      const match = /^conversation-([a-f0-9]{64})\.json$/.exec(markerEntry.name);
+      if (!match || !markerEntry.isFile()) continue;
+      const markerPath = path.join(markerUserDirectory, markerEntry.name);
+      const markerStat = await fs.lstat(markerPath);
+      if (markerStat.isSymbolicLink() || !markerStat.isFile()) continue;
+      let marker;
+      try { marker = JSON.parse(await fs.readFile(markerPath, "utf8")); } catch { continue; }
+      if (!Array.isArray(marker?.files)) continue;
+      const remaining = [];
+      const workspace = path.join(workspaceUser, `conversation-${match[1]}`);
+      const workspaceStat = await fs.lstat(workspace).catch((error) => error?.code === "ENOENT" ? null : Promise.reject(error));
+      const safeWorkspace = !!workspaceStat && !workspaceStat.isSymbolicLink() && workspaceStat.isDirectory() && isWithin(realRoot, await fs.realpath(workspace));
+      for (const entry of marker.files) {
+        if (!entry || typeof entry.path !== "string" || !Number.isFinite(Number(entry.expiresAt))) continue;
+        let relative;
+        try { relative = safeRelativePath(entry.path); } catch { continue; }
+        if (Number(entry.expiresAt) > now) { remaining.push({ path: relative, expiresAt: Number(entry.expiresAt) }); continue; }
+        if (!safeWorkspace) continue;
+        try {
+          const parent = await workspaceParentsIfPresent(workspace, relative);
+          if (!parent) continue;
+          const candidate = path.join(parent, path.posix.basename(relative));
+          const stat = await fs.lstat(candidate);
+          if (stat.isSymbolicLink() || !stat.isFile() || !isWithin(workspace, await fs.realpath(candidate))) continue;
+          await fs.unlink(candidate);
+          removed += 1;
+        } catch (error) { if (error?.code !== "ENOENT") throw error; }
+      }
+      if (remaining.length) await writeTemporaryWorkspaceMarker(markerPath, { files: remaining });
+      else await fs.unlink(markerPath).catch((error) => { if (error?.code !== "ENOENT") throw error; });
+    }
+    void userHash;
+  }
+  return removed;
 }
 
 export const codingWorkspaceLimits = { MAX_EXTRACTED_FILES, MAX_EXTRACTED_BYTES, MAX_FILE_BYTES };

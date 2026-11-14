@@ -716,7 +716,11 @@ app.use(crossOriginWriteGuard);
 app.use(express.json({
   // COD\NG accepts up to 30 MB of decoded files; JSON/base64 overhead needs a larger transient body limit.
   limit: "42mb",
-  type: ["application/json", "application/csp-report"],
+  type: (req) => {
+    const requestPath = String(req.originalUrl || "").split("?")[0];
+    if (req.method === "PUT" && requestPath === "/api/coding/files") return false;
+    return !!req.is(["application/json", "application/csp-report"]);
+  },
   verify: (req, res, buf) => { req.rawBody = buf; },
 }));
 const ID_ROUTE_PREFIXES = ["/api/chess", "/api/tictactoe", "/api/status", "/api/admin", "/api/posts", "/api/users", "/api/notifications", "/api/rewards", "/api/support", "/api/coin-gifts", "/api/follow", "/api/comments"];
@@ -786,7 +790,7 @@ app.use(tttRouter);
 const moviesRouter = express.Router();
 registerMovieRoutes(moviesRouter, { requireAuth, requireSiteOrigin, SimpleRateLimiter, getUserProfile, isVerificationActive, isAdminEmail, listMovieWatchLater, getMovieWatchLater, saveMovieWatchLater, removeMovieWatchLater });
 app.use(moviesRouter);
-const codingRouter = registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRateLimiter });
+const codingRouter = registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRateLimiter, db });
 app.use(codingRouter);
 const githubAgentRouter = registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, SimpleRateLimiter });
 app.use(githubAgentRouter);

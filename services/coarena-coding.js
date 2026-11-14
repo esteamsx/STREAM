@@ -9,11 +9,11 @@ const DEFAULT_BASE_URL = "https://coarena.ai/api";
 const DEFAULT_MODEL = "claude-fable-5-2";
 const MAX_MESSAGES = 80;
 const MAX_ATTACHMENTS = 6;
-const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024;
 const MAX_TOTAL_ATTACHMENT_BYTES = 30 * 1024 * 1024;
 const MAX_ZIP_ENTRIES = 200;
 const MAX_ZIP_EXPANDED_BYTES = 24 * 1024 * 1024;
-const MAX_ZIP_FILE_BYTES = 12 * 1024 * 1024;
+const MAX_ZIP_FILE_BYTES = 30 * 1024 * 1024;
 const MAX_ZIP_TEXT_CHARS = 500000;
 const MAX_REPOSITORY_CONTEXT_CHARS = 80000;
 const MAX_REPOSITORY_CONTEXT_FILES = 12;
@@ -129,6 +129,11 @@ function decodeAttachment(data) {
   const bytes = Buffer.from(data, "base64");
   if (!bytes.length) throw attachmentError("The uploaded file is empty.");
   return bytes;
+}
+function attachmentBytes(attachment) {
+  if (Buffer.isBuffer(attachment?.bytes)) return attachment.bytes;
+  if (attachment?.bytes instanceof Uint8Array) return Buffer.from(attachment.bytes.buffer, attachment.bytes.byteOffset, attachment.bytes.byteLength);
+  return decodeAttachment(String(attachment?.data || ""));
 }
 
 function isZipSignature(bytes) {
@@ -304,21 +309,38 @@ function attachmentContent(attachment) {
   const name = rawName;
   if (SENSITIVE_FILE.test(name)) throw attachmentError("Credential, key, and secret/configuration files cannot be uploaded to COD\\NG.", "sensitive_file_rejected", 415);
   const mime = cleanText(attachment?.mime || attachment?.type || "application/octet-stream", 100).toLowerCase();
-  const data = String(attachment?.data || "");
-  const bytes = decodeAttachment(data);
-  if (bytes.length > MAX_ATTACHMENT_BYTES) throw attachmentError(`${name} is larger than 12 MB.`, "attachment_too_large", 413);
+  const bytes = attachmentBytes(attachment);
+  if (!bytes.length) throw attachmentError("The uploaded file is empty.", "empty_file", 400);
+  if (bytes.length > MAX_ATTACHMENT_BYTES) throw attachmentError(`${name} is larger than 30 MB.`, "attachment_too_large", 413);
   const zipFiles = quarantineScan(name, mime, bytes);
   if (zipFiles) {
     const source = zipFiles.readableFiles.map((file) => `\n\n--- File from ${name}: ${file.name} ---\n${file.text}\n--- End file ---`).join("");
     return { type: "text", text: `\n\n--- Source files extracted safely from ${name} ---${source}\n--- End archive ---\n`, _name: name, _bytes: bytes.length, _workspaceFiles: zipFiles.workspaceFiles };
   }
-  if (mime.startsWith("image/")) return { type: "image", source: { type: "base64", media_type: mime, data }, _name: name, _bytes: bytes.length };
-  if (mime === "application/pdf") return { type: "document", source: { type: "base64", media_type: mime, data }, _name: name, _bytes: bytes.length };
+  if (mime.startsWith("image/")) return { type: "image", source: { type: "base64", media_type: mime, data: String(attachment?.data || bytes.toString("base64")) }, _name: name, _bytes: bytes.length };
+  if (mime === "application/pdf") return { type: "document", source: { type: "base64", media_type: mime, data: String(attachment?.data || bytes.toString("base64")) }, _name: name, _bytes: bytes.length };
   let text;
   try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
   catch { throw attachmentError(`${name} is not valid UTF-8 source text.`, "unreadable_attachment", 415); }
   if (!text) throw attachmentError(`${name} could not be read as text.`, "unreadable_attachment");
   return { type: "text", text: `\n\n--- File: ${name} (${mime}) ---\n${text.slice(0, 120000)}\n--- End file ---\n`, _bytes: bytes.length };
+}
+
+export function validateCodingAttachment(attachment = {}) {
+  const name = cleanText(attachment?.name || "attachment", 180);
+  if (!name || /[\0/\\]/.test(name) || name.includes("..")) throw attachmentError("The uploaded filename is invalid.", "unsafe_filename");
+  if (SENSITIVE_FILE.test(name)) throw attachmentError("Credential, key, and secret/configuration files cannot be uploaded to COD\\NG.", "sensitive_file_rejected", 415);
+  const mime = cleanText(attachment?.mime || attachment?.type || "application/octet-stream", 100).toLowerCase();
+  const bytes = attachmentBytes(attachment);
+  if (!bytes.length) throw attachmentError("The uploaded file is empty.", "empty_file", 400);
+  if (bytes.length > MAX_ATTACHMENT_BYTES) throw attachmentError(`${name} is larger than 30 MB.`, "attachment_too_large", 413);
+  const zipFiles = quarantineScan(name, mime, bytes);
+  if (zipFiles || mime.startsWith("image/") || mime === "application/pdf") return true;
+  let text;
+  try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+  catch { throw attachmentError(`${name} is not valid UTF-8 source text.`, "unreadable_attachment", 415); }
+  if (!text) throw attachmentError(`${name} could not be read as text.`, "unreadable_attachment");
+  return true;
 }
 
 export function buildCodingPayload(input = {}) {
@@ -333,7 +355,7 @@ export function buildCodingPayload(input = {}) {
   const suppliedAttachments = Array.isArray(input.attachments) ? input.attachments : [];
   if (suppliedAttachments.length > MAX_ATTACHMENTS) throw attachmentError(`You can attach up to ${MAX_ATTACHMENTS} files per message.`, "too_many_attachments", 413);
   const rawAttachments = suppliedAttachments;
-  const declaredAttachmentBytes = rawAttachments.reduce((total, item) => total + decodeAttachment(String(item?.data || "")).length, 0);
+  const declaredAttachmentBytes = rawAttachments.reduce((total, item) => total + attachmentBytes(item).length, 0);
   if (declaredAttachmentBytes > MAX_TOTAL_ATTACHMENT_BYTES) throw attachmentError("Attachments are too large together. Keep the total under 30 MB.", "attachments_too_large", 413);
   let workspaceExpandedBytes = 0;
   const attachments = rawAttachments.map((attachment) => {
@@ -346,8 +368,8 @@ export function buildCodingPayload(input = {}) {
   });
   const workspaceArchives = attachments.filter((item) => Array.isArray(item._workspaceFiles)).map((item) => ({ name: item._name, files: item._workspaceFiles }));
   assertSafeCodingRequest(rawMessages, attachments.filter((item) => item.type === "text").map((item) => item.text));
-  const attachmentBytes = attachments.reduce((total, item) => total + item._bytes, 0);
-  if (attachmentBytes > MAX_TOTAL_ATTACHMENT_BYTES) throw attachmentError("Attachments are too large together. Keep the total under 30 MB.", "attachments_too_large", 413);
+  const totalAttachmentBytes = attachments.reduce((total, item) => total + item._bytes, 0);
+  if (totalAttachmentBytes > MAX_TOTAL_ATTACHMENT_BYTES) throw attachmentError("Attachments are too large together. Keep the total under 30 MB.", "attachments_too_large", 413);
   if (attachments.length) {
     const last = messages[messages.length - 1];
     const content = [{ type: "text", text: last.content }, ...attachments.map((item) => { const copy = { ...item }; delete copy._name; delete copy._bytes; delete copy._workspaceFiles; return copy; })];

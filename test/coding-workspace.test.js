@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { codingWorkspace, resolveCodingWorkspaceFile, withCodingWorkspaceLock, writeCodingWorkspaceFiles } from "../services/coding-workspace.js";
+import { cleanupExpiredCodingWorkspaceFiles, codingWorkspace, resolveCodingWorkspaceFile, withCodingWorkspaceLock, writeCodingWorkspaceArchives, writeCodingWorkspaceFiles } from "../services/coding-workspace.js";
 
 async function withWorkspaceRoot(run) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "stream-coding-workspaces-"));
@@ -63,6 +64,24 @@ test("coding workspace root must be configured as an absolute dedicated path", a
     if (previous === undefined) delete process.env.CODING_EXECUTION_ROOT;
     else process.env.CODING_EXECUTION_ROOT = previous;
   }
+});
+
+test("ZIP-extracted upload copies expire after 24 hours without storing their contents in metadata", async () => {
+  await withWorkspaceRoot(async (root) => {
+    const workspace = await codingWorkspace("alice", "chat-upload");
+    await writeCodingWorkspaceArchives("alice", "chat-upload", [{ files: [{ name: "src/upload.js", data: Buffer.from("export const temporary = true;\n") }] }]);
+    const marker = path.join(os.tmpdir(), "es-teams-coding-workspace-expiry", `user-${crypto.createHash("sha256").update("alice").digest("hex")}`, `conversation-${crypto.createHash("sha256").update("chat-upload").digest("hex")}.json`);
+    const metadata = JSON.parse(await fs.readFile(marker, "utf8"));
+    assert.deepEqual(Object.keys(metadata.files[0]).sort(), ["expiresAt", "path"]);
+    assert.equal(JSON.stringify(metadata).includes("temporary = true"), false);
+    const filePath = path.join(workspace, "src/upload.js");
+    assert.equal(await fs.readFile(filePath, "utf8"), "export const temporary = true;\n");
+    metadata.files[0].expiresAt = 0;
+    await fs.writeFile(marker, JSON.stringify(metadata));
+    assert.equal(await cleanupExpiredCodingWorkspaceFiles({ root, now: 1 }), 1);
+    await assert.rejects(fs.stat(filePath), (error) => error.code === "ENOENT");
+    await assert.rejects(fs.stat(marker), (error) => error.code === "ENOENT");
+  });
 });
 
 test("coding workspace command and extraction operations serialize per conversation", async () => {

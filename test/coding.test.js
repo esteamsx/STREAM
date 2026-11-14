@@ -11,6 +11,7 @@ import { codingWorkspace, writeCodingWorkspaceArchives } from "../services/codin
 import { renderCoding } from "../views/coding.js";
 
 const markdownSource = readFileSync(new URL("../public/coding-markdown.js", import.meta.url), "utf8");
+const serverSource = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 const markdownWindow = {};
 vm.runInNewContext(markdownSource, { window: markdownWindow, globalThis: markdownWindow, module: undefined, URL });
 const markdown = markdownWindow.CodingMarkdown;
@@ -221,6 +222,26 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.doesNotMatch(html, /COARENA_API_KEY|ANTHROPIC_AUTH_TOKEN|test-secret/);
 });
 
+test("COD\\NG keeps uploads temporary and groups every existing GitHub Agent setting in the responsive overlay", () => {
+  const html = renderCoding({ devToolsBlock: "", protectionCSS: "" });
+  assert.match(serverSource, /req\.method === "PUT" && requestPath === "\/api\/coding\/files"\) return false/);
+  assert.match(html, /fetch\('\/api\/coding\/files'/);
+  assert.match(html, /X-Coding-File-Name/);
+  assert.match(html, /30\*1024\*1024/);
+  assert.match(html, /24H DOWNLOAD/);
+  assert.match(html, /EXPIRED/);
+  assert.match(html, /downloadTemporaryFile/);
+  assert.doesNotMatch(html, /readAsDataURL/);
+  assert.match(html, /github-agent-group/);
+  assert.match(html, /GitHub connection &amp; permissions/);
+  assert.match(html, /Repository &amp; branch/);
+  assert.match(html, /Inspect repository/);
+  assert.match(html, /Validate changes/);
+  assert.match(html, /Review &amp; publish/);
+  assert.match(html, /@media\(max-width:640px\).*#codingGithubOverlay\.page-overlay/s);
+  for (const id of ["codingGithubConnect", "codingGithubUpgrade", "codingGithubDisconnect", "codingGithubRepoUrl", "codingGithubRepo", "codingGithubBranch", "codingGithubLoadRepos", "codingGithubSelectRepo", "codingGithubCreateBranch", "codingGithubPath", "codingGithubQuery", "codingGithubRead", "codingGithubSearch", "codingGithubTests", "codingCommandTool", "codingCommandPath", "codingCommandApproval", "codingCommandRun", "codingGithubChanges", "codingGithubStage", "codingGithubApprove", "codingGithubCommit", "codingGithubChangeId", "codingGithubCommitMessage", "codingGithubPrTitle", "codingGithubOpenPr"]) assert.match(html, new RegExp(`id="${id}"`));
+});
+
 test("COD\\NG inline page scripts parse successfully", () => {
   const html = renderCoding({ devToolsBlock: "", protectionCSS: "" });
   const scripts = Array.from(html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi))
@@ -381,7 +402,7 @@ test("COD\\NG rejects ZIP path traversal and malformed archives", () => {
     symlinkZip.writeUInt32LE((0o120777 << 16) >>> 0, symlinkCentral + 38);
     assert.throws(() => payloadWith("project.zip", "application/zip", symlinkZip), /symbolic link or special file/);
     const oversizedZip = makeZip({ "src/large.js": "x".repeat(12 * 1024 * 1024 + 1) });
-    assert.throws(() => payloadWith("project.zip", "application/zip", oversizedZip), /safe 24 MB limit/);
+    assert.throws(() => payloadWith("project.zip", "application/zip", oversizedZip), /safe 24 MB limit|unsafe compression ratio/);
     assert.throws(() => payloadWith("project.zip", "application/zip", Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from("fake archive")])), /invalid|unsupported|directory/i);
     const inconsistent = makeZip({ "src/app.js": "export const ok = true;" });
     inconsistent.writeUInt16LE(0, 8);
