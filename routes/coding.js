@@ -3,6 +3,7 @@ import { isAdminEmail, isVerificationActive } from "../services/auth.js";
 import { buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError } from "../services/coarena-coding.js";
 import { getRepositoryContext } from "../services/github-agent.js";
 import { createCodingActivity, getCodingActivity } from "../services/coding-activity.js";
+import { executeCodingCommand } from "../services/coding-command.js";
 
 export function isCodingPremium(profile) {
   return !!(profile && (isAdminEmail(profile.email) || isVerificationActive(profile)));
@@ -31,6 +32,36 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
     } catch (error) {
       console.error(`[COD\\NG] activity history failed uid=${req.uid} code=${error?.code || "unknown"}`);
       return res.status(500).json({ error: "Activity history is temporarily unavailable.", code: "coding_activity_unavailable" });
+    }
+  });
+  router.post("/api/coding/command", requireAuth, requireSiteOrigin, limiter, premiumOnly, async (req, res) => {
+    const controller = new AbortController();
+    let finished = false;
+    const request = req.body || {};
+    const activity = createCodingActivity({ uid: req.uid, conversationId: request.conversationId, onEvent: async (event) => {
+      if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "activity", activity: event })}\n\n`);
+    } });
+    res.once("close", () => { if (!res.writableEnded && !finished) { controller.abort(); void activity.finish("cancelled"); } });
+    try {
+      res.status(200).set({ "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+      res.flushHeaders?.();
+      await activity.initialize();
+      const result = await executeCodingCommand({ input: request, approved: request.approved === true, activity, signal: controller.signal });
+      await activity.emit({ type: "command.output", status: "completed", description: "Received the command output.", details: { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr } });
+      finished = true;
+      await activity.finish("completed");
+      res.write(`data: ${JSON.stringify({ type: "command_result", runId: activity.runId, result })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      return res.end();
+    } catch (error) {
+      if (res.headersSent) {
+        if (error?.output) await activity.emit({ type: "command.output", status: "failed", description: "Received output from the failed command.", details: { exitCode: error.output.exitCode, stdout: error.output.stdout, stderr: error.output.stderr } });
+        finished = true;
+        await activity.finish(controller.signal.aborted ? "cancelled" : "failed", error);
+        if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "error", error: error?.userMessage || error?.message || "The command could not be completed.", retryable: error?.code === "coding_command_timeout" })}\n\n`);
+        return res.end();
+      }
+      return res.status(Number(error?.status) || 400).json({ error: error?.message || "The command could not be completed.", code: error?.code || "coding_command_error" });
     }
   });
 
