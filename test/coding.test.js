@@ -194,7 +194,7 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /conversationId:chat\.id/);
   assert.match(html, /\/api\/coding\/activity\//);
   assert.match(html, /codingCommandRun/);
-  assert.match(html, /codingCommandApproval/);
+  assert.doesNotMatch(html, /codingCommandApproval/);
   assert.match(html, /\/api\/coding\/command/);
   assert.match(html, /command_result/);
   assert.match(html, /appendCommandActivity/);
@@ -233,13 +233,17 @@ test("COD\\NG keeps uploads temporary and groups every existing GitHub Agent set
   assert.match(html, /downloadTemporaryFile/);
   assert.doesNotMatch(html, /readAsDataURL/);
   assert.match(html, /github-agent-group/);
-  assert.match(html, /GitHub connection &amp; permissions/);
+  assert.match(html, /<div class="github-agent-status" id="codingGithubStatus">Checking GitHub connection…<\/div><div class="github-agent-actions"><button class="btn primary" type="button" id="codingGithubConnect">Connect GitHub<\/button>/);
+  assert.doesNotMatch(html, /github-agent-group github-agent-connection/);
   assert.match(html, /Repository &amp; branch/);
   assert.match(html, /Inspect repository/);
   assert.match(html, /Validate changes/);
   assert.match(html, /Review &amp; publish/);
   assert.match(html, /@media\(max-width:640px\).*#codingGithubOverlay\.page-overlay/s);
-  for (const id of ["codingGithubConnect", "codingGithubUpgrade", "codingGithubDisconnect", "codingGithubRepoUrl", "codingGithubRepo", "codingGithubBranch", "codingGithubLoadRepos", "codingGithubSelectRepo", "codingGithubCreateBranch", "codingGithubPath", "codingGithubQuery", "codingGithubRead", "codingGithubSearch", "codingGithubTests", "codingCommandTool", "codingCommandPath", "codingCommandApproval", "codingCommandRun", "codingGithubChanges", "codingGithubStage", "codingGithubApprove", "codingGithubCommit", "codingGithubChangeId", "codingGithubCommitMessage", "codingGithubPrTitle", "codingGithubOpenPr"]) assert.match(html, new RegExp(`id="${id}"`));
+  for (const id of ["codingGithubConnect", "codingGithubUpgrade", "codingGithubDisconnect", "codingGithubRepoUrl", "codingGithubRepo", "codingGithubBranch", "codingGithubLoadRepos", "codingGithubSelectRepo", "codingGithubCreateBranch", "codingGithubPath", "codingGithubQuery", "codingGithubRead", "codingGithubSearch", "codingGithubTests", "codingCommandTool", "codingCommandPath", "codingCommandRun", "codingGithubChanges", "codingGithubStage", "codingGithubApprove", "codingGithubCommit", "codingGithubChangeId", "codingGithubCommitMessage", "codingGithubPrTitle", "codingGithubOpenPr"]) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(html, /<button class="btn primary" type="button" id="codingCommandRun">Run command<\/button>/);
+  assert.match(html, /payload=\{tool:tool,approved:true,conversationId:/);
+  assert.doesNotMatch(html, /commandApproval\.checked|Check “I approve this command”/);
 });
 
 test("COD\\NG inline page scripts parse successfully", () => {
