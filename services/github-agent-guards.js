@@ -37,6 +37,21 @@ export function validateRepo(owner, repo) {
   return { owner: cleanOwner, repo: cleanRepo };
 }
 
+export function parseGithubRepositoryInput(input = {}) {
+  let owner = String(input.owner || "").trim();
+  let repo = String(input.repo || "").trim();
+  const rawUrl = String(input.url || input.repositoryUrl || "").trim();
+  if (rawUrl) {
+    let parsed;
+    try { parsed = new URL(rawUrl.includes("://") ? rawUrl : `https://${rawUrl}`); } catch { fail("Enter a valid GitHub repository URL."); }
+    if (parsed.hostname.toLowerCase() !== "github.com") fail("Repository URL must use github.com.");
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts.length !== 2 && !(parts.length === 3 && parts[2].toLowerCase() === ".git")) fail("Enter a GitHub repository URL like https://github.com/owner/repository.");
+    owner = parts[0]; repo = parts[1].replace(/\.git$/i, "");
+  }
+  return validateRepo(owner, repo);
+}
+
 export function validateRef(ref = "main") {
   const clean = String(ref || "").trim();
   if (!SAFE_REF.test(clean) || clean.includes("..") || clean.startsWith("/") || clean.endsWith("/")) fail("Invalid GitHub branch or ref.");

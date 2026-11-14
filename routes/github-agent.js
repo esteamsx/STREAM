@@ -13,6 +13,7 @@ function jsonError(res, error) {
 
 export function registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, SimpleRateLimiter }) {
   const router = express.Router();
+  router.use((req, res, next) => { res.set("Cache-Control", "no-store, no-cache, must-revalidate, private"); next(); });
   const readLimiter = new SimpleRateLimiter(90, 60 * 1000, (req) => req.uid || req.ip).middleware();
   const writeLimiter = new SimpleRateLimiter(20, 60 * 1000, (req) => req.uid || req.ip).middleware();
   const oauthLimiter = new SimpleRateLimiter(10, 10 * 60 * 1000, (req) => req.uid || req.ip).middleware();

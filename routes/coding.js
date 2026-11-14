@@ -9,12 +9,15 @@ export function isCodingPremium(profile) {
 
 export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRateLimiter }) {
   const router = express.Router();
+  router.use((req, res, next) => { res.set("Cache-Control", "no-store, no-cache, must-revalidate, private"); next(); });
   const limiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid || req.ip).middleware();
   const premiumOnly = (req, res, next) => {
     const profile = req.userProfile;
     if (isCodingPremium(profile)) return next();
     return res.status(403).json({ error: "COD\\NG is available to Premium members only.", code: "premium_required" });
   };
+
+  router.get("/api/coding/session", requireAuth, requireSiteOrigin, (req, res) => res.json({ uid: String(req.uid) }));
 
   router.post("/api/coding/chat", requireAuth, requireSiteOrigin, limiter, premiumOnly, async (req, res) => {
     const controller = new AbortController();

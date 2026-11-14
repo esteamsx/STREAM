@@ -4,6 +4,7 @@ import {
   encryptGithubToken,
   decryptGithubToken,
   validateRepo,
+  parseGithubRepositoryInput,
   validateRef,
   validatePath,
 } from "../services/github-agent-guards.js";
@@ -26,9 +27,12 @@ test("GitHub Agent OAuth uses dedicated credentials and callback variables", () 
 
 test("GitHub Agent validates repository identifiers, refs, and paths", () => {
   assert.deepEqual(validateRepo("esteamsx", "STREAM"), { owner: "esteamsx", repo: "STREAM" });
+  assert.deepEqual(parseGithubRepositoryInput({ url: "https://github.com/esteamsx/STREAM" }), { owner: "esteamsx", repo: "STREAM" });
+  assert.deepEqual(parseGithubRepositoryInput({ url: "github.com/esteamsx/STREAM.git" }), { owner: "esteamsx", repo: "STREAM" });
   assert.equal(validateRef("feature/coding-agent"), "feature/coding-agent");
   assert.equal(validatePath("src/routes/coding.js"), "src/routes/coding.js");
   assert.throws(() => validateRepo("bad/owner", "repo"), /Invalid GitHub repository/);
+  assert.throws(() => parseGithubRepositoryInput({ url: "https://example.com/esteamsx/STREAM" }), /github.com/);
   assert.throws(() => validateRef("../main"), /Invalid GitHub branch/);
   assert.throws(() => validatePath("src/../.env"), /Invalid repository path/);
   assert.throws(() => validatePath("/absolute/path"), /Invalid repository path/);

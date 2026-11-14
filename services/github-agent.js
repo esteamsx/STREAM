@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { db } from "../config/firebase.js";
-import { encryptGithubToken, decryptGithubToken, validateRepo, validateRef, validatePath } from "./github-agent-guards.js";
+import { encryptGithubToken, decryptGithubToken, validateRepo, parseGithubRepositoryInput, validateRef, validatePath } from "./github-agent-guards.js";
 import { getCodingGithubOAuthConfig } from "./github-agent-config.js";
 
 const GITHUB_API = "https://api.github.com";
@@ -105,7 +105,7 @@ export async function listRepositories(uid) {
 }
 
 export async function selectRepository(uid, input) {
-  const selected = { ...validateRepo(input?.owner, input?.repo), branch: validateRef(input?.branch || "main") };
+  const selected = { ...parseGithubRepositoryInput(input), branch: validateRef(input?.branch || "main") };
   const connection = await tokenFor(uid);
   const repo = await githubRequest(connection.token, `/repos/${encodeURIComponent(selected.owner)}/${encodeURIComponent(selected.repo)}`);
   if (repo.owner?.login?.toLowerCase() !== selected.owner.toLowerCase()) fail("Repository owner did not match GitHub.", 403);
