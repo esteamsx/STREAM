@@ -232,6 +232,23 @@ test("COD\\NG inline page scripts parse successfully", () => {
   });
 });
 
+test("COD\\NG activity shimmer resolves on task completion and Thinking has a blue orb", () => {
+  const html = renderCoding({ devToolsBlock: "", protectionCSS: "" });
+  const helper = html.match(/function activityViewStatus[\s\S]*?\n  function renderActivity/);
+  assert.ok(helper, "expected the activity status resolver");
+  const source = helper[0].replace(/\n  function renderActivity$/, "");
+  const activityViewStatus = new Function(`${source}; return activityViewStatus;`)();
+  const taskStarted = { type: "task", status: "started", sequence: 1 };
+  const taskCompleted = { type: "task", status: "completed", sequence: 3 };
+  assert.equal(activityViewStatus(taskStarted, [taskStarted, taskCompleted], taskCompleted), "completed");
+  const operationStarted = { type: "ai.request", status: "started", sequence: 2, operationId: "request-1" };
+  const operationFailed = { type: "ai.request", status: "failed", sequence: 4, operationId: "request-1" };
+  assert.equal(activityViewStatus(operationStarted, [operationStarted, operationFailed], taskCompleted), "failed");
+  const unresolved = { type: "custom", status: "in_progress", sequence: 5 };
+  assert.equal(activityViewStatus(unresolved, [unresolved], null), "in_progress");
+  assert.match(html, /class="thinking-orb" aria-hidden="true"><\/span><span class="thinking-word">Thinking/);
+});
+
 test("COD\\NG reads streamed Anthropic text deltas correctly", async () => {
   const body = new ReadableStream({
     start(controller) {
