@@ -141,13 +141,16 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /\.coding-speak-muted \.coding-speak-slash\{display:block\}/);
   assert.match(html, /thinking-word/);
   assert.match(html, /thinkingShimmer/);
+  assert.doesNotMatch(html, /thinking-dots|thinkingPulse/);
   assert.match(html, /messagesEl\.scrollTo/);
   assert.doesNotMatch(html, /scrollIntoView/);
   assert.match(html, /\/api\/coding\/chat/);
   assert.match(html, /SpeechRecognition|webkitSpeechRecognition/);
   assert.match(markdownSource, /Download code file/);
   assert.match(html, /thinking-indicator/);
-  assert.match(html, /thinkingPulse/);
+  assert.match(html, /codeDownloadRoll/);
+  assert.match(html, /retryFailedMessage/);
+  assert.match(html, /message-retry/);
   assert.match(html, /link\.download=name/);
   assert.match(html, /copyCode\(source,button\)/);
   assert.match(html, /document\.execCommand\('copy'\)/);
@@ -251,6 +254,7 @@ test("COD\\NG accepts common standalone source files and rejects executable exte
   try {
     for (const [name, mime, source] of [
       ["app.js", "application/javascript", "console.log('ok')"],
+      ["telegram-bot.js", "application/javascript", "bot.on('message', (message) => message.reply('Hello from ES TEAMS'));"],
       ["site.css", "text/css", "body { color: blue }"],
       ["index.html", "text/html", "<main>Hi</main>"],
     ]) {

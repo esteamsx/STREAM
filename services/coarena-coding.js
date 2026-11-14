@@ -83,7 +83,7 @@ export function assertSafeCodingRequest(messages, attachmentTexts = []) {
     (index === 4 && incidentResponse) ||
     (index === 5 && isolatedAntivirusLab)
   ));
-  const attachmentMatch = !!attachmentsText && CYBER_ABUSE_PATTERNS.some((pattern) => pattern.test(attachmentsText)) && (!defensiveContext || implementUploadedInstructions);
+  const attachmentMatch = !!attachmentsText && implementUploadedInstructions && /\b(?:malware|computer virus|virus|worm|trojan|rootkit|ransomware|keylogger|credential stealer|infostealer|password stealer|spyware|botnet|backdoor|remote access trojan|phishing|credential theft|steal passwords?|harvest credentials?)\b/i.test(attachmentsText) && CYBER_ABUSE_PATTERNS.some((pattern) => pattern.test(attachmentsText));
   if (matched.some(Boolean) || attachmentMatch) {
     throw attachmentError("COD\\NG can help with legitimate coding, defensive security, and education, but cannot assist with malware, credential theft, unauthorized access, phishing, or evasion of security controls.", "unsafe_cyber_request", 400);
   }
