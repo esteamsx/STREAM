@@ -4,19 +4,22 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { proxyStream } from "./moviebox.js";
+import { watermarkMovieFile } from "./video-watermark.js";
 
 const ROOT = process.env.MOVIE_DOWNLOAD_DIR || path.join(process.cwd(), "data", "movie-downloads");
 const MAX_ACTIVE_PER_USER = 3;
 const MAX_JOB_BYTES = 5 * 1024 * 1024 * 1024;
 const RETRIES = 5;
 const jobs = new Map();
+const watermarkJobs = new Map();
 let ready = null;
 
 function uidDir(uid) { return path.join(ROOT, crypto.createHash("sha256").update(String(uid)).digest("hex").slice(0, 32)); }
 function metaPath(job) { return path.join(job.dir, "job.json"); }
 function filePath(job) { return path.join(job.dir, "movie.part"); }
+function watermarkedPath(job) { return path.join(job.dir, "movie.watermarked.mp4"); }
 function publicJob(job) {
-  return { id: job.id, subjectId: job.subjectId, slug: job.slug, se: job.se, ep: job.ep, filename: job.filename, resolution: job.resolution, status: job.status, bytes: job.bytes, total: job.total, progress: job.total ? Math.min(100, Math.round(job.bytes / job.total * 100)) : 0, error: job.error || null, createdAt: job.createdAt, updatedAt: job.updatedAt, completedAt: job.completedAt || null };
+  return { id: job.id, subjectId: job.subjectId, slug: job.slug, se: job.se, ep: job.ep, filename: job.filename, resolution: job.resolution, status: job.status, watermarkStatus: job.watermarkStatus || "pending", bytes: job.bytes, total: job.total, progress: job.total ? Math.min(100, Math.round(job.bytes / job.total * 100)) : 0, error: job.error || null, createdAt: job.createdAt, updatedAt: job.updatedAt, completedAt: job.completedAt || null };
 }
 async function save(job) {
   job.updatedAt = Date.now();
@@ -34,13 +37,14 @@ async function loadExisting() {
       try {
         const data = JSON.parse(await fsp.readFile(path.join(dir, entry.name, "job.json"), "utf8"));
         const wasActive = ["running", "queued", "retrying"].includes(data.status);
-        const job = { ...data, dir: path.join(dir, entry.name), running: false, cancelRequested: false, pauseRequested: false };
+        const job = { watermarkStatus: "pending", ...data, dir: path.join(dir, entry.name), running: false, cancelRequested: false, pauseRequested: false };
         const stat = await fsp.stat(filePath(job)).catch(() => ({ size: 0 }));
         job.bytes = stat.size;
         if (wasActive) job.status = "paused";
         jobs.set(job.id, job);
         await save(job);
         if (wasActive) void startWorker(job);
+        else if (job.status === "completed") void ensureWatermark(job);
       } catch {}
     }
   }
@@ -48,6 +52,27 @@ async function loadExisting() {
 function ensureReady() { return ready || (ready = loadExisting()); }
 function countActive(uid) { return [...jobs.values()].filter((j) => j.uid === uid && ["queued", "running", "retrying"].includes(j.status)).length; }
 function cleanText(value, max = 180) { return String(value || "").replace(/[\u0000-\u001f]/g, "").slice(0, max); }
+async function ensureWatermark(job) {
+  if (!job || job.status !== "completed") return;
+  if (watermarkJobs.has(job.id)) return watermarkJobs.get(job.id);
+  const output = watermarkedPath(job);
+  const work = (async () => {
+    if (await fsp.stat(output).catch(() => null)) { job.watermarkStatus = "ready"; await save(job); return; }
+    job.watermarkStatus = "processing"; await save(job);
+    try {
+      await watermarkMovieFile(filePath(job), output);
+      job.watermarkStatus = "ready";
+      job.watermarkError = null;
+    } catch (error) {
+      job.watermarkStatus = "failed";
+      job.watermarkError = error?.message || "Watermark processing failed.";
+      await fsp.rm(output, { force: true }).catch(() => {});
+    }
+    await save(job);
+  })().finally(() => watermarkJobs.delete(job.id));
+  watermarkJobs.set(job.id, work);
+  return work;
+}
 function parseSpec(input) {
   const subjectId = cleanText(input.subjectId, 120), slug = cleanText(input.slug, 180), resolution = cleanText(input.resolution || input.res, 8).replace(/p$/i, "");
   const se = cleanText(input.se, 12), ep = cleanText(input.ep, 12);
@@ -93,7 +118,7 @@ async function startWorker(job) {
           await new Promise((resolve, reject) => { out.end(resolve); out.once("error", reject); });
         } finally { try { reader.releaseLock(); } catch {} }
         if (job.total && job.bytes < job.total) throw new Error("The source ended before the complete movie was received.");
-        job.status = "completed"; job.completedAt = Date.now(); job.error = null; await save(job); return;
+        job.status = "completed"; job.completedAt = Date.now(); job.error = null; job.watermarkStatus = "pending"; await save(job); void ensureWatermark(job); return;
       } catch (error) {
         if (job.cancelRequested || error?.code === "canceled") { job.status = "canceled"; job.error = "Download canceled."; await save(job); return; }
         if (job.pauseRequested || error?.code === "paused") { job.pauseRequested = false; job.status = "paused"; job.error = null; await save(job); return; }
@@ -110,7 +135,7 @@ export async function createMovieDownload(uid, input) {
   if (countActive(uid) >= MAX_ACTIVE_PER_USER) throw Object.assign(new Error("You can have up to three movie downloads at once."), { status: 429 });
   const spec = parseSpec(input), id = crypto.randomUUID(), dir = path.join(uidDir(uid), id);
   await fsp.mkdir(dir, { recursive: true });
-  const job = { id, uid: String(uid), ...spec, dir, status: "queued", bytes: 0, total: 0, error: null, createdAt: Date.now(), updatedAt: Date.now(), running: false, cancelRequested: false, pauseRequested: false };
+  const job = { id, uid: String(uid), ...spec, dir, status: "queued", watermarkStatus: "pending", bytes: 0, total: 0, error: null, createdAt: Date.now(), updatedAt: Date.now(), running: false, cancelRequested: false, pauseRequested: false };
   jobs.set(id, job); await save(job); void startWorker(job);
   return publicJob(job);
 }
@@ -172,7 +197,11 @@ async function relayGrowingMovieFile(job, res, start = 0, end = null) {
 export async function streamMovieDownload(uid, id, res, rangeHeader) {
   await ensureReady(); const job = jobs.get(String(id));
   if (!job || job.uid !== String(uid)) return false;
-  const stat = await fsp.stat(filePath(job)).catch(() => null);
+  const cachedPath = watermarkedPath(job);
+  const cachedStat = job.status === "completed" && job.watermarkStatus === "ready" ? await fsp.stat(cachedPath).catch(() => null) : null;
+  if (job.status === "completed" && !cachedStat) void ensureWatermark(job);
+  const servingPath = cachedStat ? cachedPath : filePath(job);
+  const stat = await fsp.stat(servingPath).catch(() => null);
   const knownSize = Math.max(Number(job.total) || 0, stat?.size || 0);
   const active = ["queued", "running", "retrying", "paused"].includes(job.status);
   if (active) {
@@ -210,7 +239,7 @@ export async function streamMovieDownload(uid, id, res, rangeHeader) {
     "Accept-Ranges": "bytes",
     ...(range ? { "Content-Range": `bytes ${start}-${end}/${stat.size}` } : {}),
   });
-  await pipeline(fs.createReadStream(filePath(job), { start, end }), res).catch(() => {}); return true;
+  await pipeline(fs.createReadStream(servingPath, { start, end }), res).catch(() => {}); return true;
 }
 export async function purgeMovieDownloads() {
   await ensureReady(); const cutoff = Date.now() - 24 * 60 * 60 * 1000;
