@@ -1,9 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import vm from "node:vm";
 import { deflateRawSync } from "node:zlib";
 import { assertSafeCodingRequest, buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError } from "../services/coarena-coding.js";
+import { codingWorkspace, writeCodingWorkspaceArchives } from "../services/coding-workspace.js";
 import { renderCoding } from "../views/coding.js";
 
 const markdownSource = readFileSync(new URL("../public/coding-markdown.js", import.meta.url), "utf8");
@@ -264,10 +268,13 @@ test("COD\\NG accepts a source-code ZIP and sends readable files to the coding m
   const previousScanner = process.env.CODING_CLAMSCAN_BIN;
   const previousBase = process.env.ANTHROPIC_BASE_URL;
   const previousToken = process.env.COARENA_API_KEY;
+  const previousWorkspaceRoot = process.env.CODING_EXECUTION_ROOT;
   const previousFetch = global.fetch;
+  const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "stream-coding-zip-"));
   process.env.CODING_CLAMSCAN_BIN = "/bin/true";
   process.env.ANTHROPIC_BASE_URL = "https://coarena.test/api";
   process.env.COARENA_API_KEY = "coding-test-token";
+  process.env.CODING_EXECUTION_ROOT = workspaceRoot;
   let sentPayload;
   try {
     global.fetch = async (_url, options) => {
@@ -276,6 +283,10 @@ test("COD\\NG accepts a source-code ZIP and sends readable files to the coding m
     };
     const zip = makeZip({ "src/app.js": "export const answer = 42;", "styles/site.css": "body { color: teal; }", "index.html": "<main>Hello</main>", Dockerfile: "FROM node:22" });
     const payload = payloadWith("project.zip", "application/zip", zip);
+    assert.equal(payload.workspaceArchives.length, 1);
+    assert.equal(Object.keys(payload).includes("workspaceArchives"), false);
+    assert.equal(JSON.stringify(payload).includes("workspaceArchives"), false);
+    assert.equal(JSON.stringify(payload).includes("workspaceFiles"), false);
     const content = payload.messages[0].content;
     assert.equal(content[1].type, "text");
     assert.match(content[1].text, /src\/app\.js/);
@@ -285,6 +296,13 @@ test("COD\\NG accepts a source-code ZIP and sends readable files to the coding m
     assert.match(content[1].text, /Dockerfile/);
     assert.match(content[1].text, /--- Source files extracted safely from project\.zip ---/);
     assert.match(payload.system, /readable source files are included in the user message/);
+    const extracted = await writeCodingWorkspaceArchives("zip-user", "chat-zip", payload.workspaceArchives);
+    const userWorkspace = await codingWorkspace("zip-user", "chat-zip");
+    assert.equal(extracted.files.length, 4);
+    assert.equal(await fs.readFile(path.join(userWorkspace, "src/app.js"), "utf8"), "export const answer = 42;");
+    assert.equal(await fs.readFile(path.join(userWorkspace, "Dockerfile"), "utf8"), "FROM node:22");
+    const otherWorkspace = await codingWorkspace("other-user", "chat-zip");
+    await assert.rejects(() => fs.readFile(path.join(otherWorkspace, "src/app.js"), "utf8"), (error) => error.code === "ENOENT");
     await createCoarenaRequest(payload);
     assert.match(sentPayload.messages[0].content[1].text, /export const answer = 42/);
     assert.match(sentPayload.messages[0].content[1].text, /styles\/site\.css/);
@@ -293,6 +311,8 @@ test("COD\\NG accepts a source-code ZIP and sends readable files to the coding m
     if (previousBase == null) delete process.env.ANTHROPIC_BASE_URL; else process.env.ANTHROPIC_BASE_URL = previousBase;
     if (previousToken == null) delete process.env.COARENA_API_KEY; else process.env.COARENA_API_KEY = previousToken;
     if (previousScanner == null) delete process.env.CODING_CLAMSCAN_BIN; else process.env.CODING_CLAMSCAN_BIN = previousScanner;
+    if (previousWorkspaceRoot == null) delete process.env.CODING_EXECUTION_ROOT; else process.env.CODING_EXECUTION_ROOT = previousWorkspaceRoot;
+    await fs.rm(workspaceRoot, { recursive: true, force: true });
   }
 });
 
@@ -328,6 +348,16 @@ test("COD\\NG rejects ZIP path traversal and malformed archives", () => {
   process.env.CODING_CLAMSCAN_BIN = "/bin/true";
   try {
     assert.throws(() => payloadWith("project.zip", "application/zip", makeZip({ "../outside.js": "alert(1)" })), /unsafe file path/);
+    assert.throws(() => payloadWith("project.zip", "application/zip", makeZip({ "src/../../outside.js": "alert(1)" })), /unsafe file path/);
+    assert.throws(() => payloadWith("project.zip", "application/zip", makeZip({ "C:/outside.js": "alert(1)" })), /unsafe file path/);
+    const symlinkZip = makeZip({ "src/link.js": "not a real file" });
+    const symlinkEocd = symlinkZip.length - 22;
+    const symlinkCentral = symlinkZip.readUInt32LE(symlinkEocd + 16);
+    symlinkZip.writeUInt16LE(0x0314, symlinkCentral + 4);
+    symlinkZip.writeUInt32LE((0o120777 << 16) >>> 0, symlinkCentral + 38);
+    assert.throws(() => payloadWith("project.zip", "application/zip", symlinkZip), /symbolic link or special file/);
+    const oversizedZip = makeZip({ "src/large.js": "x".repeat(12 * 1024 * 1024 + 1) });
+    assert.throws(() => payloadWith("project.zip", "application/zip", oversizedZip), /safe 24 MB limit/);
     assert.throws(() => payloadWith("project.zip", "application/zip", Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from("fake archive")])), /invalid|unsupported|directory/i);
     const inconsistent = makeZip({ "src/app.js": "export const ok = true;" });
     inconsistent.writeUInt16LE(0, 8);

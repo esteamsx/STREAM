@@ -4,6 +4,7 @@ import { buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCoding
 import { getRepositoryContext } from "../services/github-agent.js";
 import { createCodingActivity, getCodingActivity } from "../services/coding-activity.js";
 import { executeCodingCommand } from "../services/coding-command.js";
+import { writeCodingWorkspaceArchives } from "../services/coding-workspace.js";
 
 export function isCodingPremium(profile) {
   return !!(profile && (isAdminEmail(profile.email) || isVerificationActive(profile)));
@@ -46,7 +47,7 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       res.status(200).set({ "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
       res.flushHeaders?.();
       await activity.initialize();
-      const result = await executeCodingCommand({ input: request, approved: request.approved === true, activity, signal: controller.signal });
+      const result = await executeCodingCommand({ uid: req.uid, input: request, approved: request.approved === true, activity, signal: controller.signal });
       await activity.emit({ type: "command.output", status: "completed", description: "Received the command output.", details: { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr } });
       finished = true;
       await activity.finish("completed");
@@ -86,6 +87,10 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
         }
       }
       const payload = buildCodingPayload({ ...request, repositoryContext });
+      if (payload.workspaceArchives?.length) {
+        const extracted = await writeCodingWorkspaceArchives(req.uid, request.conversationId, payload.workspaceArchives);
+        await activity.emit({ type: "workspace.extract", status: "completed", description: `Extracted ${extracted.files.length} source files into your private conversation workspace.`, details: { fileCount: extracted.files.length, bytes: extracted.bytes } });
+      }
       const startedAt = Date.now();
       let chunkCount = 0;
       let textChars = 0;

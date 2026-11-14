@@ -1,7 +1,7 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { codingWorkspacePaths, resolveCodingWorkspaceFile, withCodingWorkspaceLock } from "./coding-workspace.js";
 
 const MAX_OUTPUT_CHARS = 64_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -21,17 +21,77 @@ function safeRelativePath(value) {
   return normalized;
 }
 
-function configuredRoot() {
-  const raw = String(process.env.CODING_EXECUTION_ROOT || "").trim();
-  if (!raw) fail("Command execution is not configured for this environment.", 503, "coding_command_unavailable");
-  const root = path.resolve(raw);
-  if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) fail("The coding execution workspace is unavailable.", 503, "coding_command_unavailable");
-  return root;
-}
-
 function redactedOutput(value) {
   return String(value || "").slice(0, MAX_OUTPUT_CHARS)
     .replace(/(authorization|cookie|x-api-key|api[-_ ]?key|token|secret|password)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]");
+}
+
+function isWithin(parent, candidate) {
+  const relative = path.relative(parent, candidate);
+  return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+}
+
+function sandboxExecutable() {
+  const configured = String(process.env.CODING_SANDBOX_BIN || "bwrap").trim();
+  const candidates = path.isAbsolute(configured)
+    ? [configured]
+    : (process.env.PATH || "/usr/local/bin:/usr/bin:/bin").split(path.delimiter).filter(Boolean).map((directory) => path.join(directory, configured));
+  for (const candidate of candidates) {
+    try {
+      if (fs.statSync(candidate).isFile()) {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        return candidate;
+      }
+    } catch {}
+  }
+  fail("The command sandbox is unavailable. Install Bubblewrap in the service runtime before enabling command execution.", 503, "coding_command_sandbox_unavailable");
+}
+
+function sandboxArgs({ root, workspace, executable, args }) {
+  if (!isWithin(root, workspace) || root === workspace) {
+    fail("The configured workspace root cannot be safely isolated.", 503, "coding_workspace_invalid_root");
+  }
+  const sandboxWorkspace = ["/mnt", "/var/tmp", "/tmp"].find((candidate) => {
+    if (isWithin(root, candidate) || isWithin(candidate, root)) return false;
+    try { return fs.statSync(candidate).isDirectory(); } catch { return false; }
+  });
+  if (!sandboxWorkspace) fail("No safe Bubblewrap mountpoint is available.", 503, "coding_command_sandbox_unavailable");
+  const runtimeRoot = path.dirname(path.dirname(process.execPath));
+  if (!path.isAbsolute(runtimeRoot) || isWithin(root, runtimeRoot) || isWithin(runtimeRoot, root)) fail("The configured workspace root overlaps the command runtime.", 503, "coding_workspace_invalid_root");
+  const runtimeMount = ["/opt", "/usr/local"].find((candidate) => {
+    if (isWithin(runtimeRoot, candidate) || isWithin(candidate, runtimeRoot) || isWithin(root, candidate) || isWithin(candidate, root)) return false;
+    try { return fs.statSync(candidate).isDirectory(); } catch { return false; }
+  });
+  if (!runtimeMount) fail("No safe runtime mountpoint is available for command isolation.", 503, "coding_command_sandbox_unavailable");
+  const remapRuntimeExecutable = (hostPath) => {
+    const relative = path.relative(runtimeRoot, hostPath);
+    if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) fail("The command executable is outside the isolated runtime.", 503, "coding_command_sandbox_unavailable");
+    return path.join(runtimeMount, relative);
+  };
+  let sandboxExecutablePath = executable;
+  if (executable === process.execPath) sandboxExecutablePath = remapRuntimeExecutable(process.execPath);
+  else if (executable === "npm") {
+    const npmPath = path.join(runtimeRoot, "bin", "npm");
+    if (!fs.existsSync(npmPath)) fail("The isolated Node runtime does not include npm.", 503, "coding_command_sandbox_unavailable");
+    sandboxExecutablePath = remapRuntimeExecutable(npmPath);
+  }
+  const runtimePath = [path.join(runtimeMount, "bin"), "/usr/local/bin", "/usr/bin", "/bin"].filter((item, index, values) => values.indexOf(item) === index).join(path.delimiter);
+  const result = [
+    "--die-with-parent", "--new-session", "--unshare-all",
+    "--ro-bind", "/", "/",
+    "--bind", workspace, sandboxWorkspace,
+    "--tmpfs", root,
+    "--ro-bind", runtimeRoot, runtimeMount,
+  ];
+  for (const sensitiveDirectory of ["/home", "/root", "/tmp", "/var/tmp", "/etc/secrets", "/run/secrets"]) {
+    try {
+      if (sensitiveDirectory !== sandboxWorkspace && sensitiveDirectory !== root && fs.statSync(sensitiveDirectory).isDirectory()) result.push("--tmpfs", sensitiveDirectory);
+    } catch {}
+  }
+  result.push("--proc", "/proc", "--dev", "/dev", "--chdir", sandboxWorkspace, "--clearenv", "--setenv", "PATH", runtimePath,
+    "--setenv", "HOME", sandboxWorkspace, "--setenv", "TMPDIR", "/tmp", "--setenv", "NPM_CONFIG_CACHE", "/tmp/npm-cache",
+    "--setenv", "NODE_ENV", "test", "--setenv", "CI", "1", "--", sandboxExecutablePath, ...args);
+  return result;
 }
 
 function resolveCommand(input = {}) {
@@ -50,24 +110,39 @@ function resolveCommand(input = {}) {
   return { tool, label: "Checking the Git diff.", executable: "git", args: ["diff", "--check"], display: "git diff --check" };
 }
 
-export function commandWorkspace() {
-  return configuredRoot();
+export function commandWorkspace(uid, conversationId) {
+  return codingWorkspacePaths(uid, conversationId).then(({ workspace }) => workspace);
 }
 
-export async function executeCodingCommand({ input = {}, activity, approved = false, signal } = {}) {
+export async function executeCodingCommand(options = {}) {
+  const uid = options.uid;
+  const input = options.input || {};
+  const activity = options.activity;
+  const approved = options.approved === true;
+  const signal = options.signal;
   if (approved !== true) fail("Explicit approval is required before running a command.", 403, "coding_command_approval_required");
   if (!activity?.operation) fail("A live activity run is required for command execution.", 400, "coding_command_activity_required");
+  if (!String(uid || "").trim()) fail("A signed-in user is required for command execution.", 401, "coding_command_user_required");
+  return withCodingWorkspaceLock(uid, input.conversationId, () => executeCodingCommandLocked({ uid, input, activity, signal }));
+}
+
+async function executeCodingCommandLocked({ uid, input, activity, signal }) {
   const command = resolveCommand(input);
-  const cwd = configuredRoot();
+  const { root, workspace: cwd } = await codingWorkspacePaths(uid, input.conversationId);
+  const args = command.tool === "node_check"
+    ? ["--check", (await resolveCodingWorkspaceFile(uid, input.conversationId, input.path)).relativePath]
+    : command.args;
+  const sandbox = sandboxExecutable();
+  const sandboxArguments = sandboxArgs({ root, workspace: cwd, executable: command.executable, args });
   const timeoutMs = Math.min(MAX_TIMEOUT_MS, Math.max(1000, Number(input.timeoutMs) || DEFAULT_TIMEOUT_MS));
   if (signal?.aborted) fail("The command was cancelled.", 499, "coding_command_cancelled");
   const result = await activity.operation("command.exec", command.label, { tool: command.tool, command: command.display, timeoutMs }, () => new Promise((resolve, reject) => {
-    const child = spawn(command.executable, command.args, {
+    const child = spawn(sandbox, sandboxArguments, {
       cwd,
       shell: false,
       detached: process.platform !== "win32",
       windowsHide: true,
-      env: { PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin", NODE_ENV: "test", HOME: os.homedir(), CI: "1" },
+      env: {},
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -92,8 +167,9 @@ export async function executeCodingCommand({ input = {}, activity, approved = fa
     child.once("close", (code, exitSignal) => {
       clearTimeout(timer);
       signal?.removeEventListener?.("abort", terminate);
-      const output = { tool: command.tool, command: command.display, cwd: path.basename(cwd), exitCode: code, signal: exitSignal || null, timedOut, stdout: redactedOutput(stdout), stderr: redactedOutput(stderr) };
+      const output = { tool: command.tool, command: command.display, cwd: "user workspace", exitCode: code, signal: exitSignal || null, timedOut, stdout: redactedOutput(stdout), stderr: redactedOutput(stderr) };
       if (timedOut) reject(Object.assign(new Error("The command exceeded the execution time limit."), { code: "coding_command_timeout", status: 408, output }));
+      else if (code !== 0 && /^bwrap:/i.test(String(stderr).trim())) reject(Object.assign(new Error("The command sandbox could not start in this environment."), { code: "coding_command_sandbox_failed", status: 503, output }));
       else if (code !== 0) reject(Object.assign(new Error("The command failed validation."), { code: "coding_command_failed", status: 422, output }));
       else resolve(output);
     });
