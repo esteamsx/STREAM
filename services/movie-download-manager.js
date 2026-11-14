@@ -141,7 +141,14 @@ export async function createMovieDownload(uid, input) {
 }
 export async function listMovieDownloads(uid) { await ensureReady(); return [...jobs.values()].filter((job) => job.uid === String(uid) && job.status !== "canceled").sort((a, b) => b.createdAt - a.createdAt).map(publicJob); }
 export async function getMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); return job && job.uid === String(uid) ? publicJob(job) : null; }
-export async function retryMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; if (!["failed", "paused"].includes(job.status)) return publicJob(job); job.cancelRequested = false; job.pauseRequested = false; job.error = null; void startWorker(job); return publicJob(job); }
+export async function retryMovieDownload(uid, id) {
+  await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null;
+  if (job.status === "completed" && job.watermarkStatus === "failed") {
+    await fsp.rm(watermarkedPath(job), { force: true }).catch(() => {});
+    job.watermarkStatus = "pending"; job.watermarkError = null; await save(job); void ensureWatermark(job); return publicJob(job);
+  }
+  if (!["failed", "paused"].includes(job.status)) return publicJob(job); job.cancelRequested = false; job.pauseRequested = false; job.error = null; void startWorker(job); return publicJob(job);
+}
 export async function pauseMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; if (["completed", "failed", "canceled", "paused"].includes(job.status)) return publicJob(job); job.pauseRequested = true; if (!job.running) { job.status = "paused"; job.pauseRequested = false; await save(job); } return publicJob(job); }
 export async function resumeMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; if (job.status !== "paused") return publicJob(job); job.cancelRequested = false; job.pauseRequested = false; job.error = null; void startWorker(job); return publicJob(job); }
 export async function cancelMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null; job.cancelRequested = true; if (!job.running) { job.status = "canceled"; await save(job); } return publicJob(job); }
@@ -197,33 +204,15 @@ async function relayGrowingMovieFile(job, res, start = 0, end = null) {
 export async function streamMovieDownload(uid, id, res, rangeHeader) {
   await ensureReady(); const job = jobs.get(String(id));
   if (!job || job.uid !== String(uid)) return false;
+  if (job.status !== "completed") return false;
+  if (job.watermarkStatus !== "ready") {
+    void ensureWatermark(job);
+    return false;
+  }
   const cachedPath = watermarkedPath(job);
   const cachedStat = job.status === "completed" && job.watermarkStatus === "ready" ? await fsp.stat(cachedPath).catch(() => null) : null;
-  if (job.status === "completed" && !cachedStat) void ensureWatermark(job);
-  const servingPath = cachedStat ? cachedPath : filePath(job);
+  const servingPath = cachedStat ? cachedPath : null;
   const stat = await fsp.stat(servingPath).catch(() => null);
-  const knownSize = Math.max(Number(job.total) || 0, stat?.size || 0);
-  const active = ["queued", "running", "retrying", "paused"].includes(job.status);
-  if (active) {
-    const range = rangeHeader && knownSize ? parseByteRange(rangeHeader, knownSize) : null;
-    if (rangeHeader && !range) {
-      res.status(416).set({ "Content-Range": `bytes */${knownSize || "*"}`, "Accept-Ranges": "bytes", "Cache-Control": "private, no-store" }).end();
-      return true;
-    }
-    const start = range ? range.start : 0;
-    const end = range ? range.end : null;
-    res.status(range ? 206 : 200).set({
-      "Content-Type": "video/mp4",
-      ...(knownSize && !range ? { "Content-Length": String(knownSize) } : {}),
-      ...(range ? { "Content-Length": String(end - start + 1), "Content-Range": `bytes ${start}-${end}/${knownSize}` } : {}),
-      "Content-Disposition": `attachment; filename="${job.filename}"`,
-      "Cache-Control": "private, no-store",
-      "Accept-Ranges": "bytes",
-    });
-    await relayGrowingMovieFile(job, res, start, end);
-    return true;
-  }
-  if (job.status !== "completed") return false;
   if (!stat) return false;
   const range = rangeHeader ? parseByteRange(rangeHeader, stat.size) : null;
   if (rangeHeader && !range) {
