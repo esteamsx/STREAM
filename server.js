@@ -376,6 +376,7 @@ import { registerSnakesRoutes } from "./routes/snakes.js";
 import { registerTttRoutes } from "./routes/tictactoe.js";
 import { registerMovieRoutes } from "./routes/movies.js";
 import { registerCodingRoutes } from "./routes/coding.js";
+import { registerGithubAgentRoutes } from "./routes/github-agent.js";
 import { movieApiRouter } from "./routes/movie-api.js";
 import { registerChannelRoutes } from "./routes/channel-tools.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
@@ -787,6 +788,8 @@ registerMovieRoutes(moviesRouter, { requireAuth, requireSiteOrigin, SimpleRateLi
 app.use(moviesRouter);
 const codingRouter = registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRateLimiter });
 app.use(codingRouter);
+const githubAgentRouter = registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, SimpleRateLimiter });
+app.use(githubAgentRouter);
 app.use(movieApiRouter);
 app.use(payLinkRouter);
 app.use(statusRouter);
