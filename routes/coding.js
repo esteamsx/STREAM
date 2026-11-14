@@ -3,7 +3,8 @@ import path from "node:path";
 import { isAdminEmail, isVerificationActive } from "../services/auth.js";
 import { buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError } from "../services/coarena-coding.js";
 import { CODING_FILE_CLEANUP_INTERVAL_MS, CODING_FILE_MAX_BYTES, createCodingTemporaryFiles, extractGeneratedCodingFiles } from "../services/coding-temporary-files.js";
-import { getRepositoryContext } from "../services/github-agent.js";
+import { formatRepositoryStatusAnswer, getCodingChatContext } from "../services/coding-chat-context.js";
+import { getConnectionStatus, getRepositoryContext } from "../services/github-agent.js";
 import { createCodingActivity, getCodingActivity } from "../services/coding-activity.js";
 import { executeCodingCommand } from "../services/coding-command.js";
 import { cleanupExpiredCodingWorkspaceFiles, writeCodingWorkspaceArchives } from "../services/coding-workspace.js";
@@ -115,6 +116,23 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
     } });
     res.once("close", () => { if (!res.writableEnded && !finished) { controller.abort(); void activity.finish("cancelled"); } });
     try {
+      const chatContext = getCodingChatContext(request.messages, { repositoryContextEnabled: request.includeRepositoryContext === true });
+      const requestAttachments = Array.isArray(request.attachments) ? request.attachments : [];
+      if (chatContext.repositoryStatusRequested && requestAttachments.length === 0) {
+        let status;
+        try { status = await getConnectionStatus(req.uid); }
+        catch {
+          finished = true;
+          return res.status(503).json({ error: "GitHub connection status is temporarily unavailable. Please retry.", code: "github_status_unavailable" });
+        }
+        const answer = formatRepositoryStatusAnswer(status);
+        finished = true;
+        res.status(200).set({ "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+        res.flushHeaders?.();
+        res.write(`data: ${JSON.stringify({ type: "text", text: answer })}\n\n`);
+        res.write("data: [DONE]\n\n");
+        return res.end();
+      }
       const attachments = Array.isArray(request.attachments) ? request.attachments : [];
       if (attachments.length > 6) throw Object.assign(new Error("You can attach up to 6 files per message."), { status: 413, code: "too_many_attachments" });
       const resolvedAttachments = [];
@@ -129,14 +147,14 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       res.flushHeaders?.();
       await activity.initialize();
       let repositoryContext = null;
-      if (request.includeRepositoryContext === true) {
+      if (chatContext.includeRepositoryContext) {
         try {
           repositoryContext = await getRepositoryContext(req.uid, {}, { operation: activity.operation });
         } catch (error) {
           if (error?.code !== "github_repository_required" && error?.code !== "github_not_connected") throw error;
         }
       }
-      const payload = buildCodingPayload({ ...request, attachments: resolvedAttachments, repositoryContext });
+      const payload = buildCodingPayload({ ...request, messages: chatContext.messages, attachments: resolvedAttachments, repositoryContext });
       if (payload.workspaceArchives?.length) {
         const extracted = await writeCodingWorkspaceArchives(req.uid, request.conversationId, payload.workspaceArchives);
         await activity.emit({ type: "workspace.extract", status: "completed", description: `Extracted ${extracted.files.length} source files into your private conversation workspace.`, details: { fileCount: extracted.files.length, bytes: extracted.bytes } });

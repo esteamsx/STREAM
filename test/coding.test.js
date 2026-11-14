@@ -7,6 +7,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { deflateRawSync } from "node:zlib";
 import { assertSafeCodingRequest, buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError } from "../services/coarena-coding.js";
+import { formatRepositoryStatusAnswer, getCodingChatContext } from "../services/coding-chat-context.js";
 import { codingWorkspace, writeCodingWorkspaceArchives } from "../services/coding-workspace.js";
 import { renderCoding } from "../views/coding.js";
 
@@ -95,6 +96,7 @@ test("COD\\NG builds an Anthropic-compatible Coarena payload without exposing cr
     assert.match(payload.system, /complete contents \(not a diff\)/);
     assert.match(payload.system, /```js filename=src\/app\.js/);
     assert.match(payload.system, /```text filename=image-prompt\.txt/);
+    assert.match(payload.system, /latest user message as the active task/);
     assert.equal(JSON.stringify(payload).includes("COARENA_API_KEY"), false);
   } finally {
     if (previousScanner == null) delete process.env.CODING_CLAMSCAN_BIN; else process.env.CODING_CLAMSCAN_BIN = previousScanner;
@@ -116,6 +118,59 @@ test("COD\\NG includes bounded GitHub repository context without duplicating it"
   assert.match(content, /Repository file: src\/file-0\.js/);
   assert.ok(content.length <= 81000);
   assert.ok((content.match(/Repository file:/g) || []).length <= 12);
+});
+
+test("COD\\NG treats greetings/topic changes as context resets and reads GitHub files only on explicit requests", () => {
+  const staleHistory = [
+    { role: "user", content: "Inspect the linked GitHub repository files and implement my request." },
+    { role: "assistant", content: "I found several project files." },
+    { role: "user", content: "Hello" },
+    { role: "assistant", content: "" },
+  ];
+  const greeting = getCodingChatContext(staleHistory, { repositoryContextEnabled: true });
+  assert.deepEqual(greeting.messages.filter((message) => message.role === "user").map((message) => message.content), ["Hello"]);
+  assert.equal(greeting.includeRepositoryContext, false);
+  assert.equal(greeting.repositoryStatusRequested, false);
+
+  const switchedTopic = getCodingChatContext([
+    { role: "user", content: "Read the repository files." },
+    { role: "assistant", content: "Done." },
+    { role: "user", content: "New topic: help me write a short email." },
+  ], { repositoryContextEnabled: true });
+  assert.deepEqual(switchedTopic.messages.map((message) => message.content), ["New topic: help me write a short email."]);
+  assert.equal(switchedTopic.includeRepositoryContext, false);
+
+  const repoStatus = getCodingChatContext([
+    { role: "user", content: "Inspect the linked repository and generate its files." },
+    { role: "assistant", content: "Working on the repository." },
+    { role: "user", content: "Which repo can you read now in this chat? I've linked my GitHub." },
+  ], { repositoryContextEnabled: true });
+  assert.deepEqual(repoStatus.messages.map((message) => message.content), ["Which repo can you read now in this chat? I've linked my GitHub."]);
+  assert.equal(repoStatus.repositoryStatusRequested, true);
+  assert.equal(repoStatus.includeRepositoryContext, false);
+
+  const repoInspection = getCodingChatContext([{ role: "user", content: "Please inspect the source files in my linked GitHub repository." }], { repositoryContextEnabled: true });
+  assert.equal(repoInspection.repositoryStatusRequested, false);
+  assert.equal(repoInspection.includeRepositoryContext, true);
+
+  const uploadedFileOnly = getCodingChatContext([{ role: "user", content: "Please read the file I uploaded." }], { repositoryContextEnabled: true });
+  assert.equal(uploadedFileOnly.includeRepositoryContext, false);
+  const stopReading = getCodingChatContext([{ role: "user", content: "Don't read repository files; I have a different question." }], { repositoryContextEnabled: true });
+  assert.equal(stopReading.includeRepositoryContext, false);
+});
+
+test("COD\\NG answers repository-status questions from connection metadata without claiming a file scan", () => {
+  assert.match(formatRepositoryStatusAnswer({ connected: false }), /not currently connected/);
+  const answer = formatRepositoryStatusAnswer({
+    connected: true,
+    login: "esteamsx",
+    selectedRepo: { owner: "esteamsx", repo: "STREAM", fullName: "esteamsx/STREAM", branch: "main", permissions: { pull: true } },
+  });
+  assert.match(answer, /@esteamsx/);
+  assert.match(answer, /esteamsx\/STREAM on branch main/);
+  assert.match(answer, /did not read any repository files/);
+  assert.match(formatRepositoryStatusAnswer({ connected: true, login: "esteamsx" }), /no repository is selected/);
+  assert.match(formatRepositoryStatusAnswer({ connected: true, selectedRepo: { owner: "org", repo: "private", permissions: { pull: false } } }), /does not have read permission/);
 });
 
 test("COD\\NG uses the configured Anthropic base URL and server-side token", async () => {
