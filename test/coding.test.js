@@ -146,6 +146,7 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /github-agent-close/);
   assert.match(html, /githubOverlayClose\.addEventListener\('click',githubClosePanel\)/);
   assert.match(html, /\/api\/coding\/session/);
+  assert.match(html, /src="\/ios-motion\.js" defer/);
   assert.match(html, /es-coding-chats-v3:/);
   assert.match(html, /storageKey\?JSON\.parse/);
   assert.doesNotMatch(html, /es-coding-chats-v2|es-coding-history-v1/);

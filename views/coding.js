@@ -11,6 +11,7 @@ ${cfg.devToolsBlock || ""}
 ${siteHeadFor("coding")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
+<script nonce="__CSP_NONCE__" src="/ios-motion.js" defer></script>
 <script nonce="__CSP_NONCE__" src="/coding-markdown.js"></script>
 <title>COD\NG | ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
