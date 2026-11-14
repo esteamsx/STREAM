@@ -23,7 +23,9 @@ export function registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, Simp
     try { res.json(await getConnectionStatus(req.uid)); } catch (error) { jsonError(res, error); }
   });
 
-  router.get("/api/coding/github/connect", ...protectedApi, oauthLimiter, async (req, res) => {
+  // A top-level OAuth navigation does not include an Origin header. The
+  // authenticated user and one-time state still protect this redirect.
+  router.get("/api/coding/github/connect", requireAuth, oauthLimiter, async (req, res) => {
     try {
       const { clientId, clientSecret, redirectUri } = getCodingGithubOAuthConfig();
       if (!clientId || !clientSecret) return res.status(503).json({ error: "GitHub Agent OAuth is not configured.", code: "github_oauth_unavailable" });
