@@ -210,6 +210,17 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.doesNotMatch(html, /COARENA_API_KEY|ANTHROPIC_AUTH_TOKEN|test-secret/);
 });
 
+test("COD\\NG inline page scripts parse successfully", () => {
+  const html = renderCoding({ devToolsBlock: "", protectionCSS: "" });
+  const scripts = Array.from(html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi))
+    .filter(([, attributes, body]) => !/\bsrc\s*=/.test(attributes) && body.trim())
+    .map(([, , body]) => body);
+  assert.ok(scripts.length > 0, "expected inline coding-page scripts");
+  scripts.forEach((script, index) => {
+    assert.doesNotThrow(() => new vm.Script(script, { filename: `coding-inline-${index}.js` }));
+  });
+});
+
 test("COD\\NG reads streamed Anthropic text deltas correctly", async () => {
   const body = new ReadableStream({
     start(controller) {
