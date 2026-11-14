@@ -64,7 +64,11 @@ async function ensureWatermark(job) {
       job.watermarkStatus = "ready";
       job.watermarkError = null;
     } catch (error) {
-      job.watermarkStatus = "failed";
+      // Watermarking is an optional enhancement. It must never turn a
+      // completed movie download into a failed download (large files may be
+      // outside the FFmpeg processing limit or the runtime may lack codecs).
+      // Keep the original completed file available as the safe fallback.
+      job.watermarkStatus = "bypassed";
       job.watermarkError = error?.message || "Watermark processing failed.";
       await fsp.rm(output, { force: true }).catch(() => {});
     }
@@ -143,7 +147,7 @@ export async function listMovieDownloads(uid) { await ensureReady(); return [...
 export async function getMovieDownload(uid, id) { await ensureReady(); const job = jobs.get(String(id)); return job && job.uid === String(uid) ? publicJob(job) : null; }
 export async function retryMovieDownload(uid, id) {
   await ensureReady(); const job = jobs.get(String(id)); if (!job || job.uid !== String(uid)) return null;
-  if (job.status === "completed" && job.watermarkStatus === "failed") {
+  if (job.status === "completed" && ["failed", "bypassed"].includes(job.watermarkStatus)) {
     await fsp.rm(watermarkedPath(job), { force: true }).catch(() => {});
     job.watermarkStatus = "pending"; job.watermarkError = null; await save(job); void ensureWatermark(job); return publicJob(job);
   }
@@ -205,13 +209,13 @@ export async function streamMovieDownload(uid, id, res, rangeHeader) {
   await ensureReady(); const job = jobs.get(String(id));
   if (!job || job.uid !== String(uid)) return false;
   if (job.status !== "completed") return false;
-  if (job.watermarkStatus !== "ready") {
+  if (!["ready", "bypassed"].includes(job.watermarkStatus)) {
     void ensureWatermark(job);
     return false;
   }
   const cachedPath = watermarkedPath(job);
   const cachedStat = job.status === "completed" && job.watermarkStatus === "ready" ? await fsp.stat(cachedPath).catch(() => null) : null;
-  const servingPath = cachedStat ? cachedPath : null;
+  const servingPath = cachedStat ? cachedPath : job.watermarkStatus === "bypassed" ? filePath(job) : null;
   const stat = await fsp.stat(servingPath).catch(() => null);
   if (!stat) return false;
   const range = rangeHeader ? parseByteRange(rangeHeader, stat.size) : null;
