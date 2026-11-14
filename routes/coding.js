@@ -17,7 +17,11 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
     return res.status(403).json({ error: "COD\\NG is available to Premium members only.", code: "premium_required" });
   };
 
-  router.get("/api/coding/session", requireAuth, requireSiteOrigin, (req, res) => res.json({ uid: String(req.uid) }));
+  // This is a read-only same-origin session lookup used to select the user's
+  // private browser-storage key. Do not apply the state-changing origin/CSRF
+  // guard here: some browsers omit Origin on same-origin GET requests, which
+  // would make the page fall back to a blank, non-persistent chat view.
+  router.get("/api/coding/session", requireAuth, (req, res) => res.json({ uid: String(req.uid) }));
 
   router.post("/api/coding/chat", requireAuth, requireSiteOrigin, limiter, premiumOnly, async (req, res) => {
     const controller = new AbortController();
