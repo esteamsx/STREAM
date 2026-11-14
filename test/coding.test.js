@@ -142,6 +142,9 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /COD\\\\NG/);
   assert.match(html, /codingHistoryToggle/);
   assert.match(html, /codingHistoryList/);
+  assert.match(html, /codingGithubOverlayClose/);
+  assert.match(html, /github-agent-close/);
+  assert.match(html, /githubOverlayClose\.addEventListener\('click',githubClosePanel\)/);
   assert.match(html, /codingRenameOverlay/);
   assert.match(html, /codingDeleteOverlay/);
   assert.match(html, /Rename chat/);
@@ -180,6 +183,8 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /Your files were not sent/);
   assert.match(html, /\.messages\{[^}]*overflow-y:auto/);
   assert.match(html, /\.composer\{position:sticky/);
+  assert.match(html, /\.composer \.actions\{gap:10px;flex-shrink:0\}/);
+  assert.match(html, /\.composer \.actions \.icon-btn\{flex:0 0 40px\}/);
   assert.match(html, /message-collapsed/);
   assert.match(html, /data-code-action/);
   assert.match(html, /URL\.createObjectURL\(new Blob\(\[source\]/);

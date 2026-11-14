@@ -8,7 +8,7 @@ function fail(message, status = 400, code = "github_agent_error") {
 }
 
 function secretKey() {
-  const raw = process.env.GITHUB_TOKEN_ENCRYPTION_KEY || process.env.TRADING_VAULT_KEY || process.env.SESSION_SECRET;
+  const raw = process.env.CODING_GITHUB_ENCRYPTION_KEY;
   if (!raw || !String(raw).trim()) fail("GitHub Agent token encryption is not configured.", 503, "github_agent_storage_unavailable");
   return crypto.createHash("sha256").update(String(raw)).digest();
 }

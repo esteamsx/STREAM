@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { db } from "../config/firebase.js";
 import { encryptGithubToken, decryptGithubToken, validateRepo, validateRef, validatePath } from "./github-agent-guards.js";
+import { getCodingGithubOAuthConfig } from "./github-agent-config.js";
 
 const GITHUB_API = "https://api.github.com";
 const USER_AGENT = "ES-TEAMS-TV-CODING-GITHUB-AGENT";
@@ -86,10 +87,8 @@ async function tokenFor(uid) {
 }
 
 export async function exchangeOAuthCode(code) {
-  const clientId = String(process.env.GITHUB_CLIENT_ID || "");
-  const clientSecret = String(process.env.GITHUB_CLIENT_SECRET || "");
+  const { clientId, clientSecret, redirectUri } = getCodingGithubOAuthConfig();
   if (!clientId || !clientSecret) fail("GitHub Agent OAuth is not configured.", 503, "github_oauth_unavailable");
-  const redirectUri = process.env.GITHUB_AGENT_REDIRECT_URI || `${String(process.env.SITE_URL || "https://esteamstv.devs.surf").replace(/\/$/, "")}/api/coding/github/callback`;
   const response = await fetch("https://github.com/login/oauth/access_token", { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code: String(code), redirect_uri: redirectUri }) });
   const data = await response.json().catch(() => null);
   if (!response.ok || !data?.access_token) fail("Could not complete GitHub authorization.", 502, "github_oauth_exchange_failed");

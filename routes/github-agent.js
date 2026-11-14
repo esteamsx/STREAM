@@ -4,6 +4,7 @@ import {
   listRepositories, selectRepository, getTree, readFile, searchCode, stageChanges, getWorkspace, approveWorkspace, commitWorkspace,
   getHistory, detectTests,
 } from "../services/github-agent.js";
+import { getCodingGithubOAuthConfig } from "../services/github-agent-config.js";
 
 function jsonError(res, error) {
   const status = Number(error?.status) || 500;
@@ -23,11 +24,11 @@ export function registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, Simp
 
   router.get("/api/coding/github/connect", ...protectedApi, oauthLimiter, async (req, res) => {
     try {
-      if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) return res.status(503).json({ error: "GitHub Agent OAuth is not configured.", code: "github_oauth_unavailable" });
+      const { clientId, clientSecret, redirectUri } = getCodingGithubOAuthConfig();
+      if (!clientId || !clientSecret) return res.status(503).json({ error: "GitHub Agent OAuth is not configured.", code: "github_oauth_unavailable" });
       const state = await createOAuthState(req.uid, req.query.returnTo || "/coding");
-      const redirectUri = process.env.GITHUB_AGENT_REDIRECT_URI || `${String(process.env.SITE_URL || "https://esteamstv.devs.surf").replace(/\/$/, "")}/api/coding/github/callback`;
       const url = new URL("https://github.com/login/oauth/authorize");
-      url.searchParams.set("client_id", process.env.GITHUB_CLIENT_ID);
+      url.searchParams.set("client_id", clientId);
       url.searchParams.set("redirect_uri", redirectUri);
       url.searchParams.set("scope", "repo read:user user:email");
       url.searchParams.set("state", state);
