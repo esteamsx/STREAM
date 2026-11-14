@@ -178,6 +178,9 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /codeDownloadRoll/);
   assert.match(html, /retryFailedMessage/);
   assert.match(html, /message-retry/);
+  assert.match(html, /activity-panel/);
+  assert.match(html, /conversationId:chat\.id/);
+  assert.match(html, /\/api\/coding\/activity\//);
   assert.match(html, /link\.download=name/);
   assert.match(html, /copyCode\(source,button\)/);
   assert.match(html, /document\.execCommand\('copy'\)/);

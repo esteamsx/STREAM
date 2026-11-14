@@ -184,10 +184,11 @@ export async function readFile(uid, input = {}) {
   return { path, sha: file.sha, size: file.size || Buffer.byteLength(content), content, encoding: "utf-8", htmlUrl: file.html_url || null };
 }
 
-export async function getRepositoryContext(uid, input = {}) {
+export async function getRepositoryContext(uid, input = {}, hooks = {}) {
   const { connection, chosen } = await selected(uid, input);
   const ref = validateRef(input.ref || chosen.branch);
-  const tree = await githubRequest(connection.token, `/repos/${encodeURIComponent(chosen.owner)}/${encodeURIComponent(chosen.repo)}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
+  const runOperation = typeof hooks.operation === "function" ? hooks.operation : async (_type, _description, _details, work) => work();
+  const tree = await runOperation("project.inspect", "Inspecting the repository structure.", { repository: `${chosen.owner}/${chosen.repo}`, ref }, () => githubRequest(connection.token, `/repos/${encodeURIComponent(chosen.owner)}/${encodeURIComponent(chosen.repo)}/git/trees/${encodeURIComponent(ref)}?recursive=1`));
   const entries = (tree.tree || []).filter((item) => item.type === "blob" && !CONTEXT_IGNORED_PATH.test(item.path) && Number(item.size || 0) <= MAX_FILE_BYTES);
   const metadata = [];
   let metadataChars = 0;
@@ -208,7 +209,7 @@ export async function getRepositoryContext(uid, input = {}) {
   let contextChars = metadataChars;
   for (const item of prioritized) {
     if (contextChars >= MAX_CONTEXT_CHARS) break;
-    const file = await githubRequest(connection.token, `/repos/${encodeURIComponent(chosen.owner)}/${encodeURIComponent(chosen.repo)}/contents/${item.path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`);
+    const file = await runOperation("file.read", `Reading ${item.path}.`, { path: item.path, repository: `${chosen.owner}/${chosen.repo}`, ref }, () => githubRequest(connection.token, `/repos/${encodeURIComponent(chosen.owner)}/${encodeURIComponent(chosen.repo)}/contents/${item.path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`));
     if (file.type !== "file") continue;
     const content = Buffer.from(String(file.content || "").replace(/\n/g, ""), "base64").toString("utf8").slice(0, MAX_CONTEXT_FILE_CHARS);
     const remaining = MAX_CONTEXT_CHARS - contextChars;
