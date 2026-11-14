@@ -8,6 +8,12 @@ const OAUTH_TTL_MS = 10 * 60 * 1000;
 const WORKSPACE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_CHANGES = 80;
+const MAX_CONTEXT_FILES = 12;
+const MAX_CONTEXT_CHARS = 80_000;
+const MAX_TREE_METADATA_CHARS = 24_000;
+const MAX_CONTEXT_FILE_CHARS = 20_000;
+const CONTEXT_FILE_PATTERN = /(?:^|\/)(?:package\.json|readme(?:\.[^/]*)?|server\.[cm]?[jt]sx?|index\.[cm]?[jt]sx?|[^/]+\.(?:[cm]?[jt]sx?|vue|svelte|css|scss|html|md|json|ya?ml|toml|sql|py|go|rs|java|rb|php|sh))$/i;
+const CONTEXT_IGNORED_PATH = /(?:^|\/)(?:\.git|node_modules|dist|build|coverage|vendor|\.next|\.cache)(?:\/|$)/i;
 function fail(message, status = 400, code = "github_agent_error") {
   throw Object.assign(new Error(message), { status, code });
 }
@@ -122,7 +128,16 @@ export async function getTree(uid, input = {}) {
   const ref = validateRef(input.ref || chosen.branch);
   const tree = await githubRequest(connection.token, `/repos/${encodeURIComponent(chosen.owner)}/${encodeURIComponent(chosen.repo)}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
   await audit(uid, "read_tree", { ...chosen, ref });
-  return { sha: tree.sha, truncated: !!tree.truncated, entries: (tree.tree || []).filter((item) => item.type === "blob").slice(0, 5000).map((item) => ({ path: validatePath(item.path), sha: item.sha, size: item.size || 0, type: item.type })) };
+  const entries = [];
+  let metadataChars = 0;
+  for (const item of (tree.tree || []).filter((candidate) => candidate.type === "blob").slice(0, 5000)) {
+    const entry = { path: validatePath(item.path), sha: item.sha, size: item.size || 0, type: item.type };
+    const entryChars = JSON.stringify(entry).length + 1;
+    if (metadataChars + entryChars > MAX_TREE_METADATA_CHARS) break;
+    entries.push(entry);
+    metadataChars += entryChars;
+  }
+  return { sha: tree.sha, truncated: !!tree.truncated || entries.length < (tree.tree || []).filter((item) => item.type === "blob").length, entries, metadataChars };
 }
 
 export async function readFile(uid, input = {}) {
@@ -133,6 +148,43 @@ export async function readFile(uid, input = {}) {
   const content = Buffer.from(String(file.content || "").replace(/\n/g, ""), "base64").toString("utf8");
   await audit(uid, "read_file", { ...chosen, ref, path, bytes: Buffer.byteLength(content) });
   return { path, sha: file.sha, size: file.size || Buffer.byteLength(content), content, encoding: "utf-8", htmlUrl: file.html_url || null };
+}
+
+export async function getRepositoryContext(uid, input = {}) {
+  const { connection, chosen } = await selected(uid, input);
+  const ref = validateRef(input.ref || chosen.branch);
+  const tree = await githubRequest(connection.token, `/repos/${encodeURIComponent(chosen.owner)}/${encodeURIComponent(chosen.repo)}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
+  const entries = (tree.tree || []).filter((item) => item.type === "blob" && !CONTEXT_IGNORED_PATH.test(item.path) && Number(item.size || 0) <= MAX_FILE_BYTES);
+  const metadata = [];
+  let metadataChars = 0;
+  for (const item of entries) {
+    const line = `${item.path}\t${item.size || 0}\t${item.sha}\n`;
+    if (metadataChars + line.length > MAX_TREE_METADATA_CHARS) break;
+    metadata.push(line);
+    metadataChars += line.length;
+  }
+  const prioritized = entries
+    .filter((item) => CONTEXT_FILE_PATTERN.test(item.path))
+    .sort((a, b) => {
+      const score = (item) => /(?:^|\/)(?:package\.json|readme(?:\.[^/]*)?|server\.[cm]?[jt]sx?)$/i.test(item.path) ? 0 : /\.(?:[cm]?tsx?|jsx?|vue|svelte|py|go|rs|java|rb|php)$/i.test(item.path) ? 1 : 2;
+      return score(a) - score(b) || a.path.length - b.path.length;
+    })
+    .slice(0, MAX_CONTEXT_FILES);
+  const files = [];
+  let contextChars = metadataChars;
+  for (const item of prioritized) {
+    if (contextChars >= MAX_CONTEXT_CHARS) break;
+    const file = await githubRequest(connection.token, `/repos/${encodeURIComponent(chosen.owner)}/${encodeURIComponent(chosen.repo)}/contents/${item.path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`);
+    if (file.type !== "file") continue;
+    const content = Buffer.from(String(file.content || "").replace(/\n/g, ""), "base64").toString("utf8").slice(0, MAX_CONTEXT_FILE_CHARS);
+    const remaining = MAX_CONTEXT_CHARS - contextChars;
+    const text = content.slice(0, Math.max(0, remaining));
+    if (!text) break;
+    files.push({ path: item.path, sha: file.sha, content: text, truncated: text.length < content.length });
+    contextChars += text.length;
+  }
+  await audit(uid, "read_repository_context", { ...chosen, ref, fileCount: files.length, treeChars: metadataChars, contextChars });
+  return { repo: { ...chosen, ref }, tree: metadata.join(""), files, chars: contextChars };
 }
 
 export async function searchCode(uid, input = {}) {
@@ -200,14 +252,13 @@ export async function commitWorkspace(uid, id, input = {}) {
   const message = String(input.message || "COD\\NG: apply reviewed changes").trim().slice(0, 200); if (!message) fail("Commit message is required.");
   const ref = await githubRequest(connection.token, `/repos/${chosen.owner}/${chosen.repo}/git/ref/heads/${encodeURIComponent(chosen.branch)}`);
   const baseCommit = await githubRequest(connection.token, `/repos/${chosen.owner}/${chosen.repo}/git/commits/${ref.object.sha}`);
+  const currentTree = await githubRequest(connection.token, `/repos/${chosen.owner}/${chosen.repo}/git/trees/${baseCommit.tree.sha}?recursive=1`);
+  const currentShas = new Map((currentTree.tree || []).filter((item) => item.type === "blob").map((item) => [item.path, item.sha]));
   const treeItems = [];
   for (const item of workspace.changes || []) {
-    const current = await githubRequest(connection.token, `/repos/${chosen.owner}/${chosen.repo}/contents/${item.path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(chosen.branch)}`).catch((error) => {
-      if (error?.status === 404) return null;
-      throw error;
-    });
-    if (item.action === "create" && current) fail(`Cannot create ${item.path}; the file already exists.`, 409, "github_change_conflict");
-    if ((item.action === "update" || item.action === "delete") && (!item.baseSha || !current?.sha || item.baseSha !== current.sha)) {
+    const currentSha = currentShas.get(item.path) || null;
+    if (item.action === "create" && currentSha) fail(`Cannot create ${item.path}; the file already exists.`, 409, "github_change_conflict");
+    if ((item.action === "update" || item.action === "delete") && (!item.baseSha || !currentSha || item.baseSha !== currentSha)) {
       fail(`${item.path} changed on GitHub after it was staged. Re-read it and stage the change again.`, 409, "github_change_conflict");
     }
     if (item.action === "delete") { treeItems.push({ path: item.path, mode: "100644", type: "blob", sha: null }); continue; }

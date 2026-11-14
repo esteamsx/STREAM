@@ -84,6 +84,7 @@ test("COD\\NG builds an Anthropic-compatible Coarena payload without exposing cr
     });
     assert.equal(payload.model, "claude-fable-5-2");
     assert.equal(payload.stream, true);
+    assert.equal(payload.max_tokens, 8000);
     assert.equal(payload.messages[0].content[0].type, "text");
     assert.equal(payload.messages[0].content[1].type, "image");
     assert.match(payload.system, /complete contents \(not a diff\)/);
@@ -93,6 +94,23 @@ test("COD\\NG builds an Anthropic-compatible Coarena payload without exposing cr
   } finally {
     if (previousScanner == null) delete process.env.CODING_CLAMSCAN_BIN; else process.env.CODING_CLAMSCAN_BIN = previousScanner;
   }
+});
+
+test("COD\\NG includes bounded GitHub repository context without duplicating it", () => {
+  const payload = buildCodingPayload({
+    messages: [{ role: "user", content: "Fix the repository." }],
+    repositoryContext: {
+      repo: { fullName: "esteamsx/STREAM", ref: "feature/coding-agent" },
+      tree: "src/app.js\t100\tabc123\n".repeat(1000),
+      files: Array.from({ length: 20 }, (_, index) => ({ path: `src/file-${index}.js`, content: "const answer = 42;" })),
+    },
+  });
+  const content = payload.messages[0].content;
+  assert.equal(typeof content, "string");
+  assert.match(content, /Repository context \(esteamsx\/STREAM @ feature\/coding-agent\)/);
+  assert.match(content, /Repository file: src\/file-0\.js/);
+  assert.ok(content.length <= 81000);
+  assert.ok((content.match(/Repository file:/g) || []).length <= 12);
 });
 
 test("COD\\NG uses the configured Anthropic base URL and server-side token", async () => {

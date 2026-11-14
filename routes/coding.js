@@ -1,6 +1,7 @@
 import express from "express";
 import { isAdminEmail, isVerificationActive } from "../services/auth.js";
 import { buildCodingPayload, createCoarenaRequest, readCoarenaStream } from "../services/coarena-coding.js";
+import { getRepositoryContext } from "../services/github-agent.js";
 
 export function isCodingPremium(profile) {
   return !!(profile && (isAdminEmail(profile.email) || isVerificationActive(profile)));
@@ -19,7 +20,16 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
     const controller = new AbortController();
     res.once("close", () => { if (!res.writableEnded) controller.abort(); });
     try {
-      const payload = buildCodingPayload(req.body || {});
+      const request = req.body || {};
+      let repositoryContext = null;
+      if (request.includeRepositoryContext === true) {
+        try {
+          repositoryContext = await getRepositoryContext(req.uid);
+        } catch (error) {
+          if (error?.code !== "github_repository_required" && error?.code !== "github_not_connected") throw error;
+        }
+      }
+      const payload = buildCodingPayload({ ...request, repositoryContext });
       const startedAt = Date.now();
       let chunkCount = 0;
       let textChars = 0;
