@@ -637,6 +637,9 @@ test("COD\\NG exposes a persistent compact model menu and sends selections to th
   assert.match(html, /data-model-id="gpt-6-astra"/);
   for (const label of ["GPT-6", "DeepSeek V4.1 Flash", "Claude Fable 5.2"]) assert.ok(html.includes(label));
   assert.match(html, /coding-model-check/);
+  assert.match(html, /coding-model-menu\.show\{display:block;opacity:1;pointer-events:auto\}/);
+  assert.match(html, /setModelMenuOpen\(open,returnFocus\)/);
+  assert.match(html, /M8 3v5m8-5v5M6 8h12v3a6 6 0 0 1-12 0V8/);
   assert.match(html, /aria-selected="true"/);
   assert.match(html, /aria-expanded/);
   assert.match(html, /fetch\('\/api\/coding\/model'/);
