@@ -34,6 +34,13 @@ test("COD\\NG owns its tier catalog and matches the API plan prices", () => {
   assert.deepEqual(CODING_PLAN_ORDER, ["free", "starter", "standard", "pro", "max"]);
   assert.deepEqual(CODING_PURCHASABLE_PLAN_KEYS, ["standard", "pro", "max"]);
   assert.deepEqual(Object.fromEntries(["standard", "pro", "max"].map((key) => [key, CODING_PLAN_DEFS[key].priceNgn])), { standard: 7500, pro: 13500, max: 20500 });
+  assert.deepEqual(CODING_PLAN_CREDITS, {
+    free: { daily: 10, weekly: 50, monthly: 100 },
+    starter: { daily: 50, weekly: 250, monthly: 500 },
+    standard: { daily: 100, weekly: 500, monthly: 1000 },
+    pro: { daily: 250, weekly: 1250, monthly: 2500 },
+    max: { daily: 500, weekly: 2500, monthly: 5000 },
+  });
   const auth = read("services/auth.js");
   const codingEntitlement = auth.slice(auth.indexOf("function getEffectiveCodingPlan"), auth.indexOf("function getMovieApiPlanConfig"));
   assert.match(codingEntitlement, /resolveCodingPlanForProfile/);
@@ -49,14 +56,12 @@ test("COD\\NG owns its tier catalog and matches the API plan prices", () => {
   }
 });
 
-test("full use of a paid plan stays inside the API cost budget", () => {
-  const premiumPrice = Number(read("services/paystack.js").match(/VERIFICATION_PRICE_NGN = (\d+)/)[1]);
-  const priceOf = (key) => key === "starter" ? premiumPrice : CODING_PLAN_DEFS[key].priceNgn;
-  for (const key of ["starter", "standard", "pro", "max"]) {
-    const worstCase = CODING_PLAN_CREDITS[key].monthly * CODING_CREDIT_COST_NGN;
-    assert.ok(worstCase <= priceOf(key) * CODING_COST_BUDGET_RATIO, `${key}: NGN ${worstCase} exceeds ${CODING_COST_BUDGET_RATIO * 100}% of NGN ${priceOf(key)}`);
-  }
-  assert.ok(CODING_PLAN_CREDITS.free.monthly * CODING_CREDIT_COST_NGN <= 250, "free plan exposure must stay tiny");
+test("the quota adjustment leaves current plan prices and cost assumptions unchanged", () => {
+  assert.equal(CODING_CREDIT_COST_NGN, 5);
+  assert.equal(CODING_COST_BUDGET_RATIO, 0.3);
+  assert.deepEqual(Object.fromEntries(CODING_PLAN_ORDER.map((key) => [key, CODING_PLAN_DEFS[key].priceNgn])), {
+    free: 0, starter: 0, standard: 7500, pro: 13500, max: 20500,
+  });
 });
 
 test("COD\\NG paid entitlements are isolated from API plans and expire independently", () => {
@@ -121,9 +126,9 @@ test("reserving credits updates daily, weekly and monthly counters and the live 
   const first = await reserveCodingCredits(db, "u1", "free", 2);
   assert.equal(first.allowed, true);
   assert.deepEqual([first.snapshot.daily.used, first.snapshot.weekly.used, first.snapshot.monthly.used], [2, 2, 2]);
-  assert.equal(first.snapshot.daily.remaining, 3);
+  assert.equal(first.snapshot.daily.remaining, 8);
   const usage = await getCodingUsage(db, "u1", "free");
-  assert.equal(usage.daily.remaining, 3);
+  assert.equal(usage.daily.remaining, 8);
   assert.equal(usage.requests.daily, 1);
   assert.equal(usage.requests.weekly, 1);
   assert.equal(usage.requests.monthly, 1);
@@ -146,21 +151,21 @@ test("chat file reads, edits and generated files are covered by one AI request r
 
 test("a request is blocked when any window cannot afford it", async () => {
   const db = fakeDb();
-  assert.equal((await reserveCodingCredits(db, "u2", "free", 4)).allowed, true);
+  assert.equal((await reserveCodingCredits(db, "u2", "free", 9)).allowed, true);
   const denied = await reserveCodingCredits(db, "u2", "free", 2);
   assert.equal(denied.allowed, false);
   assert.equal(denied.blockedBy, "daily");
-  assert.equal(denied.snapshot.daily.used, 4, "a denied request must not consume credits");
+  assert.equal(denied.snapshot.daily.used, 9, "a denied request must not consume credits");
   assert.equal((await reserveCodingCredits(db, "u2", "free", 1)).allowed, true, "a cheaper request still fits");
-  assert.equal(findBlockingWindow(buildCodingUsageSnapshot({ dailyCredits: 0, weeklyCredits: 19, monthlyCredits: 0 }, "free"), 2), "weekly");
-  assert.equal(findBlockingWindow(buildCodingUsageSnapshot({ dailyCredits: 0, weeklyCredits: 0, monthlyCredits: 39 }, "free"), 2), "monthly");
+  assert.equal(findBlockingWindow(buildCodingUsageSnapshot({ dailyCredits: 0, weeklyCredits: 49, monthlyCredits: 0 }, "free"), 2), "weekly");
+  assert.equal(findBlockingWindow(buildCodingUsageSnapshot({ dailyCredits: 0, weeklyCredits: 0, monthlyCredits: 99 }, "free"), 2), "monthly");
 });
 
 test("parallel requests cannot overspend a window", async () => {
   const db = fakeDb();
-  const results = await Promise.all(Array.from({ length: 10 }, () => reserveCodingCredits(db, "u3", "free", 1)));
-  assert.equal(results.filter((r) => r.allowed).length, 5, "free daily limit is 5 credits");
-  assert.equal((await getCodingUsage(db, "u3", "free")).daily.used, 5);
+  const results = await Promise.all(Array.from({ length: 20 }, () => reserveCodingCredits(db, "u3", "free", 1)));
+  assert.equal(results.filter((r) => r.allowed).length, 10, "free daily limit is 10 credits");
+  assert.equal((await getCodingUsage(db, "u3", "free")).daily.used, 10);
 });
 
 test("long output is charged extra and failed requests are refunded", async () => {
@@ -179,13 +184,13 @@ test("long output is charged extra and failed requests are refunded", async () =
 test("counters reset when the day, week or month rolls over", async () => {
   const db = fakeDb();
   const monday = new Date("2026-11-16T09:00:00Z");
-  await reserveCodingCredits(db, "u5", "free", 5, { now: monday });
+  await reserveCodingCredits(db, "u5", "free", 10, { now: monday });
   assert.equal((await reserveCodingCredits(db, "u5", "free", 1, { now: monday })).allowed, false);
   const tuesday = new Date("2026-11-17T09:00:00Z");
   const next = await reserveCodingCredits(db, "u5", "free", 1, { now: tuesday });
   assert.equal(next.allowed, true);
   assert.equal(next.snapshot.daily.used, 1);
-  assert.equal(next.snapshot.weekly.used, 6, "weekly keeps counting inside the same week");
+  assert.equal(next.snapshot.weekly.used, 11, "weekly keeps counting inside the same week");
   const nextMonth = await reserveCodingCredits(db, "u5", "free", 1, { now: new Date("2026-12-01T09:00:00Z") });
   assert.equal(nextMonth.snapshot.monthly.used, 1);
 });

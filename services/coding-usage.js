@@ -20,26 +20,21 @@ export const CODING_PURCHASABLE_PLAN_KEYS = Object.freeze(["standard", "pro", "m
 // ---- Cost basis -----------------------------------------------------------------
 // One credit = one simple request on the cheapest model (DeepSeek V4.1 Flash).
 // Assumed blended upstream cost per credit, in NGN. Re-tune this one number if the
-// AI service pricing changes; every allowance below is checked against it in tests.
+// AI service pricing changes. The approved plan limits below follow Developers API
+// tiers and are not constrained by the current cost-budget estimate.
 export const CODING_CREDIT_COST_NGN = 5;
-// Fully using a paid plan's monthly allowance may cost at most this share of the
-// plan price, so heavy users stay profitable.
+// Cost-budget reference only; it is not enforced against the approved plan limits.
 export const CODING_COST_BUDGET_RATIO = 0.3;
 
-// Monthly allowance targets (cost <= 30% of the plan price):
-//   standard NGN 7,500  -> 450 credits  (NGN 2,250)
-//   pro      NGN 13,500 -> 800 credits  (NGN 4,000)
-//   max      NGN 20,500 -> 1,200 credits (NGN 6,000)
-//   starter  (included with Premium, NGN 4,800) -> 250 credits (NGN 1,250)
-//   free     -> 40 credits (NGN 200, cheaper models only)
-// Daily / weekly follow the same ratios as the Movie API plans (daily ~10%,
-// weekly ~50% of monthly) so a user cannot burn a month in a day.
+// Monthly limits mirror Developers API tiers: Free 100, verified Starter 500,
+// Standard 1,000, Pro 2,500, Max 5,000. Daily is 10% and weekly is 50% of monthly.
+// Credits remain weighted by model and task complexity; one simple request is one credit.
 export const CODING_PLAN_CREDITS = Object.freeze({
-  free: Object.freeze({ daily: 5, weekly: 20, monthly: 40 }),
-  starter: Object.freeze({ daily: 25, weekly: 125, monthly: 250 }),
-  standard: Object.freeze({ daily: 45, weekly: 225, monthly: 450 }),
-  pro: Object.freeze({ daily: 80, weekly: 400, monthly: 800 }),
-  max: Object.freeze({ daily: 120, weekly: 600, monthly: 1200 }),
+  free: Object.freeze({ daily: 10, weekly: 50, monthly: 100 }),
+  starter: Object.freeze({ daily: 50, weekly: 250, monthly: 500 }),
+  standard: Object.freeze({ daily: 100, weekly: 500, monthly: 1000 }),
+  pro: Object.freeze({ daily: 250, weekly: 1250, monthly: 2500 }),
+  max: Object.freeze({ daily: 500, weekly: 2500, monthly: 5000 }),
 });
 
 // ---- Models ---------------------------------------------------------------------
