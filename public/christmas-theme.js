@@ -350,38 +350,12 @@
     });
   }
 
-  function playDailyGreeting() {
-    if (window.location.pathname !== "/" || !("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) return;
-    const key = "esxmas-santa-greeting-date";
-    const today = new Date().toISOString().slice(0, 10);
-    try {
-      if (localStorage.getItem(key) === today) return;
-      localStorage.setItem(key, today);
-    } catch (_) {
-      return;
-    }
-    window.setTimeout(() => {
-      try {
-        window.speechSynthesis.cancel();
-        const greeting = new SpeechSynthesisUtterance("Ho ho ho!");
-        greeting.lang = "en-US";
-        greeting.pitch = 0.55;
-        greeting.rate = 0.78;
-        greeting.volume = 0.7;
-        window.speechSynthesis.speak(greeting);
-      } catch (_) {
-        // Browser autoplay policy may reject speech; never interrupt the page.
-      }
-    }, 900);
-  }
-
   function start() {
     if (!document.body) return;
     document.body.classList.add("esxmas-active");
     buildLayer();
     const schedule = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 180));
     schedule(decorateBrands, { timeout: 1200 });
-    playDailyGreeting();
   }
 
   const style = document.createElement("style");

@@ -417,6 +417,7 @@ test("shared page injection adds the rewards assets with a nonce but not to API 
   assert.match(moviePage, /nonce="__CSP_NONCE__" src="\/weekly-rewards\.js\?v=/);
   assert.doesNotMatch(renderInjected("/login"), /weekly-rewards/);
   assert.match(renderInjected("/admin"), /weekly-rewards\.js\?v=/);
+  assert.doesNotMatch(renderInjected("/coding"), /weekly-rewards/);
   assert.doesNotMatch(renderInjected("/pay/example-token"), /weekly-rewards/);
   assert.doesNotMatch(renderInjected("/api/chess/hb"), /weekly-rewards/);
 });

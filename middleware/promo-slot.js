@@ -38,7 +38,7 @@ const PRESENCE_SKIP_PATHS = [
   "/tictactoe/guest",
 ];
 
-const REWARDS_SKIP_PATHS = [...PRESENCE_SKIP_PATHS, "/pay/"];
+const REWARDS_SKIP_PATHS = [...PRESENCE_SKIP_PATHS, "/pay/", "/coding"];
 
 const SOCIAL_SKIP_PATHS = [
   "/api/",
