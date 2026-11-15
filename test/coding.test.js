@@ -276,6 +276,11 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.doesNotMatch(html, /window\.prompt/);
   assert.match(html, /rememberChatState/);
   assert.match(html, /filesByChat/);
+  assert.match(html, /className='file-chip-remove'/);
+  assert.match(html, /aria-label','Remove attachment: '\+f\.name/);
+  assert.match(html, /setAttribute\('d','M6 6l12 12M18 6L6 18'\)/);
+  assert.match(html, /files=files\.filter\(function\(file\)\{return file!==f;\}\)/);
+  assert.match(html, /filesByChat\[activeId\]=files/);
   assert.match(html, /draft:String\(chat\.draft\|\|''\)/);
   assert.match(html, /aria-pressed="false"/);
   assert.match(html, /speaking=false/);

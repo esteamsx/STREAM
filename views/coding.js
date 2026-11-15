@@ -50,6 +50,13 @@ ${cfg.protectionCSS || ""}
 .plan-feature svg{width:13px;height:13px;color:var(--green);flex-shrink:0}
 .plan-feature.off{color:rgba(255,255,255,.3)}
 :root[data-theme="light"] .plan-feature.off{color:rgba(20,20,28,.3)}
+.file-chip{display:inline-flex;align-items:center;gap:7px;max-width:100%}
+.file-chip-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-chip-remove{width:20px;height:20px;flex:0 0 20px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer}
+.file-chip-remove:hover{color:var(--red);background:rgba(255,59,92,.1)}
+.file-chip-remove:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.file-chip-remove:disabled{opacity:.45;cursor:not-allowed}
+.file-chip-remove svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .plan-feature.off svg{color:inherit}
 .plan-card .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:10px;font-family:var(--font-body);font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid var(--border-strong);background:var(--card2);color:var(--text);transition:background .18s var(--ease),transform .1s var(--ease);text-decoration:none}
 .plan-card .btn:hover{background:var(--card)}
@@ -109,7 +116,7 @@ ${cfg.protectionCSS || ""}
   function hydrateActivityHistory(){var jobs=[];chats.forEach(function(chat){chat.messages.forEach(function(message){if(message.role!=='assistant'||!message.runId)return;jobs.push(fetch('/api/coding/activity/'+encodeURIComponent(message.runId),{credentials:'same-origin'}).then(function(response){return response.ok?response.json():null;}).then(function(data){if(!data||!Array.isArray(data.events))return;var known=Object.create(null);(message.activity||[]).forEach(function(event){known[event.id]=true;});data.events.forEach(function(event){if(!known[event.id]){(message.activity||(message.activity=[])).push(event);}});message.activity=(message.activity||[]).sort(function(a,b){return a.sequence-b.sequence;}).slice(-500);}).catch(function(){}));});});return Promise.all(jobs).then(function(){save();if(currentChat())repaint();});}
   function currentChat(){return chats.find(function(c){return c.id===activeId;})||chats[0];}
   function rememberChatState(){var chat=currentChat();if(chat)chat.draft=input.value;filesByChat[activeId]=files;}
-  function renderFiles(){filesEl.textContent='';files.forEach(function(f){var c=document.createElement('span');c.className='file-chip';c.textContent=f.name;filesEl.appendChild(c);});}
+  function renderFiles(){filesEl.textContent='';files.forEach(function(f){var c=document.createElement('span');c.className='file-chip';var name=document.createElement('span');name.className='file-chip-name';name.textContent=f.name;var remove=document.createElement('button');remove.type='button';remove.className='file-chip-remove';remove.title='Remove '+f.name;remove.setAttribute('aria-label','Remove attachment: '+f.name);var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.setAttribute('focusable','false');var path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','M6 6l12 12M18 6L6 18');svg.appendChild(path);remove.appendChild(svg);remove.addEventListener('click',function(){if(sending||uploadReadPending)return;files=files.filter(function(file){return file!==f;});filesByChat[activeId]=files;renderFiles();setUploadError('');});c.append(name,remove);filesEl.appendChild(c);});}
   function restoreChatState(){var chat=currentChat();input.value=chat&&typeof chat.draft==='string'?chat.draft:'';files=filesByChat[activeId]||[];renderFiles();}
   function save(){if(!storageKey)return;try{chats=chats.slice().sort(function(a,b){return b.updatedAt-a.updatedAt;}).slice(0,100);if(!chats.some(function(c){return c.id===activeId;}))activeId=chats[0]?chats[0].id:'';localStorage.setItem(storageKey,JSON.stringify({activeId:activeId,chats:chats}));}catch(e){}}
   function highlight(source){return window.CodingMarkdown.highlight(source);}

@@ -112,8 +112,23 @@ test("reserving credits updates daily, weekly and monthly counters and the live 
   const usage = await getCodingUsage(db, "u1", "free");
   assert.equal(usage.daily.remaining, 3);
   assert.equal(usage.requests.daily, 1);
+  assert.equal(usage.requests.weekly, 1);
+  assert.equal(usage.requests.monthly, 1);
   // Separate accounting: nothing is written to the Movie/Developers API counters.
   assert.deepEqual([...db.docs.keys()], ["codingUsage/u1"]);
+});
+
+test("chat file reads, edits and generated files are covered by one AI request reservation", () => {
+  const routes = read("routes/coding.js");
+  const chatStart = routes.indexOf('router.post("/api/coding/chat"');
+  assert.ok(chatStart >= 0);
+  const nextRoute = routes.indexOf("\n  router.", chatStart + 1);
+  const chat = routes.slice(chatStart, nextRoute < 0 ? routes.length : nextRoute);
+  assert.match(chat, /temporaryFiles\.readForProcessing/);
+  assert.match(chat, /reservation = await reserveOrReject\(req, res, calculateCodingCredits\(creditInput\)\.credits\)/);
+  assert.equal((chat.match(/reservation = await reserveOrReject/g) || []).length, 1);
+  assert.match(chat, /buildCodingPayload\(\{ \.\.\.request, messages: chatContext\.messages, attachments: resolvedAttachments, repositoryContext \}\)/);
+  assert.match(chat, /extractGeneratedCodingFiles\(generatedText\)/);
 });
 
 test("a request is blocked when any window cannot afford it", async () => {
