@@ -110,6 +110,26 @@ test("COD\\NG builds an Anthropic-compatible Coarena payload without exposing cr
   }
 });
 
+test("COD\\NG limits uploaded-file work to files on the current request", () => {
+  const withoutFile = buildCodingPayload({ messages: [{ role: "user", content: "Please fix my file." }] });
+  assert.match(withoutFile.system, /no files are attached to the current user message/i);
+  assert.match(withoutFile.system, /Do not search earlier chat messages for an uploaded file/i);
+  assert.match(withoutFile.system, /ask the user to attach or paste it/i);
+
+  const previousScanner = process.env.CODING_CLAMSCAN_BIN;
+  process.env.CODING_CLAMSCAN_BIN = "/bin/true";
+  try {
+    const withFile = buildCodingPayload({
+      messages: [{ role: "user", content: "Please fix my file." }],
+      attachments: [{ name: "app.png", mime: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" }],
+    });
+    assert.match(withFile.system, /use only the files attached to this current user message/i);
+    assert.match(withFile.system, /Do not search earlier chat messages/i);
+  } finally {
+    if (previousScanner == null) delete process.env.CODING_CLAMSCAN_BIN; else process.env.CODING_CLAMSCAN_BIN = previousScanner;
+  }
+});
+
 test("COD\\NG includes bounded GitHub repository context without duplicating it", () => {
   const payload = buildCodingPayload({
     messages: [{ role: "user", content: "Fix the repository." }],
@@ -164,6 +184,29 @@ test("COD\\NG treats greetings/topic changes as context resets and reads GitHub 
   assert.equal(uploadedFileOnly.includeRepositoryContext, false);
   const stopReading = getCodingChatContext([{ role: "user", content: "Don't read repository files; I have a different question." }], { repositoryContextEnabled: true });
   assert.equal(stopReading.includeRepositoryContext, false);
+});
+
+test("COD\\NG does not search earlier chat turns for a file that is not attached now", () => {
+  const history = [
+    { role: "user", content: "Here is my old project." },
+    { role: "assistant", content: "I reviewed the earlier file." },
+    { role: "user", content: "Please fix my file." },
+  ];
+  const missing = getCodingChatContext(history, { repositoryContextEnabled: true });
+  assert.deepEqual(missing.messages.map((message) => message.content), ["Please fix my file."]);
+  assert.equal(missing.missingCurrentFile, true);
+  assert.equal(missing.includeRepositoryContext, false);
+
+  const withInlineCode = getCodingChatContext([
+    ...history.slice(0, 2),
+    { role: "user", content: "Please fix this file:\n```js\nconst answer = 42;\n```" },
+  ]);
+  assert.equal(withInlineCode.missingCurrentFile, false);
+  assert.equal(withInlineCode.messages.length, 3);
+
+  const withCurrentAttachment = getCodingChatContext(history, { currentRequestHasAttachments: true });
+  assert.equal(withCurrentAttachment.missingCurrentFile, false);
+  assert.equal(withCurrentAttachment.messages.length, 3);
 });
 
 test("COD\\NG answers repository-status questions from connection metadata without claiming a file scan", () => {
@@ -340,6 +383,17 @@ test("COD\\NG activity shimmer resolves on task completion and Thinking has a bl
   const unresolved = { type: "custom", status: "in_progress", sequence: 5 };
   assert.equal(activityViewStatus(unresolved, [unresolved], null), "in_progress");
   assert.match(html, /class="thinking-orb" aria-hidden="true"><\/span><span class="thinking-word">Thinking/);
+});
+
+test("COD\\NG keeps activity details open and avoids full-message timer rerenders", () => {
+  const html = renderCoding({ devToolsBlock: "", protectionCSS: "" });
+  assert.match(html, /oldActivityPanel\?oldActivityPanel\.open:item\.activityOpen===true/);
+  assert.match(html, /activityPanel\.addEventListener\('toggle'/);
+  assert.match(html, /renderActivity\(item\.activity,activityOpen\)/);
+  assert.match(html, /updateActivityClock\(placeholder,assistant\.activity\)/);
+  assert.match(html, /function scheduleAssistantRender\(\)/);
+  assert.match(html, /setTimeout\(renderAssistantNow,delay\)/);
+  assert.doesNotMatch(html, /if\(currentChat\(\)===chat&&assistant\.activity\.length\)\{renderMessage\(assistant,placeholder\);\}/);
 });
 
 test("COD\\NG reads streamed Anthropic text deltas correctly", async () => {

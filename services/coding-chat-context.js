@@ -33,7 +33,23 @@ export function isRepositoryFilesRequest(value) {
   return (action && target) || asksWhatIsInside;
 }
 
-export function getCodingChatContext(messages, { repositoryContextEnabled = false } = {}) {
+function isSpecificFileEditRequest(value) {
+  const text = String(value || "").trim();
+  if (!text || /\b(?:github|repo|repository|codebase)\b/i.test(text)) return false;
+  const editAction = /\b(?:fix|edit|update|modify|repair|rewrite|refactor|change)\b/i.test(text);
+  const specificFile = /\b(?:my|this|that|the|attached|uploaded|previous|earlier)\s+(?:(?:[\w.-]+\s+){0,2})?(?:file|document|script)\b/i.test(text)
+    || /\b(?:file|document|script)\b.{0,80}\b(?:i (?:sent|uploaded|attached)|from earlier|above)\b/i.test(text);
+  return editAction && specificFile;
+}
+
+function includesInlineCode(value) {
+  const text = String(value || "");
+  return /```[\s\S]*?```/.test(text)
+    || /`[^`\n]{3,}`/.test(text)
+    || /^\s*(?:#!|import\s|export\s|const\s|let\s|var\s|function\s|class\s|def\s|public\s|private\s|package\s|<\?php)/m.test(text);
+}
+
+export function getCodingChatContext(messages, { repositoryContextEnabled = false, currentRequestHasAttachments = false } = {}) {
   const recent = Array.isArray(messages) ? messages.slice(-MAX_CONTEXT_MESSAGES) : [];
   let contextStart = 0;
   for (let index = 0; index < recent.length; index += 1) {
@@ -44,11 +60,13 @@ export function getCodingChatContext(messages, { repositoryContextEnabled = fals
   const latestText = messageText(latestUserMessage);
   const repositoryFilesRequested = isRepositoryFilesRequest(latestText);
   const repositoryStatusRequested = isRepositoryStatusQuestion(latestText) && !repositoryFilesRequested;
+  const missingCurrentFile = currentRequestHasAttachments !== true && isSpecificFileEditRequest(latestText) && !includesInlineCode(latestText);
   return {
-    messages: activeMessages,
+    messages: missingCurrentFile && latestUserMessage ? [latestUserMessage] : activeMessages,
     latestUserMessage,
     repositoryStatusRequested,
-    includeRepositoryContext: repositoryContextEnabled === true && repositoryFilesRequested,
+    missingCurrentFile,
+    includeRepositoryContext: repositoryContextEnabled === true && repositoryFilesRequested && !missingCurrentFile,
   };
 }
 

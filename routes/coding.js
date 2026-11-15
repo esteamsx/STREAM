@@ -203,8 +203,8 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
     } });
     res.once("close", () => { if (!res.writableEnded && !finished) { controller.abort(); void activity.finish("cancelled"); } });
     try {
-      const chatContext = getCodingChatContext(request.messages, { repositoryContextEnabled: request.includeRepositoryContext === true });
       const requestAttachments = Array.isArray(request.attachments) ? request.attachments : [];
+      const chatContext = getCodingChatContext(request.messages, { repositoryContextEnabled: request.includeRepositoryContext === true, currentRequestHasAttachments: requestAttachments.length > 0 });
       if (chatContext.repositoryStatusRequested && requestAttachments.length === 0) {
         let status;
         try { status = await getConnectionStatus(req.uid); }
@@ -220,7 +220,7 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
         res.write("data: [DONE]\n\n");
         return res.end();
       }
-      const attachments = Array.isArray(request.attachments) ? request.attachments : [];
+      const attachments = requestAttachments;
       if (attachments.length > 6) throw Object.assign(new Error("You can attach up to 6 files per message."), { status: 413, code: "too_many_attachments" });
       const resolvedAttachments = [];
       let storedAttachmentBytes = 0;
