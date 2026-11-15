@@ -654,6 +654,9 @@ test("COD\\NG exposes a persistent compact model menu and sends selections to th
   assert.match(html, /github_error/);
   assert.match(html, /coding-model-selector/);
   assert.match(html, /@media\(max-width:480px\).*coding-model-trigger/s);
+  assert.match(html, /@media\(max-width:640px\)\{\.coding-model-menu\{position:fixed\}\}/);
+  assert.match(html, /function positionModelMenu\(\)/);
+  assert.match(html, /window\.addEventListener\('resize',function\(\)\{if\(!modelMenu\.hidden\)positionModelMenu\(\);\}\)/);
 });
 
 test("COD\\NG connection notifications fire only for verified state changes and use the existing EsUI toast", () => {
