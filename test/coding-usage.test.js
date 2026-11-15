@@ -211,16 +211,19 @@ test("the Get Premium overlay already lists AI coding and /account?premium=1 ope
 });
 
 // ---------- page ----------
-test("the page drops the intro box, collapses Pricing & Plans and shows live usage bars", () => {
+test("the page uses API-style plan cards and shows live usage bars in Pricing & Plans", () => {
   const html = renderCoding({});
   assert.doesNotMatch(html, /class="hero"/);
   assert.doesNotMatch(html, /PREMIUM ONLY/);
-  assert.match(html, /id="codingPricingToggle"[^>]*aria-expanded="false"/);
-  assert.match(html, /id="codingPricingBody" hidden/);
-  assert.match(html, /Pricing &amp; Plans/);
+  assert.match(html, /id="codingPricing"/);
+  assert.match(html, /Plans &amp; Pricing/);
+  assert.ok(html.indexOf('id="codingPlanGrid"') < html.indexOf('id="codingUsage"'));
+  assert.ok(html.indexOf('id="codingUsage"') < html.indexOf('<div class="coding-layout">'));
   for (const name of ["daily", "weekly", "monthly"]) assert.match(html, new RegExp(`data-window="${name}"`));
-  assert.match(html, /\.usage-item\[data-level="mid"\] \.usage-fill\{background:var\(--amber\)\}/);
-  assert.match(html, /\.usage-item\[data-level="low"\] \.usage-fill\{background:var\(--red\)\}/);
+  assert.match(html, /\.usage-fill\.lvl-warn\{background:linear-gradient/);
+  assert.match(html, /\.usage-fill\.lvl-hot\{background:linear-gradient/);
+  assert.match(html, /plan-card \.btn-primary/);
+  assert.doesNotMatch(html, /id="codingPricingToggle"|id="codingPricingBody"|class="glass side"|pricing-note/);
   assert.match(html, /event\.type==='usage'\)\{if\(event\.usage\)applyUsage\(event\.usage\)/);
   assert.match(html, /fetch\('\/api\/coding\/usage'/);
 });

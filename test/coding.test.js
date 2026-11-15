@@ -744,3 +744,24 @@ test("COD\\NG connection notifications fire only for verified state changes and 
   assert.equal(notificationCalls[0].type, "error");
   assert.equal(notificationCalls[0].duration, 3200);
 });
+
+test("COD\\NG pricing matches API plan cards and keeps all usage bars in pricing", () => {
+  const html = renderCoding({ devToolsBlock: "", protectionCSS: "" });
+  const pricingIndex = html.indexOf('id="codingPricing"');
+  const plansIndex = html.indexOf('id="codingPlanGrid"');
+  const usageIndex = html.indexOf('id="codingUsage"');
+  const chatIndex = html.indexOf('<div class="coding-layout">');
+
+  assert.ok(pricingIndex >= 0 && plansIndex > pricingIndex);
+  assert.ok(usageIndex > plansIndex && chatIndex > usageIndex);
+  assert.match(html, /class="coding-usage-grid" id="codingUsage"/);
+  for (const period of ["daily", "weekly", "monthly"]) {
+    assert.match(html, new RegExp('data-window="' + period + '"'));
+  }
+  assert.match(html, /plan-card \.btn-primary/);
+  assert.match(html, /function planFeature\(label\).*<svg viewBox="0 0 24 24"/);
+  assert.match(html, /fill\.classList\.toggle\('lvl-warn',pct>=65&&pct<90\)/);
+  assert.match(html, /used\.toLocaleString\('en-NG'\)\+' \/ '\+limit\.toLocaleString/);
+  assert.doesNotMatch(html, /<aside class="glass side">|id="codingClear"|pricing-note|One credit covers|Try asking/);
+  assert.doesNotMatch(html, /class="usage-meter"/);
+});
