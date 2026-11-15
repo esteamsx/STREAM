@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { db } from "../config/firebase.js";
 import { encryptGithubToken, decryptGithubToken, validateRepo, parseGithubRepositoryInput, validateRef, validatePath } from "./github-agent-guards.js";
 import { getCodingGithubOAuthConfig, CODING_GITHUB_OAUTH_SCOPE } from "./github-agent-config.js";
+import { resolveVerifiedGithubStatus } from "./github-agent-status.js";
 
 const GITHUB_API = "https://api.github.com";
 const USER_AGENT = "ES-TEAMS-TV-CODING-GITHUB-AGENT";
@@ -28,7 +29,7 @@ async function githubRequest(token, path, options = {}) {
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     const detail = body?.message ? `: ${body.message}` : "";
-    fail(`GitHub request failed (${response.status})${detail}`, response.status === 404 ? 404 : 502, "github_api_error");
+    throw Object.assign(new Error(`GitHub request failed (${response.status})${detail}`), { status: response.status === 404 ? 404 : 502, upstreamStatus: response.status, code: "github_api_error" });
   }
   return body;
 }
@@ -71,13 +72,20 @@ export async function getConnection(uid) {
 
 export async function getConnectionStatus(uid) {
   const data = await getConnection(uid);
-  const scopes = Array.isArray(data?.scopes) ? data.scopes : [];
-  return data ? { connected: true, login: data.login, avatarUrl: data.avatarUrl || null, scopes, needsPermissionUpgrade: !scopes.includes(CODING_GITHUB_OAUTH_SCOPE), selectedRepo: data.selectedRepo || null, connectedAt: data.connectedAt || null } : { connected: false, selectedRepo: null, needsPermissionUpgrade: false };
+  return resolveVerifiedGithubStatus(data, {
+    getUser: getGithubUser,
+    markExpired: async (connection) => {
+      await db.collection("github_agent_connections").doc(String(uid)).set({ token: null, revokedAt: Date.now(), revocationReason: "token_expired" }, { merge: true });
+      await audit(uid, "token_expired", { login: connection.login || "" });
+    },
+  });
 }
 
 export async function disconnect(uid) {
+  const connection = await getConnection(uid).catch(() => null);
   await db.collection("github_agent_connections").doc(String(uid)).set({ token: null, revokedAt: Date.now() }, { merge: true });
-  await audit(uid, "disconnect");
+  await audit(uid, "disconnect", { login: connection?.login || "" });
+  return { login: connection?.login || null };
 }
 
 async function tokenFor(uid) {

@@ -9,6 +9,7 @@ import {
   validatePath,
 } from "../services/github-agent-guards.js";
 import { getCodingGithubOAuthConfig, CODING_GITHUB_OAUTH_SCOPE } from "../services/github-agent-config.js";
+import { resolveVerifiedGithubStatus } from "../services/github-agent-status.js";
 
 test("GitHub Agent OAuth uses dedicated credentials and callback variables", () => {
   assert.deepEqual(getCodingGithubOAuthConfig({
@@ -59,4 +60,37 @@ test("GitHub Agent encrypts tokens without returning plaintext storage", () => {
 
 test("GitHub Agent requests only the repository scope needed for write operations", () => {
   assert.equal(CODING_GITHUB_OAUTH_SCOPE, "repo");
+});
+
+
+test("GitHub status reports the username verified by the authenticated account endpoint", async () => {
+  let suppliedToken = "";
+  const status = await resolveVerifiedGithubStatus({ token: "decrypted-access-token", login: "stale-name", scopes: ["repo"], selectedRepo: { owner: "esteamsx", repo: "STREAM" }, connectedAt: 12 }, {
+    getUser: async (token) => { suppliedToken = token; return { login: "paskito002", avatar_url: "https://avatars.example/paskito002.png" }; },
+    markExpired: async () => assert.fail("a valid token must not be revoked"),
+  });
+  assert.equal(suppliedToken, "decrypted-access-token");
+  assert.equal(status.connected, true);
+  assert.equal(status.login, "paskito002");
+  assert.equal(status.avatarUrl, "https://avatars.example/paskito002.png");
+  assert.deepEqual(status.selectedRepo, { owner: "esteamsx", repo: "STREAM" });
+});
+
+test("GitHub status marks confirmed 401 tokens expired but preserves 403 and transient errors", async () => {
+  let invalidations = 0;
+  const connection = { token: "expired-token", login: "paskito002", scopes: ["repo"] };
+  const expired = await resolveVerifiedGithubStatus(connection, {
+    getUser: async () => { throw Object.assign(new Error("unauthorized"), { upstreamStatus: 401 }); },
+    markExpired: async (previous) => { invalidations += 1; assert.equal(previous.login, "paskito002"); },
+  });
+  assert.deepEqual(expired, { connected: false, selectedRepo: null, needsPermissionUpgrade: false, reason: "token_expired", previousLogin: "paskito002" });
+  assert.equal(invalidations, 1);
+
+  for (const upstreamStatus of [403, 503]) {
+    await assert.rejects(resolveVerifiedGithubStatus(connection, {
+      getUser: async () => { throw Object.assign(new Error("temporary or permission error"), { upstreamStatus }); },
+      markExpired: async () => assert.fail("only a confirmed 401 should revoke the token"),
+    }), /temporary or permission error/);
+  }
+  assert.equal(invalidations, 1);
 });

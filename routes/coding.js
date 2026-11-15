@@ -1,7 +1,8 @@
 import express from "express";
 import path from "node:path";
 import { isAdminEmail, isVerificationActive } from "../services/auth.js";
-import { buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError } from "../services/coarena-coding.js";
+import { buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError, verifyCodingModelAvailability, isCodingModelUnavailableError } from "../services/coarena-coding.js";
+import { getCodingModel } from "../services/coding-models.js";
 import { CODING_FILE_CLEANUP_INTERVAL_MS, CODING_FILE_MAX_BYTES, createCodingTemporaryFiles, extractGeneratedCodingFiles } from "../services/coding-temporary-files.js";
 import { formatRepositoryStatusAnswer, getCodingChatContext } from "../services/coding-chat-context.js";
 import { getConnectionStatus, getRepositoryContext } from "../services/github-agent.js";
@@ -18,6 +19,7 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
   router.use((req, res, next) => { res.set("Cache-Control", "no-store, no-cache, must-revalidate, private"); next(); });
   const limiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid || req.ip).middleware();
   const uploadLimiter = new SimpleRateLimiter(8, 60 * 1000, (req) => req.uid || req.ip).middleware();
+  const modelLimiter = new SimpleRateLimiter(8, 60 * 1000, (req) => req.uid || req.ip).middleware();
   const temporaryFiles = createCodingTemporaryFiles({ db });
   temporaryFiles.startCleanupSchedule();
   const cleanupWorkspaceUploads = () => cleanupExpiredCodingWorkspaceFiles().catch((error) => console.error("[COD\\NG] workspace upload cleanup failed", error?.code || error?.message));
@@ -39,6 +41,14 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
   // guard here: some browsers omit Origin on same-origin GET requests, which
   // would make the page fall back to a blank, non-persistent chat view.
   router.get("/api/coding/session", requireAuth, (req, res) => res.json({ uid: String(req.uid) }));
+  router.post("/api/coding/model", requireAuth, requireSiteOrigin, modelLimiter, premiumOnly, async (req, res) => {
+    try {
+      const model = await verifyCodingModelAvailability(req.body?.modelId);
+      return res.json({ model, available: true });
+    } catch (error) {
+      return res.status(Number(error?.status) || 503).json({ error: error?.message || "Could not confirm model availability. Your current model has not changed.", code: error?.code || "coding_model_check_failed", retryable: error?.retryable === true });
+    }
+  });
   router.put("/api/coding/files", requireAuth, requireSiteOrigin, uploadLimiter, premiumOnly, async (req, res) => {
     try {
       let filename;
@@ -111,6 +121,7 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
     const controller = new AbortController();
     let finished = false;
     const request = req.body || {};
+    const requestedModel = request.modelId ? getCodingModel(request.modelId) : null;
     const activity = createCodingActivity({ uid: req.uid, conversationId: request.conversationId, onEvent: async (event) => {
       if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "activity", activity: event })}\n\n`);
     } });
@@ -185,11 +196,13 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       console.info(`[COD\\NG] Coarena stream complete uid=${req.uid} chunks=${chunkCount} chars=${textChars} ms=${Date.now() - startedAt}`);
     } catch (error) {
       console.warn(`[COD\\NG] AI stream failed uid=${req.uid} code=${error?.code || "unknown"} status=${error?.status || "unknown"} detail=${error?.message || "unknown"}`);
-      const safeError = safeCodingError(error);
+      const safeError = requestedModel && isCodingModelUnavailableError(error)
+        ? Object.assign(new Error(`${requestedModel.label} is currently unavailable through the AI service. Please choose another model or retry later.`), { status: 422, code: "coding_model_unavailable", retryable: false })
+        : safeCodingError(error);
       if (res.headersSent) {
         finished = true;
         await activity.finish(controller.signal.aborted ? "cancelled" : "failed", safeError);
-        if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "error", error: safeError.message, retryable: safeError.retryable !== false })}\n\n`);
+        if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "error", error: safeError.message, code: safeError.code || "coding_error", retryable: safeError.retryable !== false })}\n\n`);
         return res.end();
       }
       finished = true;

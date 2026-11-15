@@ -63,7 +63,7 @@ export function registerGithubAgentRoutes({ requireAuth, requireSiteOrigin, Simp
   });
 
   router.post("/api/coding/github/disconnect", ...protectedWriteApi, writeLimiter, async (req, res) => {
-    try { await disconnect(req.uid); res.json({ ok: true }); } catch (error) { jsonError(res, error); }
+    try { const account = await disconnect(req.uid); res.json({ ok: true, login: account.login }); } catch (error) { jsonError(res, error); }
   });
 
   router.get("/api/coding/github/repos", ...protectedReadApi, readLimiter, async (req, res) => {

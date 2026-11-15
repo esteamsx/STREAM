@@ -6,12 +6,19 @@ import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 import { deflateRawSync } from "node:zlib";
-import { assertSafeCodingRequest, buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError } from "../services/coarena-coding.js";
+import { assertSafeCodingRequest, buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError, verifyCodingModelAvailability } from "../services/coarena-coding.js";
+import { CODING_MODELS, DEFAULT_CODING_MODEL_ID } from "../services/coding-models.js";
 import { formatRepositoryStatusAnswer, getCodingChatContext } from "../services/coding-chat-context.js";
 import { codingWorkspace, writeCodingWorkspaceArchives } from "../services/coding-workspace.js";
 import { renderCoding } from "../views/coding.js";
 
 const markdownSource = readFileSync(new URL("../public/coding-markdown.js", import.meta.url), "utf8");
+const notificationSource = readFileSync(new URL("../public/coding-notifications.js", import.meta.url), "utf8");
+const codingRouteSource = readFileSync(new URL("../routes/coding.js", import.meta.url), "utf8");
+const notificationCalls = [];
+const notificationWindow = { EsUI: { toast: (message, type, duration) => notificationCalls.push({ message, type, duration }) } };
+vm.runInNewContext(notificationSource, { window: notificationWindow, globalThis: notificationWindow });
+const codingNotifications = notificationWindow.CodingNotifications;
 const serverSource = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 const markdownWindow = {};
 vm.runInNewContext(markdownSource, { window: markdownWindow, globalThis: markdownWindow, module: undefined, URL });
@@ -565,4 +572,93 @@ test("COD\\NG sanitizes provider failures without exposing infrastructure detail
   assert.equal(error.message, "The AI service is temporarily unavailable. Please try again shortly.");
   assert.equal(error.retryable, true);
   assert.doesNotMatch(error.message, /Coarena|internal\\.example|503/);
+});
+
+
+test("COD\\NG model selector uses the verified Coarena IDs and routes each choice into the Anthropic-compatible payload", () => {
+  assert.deepEqual(CODING_MODELS.map((model) => model.id), ["gpt-6-astra", "deepseek-v4-1-flash-1017", "claude-fable-5-2"]);
+  assert.equal(DEFAULT_CODING_MODEL_ID, "claude-fable-5-2");
+  for (const model of CODING_MODELS) {
+    const payload = buildCodingPayload({ messages: [{ role: "user", content: "Hello" }], modelId: model.id });
+    assert.equal(payload.model, model.id);
+    assert.equal(JSON.parse(JSON.stringify(payload)).model, model.id);
+  }
+  assert.throws(() => buildCodingPayload({ messages: [{ role: "user", content: "Hello" }], modelId: "unsupported-model" }), (error) => error.code === "coding_model_invalid");
+});
+
+test("COD\\NG confirms each model through the configured Messages API and rejects unavailable choices", async () => {
+  const oldBase = process.env.ANTHROPIC_BASE_URL;
+  const oldKey = process.env.COARENA_API_KEY;
+  const oldAuth = process.env.ANTHROPIC_AUTH_TOKEN;
+  const oldFetch = global.fetch;
+  const requests = [];
+  try {
+    process.env.ANTHROPIC_BASE_URL = "https://coarena.test/api";
+    process.env.COARENA_API_KEY = "model-probe-test-token";
+    delete process.env.ANTHROPIC_AUTH_TOKEN;
+    global.fetch = async (url, options) => {
+      const body = JSON.parse(options.body);
+      requests.push({ url, headers: options.headers, body });
+      return new Response('data: {"type":"message_start"}\n\ndata: {"type":"content_block_delta","delta":{"text":"OK"}}\n\ndata: {"type":"message_stop"}\n\n', { status: 200, headers: { "content-type": "text/event-stream" } });
+    };
+    for (const model of CODING_MODELS) {
+      const result = await verifyCodingModelAvailability(model.id);
+      assert.equal(result.id, model.id);
+      assert.equal(result.available, true);
+    }
+    assert.deepEqual(requests.map((request) => request.body.model), CODING_MODELS.map((model) => model.id));
+    assert.ok(requests.every((request) => request.url === "https://coarena.test/api/v1/messages"));
+    assert.ok(requests.every((request) => request.body.stream === true && request.body.max_tokens === 8));
+    assert.ok(requests.every((request) => request.headers["x-api-key"] === "model-probe-test-token"));
+
+    global.fetch = async () => new Response(JSON.stringify({ error: { message: "model not found" } }), { status: 404, headers: { "content-type": "application/json" } });
+    await assert.rejects(verifyCodingModelAvailability("gpt-6-astra"), (error) => error.code === "coding_model_unavailable" && error.status === 422 && /current model has not changed/.test(error.message));
+  } finally {
+    global.fetch = oldFetch;
+    if (oldBase == null) delete process.env.ANTHROPIC_BASE_URL; else process.env.ANTHROPIC_BASE_URL = oldBase;
+    if (oldKey == null) delete process.env.COARENA_API_KEY; else process.env.COARENA_API_KEY = oldKey;
+    if (oldAuth == null) delete process.env.ANTHROPIC_AUTH_TOKEN; else process.env.ANTHROPIC_AUTH_TOKEN = oldAuth;
+  }
+});
+
+test("COD\\NG exposes a persistent compact model menu and sends selections to the backend before notifying", () => {
+  const html = renderCoding({ devToolsBlock: "", protectionCSS: "" });
+  assert.match(html, /id="codingModelToggle"/);
+  assert.match(html, /role="listbox" aria-label="AI model"/);
+  assert.match(html, /data-model-id="gpt-6-astra"/);
+  for (const label of ["GPT-6", "DeepSeek V4.1 Flash", "Claude Fable 5.2"]) assert.ok(html.includes(label));
+  assert.match(html, /coding-model-check/);
+  assert.match(html, /aria-selected="true"/);
+  assert.match(html, /aria-expanded/);
+  assert.match(html, /fetch\('\/api\/coding\/model'/);
+  assert.match(html, /modelId:selectedModelId/);
+  assert.match(codingRouteSource, /verifyCodingModelAvailability\(req\.body\?\.modelId\)/);
+  assert.match(codingRouteSource, /buildCodingPayload\(\{ \.\.\.request/);
+  assert.match(codingRouteSource, /premiumOnly/);
+  assert.match(html, /localStorage\.setItem\(storageKey\+':model'/);
+  assert.match(html, /codingToast\('Switched to '\+model\.toastLabel,'success'\)/);
+  assert.match(html, /coding-notifications\.js/);
+  assert.match(html, /github_connected/);
+  assert.match(html, /github_error/);
+  assert.match(html, /coding-model-selector/);
+  assert.match(html, /@media\(max-width:480px\).*coding-model-trigger/s);
+});
+
+test("COD\\NG connection notifications fire only for verified state changes and use the existing EsUI toast", () => {
+  notificationCalls.length = 0;
+  let notice = codingNotifications.githubTransition({ connected: false, login: "" }, { connected: true, login: "paskito002" });
+  assert.equal(notice.message, "Connected to paskito002");
+  assert.equal(notice.type, "success");
+  notice = codingNotifications.githubTransition({ connected: true, login: "paskito002" }, { connected: false });
+  assert.equal(notice.message, "Disconnected from paskito002");
+  assert.equal(codingNotifications.githubTransition({ connected: true, login: "paskito002" }, { connected: true, login: "paskito002" }), null);
+  assert.equal(codingNotifications.githubTransition({ connected: false }, { connected: false }), null);
+  notice = codingNotifications.githubTransition({ connected: true, login: "paskito002" }, { connected: false, reason: "token_expired", previousLogin: "paskito002" });
+  assert.equal(notice.message, "GitHub connection expired for paskito002");
+  assert.equal(codingNotifications.githubTransition(null, { connected: false, reason: "token_expired", previousLogin: "paskito002" }).message, "GitHub connection expired for paskito002");
+  codingNotifications.toast(notice.message, notice.type);
+  assert.equal(notificationCalls.length, 1);
+  assert.equal(notificationCalls[0].message, "GitHub connection expired for paskito002");
+  assert.equal(notificationCalls[0].type, "error");
+  assert.equal(notificationCalls[0].duration, 3200);
 });
