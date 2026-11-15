@@ -209,13 +209,13 @@ export async function streamMovieDownload(uid, id, res, rangeHeader) {
   await ensureReady(); const job = jobs.get(String(id));
   if (!job || job.uid !== String(uid)) return false;
   if (job.status !== "completed") return false;
-  if (!["ready", "bypassed"].includes(job.watermarkStatus)) {
-    void ensureWatermark(job);
-    return false;
-  }
+  // The original completed file is always a valid download. Watermarking is
+  // an optional background enhancement and must not make users wait for, or
+  // lose access to, a file that has already finished downloading.
+  if (!["ready", "bypassed"].includes(job.watermarkStatus)) void ensureWatermark(job);
   const cachedPath = watermarkedPath(job);
   const cachedStat = job.status === "completed" && job.watermarkStatus === "ready" ? await fsp.stat(cachedPath).catch(() => null) : null;
-  const servingPath = cachedStat ? cachedPath : job.watermarkStatus === "bypassed" ? filePath(job) : null;
+  const servingPath = cachedStat ? cachedPath : filePath(job);
   const stat = await fsp.stat(servingPath).catch(() => null);
   if (!stat) return false;
   const range = rangeHeader ? parseByteRange(rangeHeader, stat.size) : null;
