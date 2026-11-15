@@ -641,13 +641,13 @@ test("COD\\NG sanitizes provider failures without exposing infrastructure detail
 
 
 test("COD\\NG model selector uses the verified Coarena IDs and routes each choice into the Anthropic-compatible payload", () => {
-  assert.deepEqual(CODING_MODELS.map((model) => model.id), ["gpt-6-astra", "deepseek-v4-1-flash-1017", "claude-fable-5-2"]);
+  assert.deepEqual(CODING_MODELS.map((model) => model.id), ["gpt-6-luna", "deepseek-v4-1-flash-1017", "claude-fable-5-2"]);
   assert.equal(DEFAULT_CODING_MODEL_ID, "claude-fable-5-2");
   const oldConfiguredModel = process.env.COARENA_MODEL;
   try {
     process.env.COARENA_MODEL = "gpt-6-astra";
-    assert.equal(buildCodingPayload({ messages: [{ role: "user", content: "Hello" }] }).model, "gpt-6-astra");
-    assert.equal(coarenaConfig().model, "gpt-6-astra");
+    assert.equal(buildCodingPayload({ messages: [{ role: "user", content: "Hello" }] }).model, "gpt-6-luna");
+    assert.equal(coarenaConfig().model, "gpt-6-luna");
   } finally {
     if (oldConfiguredModel == null) delete process.env.COARENA_MODEL;
     else process.env.COARENA_MODEL = oldConfiguredModel;
@@ -686,7 +686,7 @@ test("COD\\NG confirms each model through the configured Messages API and reject
     assert.ok(requests.every((request) => request.headers["x-api-key"] === "model-probe-test-token"));
 
     global.fetch = async () => new Response(JSON.stringify({ error: { message: "model not found" } }), { status: 404, headers: { "content-type": "application/json" } });
-    await assert.rejects(verifyCodingModelAvailability("gpt-6-astra"), (error) => error.code === "coding_model_unavailable" && error.status === 422 && /current model has not changed/.test(error.message));
+    await assert.rejects(verifyCodingModelAvailability("gpt-6-luna"), (error) => error.code === "coding_model_unavailable" && error.status === 422 && /current model has not changed/.test(error.message));
   } finally {
     global.fetch = oldFetch;
     if (oldBase == null) delete process.env.ANTHROPIC_BASE_URL; else process.env.ANTHROPIC_BASE_URL = oldBase;
@@ -699,8 +699,9 @@ test("COD\\NG exposes a persistent compact model menu and sends selections to th
   const html = renderCoding({ devToolsBlock: "", protectionCSS: "" });
   assert.match(html, /id="codingModelToggle"/);
   assert.match(html, /role="listbox" aria-label="AI model"/);
-  assert.match(html, /data-model-id="gpt-6-astra"/);
-  for (const label of ["GPT-6", "DeepSeek V4.1 Flash", "Claude Fable 5.2"]) assert.ok(html.includes(label));
+  assert.match(html, /data-model-id="gpt-6-luna"/);
+  assert.match(html, /saved==='gpt-6-astra'[\s\S]*saved='gpt-6-luna'/);
+  for (const label of ["GPT-6 Luna", "DeepSeek V4.1 Flash", "Claude Fable 5.2"]) assert.ok(html.includes(label));
   assert.match(html, /coding-model-check/);
   assert.match(html, /coding-model-menu\.show\{display:block;opacity:1;pointer-events:auto\}/);
   assert.match(html, /setModelMenuOpen\(open,returnFocus\)/);

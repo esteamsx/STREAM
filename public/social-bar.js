@@ -4,6 +4,7 @@
 (function () {
   "use strict";
   if (window.top !== window.self) return;          // never inside embeds or iframes
+  if (/^\/(?:chess|ludo|whot|snakes|tictactoe)(?:\/|$)/i.test(String(location.pathname || "/"))) return;
   if (window.__esSocialBar) return;                 // one check per page, even if this file is included twice
   window.__esSocialBar = true;
 

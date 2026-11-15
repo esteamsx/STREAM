@@ -1,5 +1,5 @@
 (function () {
-  if (window.top !== window.self || window.__pnLoaded) return;
+  if (window.top !== window.self || window.__pnLoaded || /^\/(?:chess|ludo|whot|snakes|tictactoe)(?:\/|$)/i.test(String(location.pathname || "/"))) return;
   window.__pnLoaded = true;
 
   var QUIET_KEY_PREFIX = "pn_quiet_until:";
@@ -220,11 +220,21 @@
     else if (!stopped) load();
   });
 
-  resolveAccountStorage(function () {
-    if (quietUntil() > Date.now()) return;
-    setTimeout(function () {
-      load();
-      timer = setInterval(tick, ROTATE_MS);
-    }, FIRST_DELAY_MS);
+  var adEligibility = window.__esAdsEligibility;
+  if (!adEligibility) {
+    adEligibility = fetch("/api/ads/eligibility", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+    window.__esAdsEligibility = adEligibility;
+  }
+  adEligibility.then(function (eligibility) {
+    if (!eligibility || (eligibility.status !== "guest" && eligibility.status !== "unverified")) return;
+    resolveAccountStorage(function () {
+      if (quietUntil() > Date.now()) return;
+      setTimeout(function () {
+        load();
+        timer = setInterval(tick, ROTATE_MS);
+      }, FIRST_DELAY_MS);
+    });
   });
 })();

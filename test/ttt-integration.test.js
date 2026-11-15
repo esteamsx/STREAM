@@ -76,11 +76,11 @@ test("Tic-Tac-Toe menu item follows Whot and Snakes, and cross-page challenges r
   assert.match(routes, /router\.post\("\/api\/tictactoe\/challenge\/:id\/respond"/);
 });
 
-test("Tic-Tac-Toe guest and active sessions suppress ads without changing native-banner routing", () => {
+test("Tic-Tac-Toe guest and active sessions suppress ads and the native-banner loader blocks game routes", () => {
   assert.match(promo, /"\/snakes",\s*"\/tictactoe"/);
   assert.match(promo, /const SKIP_PATHS = \[[\s\S]*?"\/tictactoe\/guest"[\s\S]*?\];/);
   assert.match(promo, /const SOCIAL_SKIP_PATHS = \[[\s\S]*?"\/tictactoe"[\s\S]*?\];/);
-  assert.doesNotMatch(nativeBanner, /tictactoe/);
+  assert.match(nativeBanner, /tictactoe/);
   assert.match(popunder, /\^\\\/tictactoe\(\\\/\|\$\)/);
   assert.match(client, /setTttGameAdState\(true\)/);
   assert.match(client, /setTttGameAdState\(false\)/);

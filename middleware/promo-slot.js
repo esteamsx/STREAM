@@ -3,6 +3,11 @@ const SKIP_PATHS = [
   "/embed/",
   "/.well-known/",
   "/s/",
+  "/chess",
+  "/ludo",
+  "/whot",
+  "/snakes",
+  "/tictactoe",
   "/tictactoe/guest",
   "/promote",
   "/login",
@@ -45,8 +50,14 @@ const SOCIAL_SKIP_PATHS = [
   "/embed/",
   "/.well-known/",
   "/s/",
+  "/chess",
+  "/ludo",
+  "/whot",
+  "/snakes",
   "/tictactoe",
 ];
+
+const THEME_SKIP_PATHS = ["/api/", "/embed/", "/.well-known/", "/s/", "/tictactoe"];
 
 const POPUNDER_SKIP_PATHS = [
   "/api/",
@@ -100,16 +111,17 @@ export function injectPromoSlot(req, res, next) {
   const wantsPresence = !matches(req.path, PRESENCE_SKIP_PATHS);
   const wantsRewards = !matches(req.path, REWARDS_SKIP_PATHS);
   const wantsSocial = !matches(req.path, SOCIAL_SKIP_PATHS);
+  const wantsTheme = !matches(req.path, THEME_SKIP_PATHS);
   const wantsPopunder = !matches(req.path, POPUNDER_SKIP_PATHS);
   const wantsNative = wantsPopunder && (NATIVE_EXACT_PATHS.includes(req.path) || NATIVE_PREFIX_PATHS.some((p) => req.path.startsWith(p)));
   const wantsSeasonal = SEASONAL_THEME_ENABLED && !matches(req.path, SEASONAL_SKIP_PATHS);
-  if (!wantsAds && !wantsNav && !wantsPresence && !wantsSocial && !wantsRewards && !wantsSeasonal) return next();
+  if (!wantsAds && !wantsNav && !wantsPresence && !wantsSocial && !wantsTheme && !wantsRewards && !wantsSeasonal) return next();
   const originalSend = res.send.bind(res);
   res.send = (body) => {
     if (typeof body === "string" && res.statusCode === 200) {
       const type = String(res.getHeader("Content-Type") || "");
       if (!type.includes("json")) {
-        if (wantsSocial) {
+        if (wantsTheme) {
           const head = body.indexOf("</head>");
           if (head !== -1) body = body.slice(0, head) + THEME_TAG + body.slice(head);
         }
@@ -122,7 +134,7 @@ export function injectPromoSlot(req, res, next) {
           const adsOk = !(res.locals && res.locals.noAds);
           const tags =
             (wantsNav ? SLIDE_LOGOUT_CSS_TAG + NAV_TAG + SLIDE_LOGOUT_TAG : "") +
-            (wantsAds ? SPONSOR_TAG : "") +
+            (wantsAds && adsOk ? SPONSOR_TAG : "") +
             (wantsPresence ? PRESENCE_TAG : "") +
             (wantsRewards ? WEEKLY_REWARDS_TAG : "") +
             (wantsSocial && adsOk ? SOCIAL_TAG : "") +

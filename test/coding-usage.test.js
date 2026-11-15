@@ -95,7 +95,7 @@ test("simple tasks are cheap, complex tasks cost more", () => {
 test("model multipliers and the complexity cap protect API costs", () => {
   const input = { messageChars: 2000, attachmentCount: 1, attachmentBytes: 300 * 1024 };
   const deepseek = calculateCodingCredits({ ...input, modelId: "deepseek-v4-1-flash-1017" }).credits;
-  const gpt = calculateCodingCredits({ ...input, modelId: "gpt-6-astra" }).credits;
+  const gpt = calculateCodingCredits({ ...input, modelId: "gpt-6-luna" }).credits;
   const fable = calculateCodingCredits({ ...input, modelId: "claude-fable-5-2" }).credits;
   assert.ok(deepseek < gpt && gpt < fable);
   const extreme = calculateCodingCredits({ modelId: "claude-fable-5-2", messageChars: 1e6, historyChars: 1e6, attachmentCount: 99, attachmentBytes: 1e9, hasArchive: true, repositoryContext: true, outputChars: 1e6 });
@@ -209,7 +209,7 @@ test("admins are tracked but never blocked", async () => {
 test("Claude Fable is the only Premium-only model and free accounts default to a cheaper one", () => {
   assert.deepEqual([...CODING_PREMIUM_MODEL_IDS], ["claude-fable-5-2"]);
   assert.equal(isPremiumCodingModel("claude-fable-5-2"), true);
-  assert.equal(isPremiumCodingModel("gpt-6-astra"), false);
+  assert.equal(isPremiumCodingModel("gpt-6-luna"), false);
   assert.equal(isPremiumCodingModel(CODING_FREE_DEFAULT_MODEL_ID), false);
 });
 
@@ -262,7 +262,7 @@ test("the Claude Fable option is lockable and opens the Get Premium overlay", ()
   const fable = html.match(/<button class="coding-model-option"[^>]*data-model-id="claude-fable-5-2"[\s\S]*?<\/button>/)[0];
   assert.match(fable, /coding-model-premium-tag/);
   assert.match(fable, /coding-model-lock/);
-  const gpt = html.match(/<button class="coding-model-option"[^>]*data-model-id="gpt-6-astra"[\s\S]*?<\/button>/)[0];
+  const gpt = html.match(/<button class="coding-model-option"[^>]*data-model-id="gpt-6-luna"[\s\S]*?<\/button>/)[0];
   assert.doesNotMatch(gpt, /coding-model-premium-tag/);
   assert.match(html, /\.coding-model-option\.locked\{opacity:\.42;filter:grayscale/);
   assert.match(html, /classList\.contains\('locked'\)\)\{window\.location\.href='\/account\?premium=1'/);

@@ -47,7 +47,7 @@ export const CODING_PREMIUM_MODEL_IDS = Object.freeze(["claude-fable-5-2"]);
 export const CODING_FREE_DEFAULT_MODEL_ID = "deepseek-v4-1-flash-1017";
 export const CODING_MODEL_CREDIT_MULTIPLIER = Object.freeze({
   "deepseek-v4-1-flash-1017": 1,
-  "gpt-6-astra": 1.5,
+  "gpt-6-luna": 1.5,
   "claude-fable-5-2": 3,
 });
 const DEFAULT_MULTIPLIER = 2;

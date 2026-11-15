@@ -55,7 +55,9 @@ function cleanText(value, max = 20000) {
 export function coarenaConfig() {
   const base = String(process.env.ANTHROPIC_BASE_URL || DEFAULT_BASE_URL).trim().replace(/\/+$/, "");
   const token = String(process.env.ANTHROPIC_AUTH_TOKEN || process.env.COARENA_API_KEY || "").trim();
-  return { base, token, model: String(process.env.COARENA_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL };
+  const configuredModel = String(process.env.COARENA_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+  const model = ["gpt-6-astra", "openai/gpt-6-astra"].includes(configuredModel) ? "gpt-6-luna" : configuredModel;
+  return { base, token, model };
 }
 
 function endpointFor(base) {

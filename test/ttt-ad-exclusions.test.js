@@ -1,16 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { injectPromoSlot } from "../middleware/promo-slot.js";
 import { readFileSync } from "node:fs";
+import { injectPromoSlot } from "../middleware/promo-slot.js";
 
-const client = readFileSync(new URL("../public/tictactoe/ttt-page.js", import.meta.url), "utf8");
-const sponsor = readFileSync(new URL("../public/sponsor.js", import.meta.url), "utf8");
-const css = readFileSync(new URL("../public/tictactoe/ttt.css", import.meta.url), "utf8");
+const read = (path) => readFileSync(new URL("../" + path, import.meta.url), "utf8");
+const sponsor = read("public/sponsor.js");
+const socialBar = read("public/social-bar.js");
+const nativeBanner = read("public/native-banner.js");
+const popunder = read("public/popunder.js");
+const adScripts = ["sponsor.js", "social-bar.js", "popunder.js", "native-banner.js"];
+const gameRoutes = [
+  "/chess", "/chess/guest/invite",
+  "/ludo", "/ludo/guest/invite",
+  "/whot", "/whot/guest/invite",
+  "/snakes", "/snakes/guest/invite",
+  "/tictactoe", "/tictactoe/guest/invite",
+];
 
-function render(path) {
+function render(path, noAds = false) {
   const res = {
     statusCode: 200,
-    locals: {},
+    locals: { noAds },
     body: "",
     getHeader(name) { return name === "Content-Type" ? "text/html; charset=utf-8" : ""; },
     send(body) { this.body = body; return this; },
@@ -22,29 +32,30 @@ function render(path) {
   return res.body;
 }
 
-test("TTT guest invite pages receive no sponsor, social, popunder, or native-banner scripts", () => {
-  const html = render("/tictactoe/guest/abc123XYZ_09");
-  for (const adScript of ["sponsor.js", "social-bar.js", "popunder.js", "native-banner.js"]) {
-    assert.doesNotMatch(html, new RegExp(adScript.replaceAll(".", "\\.")));
+function assertNoAds(html, context) {
+  for (const adScript of adScripts) {
+    assert.doesNotMatch(html, new RegExp(adScript.replaceAll(".", "\\.")), `${context} must not load ${adScript}`);
   }
-  assert.doesNotMatch(html, /chess-presence\.js/);
+}
+
+test("every game and guest-invite route receives no sponsor, social, popunder, or native-banner script", () => {
+  for (const path of gameRoutes) assertNoAds(render(path), path);
+  assert.match(socialBar, /(?:chess\|ludo\|whot\|snakes\|tictactoe)/);
+  assert.match(sponsor, /(?:chess\|ludo\|whot\|snakes\|tictactoe)/);
+  assert.match(nativeBanner, /tictactoe/);
+  assert.match(popunder, /\^\\\/tictactoe\(\\\/\|\$\)/);
 });
 
-test("TTT active matches pause sponsor cards and home ad placements remain unchanged", () => {
-  const memberPage = render("/tictactoe");
-  assert.match(memberPage, /sponsor\.js/);
-  assert.match(memberPage, /chess-presence\.js/);
-  assert.doesNotMatch(memberPage, /social-bar\.js|popunder\.js|native-banner\.js/);
-  assert.match(client, /setTttGameAdState\(true\)/);
-  assert.match(client, /setTttGameAdState\(false\)/);
-  assert.match(client, /window\.dispatchEvent\(new Event\("es-game-session-change"\)\)/);
-  assert.match(sponsor, /if \(stopped \|\| tttGameActive\(\)\)/);
-  assert.match(sponsor, /if \(tttGameActive\(\)\) teardown\(\)/);
-  assert.match(css, /\.tx-game-active \.pn-card\{display:none!important\}/);
+test("no-ads responses suppress every injected ad script while eligible home placements remain intact", () => {
+  assertNoAds(render("/", true), "a no-ads response");
 
-  const homePage = render("/");
-  assert.match(homePage, /sponsor\.js/);
-  assert.match(homePage, /social-bar\.js/);
-  assert.match(homePage, /popunder\.js/);
-  assert.match(homePage, /native-banner\.js/);
+  const guestHome = render("/");
+  for (const adScript of adScripts) assert.match(guestHome, new RegExp(adScript.replaceAll(".", "\\.")));
+});
+
+test("the sponsor popup waits for confirmed guest or unverified status and fails closed", () => {
+  assert.match(sponsor, /\/api\/ads\/eligibility/);
+  assert.match(sponsor, /eligibility\.status !== "guest"/);
+  assert.match(sponsor, /eligibility\.status !== "unverified"/);
+  assert.match(sponsor, /if \(!eligibility \|\|/);
 });
