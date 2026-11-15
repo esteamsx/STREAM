@@ -46,6 +46,9 @@ test("coin package, store, reaction, and receiving prices follow the new pricing
   assert.match(payments, /discountedCashPrice\(API_PLANS\[plan\]\.priceNgn, profile\)/);
   assert.match(payments, /discountedCashPrice\(TRADING_PLANS\[plan\]\.priceNgn, profile\)/);
   assert.match(payments, /discountedCashPrice\(DEV_API_PLANS\[plan\]\.priceNgn, profile\)/);
+  assert.match(payments, /discountedCashPrice\(planDef\.priceNgn, profile\)/);
+  assert.match(payments, /purpose: "coding_plan"/);
+  assert.match(payments, /createCodingPlanPayment\(req\.uid, data\.reference, amountKobo, plan\)/);
   assert.match(payments, /discountedCashPrice\(pkg\.priceNgn, profile\)/);
   assert.match(rewards, /priceNgn: discountedCashPrice\(pkg\.priceNgn, profile\)/);
   assert.match(promote, /discountedCashPrice\(AD_PRICE_PER_DAY_NGN \* days, profile\)/);

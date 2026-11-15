@@ -44,7 +44,7 @@ test("new verification is ₦4,800 and active-member rollover is ₦3,990, serve
   const payments = source("../routes/payments.js");
   const auth = source("../services/auth.js");
   assert.match(payments, /const profile = req\.userProfile/);
-  assert.match(auth, /FRESH_PROFILE_PATHS = new Set\(\["\/api\/verification\/initialize"\]\)/);
+  assert.match(auth, /FRESH_PROFILE_PATHS = new Set\(\["\/api\/verification\/initialize", "\/api\/coding\/usage", "\/api\/billing"\]\)/);
   assert.match(auth, /const profileMaxAge = FRESH_PROFILE_PATHS\.has\(req\.path\) \? 0/);
   assert.match(auth, /const profile = await getUserProfile\(uid, profileMaxAge\)/);
   assert.match(payments, /const rollover = isVerificationActive\(profile\)/);

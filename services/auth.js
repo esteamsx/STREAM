@@ -21,6 +21,7 @@ import { fetchCommunityMessagePage } from "./community-chat-queries.js";
 import { analyzePromotionalContent, legacyTextLooksPromotional, blockLegacyPromotionalPost } from "./promotional-moderation.js";
 import { isFollowSitePromotion, isFollowSiteRuleBlock } from "./promotional-text-signals.js";
 import { getMovieApiQuotaStatus } from "./movie-api-quota.js";
+import { CODING_PLAN_DEFS, CODING_PURCHASABLE_PLAN_KEYS, resolveCodingPlanForProfile } from "./coding-usage.js";
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -781,6 +782,7 @@ async function getApiKeyOwnerUid(keyId) {
 }
 
 const DEV_API_PLAN_DAYS = 30;
+const CODING_PLAN_DAYS = 30;
 
 const DEV_API_PLANS = {
   free: { name: "Free", apiKeys: 1, requestsPerSecond: 6, monthlyRequests: 100, noAds: false, customAdsLink: false, priceNgn: 0 },
@@ -898,6 +900,12 @@ function getEffectiveMovieApiPlan(data) {
   if (isVerificationActive(data)) return "starter";
   return "free";
 }
+function getEffectiveCodingPlan(data) {
+  return resolveCodingPlanForProfile(data || {}, {
+    admin: isAdminEmail(data && data.email),
+    verifiedActive: isVerificationActive(data),
+  });
+}
 function getMovieApiPlanConfig(data) { return MOVIE_API_PLANS[getEffectiveMovieApiPlan(data)]; }
 async function createMovieApiPlanPayment(uid, reference, amountKobo, plan) {
   await db.collection("movieApiPlanPayments").doc(reference).set({ uid, plan, amountKobo, status: "pending", createdAt: Date.now() });
@@ -921,6 +929,39 @@ async function finalizeMovieApiPlanPayment(reference, paystackData) {
   const planName = MOVIE_API_PLANS[record.plan]?.name || record.plan;
   await addNotification(record.uid, "movie_api_plan", `Your ${planName} Movie API plan is now active`, { plan: record.plan, expiresAt });
   await creditReferralCommission(record.uid, record.amountKobo / 100, "Movie API plan purchase");
+  return { alreadyProcessed: false, uid: record.uid, plan: record.plan, expiresAt };
+}
+async function createCodingPlanPayment(uid, reference, amountKobo, plan) {
+  await db.collection("codingPlanPayments").doc(reference).set({ uid, plan, amountKobo, status: "pending", createdAt: Date.now() });
+}
+async function getCodingPlanPayment(reference) {
+  const snap = await db.collection("codingPlanPayments").doc(reference).get();
+  return snap.exists ? snap.data() : null;
+}
+async function finalizeCodingPlanPayment(reference, paystackData) {
+  const ref = db.collection("codingPlanPayments").doc(reference);
+  const claim = await claimPendingPayment(ref, paystackData);
+  if (claim.notOurs) return { notOurs: true };
+  if (claim.alreadyProcessed) return { alreadyProcessed: true, uid: claim.uid };
+  if (claim.inProgress) return { alreadyProcessed: true };
+  if (claim.failed) throw new Error("Payment was not successful.");
+
+  const record = claim.record;
+  if (!CODING_PURCHASABLE_PLAN_KEYS.includes(record.plan)) {
+    await ref.update({ status: "failed", failedAt: Date.now() });
+    throw new Error("COD\\NG plan payment has an invalid plan.");
+  }
+  const expiresAt = Date.now() + CODING_PLAN_DAYS * 24 * 60 * 60 * 1000;
+  await db.collection("users").doc(record.uid).update({
+    codingPlanPaid: record.plan,
+    codingPlanPurchasedAt: Date.now(),
+    codingPlanExpiresAt: expiresAt,
+  });
+  await ref.update({ status: "success", confirmedAt: Date.now() });
+  await saveBillingAuthorization(record.uid, paystackData);
+  const planName = CODING_PLAN_DEFS[record.plan]?.name || record.plan;
+  await addNotification(record.uid, "coding_plan", `Your ${planName} COD\\NG plan is now active`, { plan: record.plan, expiresAt });
+  await creditReferralCommission(record.uid, record.amountKobo / 100, "COD\\NG plan purchase");
   return { alreadyProcessed: false, uid: record.uid, plan: record.plan, expiresAt };
 }
 async function createMovieApiKey(uid, label) {
@@ -3379,7 +3420,7 @@ async function searchUsersByUsername(query, excludeUid, limit = 15) {
 const LAST_ACTIVE_UPDATE_THROTTLE_MS = 2 * 60 * 1000;
 
 const BACKGROUND_POLL_PATHS = ["/api/chess/hb", "/api/notifications/unread", "/api/feed/following/unseen-count", "/api/status/unseen-count", "/api/devices/prompt"];
-const FRESH_PROFILE_PATHS = new Set(["/api/verification/initialize"]);
+const FRESH_PROFILE_PATHS = new Set(["/api/verification/initialize", "/api/coding/usage", "/api/billing"]);
 
 function requireAuth(req, res, next) {
   const sessionId = req.cookies?.session;
@@ -4020,6 +4061,16 @@ const RENEWABLE_PRODUCTS = {
     commissionLabel: "Developer API plan renewal",
     priceNgn: (data) => DEV_API_PLANS[data.devApiPlanPaid]?.priceNgn || 0,
     applyRenewal: (expiresAt) => ({ devApiPlanExpiresAt: expiresAt }),
+  },
+  coding: {
+    autoField: "codingPlanAutoRenew",
+    expiryField: "codingPlanExpiresAt",
+    planField: "codingPlanPaid",
+    days: CODING_PLAN_DAYS,
+    label: "COD\\NG plan",
+    commissionLabel: "COD\\NG plan renewal",
+    priceNgn: (data) => CODING_PLAN_DEFS[data.codingPlanPaid]?.priceNgn || 0,
+    applyRenewal: (expiresAt) => ({ codingPlanExpiresAt: expiresAt }),
   },
 };
 
@@ -6352,6 +6403,7 @@ export {
   DEV_API_PLANS,
   PURCHASABLE_DEV_API_PLANS,
   getEffectiveDevApiPlan,
+  getEffectiveCodingPlan,
   getDevApiPlanConfig,
   createDevApiPlanPayment,
   getDevApiPlanPayment,
@@ -6371,6 +6423,9 @@ export {
   createMovieApiPlanPayment,
   getMovieApiPlanPayment,
   finalizeMovieApiPlanPayment,
+  createCodingPlanPayment,
+  getCodingPlanPayment,
+  finalizeCodingPlanPayment,
   createDevApiKey,
   listDevApiKeysForUser,
   revokeDevApiKey,

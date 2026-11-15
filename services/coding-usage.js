@@ -1,14 +1,21 @@
 // COD\NG usage limits and accounting.
 //
-// Plans, prices and the daily / weekly / monthly period structure are reused from
-// the existing Developers API (Movie API) plans: free, starter, standard, pro, max.
-// COD\NG keeps its OWN allowances and its OWN counters (Firestore `codingUsage`),
-// so using COD\NG never consumes Movie/Developers API requests and vice versa.
+// COD\NG has its own plan catalog and paid entitlements. Its tier names/prices
+// mirror the API pages today, but its allowances and counters are independent
+// (Firestore `codingUsage`), so product usage never collides.
 //
 // This module is intentionally free of imports from services/auth.js so it can be
 // unit-tested without Firebase. Names and prices are merged in by routes/coding.js.
 
 export const CODING_PLAN_ORDER = Object.freeze(["free", "starter", "standard", "pro", "max"]);
+export const CODING_PLAN_DEFS = Object.freeze({
+  free: Object.freeze({ name: "Free", priceNgn: 0, note: "Default plan" }),
+  starter: Object.freeze({ name: "Starter", priceNgn: 0, note: "Auto with account verification" }),
+  standard: Object.freeze({ name: "Standard", priceNgn: 7500, note: "30 days" }),
+  pro: Object.freeze({ name: "Pro", priceNgn: 13500, note: "30 days", highlight: true }),
+  max: Object.freeze({ name: "Max", priceNgn: 20500, note: "30 days" }),
+});
+export const CODING_PURCHASABLE_PLAN_KEYS = Object.freeze(["standard", "pro", "max"]);
 
 // ---- Cost basis -----------------------------------------------------------------
 // One credit = one simple request on the cheapest model (DeepSeek V4.1 Flash).
@@ -94,6 +101,13 @@ export function resolveCodingPlanKey(...planKeys) {
     if (rank > best) best = rank;
   }
   return CODING_PLAN_ORDER[best];
+}
+
+export function resolveCodingPlanForProfile(profile = {}, { now = Date.now(), verifiedActive = false, admin = false } = {}) {
+  if (admin) return "max";
+  const paidPlanActive = CODING_PURCHASABLE_PLAN_KEYS.includes(profile.codingPlanPaid)
+    && Number(profile.codingPlanExpiresAt) > now;
+  return resolveCodingPlanKey(paidPlanActive ? profile.codingPlanPaid : "free", verifiedActive ? "starter" : "free");
 }
 
 export function getCodingPlanLimits(planKey) {

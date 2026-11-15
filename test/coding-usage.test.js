@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
-  CODING_PLAN_ORDER, CODING_PLAN_CREDITS, CODING_CREDIT_COST_NGN, CODING_COST_BUDGET_RATIO, CODING_PREMIUM_MODEL_IDS, CODING_FREE_DEFAULT_MODEL_ID,
-  calculateCodingCredits, resolveCodingPlanKey, getCodingPeriodKeys, getCodingResetTimes, buildCodingUsageSnapshot, findBlockingWindow,
+  CODING_PLAN_ORDER, CODING_PLAN_DEFS, CODING_PURCHASABLE_PLAN_KEYS, CODING_PLAN_CREDITS, CODING_CREDIT_COST_NGN, CODING_COST_BUDGET_RATIO, CODING_PREMIUM_MODEL_IDS, CODING_FREE_DEFAULT_MODEL_ID,
+  calculateCodingCredits, resolveCodingPlanKey, resolveCodingPlanForProfile, getCodingPeriodKeys, getCodingResetTimes, buildCodingUsageSnapshot, findBlockingWindow,
   getCodingUsage, reserveCodingCredits, settleCodingCredits, isPremiumCodingModel,
 } from "../services/coding-usage.js";
 import { renderCoding } from "../views/coding.js";
@@ -30,10 +30,14 @@ function fakeDb() {
 }
 
 // ---------- plan limits & cost ----------
-test("COD\\NG reuses the existing plan tiers and keeps daily < weekly < monthly", () => {
+test("COD\\NG owns its tier catalog and matches the API plan prices", () => {
+  assert.deepEqual(CODING_PLAN_ORDER, ["free", "starter", "standard", "pro", "max"]);
+  assert.deepEqual(CODING_PURCHASABLE_PLAN_KEYS, ["standard", "pro", "max"]);
+  assert.deepEqual(Object.fromEntries(["standard", "pro", "max"].map((key) => [key, CODING_PLAN_DEFS[key].priceNgn])), { standard: 7500, pro: 13500, max: 20500 });
   const auth = read("services/auth.js");
-  const movieBlock = auth.slice(auth.indexOf("const MOVIE_API_PLANS = {"), auth.indexOf("const PURCHASABLE_MOVIE_API_PLANS"));
-  for (const key of CODING_PLAN_ORDER) assert.match(movieBlock, new RegExp(`\\b${key}: \\{ name:`), `${key} must exist in the Movie/Developers API plans`);
+  const codingEntitlement = auth.slice(auth.indexOf("function getEffectiveCodingPlan"), auth.indexOf("function getMovieApiPlanConfig"));
+  assert.match(codingEntitlement, /resolveCodingPlanForProfile/);
+  assert.doesNotMatch(codingEntitlement, /movieApiPlan|devApiPlanPaid/);
   for (const key of CODING_PLAN_ORDER) {
     const { daily, weekly, monthly } = CODING_PLAN_CREDITS[key];
     assert.ok(daily < weekly && weekly < monthly, `${key} windows must grow daily < weekly < monthly`);
@@ -46,10 +50,8 @@ test("COD\\NG reuses the existing plan tiers and keeps daily < weekly < monthly"
 });
 
 test("full use of a paid plan stays inside the API cost budget", () => {
-  const auth = read("services/auth.js");
-  const movieBlock = auth.slice(auth.indexOf("const MOVIE_API_PLANS = {"), auth.indexOf("const PURCHASABLE_MOVIE_API_PLANS"));
   const premiumPrice = Number(read("services/paystack.js").match(/VERIFICATION_PRICE_NGN = (\d+)/)[1]);
-  const priceOf = (key) => key === "starter" ? premiumPrice : Number(movieBlock.match(new RegExp(`${key}: \\{[^}]*priceNgn: (\\d+)`))[1]);
+  const priceOf = (key) => key === "starter" ? premiumPrice : CODING_PLAN_DEFS[key].priceNgn;
   for (const key of ["starter", "standard", "pro", "max"]) {
     const worstCase = CODING_PLAN_CREDITS[key].monthly * CODING_CREDIT_COST_NGN;
     assert.ok(worstCase <= priceOf(key) * CODING_COST_BUDGET_RATIO, `${key}: NGN ${worstCase} exceeds ${CODING_COST_BUDGET_RATIO * 100}% of NGN ${priceOf(key)}`);
@@ -57,10 +59,21 @@ test("full use of a paid plan stays inside the API cost budget", () => {
   assert.ok(CODING_PLAN_CREDITS.free.monthly * CODING_CREDIT_COST_NGN <= 250, "free plan exposure must stay tiny");
 });
 
-test("the highest of the Movie / Developers API plans decides the COD\\NG plan", () => {
+test("COD\\NG paid entitlements are isolated from API plans and expire independently", () => {
+  const now = 1_800_000_000_000;
+  assert.equal(resolveCodingPlanForProfile({ movieApiPlanPaid: "max", devApiPlanPaid: "pro", movieApiPlanExpiresAt: now + 1000 }, { now }), "free");
+  assert.equal(resolveCodingPlanForProfile({ codingPlanPaid: "standard", codingPlanExpiresAt: now + 1000 }, { now }), "standard");
+  assert.equal(resolveCodingPlanForProfile({ codingPlanPaid: "pro", codingPlanExpiresAt: now + 1000 }, { now, verifiedActive: true }), "pro");
+  assert.equal(resolveCodingPlanForProfile({ codingPlanPaid: "max", codingPlanExpiresAt: now }, { now }), "free");
+  assert.equal(resolveCodingPlanForProfile({ codingPlanPaid: "max", codingPlanExpiresAt: now }, { now, verifiedActive: true }), "starter");
+  assert.equal(resolveCodingPlanForProfile({}, { now, admin: true }), "max");
+});
+
+test("COD\\NG plan rank keeps purchased tiers above the verification benefit", () => {
   assert.equal(resolveCodingPlanKey("free", "free"), "free");
-  assert.equal(resolveCodingPlanKey("starter", "free"), "starter");
-  assert.equal(resolveCodingPlanKey("standard", "pro"), "pro");
+  assert.equal(resolveCodingPlanKey("free", "starter"), "starter");
+  assert.equal(resolveCodingPlanKey("standard", "starter"), "standard");
+  assert.equal(resolveCodingPlanKey("pro", "starter"), "pro");
   assert.equal(resolveCodingPlanKey("max", "starter"), "max");
   assert.equal(resolveCodingPlanKey("bogus", undefined), "free");
 });
@@ -211,7 +224,8 @@ test("server enforces the Premium model gate, plan credits and the open page", (
   assert.match(routes, /reserveCodingCredits\(db, req\.uid, planKey, credits/);
   assert.match(routes, /coding_quota_exceeded/);
   assert.match(routes, /"\/api\/coding\/usage"/);
-  assert.match(routes, /getEffectiveMovieApiPlan\(profile\), getEffectiveDevApiPlan\(profile\)/);
+  assert.match(routes, /getEffectiveCodingPlan\(profile\)/);
+  assert.doesNotMatch(routes, /getEffectiveMovieApiPlan|getEffectiveDevApiPlan/);
   assert.match(routes, /type: "usage"/);
   assert.match(routes, /settleUsage\(req, reservation, -reservation\.credits, \{ refundRequest: true \}\)/);
   const codingPage = server.slice(server.indexOf('app.get("/coding"'), server.indexOf('app.get("/deploy-bot"'));

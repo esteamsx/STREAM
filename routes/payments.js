@@ -23,6 +23,10 @@ import {
   createMovieApiPlanPayment,
   getMovieApiPlanPayment,
   finalizeMovieApiPlanPayment,
+  createCodingPlanPayment,
+  getCodingPlanPayment,
+  finalizeCodingPlanPayment,
+  getEffectiveCodingPlan,
   getEffectiveMovieApiPlan,
   MOVIE_API_PLANS,
   PURCHASABLE_MOVIE_API_PLANS,
@@ -54,6 +58,7 @@ import {
 import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN, VERIFICATION_ROLLOVER_PRICE_NGN, normalizePaymentMethod, ngnToUsd, NGN_PER_USD } from "../services/paystack.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
 import { finalizeAdPayment } from "../services/ads.js";
+import { CODING_PLAN_DEFS, CODING_PURCHASABLE_PLAN_KEYS } from "../services/coding-usage.js";
 
 const router = express.Router();
 
@@ -71,6 +76,8 @@ const confirmLimiter = new SimpleRateLimiter(
   (req) => req.uid,
   "Too many payment confirmation attempts. Please try again in a bit."
 ).middleware();
+const codingPlanInitLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000, (req) => req.uid, "Too many COD\\NG payment attempts. Please try again in a bit.").middleware();
+const codingPlanConfirmLimiter = new SimpleRateLimiter(20, 60 * 60 * 1000, (req) => req.uid, "Too many COD\\NG confirmation attempts. Please try again in a bit.").middleware();
 const visitUrlLimiter = new SimpleRateLimiter(
   10,
   60 * 60 * 1000,
@@ -312,6 +319,50 @@ router.post("/api/movieplan/confirm", requireAuth, confirmLimiter, async (req, r
   } catch (err) { console.error(err); res.status(err.status || 400).json({ error: err.message || "Could not confirm payment." }); }
 });
 
+router.post("/api/codingplan/initialize", requireAuth, codingPlanInitLimiter, async (req, res) => {
+  try {
+    const plan = String(req.body?.plan || "").trim();
+    if (!CODING_PURCHASABLE_PLAN_KEYS.includes(plan)) return res.status(400).json({ error: "Unknown COD\\NG plan." });
+    const profile = await getUserProfile(req.uid, 0);
+    if (!profile) return res.status(404).json({ error: "Account not found." });
+    if (!profile.email) return res.status(400).json({ error: "Add an email to your account before upgrading." });
+    const planDef = CODING_PLAN_DEFS[plan];
+    if (getEffectiveCodingPlan(profile) === plan) return res.status(400).json({ error: `You're already on the ${planDef.name} COD\\NG plan.` });
+    const priceNgn = discountedCashPrice(planDef.priceNgn, profile);
+    const amountKobo = priceNgn * 100;
+    const method = normalizePaymentMethod(req.body?.method);
+    const data = await initializeTransaction({
+      method,
+      email: profile.email,
+      amountKobo,
+      metadata: { uid: req.uid, purpose: "coding_plan", plan },
+    });
+    await createCodingPlanPayment(req.uid, data.reference, amountKobo, plan);
+    res.json({ reference: data.reference, accessCode: data.access_code, publicKey: PAYSTACK_PUBLIC_KEY, method, ngnPerUsd: NGN_PER_USD, amountUsd: ngnToUsd(amountKobo / 100), email: profile.email, amountKobo, priceNgn, plan });
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 400).json({ error: err.message || "Could not start COD\\NG plan payment." });
+  }
+});
+
+router.post("/api/codingplan/confirm", requireAuth, codingPlanConfirmLimiter, async (req, res) => {
+  try {
+    const reference = String(req.body?.reference || "").trim();
+    if (!reference) return res.status(400).json({ error: "Missing payment reference." });
+    const record = await getCodingPlanPayment(reference);
+    if (!record || record.uid !== req.uid) return res.status(404).json({ error: "Payment not found." });
+    if (record.status === "success") {
+      const profile = await getUserProfile(req.uid);
+      return res.json({ plan: record.plan, expiresAt: profile?.codingPlanPaid === record.plan ? profile?.codingPlanExpiresAt || null : null });
+    }
+    const result = await finalizeCodingPlanPayment(reference, await verifyTransaction(reference));
+    res.json({ plan: result.plan || record.plan, expiresAt: result.expiresAt || null });
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 400).json({ error: err.message || "Could not confirm COD\\NG plan payment." });
+  }
+});
+
 router.post("/api/devplan/initialize", requireAuth, initLimiter, async (req, res) => {
   try {
     const plan = String(req.body?.plan || "").trim();
@@ -510,6 +561,7 @@ router.post("/api/paystack/webhook", webhookLimiter, async (req, res) => {
       await finalizeVerificationPayment(event.data.reference, paystackData);
       await finalizeApiPlanPayment(event.data.reference, paystackData);
       await finalizeDevApiPlanPayment(event.data.reference, paystackData);
+      await finalizeCodingPlanPayment(event.data.reference, paystackData);
       await finalizeCoinPurchasePayment(event.data.reference, paystackData);
       await finalizeCoinRequestPayment(event.data.reference, paystackData);
       await finalizeTradingPlanPayment(event.data.reference, paystackData);

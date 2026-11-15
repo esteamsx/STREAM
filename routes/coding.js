@@ -1,11 +1,11 @@
 import express from "express";
 import path from "node:path";
-import { isAdminEmail, isVerificationActive, MOVIE_API_PLANS, getEffectiveMovieApiPlan, getEffectiveDevApiPlan } from "../services/auth.js";
+import { isAdminEmail, isVerificationActive, getEffectiveCodingPlan, PREMIUM_DISCOUNT_RATE } from "../services/auth.js";
 import { buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError, verifyCodingModelAvailability, isCodingModelUnavailableError } from "../services/coarena-coding.js";
 import { getCodingModel, DEFAULT_CODING_MODEL_ID } from "../services/coding-models.js";
 import {
-  CODING_PLAN_ORDER, CODING_PREMIUM_MODEL_IDS, CODING_FREE_DEFAULT_MODEL_ID, CODING_COMMAND_CREDITS, CODING_MODEL_CREDIT_MULTIPLIER,
-  calculateCodingCredits, getCodingPlanLimits, getCodingUsage, isPremiumCodingModel, reserveCodingCredits, resolveCodingPlanKey, settleCodingCredits,
+  CODING_PLAN_ORDER, CODING_PLAN_DEFS, CODING_PREMIUM_MODEL_IDS, CODING_FREE_DEFAULT_MODEL_ID, CODING_COMMAND_CREDITS, CODING_MODEL_CREDIT_MULTIPLIER,
+  calculateCodingCredits, getCodingPlanLimits, getCodingUsage, isPremiumCodingModel, reserveCodingCredits, settleCodingCredits,
 } from "../services/coding-usage.js";
 import { CODING_FILE_CLEANUP_INTERVAL_MS, CODING_FILE_MAX_BYTES, createCodingTemporaryFiles, extractGeneratedCodingFiles } from "../services/coding-temporary-files.js";
 import { formatRepositoryStatusAnswer, getCodingChatContext } from "../services/coding-chat-context.js";
@@ -42,9 +42,9 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
     res.status(403).json({ error: `${model?.label || "This model"} is available to Premium members only.`, code: "premium_required" });
     return true;
   };
-  const codingPlanFor = (profile) => resolveCodingPlanKey(getEffectiveMovieApiPlan(profile), getEffectiveDevApiPlan(profile));
+  const codingPlanFor = (profile) => getEffectiveCodingPlan(profile);
   const codingUnlimited = (profile) => !!(profile && isAdminEmail(profile.email));
-  const planCatalog = () => CODING_PLAN_ORDER.map((key) => ({ key, name: MOVIE_API_PLANS[key]?.name || key, priceNgn: MOVIE_API_PLANS[key]?.priceNgn ?? 0, ...getCodingPlanLimits(key) }));
+  const planCatalog = () => CODING_PLAN_ORDER.map((key) => ({ key, ...CODING_PLAN_DEFS[key], ...getCodingPlanLimits(key) }));
   const writeUsage = (res, snapshot) => { if (snapshot && !res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "usage", usage: snapshot })}\n\n`); };
   // One running COD\NG request per user: prevents parallel requests from draining credits.
   const activeRuns = new Map();
@@ -93,7 +93,7 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       const planKey = codingPlanFor(profile);
       const usage = await getCodingUsage(db, req.uid, planKey, { unlimited: codingUnlimited(profile) });
       const current = planCatalog().find((plan) => plan.key === planKey);
-      return res.json({ usage, plan: current, plans: planCatalog(), premium: isCodingPremium(profile), premiumModelIds: CODING_PREMIUM_MODEL_IDS, freeDefaultModelId: CODING_FREE_DEFAULT_MODEL_ID, modelMultipliers: CODING_MODEL_CREDIT_MULTIPLIER, commandCredits: CODING_COMMAND_CREDITS });
+      return res.json({ usage, plan: current, plans: planCatalog(), codingPlanExpiresAt: profile.codingPlanExpiresAt || null, premium: isCodingPremium(profile), premiumDiscountRate: isVerificationActive(profile) ? PREMIUM_DISCOUNT_RATE : 0, premiumModelIds: CODING_PREMIUM_MODEL_IDS, freeDefaultModelId: CODING_FREE_DEFAULT_MODEL_ID, modelMultipliers: CODING_MODEL_CREDIT_MULTIPLIER, commandCredits: CODING_COMMAND_CREDITS });
     } catch (error) {
       console.error("[COD\\NG] usage lookup failed", error?.code || error?.message);
       return res.status(503).json({ error: "Usage is temporarily unavailable.", code: "coding_usage_unavailable", retryable: true });

@@ -750,8 +750,8 @@ test("COD\\NG connection notifications fire only for verified state changes and 
   assert.equal(notificationCalls[0].duration, 3200);
 });
 
-test("COD\\NG pricing matches API plan cards and keeps all usage bars in pricing", () => {
-  const html = renderCoding({ devToolsBlock: "", protectionCSS: "" });
+test("COD\\NG uses API-style plan cards with its own prices, checkout and usage bars", () => {
+  const html = renderCoding({ devToolsBlock: "", protectionCSS: "", paystackPublicKey: "pk_test_coding" });
   const pricingIndex = html.indexOf('id="codingPricing"');
   const plansIndex = html.indexOf('id="codingPlanGrid"');
   const usageIndex = html.indexOf('id="codingUsage"');
@@ -760,6 +760,16 @@ test("COD\\NG pricing matches API plan cards and keeps all usage bars in pricing
   assert.ok(pricingIndex >= 0 && plansIndex > pricingIndex);
   assert.ok(usageIndex > plansIndex && chatIndex > usageIndex);
   assert.match(html, /class="coding-usage-grid" id="codingUsage"/);
+  assert.match(html, /\/pay-method\.js\?v=/);
+  assert.match(html, /\/api\/codingplan\/initialize/);
+  assert.match(html, /\/api\/codingplan\/confirm/);
+  assert.match(html, /window\.esPay\.fmtUsd\(displayedPlanPrice\(plan\)\)/);
+  assert.match(html, /verified 15% off/);
+  assert.match(html, /with Premium/);
+  assert.match(html, /Get Verified/);
+  assert.match(html, /upgradeButton\.textContent='Upgrade'/);
+  assert.match(html, /Pay & Upgrade/);
+  assert.doesNotMatch(html, /upgradeLink\.href=['"]\/developers\/movie-api/);
   for (const period of ["daily", "weekly", "monthly"]) {
     assert.match(html, new RegExp('data-window="' + period + '"'));
   }
