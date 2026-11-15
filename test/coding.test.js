@@ -650,6 +650,7 @@ test("COD\\NG exposes a persistent compact model menu and sends selections to th
   assert.match(codingRouteSource, /verifyCodingModelAvailability\(req\.body\?\.modelId\)/);
   assert.match(codingRouteSource, /buildCodingPayload\(\{ \.\.\.request/);
   assert.match(codingRouteSource, /premiumOnly/);
+  assert.match(html, /localStorage\.setItem\(storageKey,JSON\.stringify\(\{activeId:activeId,chats:chats\}\)\)/);
   assert.match(html, /localStorage\.setItem\(storageKey\+':model'/);
   assert.match(html, /codingToast\('Switched to '\+model\.toastLabel,'success'\)/);
   assert.match(html, /coding-notifications\.js/);
@@ -657,7 +658,9 @@ test("COD\\NG exposes a persistent compact model menu and sends selections to th
   assert.match(html, /github_error/);
   assert.match(html, /coding-model-selector/);
   assert.match(html, /@media\(max-width:480px\).*coding-model-trigger/s);
-  assert.match(html, /@media\(max-width:640px\)\{\.coding-model-menu\{position:fixed\}\}/);
+  assert.match(html, /coding-model-menu\{position:fixed;left:12px;top:12px/);
+  assert.match(html, /max-height:min\(420px,calc\(100dvh - 24px\)\)/);
+  assert.match(html, /aria-hidden="true" hidden/);
   assert.match(html, /function positionModelMenu\(\)/);
   assert.match(html, /window\.addEventListener\('resize',function\(\)\{if\(!modelMenu\.hidden\)positionModelMenu\(\);\}\)/);
 });
