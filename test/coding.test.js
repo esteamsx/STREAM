@@ -213,9 +213,15 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /github-agent-close/);
   assert.match(html, /githubOverlayClose\.addEventListener\('click',githubClosePanel\)/);
   assert.match(html, /\/api\/coding\/session/);
+  assert.match(codingRouteSource, /router\.get\("\/api\/coding\/session", requireAuth, \(req, res\)/);
+  assert.doesNotMatch(codingRouteSource, /router\.get\("\/api\/coding\/session", requireAuth, requireSiteOrigin/);
   assert.match(html, /src="\/ios-motion\.js" defer/);
   assert.match(html, /es-coding-chats-v3:/);
   assert.match(html, /storageKey\?JSON\.parse/);
+  assert.match(html, /function codingSession\(\)\{return fetch\('\/api\/coding\/session'/);
+  assert.match(html, /initializeCoding\(0\)/);
+  assert.match(html, /attempt<3/);
+  assert.match(html, /Chat history could not be restored/);
   assert.doesNotMatch(html, /es-coding-chats-v2|es-coding-history-v1/);
   assert.doesNotMatch(html, /id="codingGithubClose"|>Close<\/button>/);
   assert.match(html, /codingRenameOverlay/);
@@ -659,6 +665,7 @@ test("COD\\NG exposes a persistent compact model menu and sends selections to th
   assert.match(html, /coding-model-selector/);
   assert.match(html, /@media\(max-width:480px\).*coding-model-trigger/s);
   assert.match(html, /coding-model-menu\{position:fixed;left:12px;top:12px/);
+  assert.match(html, /modelSelector\.contains\(event\.target\)/);
   assert.match(html, /max-height:min\(420px,calc\(100dvh - 24px\)\)/);
   assert.match(html, /aria-hidden="true" hidden/);
   assert.match(html, /function positionModelMenu\(\)/);
