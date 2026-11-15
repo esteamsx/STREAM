@@ -1,8 +1,12 @@
 import express from "express";
 import path from "node:path";
-import { isAdminEmail, isVerificationActive } from "../services/auth.js";
+import { isAdminEmail, isVerificationActive, MOVIE_API_PLANS, getEffectiveMovieApiPlan, getEffectiveDevApiPlan } from "../services/auth.js";
 import { buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError, verifyCodingModelAvailability, isCodingModelUnavailableError } from "../services/coarena-coding.js";
-import { getCodingModel } from "../services/coding-models.js";
+import { getCodingModel, DEFAULT_CODING_MODEL_ID } from "../services/coding-models.js";
+import {
+  CODING_PLAN_ORDER, CODING_PREMIUM_MODEL_IDS, CODING_FREE_DEFAULT_MODEL_ID, CODING_COMMAND_CREDITS, CODING_MODEL_CREDIT_MULTIPLIER,
+  calculateCodingCredits, getCodingPlanLimits, getCodingUsage, isPremiumCodingModel, reserveCodingCredits, resolveCodingPlanKey, settleCodingCredits,
+} from "../services/coding-usage.js";
 import { CODING_FILE_CLEANUP_INTERVAL_MS, CODING_FILE_MAX_BYTES, createCodingTemporaryFiles, extractGeneratedCodingFiles } from "../services/coding-temporary-files.js";
 import { formatRepositoryStatusAnswer, getCodingChatContext } from "../services/coding-chat-context.js";
 import { getConnectionStatus, getRepositoryContext } from "../services/github-agent.js";
@@ -30,10 +34,52 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
     const status = Number(error?.status) || 500;
     return res.status(status).json({ error: status >= 500 ? "Temporary file storage is temporarily unavailable." : error?.message || "Temporary file operation failed.", code: error?.code || "coding_file_error" });
   };
-  const premiumOnly = (req, res, next) => {
+  // COD\NG is open to every signed-in user. Only premium models (Claude Fable) are
+  // restricted; all usage is limited by the plan credits in services/coding-usage.js.
+  const premiumOnly = (req, res, modelId) => {
+    if (!isPremiumCodingModel(modelId) || isCodingPremium(req.userProfile)) return false;
+    const model = getCodingModel(modelId);
+    res.status(403).json({ error: `${model?.label || "This model"} is available to Premium members only.`, code: "premium_required" });
+    return true;
+  };
+  const codingPlanFor = (profile) => resolveCodingPlanKey(getEffectiveMovieApiPlan(profile), getEffectiveDevApiPlan(profile));
+  const codingUnlimited = (profile) => !!(profile && isAdminEmail(profile.email));
+  const planCatalog = () => CODING_PLAN_ORDER.map((key) => ({ key, name: MOVIE_API_PLANS[key]?.name || key, priceNgn: MOVIE_API_PLANS[key]?.priceNgn ?? 0, ...getCodingPlanLimits(key) }));
+  const writeUsage = (res, snapshot) => { if (snapshot && !res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "usage", usage: snapshot })}\n\n`); };
+  // One running COD\NG request per user: prevents parallel requests from draining credits.
+  const activeRuns = new Map();
+  const acquireRun = (req, res) => {
+    const key = String(req.uid);
+    const startedAt = activeRuns.get(key);
+    if (startedAt && Date.now() - startedAt < 10 * 60 * 1000) {
+      res.status(429).json({ error: "Wait for your current COD\\NG request to finish.", code: "coding_request_in_progress", retryable: true });
+      return false;
+    }
+    activeRuns.set(key, Date.now());
+    res.once("close", () => activeRuns.delete(key));
+    return true;
+  };
+  const reserveOrReject = async (req, res, credits) => {
     const profile = req.userProfile;
-    if (isCodingPremium(profile)) return next();
-    return res.status(403).json({ error: "COD\\NG is available to Premium members only.", code: "premium_required" });
+    const planKey = codingPlanFor(profile);
+    const enforce = !codingUnlimited(profile);
+    try {
+      const reservation = await reserveCodingCredits(db, req.uid, planKey, credits, { enforce });
+      if (reservation.allowed) return { ...reservation, planKey, enforce };
+      const left = reservation.snapshot[reservation.blockedBy].remaining;
+      activeRuns.delete(String(req.uid));
+      res.status(429).json({ error: `Not enough ${reservation.blockedBy} credits (${left} left, ${credits} needed).`, code: "coding_quota_exceeded", blockedBy: reservation.blockedBy, needed: credits, usage: reservation.snapshot });
+      return null;
+    } catch (error) {
+      console.error("[COD\\NG] usage reservation failed", error?.code || error?.message);
+      activeRuns.delete(String(req.uid));
+      res.status(503).json({ error: "Usage tracking is temporarily unavailable. Please try again shortly.", code: "coding_usage_unavailable", retryable: true });
+      return null;
+    }
+  };
+  const settleUsage = async (req, reservation, delta, options = {}) => {
+    try { return await settleCodingCredits(db, req.uid, reservation.planKey, reservation, delta, { enforce: reservation.enforce, ...options }); }
+    catch (error) { console.error("[COD\\NG] usage settlement failed", error?.code || error?.message); return null; }
   };
 
   // This is a read-only same-origin session lookup used to select the user's
@@ -41,7 +87,20 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
   // guard here: some browsers omit Origin on same-origin GET requests, which
   // would make the page fall back to a blank, non-persistent chat view.
   router.get("/api/coding/session", requireAuth, (req, res) => res.json({ uid: String(req.uid) }));
-  router.post("/api/coding/model", requireAuth, requireSiteOrigin, modelLimiter, premiumOnly, async (req, res) => {
+  router.get("/api/coding/usage", requireAuth, limiter, async (req, res) => {
+    try {
+      const profile = req.userProfile;
+      const planKey = codingPlanFor(profile);
+      const usage = await getCodingUsage(db, req.uid, planKey, { unlimited: codingUnlimited(profile) });
+      const current = planCatalog().find((plan) => plan.key === planKey);
+      return res.json({ usage, plan: current, plans: planCatalog(), premium: isCodingPremium(profile), premiumModelIds: CODING_PREMIUM_MODEL_IDS, freeDefaultModelId: CODING_FREE_DEFAULT_MODEL_ID, modelMultipliers: CODING_MODEL_CREDIT_MULTIPLIER, commandCredits: CODING_COMMAND_CREDITS });
+    } catch (error) {
+      console.error("[COD\\NG] usage lookup failed", error?.code || error?.message);
+      return res.status(503).json({ error: "Usage is temporarily unavailable.", code: "coding_usage_unavailable", retryable: true });
+    }
+  });
+  router.post("/api/coding/model", requireAuth, requireSiteOrigin, modelLimiter, async (req, res) => {
+    if (premiumOnly(req, res, req.body?.modelId)) return;
     try {
       const model = await verifyCodingModelAvailability(req.body?.modelId);
       return res.json({ model, available: true });
@@ -53,7 +112,7 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       return res.status(Number(error?.status) || 503).json({ error: error?.message || "Could not confirm model availability. Your current model has not changed.", code: error?.code || "coding_model_check_failed", retryable: error?.retryable === true });
     }
   });
-  router.put("/api/coding/files", requireAuth, requireSiteOrigin, uploadLimiter, premiumOnly, async (req, res) => {
+  router.put("/api/coding/files", requireAuth, requireSiteOrigin, uploadLimiter, async (req, res) => {
     try {
       let filename;
       try { filename = decodeURIComponent(String(req.get("x-coding-file-name") || "")); }
@@ -63,11 +122,11 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       return res.status(201).json({ file });
     } catch (error) { return fileError(res, error); }
   });
-  router.get("/api/coding/files", requireAuth, limiter, premiumOnly, async (req, res) => {
+  router.get("/api/coding/files", requireAuth, limiter, async (req, res) => {
     try { return res.json({ files: await temporaryFiles.listForOwner(req.uid) }); }
     catch (error) { return fileError(res, error); }
   });
-  router.get("/api/coding/files/:id/download", requireAuth, limiter, premiumOnly, async (req, res) => {
+  router.get("/api/coding/files/:id/download", requireAuth, limiter, async (req, res) => {
     try {
       const file = await temporaryFiles.getDownload(req.uid, req.params.id);
       return res.download(file.path, path.basename(file.filename), (error) => {
@@ -90,17 +149,22 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       return res.status(500).json({ error: "Activity history is temporarily unavailable.", code: "coding_activity_unavailable" });
     }
   });
-  router.post("/api/coding/command", requireAuth, requireSiteOrigin, limiter, premiumOnly, async (req, res) => {
+  router.post("/api/coding/command", requireAuth, requireSiteOrigin, limiter, async (req, res) => {
     const controller = new AbortController();
     let finished = false;
+    let reservation = null;
     const request = req.body || {};
     const activity = createCodingActivity({ uid: req.uid, conversationId: request.conversationId, onEvent: async (event) => {
       if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "activity", activity: event })}\n\n`);
     } });
     res.once("close", () => { if (!res.writableEnded && !finished) { controller.abort(); void activity.finish("cancelled"); } });
     try {
+      if (!acquireRun(req, res)) { finished = true; return; }
+      reservation = await reserveOrReject(req, res, CODING_COMMAND_CREDITS);
+      if (!reservation) { finished = true; return; }
       res.status(200).set({ "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
       res.flushHeaders?.();
+      writeUsage(res, reservation.snapshot);
       await activity.initialize();
       const result = await executeCodingCommand({ uid: req.uid, input: request, approved: request.approved === true, activity, signal: controller.signal });
       await activity.emit({ type: "command.output", status: "completed", description: "Received the command output.", details: { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr } });
@@ -117,15 +181,23 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
         if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "error", error: error?.userMessage || error?.message || "The command could not be completed.", retryable: error?.code === "coding_command_timeout" })}\n\n`);
         return res.end();
       }
+      if (reservation) await settleUsage(req, reservation, -reservation.credits, { refundRequest: true });
       return res.status(Number(error?.status) || 400).json({ error: error?.message || "The command could not be completed.", code: error?.code || "coding_command_error" });
     }
   });
 
-  router.post("/api/coding/chat", requireAuth, requireSiteOrigin, limiter, premiumOnly, async (req, res) => {
+  router.post("/api/coding/chat", requireAuth, requireSiteOrigin, limiter, async (req, res) => {
     const controller = new AbortController();
     let finished = false;
     const request = req.body || {};
+    // Free accounts default to the cheapest model; Claude Fable stays Premium-only.
+    if (!request.modelId && !isCodingPremium(req.userProfile)) request.modelId = CODING_FREE_DEFAULT_MODEL_ID;
+    if (premiumOnly(req, res, request.modelId)) return;
     const requestedModel = request.modelId ? getCodingModel(request.modelId) : null;
+    let reservation = null;
+    let creditInput = null;
+    let usageSettled = false;
+    let streamedChars = 0;
     const activity = createCodingActivity({ uid: req.uid, conversationId: request.conversationId, onEvent: async (event) => {
       if (!res.destroyed && res.writable) res.write(`data: ${JSON.stringify({ type: "activity", activity: event })}\n\n`);
     } });
@@ -158,8 +230,24 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
         storedAttachmentBytes += stored.bytes.length;
         resolvedAttachments.push({ name: stored.filename, mime: attachment.mime || "application/octet-stream", bytes: stored.bytes });
       }
+      const lastUser = [...(chatContext.messages || [])].reverse().find((message) => message?.role === "user");
+      const messageChars = String(lastUser?.content || "").length;
+      const contextChars = (chatContext.messages || []).reduce((total, message) => total + String(message?.content || "").length, 0);
+      creditInput = {
+        modelId: request.modelId || DEFAULT_CODING_MODEL_ID,
+        messageChars,
+        historyChars: Math.max(0, contextChars - messageChars),
+        attachmentCount: resolvedAttachments.length,
+        attachmentBytes: resolvedAttachments.reduce((total, item) => total + (item?.bytes?.length || Number(item?.size) || 0), 0),
+        hasArchive: resolvedAttachments.some((item) => /\.zip$/i.test(String(item?.name || ""))),
+        repositoryContext: chatContext.includeRepositoryContext === true,
+      };
+      if (!acquireRun(req, res)) { finished = true; return; }
+      reservation = await reserveOrReject(req, res, calculateCodingCredits(creditInput).credits);
+      if (!reservation) { finished = true; return; }
       res.status(200).set({ "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
       res.flushHeaders?.();
+      writeUsage(res, reservation.snapshot);
       await activity.initialize();
       let repositoryContext = null;
       if (chatContext.includeRepositoryContext) {
@@ -181,7 +269,7 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       console.info(`[COD\\NG] Coarena stream start uid=${req.uid} messages=${payload.messages.length} model=${payload.model}`);
       const upstream = await activity.operation("ai.request", "Waiting for the AI response.", { model: payload.model }, () => createCoarenaRequest(payload, { signal: controller.signal }));
       for await (const event of readCoarenaStream(upstream)) {
-        if (event.type === "text") { chunkCount += 1; textChars += event.text.length; if (generatedText.length < 30 * 1024 * 1024) generatedText += event.text; }
+        if (event.type === "text") { chunkCount += 1; textChars += event.text.length; streamedChars = textChars; if (generatedText.length < 30 * 1024 * 1024) generatedText += event.text; }
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
       for (const generated of extractGeneratedCodingFiles(generatedText)) {
@@ -192,6 +280,12 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
           console.warn(`[COD\\NG] generated file could not be retained uid=${req.uid} code=${error?.code || "unknown"}`);
         }
       }
+      if (reservation && !usageSettled) {
+        usageSettled = true;
+        const finalCredits = calculateCodingCredits({ ...creditInput, outputChars: textChars }).credits;
+        const settled = await settleUsage(req, reservation, Math.max(0, finalCredits - reservation.credits));
+        writeUsage(res, settled || reservation.snapshot);
+      }
       await activity.emit({ type: "ai.response", status: "completed", description: "Generated the response.", details: { chunks: chunkCount, characters: textChars }, durationMs: Date.now() - startedAt });
       finished = true;
       await activity.finish("completed");
@@ -200,6 +294,14 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       console.info(`[COD\\NG] Coarena stream complete uid=${req.uid} chunks=${chunkCount} chars=${textChars} ms=${Date.now() - startedAt}`);
     } catch (error) {
       console.warn(`[COD\\NG] AI stream failed uid=${req.uid} code=${error?.code || "unknown"} status=${error?.status || "unknown"} detail=${error?.message || "unknown"}`);
+      if (reservation && !usageSettled) {
+        usageSettled = true;
+        // Nothing generated: refund in full. Partial output (stopped / dropped): keep the reservation, plus any extra for long output.
+        const settled = streamedChars === 0
+          ? await settleUsage(req, reservation, -reservation.credits, { refundRequest: true })
+          : await settleUsage(req, reservation, Math.max(0, calculateCodingCredits({ ...creditInput, outputChars: streamedChars }).credits - reservation.credits));
+        if (res.headersSent) writeUsage(res, settled);
+      }
       const safeError = requestedModel && isCodingModelUnavailableError(error)
         ? Object.assign(new Error(`${requestedModel.label} is currently unavailable through the AI service. Please choose another model or retry later.`), { status: 422, code: "coding_model_unavailable", retryable: false })
         : safeCodingError(error);

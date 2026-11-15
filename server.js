@@ -1983,9 +1983,9 @@ app.get("/developers/movie-api", scrapeGate, (req, res) => {
   res.send(cachedDevelopersMovieApiHtml);
 });
 
-app.get("/coding", scrapeGate, requireUser, async (req, res) => {
-  const profile = req.userProfile || await getUserProfile(req.uid);
-  if (!profile || (!isVerificationActive(profile) && !isAdminEmail(profile.email))) return res.redirect("/account?premium=1");
+// COD\NG is open to every signed-in user; usage limits and the Premium-only model
+// are enforced by routes/coding.js and services/coding-usage.js.
+app.get("/coding", scrapeGate, requireUser, (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private").send(cachedCodingHtml);
 });
 
