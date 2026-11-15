@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 import { deflateRawSync } from "node:zlib";
-import { assertSafeCodingRequest, buildCodingPayload, createCoarenaRequest, readCoarenaStream, safeCodingError, verifyCodingModelAvailability } from "../services/coarena-coding.js";
+import { assertSafeCodingRequest, buildCodingPayload, coarenaConfig, createCoarenaRequest, readCoarenaStream, safeCodingError, verifyCodingModelAvailability } from "../services/coarena-coding.js";
 import { CODING_MODELS, DEFAULT_CODING_MODEL_ID } from "../services/coding-models.js";
 import { formatRepositoryStatusAnswer, getCodingChatContext } from "../services/coding-chat-context.js";
 import { codingWorkspace, writeCodingWorkspaceArchives } from "../services/coding-workspace.js";
@@ -271,7 +271,7 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(html, /Your files were not sent/);
   assert.match(html, /\.messages\{[^}]*overflow-y:auto/);
   assert.match(html, /\.composer\{position:sticky/);
-  assert.match(html, /\.composer \.actions\{gap:10px;flex-shrink:0\}/);
+  assert.match(html, /\.composer \.actions\{gap:10px;flex:0 1 auto;max-width:100%\}/);
   assert.match(html, /\.composer \.actions \.icon-btn\{flex:0 0 40px\}/);
   assert.match(html, /message-collapsed/);
   assert.match(html, /data-code-action/);
@@ -578,6 +578,15 @@ test("COD\\NG sanitizes provider failures without exposing infrastructure detail
 test("COD\\NG model selector uses the verified Coarena IDs and routes each choice into the Anthropic-compatible payload", () => {
   assert.deepEqual(CODING_MODELS.map((model) => model.id), ["gpt-6-astra", "deepseek-v4-1-flash-1017", "claude-fable-5-2"]);
   assert.equal(DEFAULT_CODING_MODEL_ID, "claude-fable-5-2");
+  const oldConfiguredModel = process.env.COARENA_MODEL;
+  try {
+    process.env.COARENA_MODEL = "gpt-6-astra";
+    assert.equal(buildCodingPayload({ messages: [{ role: "user", content: "Hello" }] }).model, "gpt-6-astra");
+    assert.equal(coarenaConfig().model, "gpt-6-astra");
+  } finally {
+    if (oldConfiguredModel == null) delete process.env.COARENA_MODEL;
+    else process.env.COARENA_MODEL = oldConfiguredModel;
+  }
   for (const model of CODING_MODELS) {
     const payload = buildCodingPayload({ messages: [{ role: "user", content: "Hello" }], modelId: model.id });
     assert.equal(payload.model, model.id);
@@ -631,7 +640,10 @@ test("COD\\NG exposes a persistent compact model menu and sends selections to th
   assert.match(html, /aria-selected="true"/);
   assert.match(html, /aria-expanded/);
   assert.match(html, /fetch\('\/api\/coding\/model'/);
-  assert.match(html, /modelId:selectedModelId/);
+  assert.match(html, /if\(selectedModelId\)body\.modelId=selectedModelId/);
+  assert.doesNotMatch(html, /coding-model-trigger-label/);
+  assert.match(html, /coding-model-trigger\{height:40px;width:40px;min-width:40px;max-width:40px/);
+  assert.match(html, /composer-row>\.hint\{flex:1 1 120px;min-width:0\}/);
   assert.match(codingRouteSource, /verifyCodingModelAvailability\(req\.body\?\.modelId\)/);
   assert.match(codingRouteSource, /buildCodingPayload\(\{ \.\.\.request/);
   assert.match(codingRouteSource, /premiumOnly/);
