@@ -259,6 +259,7 @@ test("COD\\NG view has the history drawer, scrollable conversation, and no front
   assert.match(codingRouteSource, /router\.get\("\/api\/coding\/session", requireAuth, \(req, res\)/);
   assert.doesNotMatch(codingRouteSource, /router\.get\("\/api\/coding\/session", requireAuth, requireSiteOrigin/);
   assert.match(html, /src="\/ios-motion\.js" defer/);
+  assert.match(html, /class="glass chat-card" data-coding-overview/);
   assert.match(html, /es-coding-chats-v3:/);
   assert.match(html, /storageKey\?JSON\.parse/);
   assert.match(html, /function codingSession\(\)\{return fetch\('\/api\/coding\/session'/);

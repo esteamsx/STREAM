@@ -165,8 +165,9 @@
 
     function excluded(target) {
       if (!target || !target.closest) return true;
+      var codingOverviewSurface = target.closest('[data-coding-overview]');
       var protectedSurface = target.closest('[data-no-overview],[data-no-status-swipe],video,iframe,canvas,input,textarea,select,[contenteditable],[role="slider"],[class*="game"],[class*="board"],[class*="player"],[class*="chat"],[class*="comment"],[class*="map"],.music-player,.st-panel,.st-full,.st-over,.page-overlay.show');
-      if (protectedSurface) return true;
+      if (protectedSurface && !(codingOverviewSurface && protectedSurface.matches('[class*="chat"]'))) return true;
       var homeFeed = target.closest('.hm-feed-card');
       if (homeFeed) {
         var nestedNoSmooth = target.closest('[data-no-smooth]');

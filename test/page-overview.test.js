@@ -71,6 +71,8 @@ test("pinch gestures skip interactive and immersive zones; zoom is constrained o
   const motion = read("../public/ios-motion.js");
   assert.match(motion, /function excluded\(target\)[\s\S]*?video,iframe,canvas,input,textarea,select,\[contenteditable\]/);
   const excludedBody = motion.slice(motion.indexOf("function excluded(target)"), motion.indexOf("function touchesWithinOverview"));
+  assert.match(excludedBody, /data-coding-overview/);
+  assert.match(excludedBody, /protectedSurface\.matches\(/);
   assert.doesNotMatch(excludedBody, /select,button|,a,/);
   assert.match(motion, /function touchesWithinOverview\(touches\)[\s\S]*?overlay\.contains\(touches\[i\]\.target\)/);
   assert.match(motion, /function touchesEnterExcludedSurface\(touches\)[\s\S]*?excluded\(pointTarget\)/);
