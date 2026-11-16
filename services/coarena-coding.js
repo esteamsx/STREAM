@@ -70,6 +70,10 @@ function attachmentError(message, code = "unsafe_attachment", status = 400) {
   return Object.assign(new Error(message), { status, code });
 }
 
+function normalizeCodingMime(value) {
+  return cleanText(value || "application/octet-stream", 100).split(";", 1)[0].trim().toLowerCase() || "application/octet-stream";
+}
+
 function providerError(message, status = 502, code = "coding_provider_error", retryable = false) {
   return Object.assign(new Error(message), { status, code, retryable });
 }
@@ -311,7 +315,7 @@ function attachmentContent(attachment) {
   if (!rawName || /[\0/\\]/.test(rawName) || rawName.includes("..")) throw attachmentError("The uploaded filename is invalid.", "unsafe_filename");
   const name = rawName;
   if (SENSITIVE_FILE.test(name)) throw attachmentError("Credential, key, and secret/configuration files cannot be uploaded to COD\\NG.", "sensitive_file_rejected", 415);
-  const mime = cleanText(attachment?.mime || attachment?.type || "application/octet-stream", 100).toLowerCase();
+  const mime = normalizeCodingMime(attachment?.mime || attachment?.type);
   const bytes = attachmentBytes(attachment);
   if (!bytes.length) throw attachmentError("The uploaded file is empty.", "empty_file", 400);
   if (bytes.length > MAX_ATTACHMENT_BYTES) throw attachmentError(`${name} is larger than 30 MB.`, "attachment_too_large", 413);
@@ -333,7 +337,7 @@ export function validateCodingAttachment(attachment = {}) {
   const name = cleanText(attachment?.name || "attachment", 180);
   if (!name || /[\0/\\]/.test(name) || name.includes("..")) throw attachmentError("The uploaded filename is invalid.", "unsafe_filename");
   if (SENSITIVE_FILE.test(name)) throw attachmentError("Credential, key, and secret/configuration files cannot be uploaded to COD\\NG.", "sensitive_file_rejected", 415);
-  const mime = cleanText(attachment?.mime || attachment?.type || "application/octet-stream", 100).toLowerCase();
+  const mime = normalizeCodingMime(attachment?.mime || attachment?.type);
   const bytes = attachmentBytes(attachment);
   if (!bytes.length) throw attachmentError("The uploaded file is empty.", "empty_file", 400);
   if (bytes.length > MAX_ATTACHMENT_BYTES) throw attachmentError(`${name} is larger than 30 MB.`, "attachment_too_large", 413);

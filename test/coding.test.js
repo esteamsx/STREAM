@@ -519,6 +519,26 @@ test("COD\\NG accepts common standalone source files and rejects executable exte
   }
 });
 
+test("COD\\NG accepts browser MIME parameters for JavaScript and ZIP attachments", () => {
+  const previousScanner = process.env.CODING_CLAMSCAN_BIN;
+  process.env.CODING_CLAMSCAN_BIN = "/bin/true";
+  try {
+    const zip = makeZip({ "src/app.js": "export const ok = true;" });
+    const payload = buildCodingPayload({
+      messages: [{ role: "user", content: "Review the attached project and script." }],
+      attachments: [
+        { name: "app.js", mime: "application/javascript; charset=utf-8", data: Buffer.from("console.log('ok');").toString("base64") },
+        { name: "project.zip", mime: "application/zip; charset=binary", data: zip.toString("base64") },
+      ],
+    });
+    assert.equal(payload.messages[0].content.length, 3);
+    assert.match(payload.messages[0].content[1].text, /app\.js/);
+    assert.match(payload.messages[0].content[2].text, /src\/app\.js/);
+  } finally {
+    if (previousScanner == null) delete process.env.CODING_CLAMSCAN_BIN; else process.env.CODING_CLAMSCAN_BIN = previousScanner;
+  }
+});
+
 test("COD\\NG rejects ZIP path traversal and malformed archives", () => {
   const previousScanner = process.env.CODING_CLAMSCAN_BIN;
   process.env.CODING_CLAMSCAN_BIN = "/bin/true";
