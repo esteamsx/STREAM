@@ -1,0 +1,55 @@
+
+name: ES Teams TV Android Build
+
+on:
+  push:
+    branches:
+      - mobile-app
+    paths:
+      - 'native-app/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: native-app/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        working-directory: native-app
+        run: npm ci
+
+      - name: Sync Capacitor Android
+        working-directory: native-app
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: native-app/android
+        run: chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ES-Teams-TV-debug-APK
+          path: native-app/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
