@@ -68,7 +68,7 @@ export function registerCodingRoutes({ requireAuth, requireSiteOrigin, SimpleRat
       if (reservation.allowed) return { ...reservation, planKey, enforce };
       const left = reservation.snapshot[reservation.blockedBy].remaining;
       activeRuns.delete(String(req.uid));
-      res.status(429).json({ error: `Not enough ${reservation.blockedBy} credits (${left} left, ${credits} needed).`, code: "coding_quota_exceeded", blockedBy: reservation.blockedBy, needed: credits, usage: reservation.snapshot });
+      res.status(429).json({ error: `Not enough ${reservation.blockedBy} credits (${left} left, ${credits} needed).`, code: "coding_quota_exceeded", blockedBy: reservation.blockedBy, resetAt: reservation.snapshot.resetsAt?.[reservation.blockedBy] || null, needed: credits, usage: reservation.snapshot });
       return null;
     } catch (error) {
       console.error("[COD\\NG] usage reservation failed", error?.code || error?.message);
