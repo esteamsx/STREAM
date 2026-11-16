@@ -790,6 +790,10 @@ test("COD\\NG uses API-style plan cards with its own prices, checkout and usage 
   assert.match(html, /Get Verified/);
   assert.match(html, /upgradeButton\.textContent='Upgrade'/);
   assert.match(html, /Pay & Upgrade/);
+  assert.match(html, /id="codingLimitClose"/);
+  assert.match(html, /id="codingLimitUpgrade"/);
+  assert.match(html, /quotaUpgrade\.addEventListener\('click',function\(\)\{hideQuotaOverlay\(\);/);
+  assert.match(html, /quotaReset\.textContent=minutes\+'m '\+String\(seconds\)\.padStart\(2,'0'\)\+'s remaining'/);
   assert.doesNotMatch(html, /upgradeLink\.href=['"]\/developers\/movie-api/);
   for (const period of ["daily", "weekly", "monthly"]) {
     assert.match(html, new RegExp('data-window="' + period + '"'));
