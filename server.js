@@ -1075,7 +1075,13 @@ app.get("/site.webmanifest", (req, res) => {
   res.set("Cache-Control", "public, max-age=86400");
   res.type("application/manifest+json").send(JSON.stringify(WEB_MANIFEST));
 });
+const APP_VERSION = "1.0.3";
+const APP_RELEASE_NOTES = "Chrome Custom Tabs browsing and secure Google sign-in improvements.";
 app.get("/.well-known/appspecific/com.chrome.devtools.json", (req, res) => res.status(204).end());
+app.get("/api/app-version", (req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.json({ version: APP_VERSION, notes: APP_RELEASE_NOTES });
+});
 
 const { requireUser, guestOnly } = pageGuards({ verifySession });
 
@@ -1083,7 +1089,7 @@ let homeHtmlCache = null;
 
 app.get("/", scrapeGate, requireUser, (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
-  if (!homeHtmlCache) homeHtmlCache = renderHome({ DOMAIN_LOCK_SCRIPT, siteHeadFor });
+  if (!homeHtmlCache) homeHtmlCache = renderHome({ DOMAIN_LOCK_SCRIPT, siteHeadFor, appVersion: APP_VERSION });
   res.send(homeHtmlCache);
 });
 

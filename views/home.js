@@ -46,7 +46,7 @@ function sideLinks() {
   ).join("\n        ");
 }
 
-export function renderHome({ DOMAIN_LOCK_SCRIPT, siteHeadFor }) {
+export function renderHome({ DOMAIN_LOCK_SCRIPT, siteHeadFor, appVersion = "1.0.0" }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -262,7 +262,7 @@ button{cursor:pointer}
 <div class="aurora"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="blob blob-3"></div></div>
 
 <nav class="hm-nav">
-  <a class="hm-logo" href="/"><img src="/icon-32.png" alt="" width="26" height="26"><span class="hm-logo-text">ES TEAMS TV</span><span class="hm-pill">LIVE</span></a>
+  <a class="hm-logo" href="/"><img src="/icon-32.png" alt="" width="26" height="26"><span class="hm-logo-text">ES TEAMS TV</span><span class="hm-pill">LIVE · v${appVersion}</span></a>
   <div class="search-wrap" id="hmSearchWrap">
     ${icon("search", 15)}
     <input class="search-input" id="hmSearchInput" type="text" placeholder="Search people..." autocomplete="off" spellcheck="false" aria-label="Search people">
