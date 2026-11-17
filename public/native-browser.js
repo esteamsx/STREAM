@@ -532,20 +532,90 @@
     }
   });
 
-  // node_modules/@capacitor/browser/dist/esm/definitions.js
+  // node_modules/@capacitor/app/dist/esm/definitions.js
   var init_definitions = __esm({
+    "node_modules/@capacitor/app/dist/esm/definitions.js"() {
+    }
+  });
+
+  // node_modules/@capacitor/app/dist/esm/web.js
+  var web_exports = {};
+  __export(web_exports, {
+    AppWeb: () => AppWeb
+  });
+  var AppWeb;
+  var init_web = __esm({
+    "node_modules/@capacitor/app/dist/esm/web.js"() {
+      init_dist();
+      AppWeb = class extends WebPlugin {
+        constructor() {
+          super();
+          this.handleVisibilityChange = () => {
+            const data = {
+              isActive: document.hidden !== true
+            };
+            this.notifyListeners("appStateChange", data);
+            if (document.hidden) {
+              this.notifyListeners("pause", null);
+            } else {
+              this.notifyListeners("resume", null);
+            }
+          };
+          document.addEventListener("visibilitychange", this.handleVisibilityChange, false);
+        }
+        exitApp() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async getInfo() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async getLaunchUrl() {
+          return { url: "" };
+        }
+        async getState() {
+          return { isActive: document.hidden !== true };
+        }
+        async minimizeApp() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async toggleBackButtonHandler() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async getAppLanguage() {
+          return {
+            value: navigator.language.split("-")[0].toLowerCase()
+          };
+        }
+      };
+    }
+  });
+
+  // node_modules/@capacitor/app/dist/esm/index.js
+  var App;
+  var init_esm = __esm({
+    "node_modules/@capacitor/app/dist/esm/index.js"() {
+      init_dist();
+      init_definitions();
+      App = registerPlugin("App", {
+        web: () => Promise.resolve().then(() => (init_web(), web_exports)).then((m) => new m.AppWeb())
+      });
+    }
+  });
+
+  // node_modules/@capacitor/browser/dist/esm/definitions.js
+  var init_definitions2 = __esm({
     "node_modules/@capacitor/browser/dist/esm/definitions.js"() {
     }
   });
 
   // node_modules/@capacitor/browser/dist/esm/web.js
-  var web_exports = {};
-  __export(web_exports, {
+  var web_exports2 = {};
+  __export(web_exports2, {
     Browser: () => Browser,
     BrowserWeb: () => BrowserWeb
   });
   var BrowserWeb, Browser;
-  var init_web = __esm({
+  var init_web2 = __esm({
     "node_modules/@capacitor/browser/dist/esm/web.js"() {
       init_dist();
       BrowserWeb = class extends WebPlugin {
@@ -574,83 +644,12 @@
 
   // node_modules/@capacitor/browser/dist/esm/index.js
   var Browser2;
-  var init_esm = __esm({
+  var init_esm2 = __esm({
     "node_modules/@capacitor/browser/dist/esm/index.js"() {
       init_dist();
-      init_definitions();
-      Browser2 = registerPlugin("Browser", {
-        web: () => Promise.resolve().then(() => (init_web(), web_exports)).then((m) => new m.BrowserWeb())
-      });
-    }
-  });
-
-  // node_modules/@capawesome/capacitor-in-app-browser/dist/esm/definitions.js
-  var ErrorCode;
-  var init_definitions2 = __esm({
-    "node_modules/@capawesome/capacitor-in-app-browser/dist/esm/definitions.js"() {
-      (function(ErrorCode2) {
-        ErrorCode2["BrowserNotFound"] = "BROWSER_NOT_FOUND";
-        ErrorCode2["NoBrowserOpen"] = "NO_BROWSER_OPEN";
-      })(ErrorCode || (ErrorCode = {}));
-    }
-  });
-
-  // node_modules/@capawesome/capacitor-in-app-browser/dist/esm/web.js
-  var web_exports2 = {};
-  __export(web_exports2, {
-    InAppBrowserWeb: () => InAppBrowserWeb
-  });
-  var InAppBrowserWeb;
-  var init_web2 = __esm({
-    "node_modules/@capawesome/capacitor-in-app-browser/dist/esm/web.js"() {
-      init_dist();
-      InAppBrowserWeb = class _InAppBrowserWeb extends WebPlugin {
-        async clearCache() {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        async clearCookies() {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        async close() {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        async executeScript() {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        async getCookies() {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        async openInExternalBrowser(options) {
-          if (!options.url) {
-            throw new Error(_InAppBrowserWeb.errorUrlMissing);
-          }
-          window.open(options.url, "_blank");
-        }
-        async openInSystemBrowser() {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        async openInWebView() {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        async postMessage() {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        async show() {
-          throw this.unimplemented("Not implemented on web.");
-        }
-      };
-      InAppBrowserWeb.errorUrlMissing = "url must be provided.";
-    }
-  });
-
-  // node_modules/@capawesome/capacitor-in-app-browser/dist/esm/index.js
-  var InAppBrowser;
-  var init_esm2 = __esm({
-    "node_modules/@capawesome/capacitor-in-app-browser/dist/esm/index.js"() {
-      init_dist();
       init_definitions2();
-      InAppBrowser = registerPlugin("InAppBrowser", {
-        web: () => Promise.resolve().then(() => (init_web2(), web_exports2)).then((m) => new m.InAppBrowserWeb())
+      Browser2 = registerPlugin("Browser", {
+        web: () => Promise.resolve().then(() => (init_web2(), web_exports2)).then((m) => new m.BrowserWeb())
       });
     }
   });
@@ -662,38 +661,113 @@
       init_esm2();
       init_dist();
       var isNativeApp = Capacitor.isNativePlatform();
+      var APP_ORIGIN = window.location.origin;
+      var APP_HOSTNAME = window.location.hostname;
+      var CALLBACK_PATH = "/login";
+      var browserOpen = false;
+      var callbackUrl = null;
+      function isHttpUrl(url) {
+        return url && (url.protocol === "http:" || url.protocol === "https:");
+      }
+      function isAuthCallback(url) {
+        return url.origin === APP_ORIGIN && url.pathname === CALLBACK_PATH && (url.searchParams.has("tg_token") || url.searchParams.has("gh_token") || url.searchParams.has("tg_error") || url.searchParams.has("gh_error") || url.searchParams.has("google_ticket") || url.searchParams.has("google_error"));
+      }
+      function isInternalUrl(url) {
+        return url.hostname === APP_HOSTNAME && url.protocol === window.location.protocol;
+      }
+      async function openInCustomTab(url) {
+        if (!isHttpUrl(url) || browserOpen) return;
+        browserOpen = true;
+        try {
+          await Browser2.open({
+            url: url.href,
+            toolbarColor: "#080B18",
+            presentationStyle: "fullscreen"
+          });
+        } catch (error) {
+          browserOpen = false;
+          console.error("[native-browser] Could not open Chrome Custom Tab:", error);
+        }
+      }
+      function handleAppUrl(rawUrl) {
+        if (!rawUrl || callbackUrl === rawUrl) return;
+        let url;
+        try {
+          url = new URL(rawUrl);
+        } catch {
+          return;
+        }
+        if (!isAuthCallback(url)) return;
+        callbackUrl = rawUrl;
+        browserOpen = false;
+        window.location.replace(url.href);
+      }
+      async function checkForAppUpdate() {
+        try {
+          const response = await fetch("/api/app-version", { cache: "no-store" });
+          if (!response.ok) return;
+          const release = await response.json();
+          const version = String(release.version || "").trim();
+          if (!version) return;
+          const previous = localStorage.getItem("es-teams-tv-app-version");
+          localStorage.setItem("es-teams-tv-app-version", version);
+          if (!previous || previous === version || document.getElementById("esNativeUpdatePopup")) return;
+          const style = document.createElement("style");
+          style.textContent = "#esNativeUpdatePopup{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:24px;background:rgba(3,6,18,.52);backdrop-filter:blur(12px)}#esNativeUpdatePopup .es-native-update-card{width:min(100%,360px);padding:24px;border:1px solid rgba(255,255,255,.16);border-radius:24px;background:linear-gradient(145deg,rgba(30,36,66,.96),rgba(10,14,30,.96));box-shadow:0 20px 70px rgba(0,0,0,.45);color:#fff;font:500 15px/1.5 system-ui,sans-serif}#esNativeUpdatePopup h2{margin:0 0 8px;font-size:20px}#esNativeUpdatePopup p{margin:0 0 18px;color:rgba(255,255,255,.74)}#esNativeUpdatePopup button{width:100%;border:0;border-radius:14px;padding:12px 16px;background:#fff;color:#11172b;font-weight:700}";
+          document.head.appendChild(style);
+          const popup = document.createElement("div");
+          popup.id = "esNativeUpdatePopup";
+          popup.innerHTML = '<div class="es-native-update-card" role="dialog" aria-modal="true" aria-labelledby="esNativeUpdateTitle"><h2 id="esNativeUpdateTitle">App version updated</h2><p></p><button type="button">Continue</button></div>';
+          popup.querySelector("p").textContent = `ES TEAMS TV ${version} is now available.${release.notes ? ` ${release.notes}` : ""}`;
+          popup.querySelector("button").addEventListener("click", () => popup.remove(), { once: true });
+          document.body.appendChild(popup);
+        } catch (error) {
+          console.warn("[native-browser] App version check failed:", error);
+        }
+      }
       if (isNativeApp) {
         window.__ES_NATIVE_APP__ = true;
-        document.addEventListener("click", async (event) => {
-          const link = event.target.closest("a[href]");
+        window.__ES_OPEN_EXTERNAL__ = (rawUrl) => {
+          try {
+            const url = new URL(rawUrl, window.location.href);
+            void openInCustomTab(url);
+          } catch (error) {
+            console.error("[native-browser] Invalid external URL:", error);
+          }
+        };
+        Browser2.addListener("browserFinished", () => {
+          browserOpen = false;
+        });
+        App.addListener("appUrlOpen", ({ url }) => handleAppUrl(url));
+        App.getLaunchUrl().then(({ url }) => handleAppUrl(url)).catch(() => {
+        });
+        void checkForAppUpdate();
+        document.addEventListener("click", (event) => {
+          const link = event.target.closest?.("a[href]");
           if (!link || event.defaultPrevented || link.hasAttribute("download")) return;
-          const url = new URL(link.href, window.location.href);
-          if (!["http:", "https:"].includes(url.protocol)) return;
-          const isAuthStart = url.origin === window.location.origin && /^\/api\/(?:telegram|github)-auth\/start$/.test(url.pathname);
-          const opensNewView = link.target.toLowerCase() === "_blank";
-          if (url.hostname === window.location.hostname && !isAuthStart && !opensNewView) return;
+          let url;
+          try {
+            url = new URL(link.href, window.location.href);
+          } catch {
+            return;
+          }
+          if (!isHttpUrl(url) || isInternalUrl(url)) return;
           event.preventDefault();
           event.stopImmediatePropagation();
-          try {
-            if (isAuthStart || !Capacitor.isPluginAvailable("InAppBrowser")) {
-              await Browser2.open({ url: url.href, toolbarColor: "#080B18" });
-            } else {
-              await InAppBrowser.openInWebView({
-                url: url.href,
-                toolbar: {
-                  backgroundColor: "#080B18",
-                  color: "#FFFFFF",
-                  showUrl: true,
-                  showNavigationButtons: true,
-                  closeButtonText: "Close"
-                },
-                android: { hardwareBackButton: true }
-              });
-            }
-          } catch (error) {
-            console.error("Could not open in-app browser:", error);
-          }
+          void openInCustomTab(url);
         }, true);
+        const nativeWindowOpen = window.open.bind(window);
+        window.open = (rawUrl, target, features) => {
+          let url;
+          try {
+            url = new URL(rawUrl, window.location.href);
+          } catch {
+            return nativeWindowOpen(rawUrl, target, features);
+          }
+          if (!isHttpUrl(url) || isInternalUrl(url)) return nativeWindowOpen(rawUrl, target, features);
+          void openInCustomTab(url);
+          return null;
+        };
       }
     }
   });
