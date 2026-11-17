@@ -3,6 +3,7 @@ name: ES Teams TV Android Build
 on:
   push:
     branches:
+      - main
       - mobile-app
     paths:
       - 'native-app/**'
