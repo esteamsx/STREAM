@@ -37,3 +37,17 @@ test("HLS network recovery state resets only after actual playback resumes", () 
   assert.match(html, /hls\.on\(HlsPlayer\.Events\.ERROR/);
   assert.match(html, /onVideo\('playing',[\s\S]*?_netRetries = 0;[\s\S]*?setStatus\('Playing'/);
 });
+
+test("page boot animation does not leave a permanent filter on the body", () => {
+  assert.match(html, /animation:bootFlicker \.9s var\(--ease\) backwards;/);
+  assert.doesNotMatch(html, /animation:bootFlicker[^;]*\bboth\b/);
+});
+
+test("channel buttons carry no backdrop-filter and media buttons blur only while controls are visible", () => {
+  const chBtnRules = html.match(/\.ch-btn(?::hover|\.active)?\{[^}]*\}/g) || [];
+  assert.ok(chBtnRules.length > 0);
+  for (const rule of chBtnRules) assert.doesNotMatch(rule, /backdrop-filter/);
+  const mcBtn = html.match(/\n\.mc-btn\{[^}]*\}/)[0];
+  assert.doesNotMatch(mcBtn, /backdrop-filter/);
+  assert.match(html, /\.video-wrap\.controls-visible \.mc-btn\{backdrop-filter:blur\(8px\)\}/);
+});
