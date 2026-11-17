@@ -632,6 +632,40 @@ async function consumeGithubOAuthState(state) {
   return Date.now() <= expiresAt;
 }
 
+async function saveGoogleOAuthState(state, data) {
+  await db.collection("google_oauth_state").doc(state).set({
+    ...data,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+}
+
+async function consumeGoogleOAuthState(state) {
+  const ref = db.collection("google_oauth_state").doc(state);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  await ref.delete();
+  if (!data || Date.now() > Number(data.expiresAt || 0)) return null;
+  return data;
+}
+
+async function saveGoogleOAuthTicket(ticket, data) {
+  await db.collection("google_oauth_tickets").doc(ticket).set({
+    ...data,
+    expiresAt: Date.now() + 2 * 60 * 1000,
+  });
+}
+
+async function consumeGoogleOAuthTicket(ticket) {
+  const ref = db.collection("google_oauth_tickets").doc(ticket);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  await ref.delete();
+  if (!data || Date.now() > Number(data.expiresAt || 0)) return null;
+  return data;
+}
+
 async function findUserByGithubId(githubId) {
   const snap = await db.collection("users").where("githubId", "==", String(githubId)).limit(1).get();
   if (snap.empty) return null;
@@ -6393,6 +6427,10 @@ export {
   createOrGetGithubUser,
   saveGithubOAuthState,
   consumeGithubOAuthState,
+  saveGoogleOAuthState,
+  consumeGoogleOAuthState,
+  saveGoogleOAuthTicket,
+  consumeGoogleOAuthTicket,
   createApiKey,
   listApiKeysForUser,
   revokeApiKey,

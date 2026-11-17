@@ -149,6 +149,45 @@ jobs:
           fi
           echo 'Release APK signature verified against the configured keystore certificate.'
 
+      - name: Generate Digital Asset Links file
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/es-teams-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          set +x
+          CERT_PATH="$RUNNER_TEMP/es-teams-release-cert.der"
+          keytool -exportcert -keystore "$ANDROID_KEYSTORE_PATH" \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -alias "$ANDROID_KEY_ALIAS" -file "$CERT_PATH" >/dev/null 2>&1
+          FINGERPRINT="$(keytool -printcert -file "$CERT_PATH" | awk -F': ' '/SHA256:/{print $2; exit}')"
+          if ! printf '%s' "$FINGERPRINT" | grep -Eq '^([0-9A-F]{2}:){31}[0-9A-F]{2}$'; then
+            echo '::error::Could not derive a valid SHA-256 release certificate fingerprint.'
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/assetlinks/.well-known"
+          cat > "$RUNNER_TEMP/assetlinks/.well-known/assetlinks.json" <<EOF
+          [
+            {
+              "relation": ["delegate_permission/common.handle_all_urls"],
+              "target": {
+                "namespace": "android_app",
+                "package_name": "com.esteamstv.app",
+                "sha256_cert_fingerprints": ["$FINGERPRINT"]
+              }
+            }
+          ]
+          EOF
+          echo "Release certificate SHA-256: $FINGERPRINT"
+
+      - name: Upload Digital Asset Links file
+        uses: actions/upload-artifact@v4
+        with:
+          name: ES-Teams-TV-assetlinks
+          path: ${{ runner.temp }}/assetlinks/.well-known/assetlinks.json
+          if-no-files-found: error
+
       - name: Upload signed release APK
         uses: actions/upload-artifact@v4
         with:

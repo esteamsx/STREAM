@@ -16,7 +16,8 @@ function isHttpUrl(url) {
 function isAuthCallback(url) {
   return url.origin === APP_ORIGIN && url.pathname === CALLBACK_PATH &&
     (url.searchParams.has('tg_token') || url.searchParams.has('gh_token') ||
-      url.searchParams.has('tg_error') || url.searchParams.has('gh_error'));
+      url.searchParams.has('tg_error') || url.searchParams.has('gh_error') ||
+      url.searchParams.has('google_ticket') || url.searchParams.has('google_error'));
 }
 
 function isInternalUrl(url) {
@@ -56,6 +57,14 @@ function handleAppUrl(rawUrl) {
 
 if (isNativeApp) {
   window.__ES_NATIVE_APP__ = true;
+  window.__ES_OPEN_EXTERNAL__ = (rawUrl) => {
+    try {
+      const url = new URL(rawUrl, window.location.href);
+      void openInCustomTab(url);
+    } catch (error) {
+      console.error('[native-browser] Invalid external URL:', error);
+    }
+  };
 
   Browser.addListener('browserFinished', () => {
     browserOpen = false;

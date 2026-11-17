@@ -216,6 +216,10 @@ import {
   createOrGetGithubUser,
   saveGithubOAuthState,
   consumeGithubOAuthState,
+  saveGoogleOAuthState,
+  consumeGoogleOAuthState,
+  saveGoogleOAuthTicket,
+  consumeGoogleOAuthTicket,
   applyReferral,
   issueResetToken,
   consumeResetToken,
@@ -3401,6 +3405,121 @@ const TELEGRAM_REDIRECT_URI = "https://esteamstv.devs.surf/api/telegram-auth/cal
 function base64url(buf) {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
+const GOOGLE_NATIVE_REDIRECT_URI = process.env.GOOGLE_NATIVE_REDIRECT_URI || "";
+
+function safeLoginTarget(value) {
+  const target = String(value || "/");
+  return target.startsWith("/") && !target.startsWith("//") && !target.includes("\\")
+    ? target.slice(0, 500)
+    : "/";
+}
+
+app.get("/api/google-auth/start", oauthStartLimiter, async (req, res) => {
+  try {
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_NATIVE_REDIRECT_URI) {
+      return res.redirect("/login?google_error=" + encodeURIComponent("Google sign-in is not configured for this app."));
+    }
+    const state = base64url(crypto.randomBytes(32));
+    const codeVerifier = base64url(crypto.randomBytes(32));
+    const codeChallenge = base64url(crypto.createHash("sha256").update(codeVerifier).digest());
+    await saveGoogleOAuthState(state, { codeVerifier, next: safeLoginTarget(req.query?.next) });
+
+    const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    url.searchParams.set("client_id", GOOGLE_CLIENT_ID);
+    url.searchParams.set("redirect_uri", GOOGLE_NATIVE_REDIRECT_URI);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("scope", "openid email profile");
+    url.searchParams.set("state", state);
+    url.searchParams.set("code_challenge", codeChallenge);
+    url.searchParams.set("code_challenge_method", "S256");
+    url.searchParams.set("access_type", "online");
+    url.searchParams.set("prompt", "select_account");
+    res.redirect(url.toString());
+  } catch (err) {
+    console.error("[/api/google-auth/start] failed:", err);
+    res.redirect("/login?google_error=" + encodeURIComponent("Could not start Google sign-in."));
+  }
+});
+
+app.get("/api/google-auth/callback", oauthCallbackLimiter, async (req, res) => {
+  const fail = (message) => res.redirect("/login?google_error=" + encodeURIComponent(message));
+  try {
+    const { code, state, error } = req.query || {};
+    if (error) return fail(error === "access_denied" ? "Google sign-in was cancelled." : "Google sign-in failed.");
+    if (!code || !state) return fail("Invalid Google sign-in response.");
+    const saved = await consumeGoogleOAuthState(String(state));
+    if (!saved?.codeVerifier) return fail("This Google sign-in link expired. Please try again.");
+
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code: String(code),
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_NATIVE_REDIRECT_URI,
+        grant_type: "authorization_code",
+        code_verifier: String(saved.codeVerifier),
+      }).toString(),
+      signal: AbortSignal.timeout(15000),
+    });
+    const tokenData = await tokenResponse.json().catch(() => ({}));
+    if (!tokenResponse.ok || !tokenData.id_token) return fail("Could not complete Google sign-in.");
+
+    const claimsResponse = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(tokenData.id_token), {
+      signal: AbortSignal.timeout(10000),
+    });
+    const claims = await claimsResponse.json().catch(() => ({}));
+    if (!claimsResponse.ok || claims.aud !== GOOGLE_CLIENT_ID || claims.iss !== "https://accounts.google.com" || claims.email_verified !== "true") {
+      return fail("Google account verification failed.");
+    }
+
+    const apiKey = process.env.FIREBASE_API_KEY;
+    if (!apiKey) return fail("Firebase sign-in relay is not configured.");
+    const firebaseResponse = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        postBody: `id_token=${encodeURIComponent(tokenData.id_token)}&providerId=google.com`,
+        requestUri: GOOGLE_NATIVE_REDIRECT_URI,
+        returnSecureToken: true,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const firebaseData = await firebaseResponse.json().catch(() => ({}));
+    if (!firebaseResponse.ok || !firebaseData.idToken) return fail("Firebase could not complete Google sign-in.");
+
+    const ticket = base64url(crypto.randomBytes(32));
+    await saveGoogleOAuthTicket(ticket, {
+      idToken: firebaseData.idToken,
+      next: safeLoginTarget(saved.next),
+    });
+    const callbackUrl = new URL(GOOGLE_NATIVE_REDIRECT_URI);
+    callbackUrl.search = "";
+    callbackUrl.pathname = "/login";
+    callbackUrl.searchParams.set("google_ticket", ticket);
+    res.redirect(callbackUrl.toString());
+  } catch (err) {
+    console.error("[/api/google-auth/callback] failed:", err);
+    fail("Could not complete Google sign-in.");
+  }
+});
+
+app.post("/api/google-auth/complete", requireSiteOrigin, authExchangeLimiter, async (req, res) => {
+  try {
+    const ticket = String(req.body?.ticket || "");
+    if (!/^[A-Za-z0-9_-]{40,100}$/.test(ticket)) return res.status(400).json({ error: "Invalid Google sign-in ticket." });
+    const data = await consumeGoogleOAuthTicket(ticket);
+    if (!data?.idToken) return res.status(400).json({ error: "This Google sign-in link expired. Please try again." });
+    res.json({ idToken: data.idToken, next: safeLoginTarget(data.next) });
+  } catch (err) {
+    console.error("[/api/google-auth/complete] failed:", err);
+    res.status(502).json({ error: "Google sign-in is temporarily unavailable. Please try again shortly." });
+  }
+});
 
 app.get("/api/telegram-auth/start", oauthStartLimiter, async (req, res) => {
   try {
