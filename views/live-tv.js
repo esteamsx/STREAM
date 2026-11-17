@@ -58,7 +58,7 @@ body{
     radial-gradient(900px 500px at 15% -10%,rgba(0,224,255,.06),transparent 60%),
     radial-gradient(700px 400px at 100% 0%,rgba(124,92,255,.04),transparent 55%);
   font-feature-settings:"ss01" 1;
-  animation:bootFlicker .9s var(--ease) both;
+  animation:bootFlicker .9s var(--ease) backwards;
 }
 button{font-family:inherit;cursor:pointer}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:rgba(0,224,255,.4)}
@@ -754,17 +754,14 @@ button{font-family:inherit;cursor:pointer}
 .wh-sub{font-size:.64rem;color:var(--muted);font-family:var(--font-mono);margin-top:1px}
 
 .ch-btn{
-  backdrop-filter:blur(8px);
   background:linear-gradient(135deg,rgba(255,255,255,.025),rgba(255,255,255,.005));
 }
 .ch-btn:hover{
   background:linear-gradient(135deg,rgba(0,224,255,.10),rgba(124,92,255,.06));
-  backdrop-filter:blur(12px);
   box-shadow:0 2px 12px rgba(0,224,255,.08),inset 0 1px 0 rgba(255,255,255,.08);
 }
 .ch-btn.active{
   background:linear-gradient(135deg,rgba(0,224,255,.14),rgba(124,92,255,.09));
-  backdrop-filter:blur(14px);
   box-shadow:0 2px 16px rgba(0,224,255,.12),inset 0 1px 0 rgba(255,255,255,.10);
 }
 
@@ -892,11 +889,12 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 }
 .video-wrap:hover .media-controls,
 .video-wrap.controls-visible .media-controls{opacity:1}
+.video-wrap:hover .mc-btn,
+.video-wrap.controls-visible .mc-btn{backdrop-filter:blur(8px)}
 .mc-btn{
   width:34px;height:34px;border-radius:50%;border:none;
   background:rgba(255,255,255,.12);color:#fff;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
-  backdrop-filter:blur(8px);
   box-shadow:0 2px 8px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.15);
   transition:background .18s var(--ease),transform .14s var(--ease),box-shadow .18s var(--ease);
 }
