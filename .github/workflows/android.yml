@@ -75,7 +75,10 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          test -n "$ANDROID_KEYSTORE_BASE64"
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo '::error::ANDROID_KEYSTORE_BASE64 is unavailable to this workflow. Check repository Actions secrets or attach the GitHub Environment that contains it.'
+            exit 1
+          fi
           umask 077
           KEYSTORE_PATH="$RUNNER_TEMP/es-teams-release.jks"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
@@ -92,9 +95,18 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          test -n "$ANDROID_KEYSTORE_PASSWORD"
-          test -n "$ANDROID_KEY_ALIAS"
-          test -n "$ANDROID_KEY_PASSWORD"
+          if [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ]; then
+            echo '::error::ANDROID_KEYSTORE_PASSWORD is unavailable to this workflow.'
+            exit 1
+          fi
+          if [ -z "${ANDROID_KEY_ALIAS:-}" ]; then
+            echo '::error::ANDROID_KEY_ALIAS is unavailable to this workflow.'
+            exit 1
+          fi
+          if [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then
+            echo '::error::ANDROID_KEY_PASSWORD is unavailable to this workflow.'
+            exit 1
+          fi
           ./gradlew assembleRelease
 
       - name: Verify release APK signing certificate
