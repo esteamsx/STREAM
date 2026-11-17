@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:native-browser": "esbuild native-browser-entry.js --bundle --format=iife --platform=browser --target=es2020 --outfile=../public/native-browser.js"
   },
   "keywords": [],
   "author": "",
@@ -12,12 +13,14 @@
   "type": "commonjs",
   "dependencies": {
     "@capacitor/android": "^8.6.2",
+    "@capacitor/browser": "^8.0.5",
     "@capacitor/cli": "^8.6.2",
     "@capacitor/core": "^8.6.2",
     "@capacitor/ios": "^8.6.2"
   },
   "devDependencies": {
     "@capacitor/assets": "^4.0.0",
+    "esbuild": "^0.28.2",
     "sharp": "^0.35.5"
   }
 }

@@ -6,6 +6,8 @@ on:
       - mobile-app
     paths:
       - 'native-app/**'
+      - 'middleware/promo-slot.js'
+      - 'public/native-browser.js'
       - '.github/workflows/android.yml'
   workflow_dispatch:
 
@@ -37,6 +39,10 @@ jobs:
       - name: Install dependencies
         working-directory: native-app
         run: npm ci
+
+      - name: Build native browser handler
+        working-directory: native-app
+        run: npm run build:native-browser
 
       - name: Prepare app icon
         working-directory: native-app

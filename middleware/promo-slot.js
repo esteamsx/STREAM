@@ -99,6 +99,7 @@ const NAV_TAG = `<script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defe
 const SLIDE_LOGOUT_CSS_TAG = `<link rel="stylesheet" href="/slide-logout.css?v=${BUILD}">`;
 const SLIDE_LOGOUT_TAG = `<script nonce="__CSP_NONCE__" src="/slide-logout.js?v=${BUILD}" defer></script>`;
 const SEASONAL_TAG = `<script nonce="__CSP_NONCE__" src="/christmas-theme.js?v=${BUILD}" defer></script>`;
+const APP_BROWSER_TAG = `<script nonce="__CSP_NONCE__" src="/native-browser.js?v=${BUILD}" defer></script>`;
 
 function matches(path, list) {
   return list.some((entry) => (entry.endsWith("/") ? path.startsWith(entry) : path === entry || path.startsWith(entry + "/")));
@@ -115,7 +116,8 @@ export function injectPromoSlot(req, res, next) {
   const wantsPopunder = !matches(req.path, POPUNDER_SKIP_PATHS);
   const wantsNative = wantsPopunder && (NATIVE_EXACT_PATHS.includes(req.path) || NATIVE_PREFIX_PATHS.some((p) => req.path.startsWith(p)));
   const wantsSeasonal = SEASONAL_THEME_ENABLED && !matches(req.path, SEASONAL_SKIP_PATHS);
-  if (!wantsAds && !wantsNav && !wantsPresence && !wantsSocial && !wantsTheme && !wantsRewards && !wantsSeasonal) return next();
+  const wantsAppBrowser = true;
+  if (!wantsAds && !wantsNav && !wantsPresence && !wantsSocial && !wantsTheme && !wantsRewards && !wantsSeasonal && !wantsAppBrowser) return next();
   const originalSend = res.send.bind(res);
   res.send = (body) => {
     if (typeof body === "string" && res.statusCode === 200) {
@@ -140,7 +142,8 @@ export function injectPromoSlot(req, res, next) {
             (wantsSocial && adsOk ? SOCIAL_TAG : "") +
             (wantsPopunder && adsOk && body.indexOf("/popunder.js") === -1 ? POPUNDER_TAG : "") +
             (wantsNative && adsOk && body.indexOf("/native-banner.js") === -1 ? NATIVE_TAG : "") +
-            (wantsSeasonal && body.indexOf("/christmas-theme.js") === -1 ? SEASONAL_TAG : "");
+            (wantsSeasonal && body.indexOf("/christmas-theme.js") === -1 ? SEASONAL_TAG : "") +
+        (wantsAppBrowser && body.indexOf("/native-browser.js") === -1 ? APP_BROWSER_TAG : "");
           body = body.slice(0, at) + tags + body.slice(at);
         }
       }
