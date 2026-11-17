@@ -91,7 +91,7 @@
           const createPluginMethod = (impl, prop) => {
             var _a, _b;
             if (pluginHeader) {
-              const methodHeader = pluginHeader === null || pluginHeader === void 0 ? void 0 : pluginHeader.methods.find((m2) => prop === m2.name);
+              const methodHeader = pluginHeader === null || pluginHeader === void 0 ? void 0 : pluginHeader.methods.find((m) => prop === m.name);
               if (methodHeader) {
                 if (methodHeader.rtype === "promise") {
                   return (options) => cap.nativePromise(pluginName, prop.toString(), options);
@@ -152,7 +152,7 @@
             return p;
           };
           const proxy = new Proxy({}, {
-            get(_2, prop) {
+            get(_, prop) {
               switch (prop) {
                 // https://github.com/facebook/react/issues/20030
                 case "$$typeof":
@@ -579,98 +579,78 @@
       init_dist();
       init_definitions();
       Browser2 = registerPlugin("Browser", {
-        web: () => Promise.resolve().then(() => (init_web(), web_exports)).then((m2) => new m2.BrowserWeb())
+        web: () => Promise.resolve().then(() => (init_web(), web_exports)).then((m) => new m.BrowserWeb())
       });
     }
   });
 
-  // node_modules/@capacitor/inappbrowser/dist/web-B3Ll3yFB.js
-  var web_B3Ll3yFB_exports = {};
-  __export(web_B3Ll3yFB_exports, {
-    InAppBrowserWeb: () => m
-  });
-  var m;
-  var init_web_B3Ll3yFB = __esm({
-    "node_modules/@capacitor/inappbrowser/dist/web-B3Ll3yFB.js"() {
-      init_dist();
-      m = class extends WebPlugin {
-        //@ts-ignore
-        openInWebView(e) {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        //@ts-ignore
-        openInSystemBrowser(e) {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        //@ts-ignore
-        openInExternalBrowser(e) {
-          throw this.unimplemented("Not implemented on web.");
-        }
-        //@ts-ignore
-        close() {
-          throw this.unimplemented("Not implemented on web.");
-        }
-      };
+  // node_modules/@capawesome/capacitor-in-app-browser/dist/esm/definitions.js
+  var ErrorCode;
+  var init_definitions2 = __esm({
+    "node_modules/@capawesome/capacitor-in-app-browser/dist/esm/definitions.js"() {
+      (function(ErrorCode2) {
+        ErrorCode2["BrowserNotFound"] = "BROWSER_NOT_FOUND";
+        ErrorCode2["NoBrowserOpen"] = "NO_BROWSER_OPEN";
+      })(ErrorCode || (ErrorCode = {}));
     }
   });
 
-  // node_modules/@capacitor/inappbrowser/dist/plugin.mjs
-  var t, E, s, a, r, O, T, _, c, o, u, R;
-  var init_plugin = __esm({
-    "node_modules/@capacitor/inappbrowser/dist/plugin.mjs"() {
+  // node_modules/@capawesome/capacitor-in-app-browser/dist/esm/web.js
+  var web_exports2 = {};
+  __export(web_exports2, {
+    InAppBrowserWeb: () => InAppBrowserWeb
+  });
+  var InAppBrowserWeb;
+  var init_web2 = __esm({
+    "node_modules/@capawesome/capacitor-in-app-browser/dist/esm/web.js"() {
       init_dist();
-      t = /* @__PURE__ */ ((e) => (e[e.TOP = 0] = "TOP", e[e.BOTTOM = 1] = "BOTTOM", e))(t || {});
-      E = /* @__PURE__ */ ((e) => (e[e.PAGE_SHEET = 0] = "PAGE_SHEET", e[e.FORM_SHEET = 1] = "FORM_SHEET", e[e.FULL_SCREEN = 2] = "FULL_SCREEN", e))(E || {});
-      s = /* @__PURE__ */ ((e) => (e[e.BOTTOM_SHEET = 0] = "BOTTOM_SHEET", e[e.FULL_SCREEN = 1] = "FULL_SCREEN", e))(s || {});
-      a = /* @__PURE__ */ ((e) => (e[e.FLIP_HORIZONTAL = 0] = "FLIP_HORIZONTAL", e[e.CROSS_DISSOLVE = 1] = "CROSS_DISSOLVE", e[e.COVER_VERTICAL = 2] = "COVER_VERTICAL", e))(a || {});
-      r = /* @__PURE__ */ ((e) => (e[e.FADE_IN = 0] = "FADE_IN", e[e.FADE_OUT = 1] = "FADE_OUT", e[e.SLIDE_IN_LEFT = 2] = "SLIDE_IN_LEFT", e[e.SLIDE_OUT_RIGHT = 3] = "SLIDE_OUT_RIGHT", e))(r || {});
-      O = /* @__PURE__ */ ((e) => (e[e.CLOSE = 0] = "CLOSE", e[e.CANCEL = 1] = "CANCEL", e[e.DONE = 2] = "DONE", e))(O || {});
-      T = {
-        allowZoom: false,
-        hardwareBack: true,
-        pauseMedia: true,
-        isIsolated: true,
-        successUrlPatterns: []
+      InAppBrowserWeb = class _InAppBrowserWeb extends WebPlugin {
+        async clearCache() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async clearCookies() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async close() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async executeScript() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async getCookies() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async openInExternalBrowser(options) {
+          if (!options.url) {
+            throw new Error(_InAppBrowserWeb.errorUrlMissing);
+          }
+          window.open(options.url, "_blank");
+        }
+        async openInSystemBrowser() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async openInWebView() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async postMessage() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async show() {
+          throw this.unimplemented("Not implemented on web.");
+        }
       };
-      _ = {
-        allowOverScroll: true,
-        enableViewportScale: false,
-        allowInLineMediaPlayback: false,
-        surpressIncrementalRendering: false,
-        viewStyle: E.FULL_SCREEN,
-        animationEffect: a.COVER_VERTICAL,
-        allowsBackForwardNavigationGestures: true
-      };
-      c = {
-        showToolbar: true,
-        showURL: true,
-        clearCache: true,
-        clearSessionCache: true,
-        mediaPlaybackRequiresUserAction: false,
-        closeButtonText: "Close",
-        toolbarPosition: t.TOP,
-        showNavigationButtons: true,
-        leftToRight: false,
-        customWebViewUserAgent: null,
-        android: T,
-        iOS: _
-      };
-      o = {
-        closeButtonText: O.DONE,
-        viewStyle: E.FULL_SCREEN,
-        animationEffect: a.COVER_VERTICAL,
-        enableBarsCollapsing: true,
-        enableReadersMode: false
-      };
-      u = {
-        showTitle: false,
-        hideToolbarOnScroll: false,
-        viewStyle: s.BOTTOM_SHEET,
-        startAnimation: r.FADE_IN,
-        exitAnimation: r.FADE_OUT
-      };
-      R = registerPlugin("InAppBrowser", {
-        web: () => Promise.resolve().then(() => (init_web_B3Ll3yFB(), web_B3Ll3yFB_exports)).then((e) => new e.InAppBrowserWeb())
+      InAppBrowserWeb.errorUrlMissing = "url must be provided.";
+    }
+  });
+
+  // node_modules/@capawesome/capacitor-in-app-browser/dist/esm/index.js
+  var InAppBrowser;
+  var init_esm2 = __esm({
+    "node_modules/@capawesome/capacitor-in-app-browser/dist/esm/index.js"() {
+      init_dist();
+      init_definitions2();
+      InAppBrowser = registerPlugin("InAppBrowser", {
+        web: () => Promise.resolve().then(() => (init_web2(), web_exports2)).then((m) => new m.InAppBrowserWeb())
       });
     }
   });
@@ -679,7 +659,7 @@
   var require_native_browser_entry = __commonJS({
     "native-browser-entry.js"() {
       init_esm();
-      init_plugin();
+      init_esm2();
       init_dist();
       var isNativeApp = Capacitor.isNativePlatform();
       if (isNativeApp) {
@@ -698,15 +678,16 @@
             if (isAuthStart || !Capacitor.isPluginAvailable("InAppBrowser")) {
               await Browser2.open({ url: url.href, toolbarColor: "#080B18" });
             } else {
-              await R.openInWebView({
+              await InAppBrowser.openInWebView({
                 url: url.href,
-                options: {
-                  showURL: true,
-                  showToolbar: true,
+                toolbar: {
+                  backgroundColor: "#080B18",
+                  color: "#FFFFFF",
+                  showUrl: true,
                   showNavigationButtons: true,
-                  closeButtonText: "Close",
-                  android: { hardwareBack: true }
-                }
+                  closeButtonText: "Close"
+                },
+                android: { hardwareBackButton: true }
               });
             }
           } catch (error) {

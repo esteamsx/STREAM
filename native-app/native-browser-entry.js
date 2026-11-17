@@ -1,5 +1,5 @@
 import { Browser } from '@capacitor/browser';
-import { InAppBrowser } from '@capacitor/inappbrowser';
+import { InAppBrowser } from '@capawesome/capacitor-in-app-browser';
 import { Capacitor } from '@capacitor/core';
 
 const isNativeApp = Capacitor.isNativePlatform();
@@ -25,13 +25,14 @@ if (isNativeApp) {
       } else {
         await InAppBrowser.openInWebView({
           url: url.href,
-          options: {
-            showURL: true,
-            showToolbar: true,
+          toolbar: {
+            backgroundColor: '#080B18',
+            color: '#FFFFFF',
+            showUrl: true,
             showNavigationButtons: true,
-            closeButtonText: 'Close',
-            android: { hardwareBack: true }
-          }
+            closeButtonText: 'Close'
+          },
+          android: { hardwareBackButton: true }
         });
       }
     } catch (error) {
