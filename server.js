@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import "dotenv/config";
 import { fileURLToPath } from "url";
 import { liveTV } from "./data/channels.js";
+import { getCinexoraChannelGroups, getCinexoraChannelsForGroup, searchCinexoraChannels } from "./services/cinexora-live-tv.js";
 import { renderLogin } from "./views/login.js";
 import { renderVerify } from "./views/verify.js";
 import { renderAccount } from "./views/account.js";
@@ -436,7 +437,7 @@ app.use(requestId);
 app.use(blockedApiOriginGuard);
 app.use(createApiAnalyticsMiddleware(db, { increment: (value) => admin.firestore.FieldValue.increment(value) }));
 
-app.use(responseWatchdog({ timeoutMs: 30000, exemptPrefixes: ["/api/v1/hls/"] }));
+app.use(responseWatchdog({ timeoutMs: 30000, exemptPrefixes: ["/api/v1/hls/", "/api/channels/"] }));
 
 app.use(domainLock);
 
@@ -1045,30 +1046,49 @@ function categoryIcon(name) {
 
 app.get("/api/channels/categories", requireAuth, channelApiLimiter, async (req, res) => {
   try {
-    const categories = liveTV.map((cat) => ({
-      category: cat.category,
-      count: cat.channels.length,
+    const categories = (await getCinexoraChannelGroups()).map((cat) => ({
+      ...cat,
       icon: categoryIcon(cat.category),
     }));
-    res.json({ categories });
+    res.set("Cache-Control", "private, max-age=60");
+    res.json({ categories, total: categories.reduce((sum, cat) => sum + cat.count, 0) });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Could not load channel categories." });
+    console.error("Cinexora channel categories error:", err.message);
+    res.status(503).json({ error: "Could not load channel categories. Please try again." });
   }
 });
 
 app.get("/api/channels/category/:name", requireAuth, channelApiLimiter, async (req, res) => {
   try {
-    const wanted = String(req.params.name || "").toLowerCase().trim();
-    const cat = liveTV.find((c) => String(c.category || "").toLowerCase().trim() === wanted);
-    if (!cat) return res.status(404).json({ error: "Category not found." });
+    const providerChannels = await getCinexoraChannelsForGroup(req.params.name);
+    const redirects = liveTV
+      .filter((category) => String(category.category || "").toLowerCase() === String(req.params.name || "").toLowerCase())
+      .flatMap((category) => category.channels
+        .filter((channel) => channel.redirect)
+        .map((channel) => ({ ...channel, category: category.category })));
+    const channels = [...providerChannels, ...redirects];
+    if (!channels.length) return res.status(404).json({ error: "Category not found." });
+    res.set("Cache-Control", "private, max-age=60");
     res.json({
-      category: cat.category,
-      channels: cat.channels.map((ch) => ({ id: ch.id, name: ch.name, redirect: ch.redirect || null })),
+      category: channels[0].category,
+      channels,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Could not load channels for this category." });
+    console.error("Cinexora category channels error:", err.message);
+    res.status(503).json({ error: "Could not load channels for this category." });
+  }
+});
+
+app.get("/api/channels/search", requireAuth, channelApiLimiter, async (req, res) => {
+  const query = String(req.query.q || "").trim();
+  if (query.length > 120) return res.status(400).json({ error: "Search query is too long." });
+  try {
+    const channels = await searchCinexoraChannels(query, req.query.limit);
+    res.set("Cache-Control", "private, max-age=30");
+    res.json({ channels });
+  } catch (err) {
+    console.error("Cinexora channel search error:", err.message);
+    res.status(503).json({ error: "Could not search channels. Please try again." });
   }
 });
 
@@ -1091,7 +1111,7 @@ app.get("/", scrapeGate, requireUser, (req, res) => {
 
 app.get("/live", scrapeGate, requireUser, (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
-  res.send(renderLiveTv({ liveTV, categoryIcon, DOMAIN_LOCK_SCRIPT, siteHeadFor }));
+  res.send(renderLiveTv({ liveTV: [], categoryIcon, DOMAIN_LOCK_SCRIPT, siteHeadFor }));
 });
 
 let moviesHtmlCache = null;

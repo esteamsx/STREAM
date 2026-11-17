@@ -1,4 +1,5 @@
 export function renderLiveTv({ liveTV, categoryIcon, DOMAIN_LOCK_SCRIPT, siteHeadFor }) {
+  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1273,29 +1274,30 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
 <div class="layout">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-inner">
+      <div class="fs-loading" id="channelListLoading">Loading channels…</div>
       ${liveTV.map((cat, ci) => `
       <div class="cat-group">
-        <div class="cat-header${ci === 0 ? ' open' : ''}" data-ci="${ci}">
+        <div class="cat-header${ci === 0 ? ' open' : ''}" data-ci="${ci}" data-category="${escapeHtml(cat.category)}">
           <span class="cat-label">
             <span class="cat-icon" aria-hidden="true">${categoryIcon(cat.category)}</span>
-            <span>${cat.category}</span>
+            <span>${escapeHtml(cat.category)}</span>
           </span>
           <span class="cat-meta">
-            <span class="cat-count">${cat.channels.length}</span>
+            <span class="cat-count">${Number(cat.count ?? cat.channels.length) || 0}</span>
             <svg class="cat-arrow" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
             </svg>
           </span>
         </div>
-        <div class="ch-list${ci === 0 ? ' open' : ''}" id="cl-${ci}">
+        <div class="ch-list${ci === 0 ? ' open' : ''}" id="cl-${ci}" data-category="${escapeHtml(cat.category)}">
           ${cat.channels.map(ch => ch.redirect ? `
-          <button class="ch-btn ch-btn-redirect" data-id="${ch.id}" data-name="${ch.name}" data-redirect="${ch.redirect}">
+          <button class="ch-btn ch-btn-redirect" data-id="${escapeHtml(ch.id)}" data-name="${escapeHtml(ch.name)}" data-redirect="${escapeHtml(ch.redirect)}">
             <span class="ch-dot ch-dot-redirect"></span>
-            <span class="ch-name">${ch.name}</span>
+            <span class="ch-name">${escapeHtml(ch.name)}</span>
           </button>` : `
-          <button class="ch-btn" data-id="${ch.id}" data-name="${ch.name}">
+          <button class="ch-btn" data-id="${escapeHtml(ch.id)}" data-name="${escapeHtml(ch.name)}">
             <span class="ch-dot"></span>
-            <span class="ch-name">${ch.name}</span>
+            <span class="ch-name">${escapeHtml(ch.name)}</span>
           </button>`).join('')}
         </div>
       </div>`).join('')}
@@ -1726,13 +1728,91 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   menuBtn.addEventListener('click', function(){ sidebar.classList.contains('open') ? closeSB() : openSB(); });
   overlay.addEventListener('click', closeSB);
 
-  document.querySelectorAll('.cat-header').forEach(function(hdr){
-    hdr.addEventListener('click', function(){
-      var list = document.getElementById('cl-' + hdr.dataset.ci);
-      var now  = list.classList.toggle('open');
-      hdr.classList.toggle('open', now);
+  function escapeHtml(value){
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
     });
-  });
+  }
+  function channelButtonMarkup(ch){
+    if(ch.redirect){
+      return '<button class="ch-btn ch-btn-redirect" data-id="' + escapeHtml(ch.id) + '" data-name="' + escapeHtml(ch.name) + '" data-redirect="' + escapeHtml(ch.redirect) + '">' +
+        '<span class="ch-dot ch-dot-redirect"></span><span class="ch-name">' + escapeHtml(ch.name) + '</span></button>';
+    }
+    return '<button class="ch-btn" data-id="' + escapeHtml(ch.id) + '" data-name="' + escapeHtml(ch.name) + '">' +
+      '<span class="ch-dot"></span><span class="ch-name">' + escapeHtml(ch.name) + '</span></button>';
+  }
+  function bindChannelButtons(container, onSelect){
+    container.querySelectorAll('.ch-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if(btn.dataset.redirect){ window.location.href = btn.dataset.redirect; return; }
+        if(onSelect) onSelect(btn);
+        else loadChannel(btn.dataset.id, btn.dataset.name);
+      });
+    });
+  }
+  function ensureCategoryLoaded(category, list){
+    if(!list) return Promise.resolve([]);
+    if(list.dataset.loaded === 'true') return Promise.resolve(Array.prototype.slice.call(list.querySelectorAll('.ch-btn')));
+    if(list._loadPromise) return list._loadPromise;
+    list.innerHTML = '<div class="fs-loading">Loading channels…</div>';
+    list._loadPromise = fetch('/api/channels/category/' + encodeURIComponent(category))
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(new Error('category unavailable')); })
+      .then(function(data){
+        var channels = data.channels || [];
+        if(!channels.length){ list.innerHTML = '<div class="fs-loading">No channels in this category.</div>'; return []; }
+        list.innerHTML = channels.map(channelButtonMarkup).join('');
+        list.dataset.loaded = 'true';
+        bindChannelButtons(list);
+        return Array.prototype.slice.call(list.querySelectorAll('.ch-btn'));
+      })
+      .catch(function(){
+        list.innerHTML = '<div class="fs-loading">Could not load channels. Reopen this category to retry.</div>';
+        return [];
+      })
+      .finally(function(){ list._loadPromise = null; });
+    return list._loadPromise;
+  }
+  function loadSidebarCategories(){
+    var inner = document.querySelector('.sidebar-inner');
+    if(!inner) return;
+    inner.innerHTML = '<div class="fs-loading" id="channelListLoading">Loading channels…</div>';
+    fetch('/api/channels/categories')
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(new Error('categories unavailable')); })
+      .then(function(data){
+        var categories = data.categories || [];
+        if(!categories.length) throw new Error('No categories');
+        inner.innerHTML = categories.map(function(cat, i){
+          var name = escapeHtml(cat.category);
+          return '<div class="cat-group"><div class="cat-header' + (i === 0 ? ' open' : '') + '" data-ci="' + i + '" data-category="' + name + '">' +
+            '<span class="cat-label"><span class="cat-icon" aria-hidden="true">' + (cat.icon || '') + '</span><span>' + name + '</span></span>' +
+            '<span class="cat-meta"><span class="cat-count">' + (Number(cat.count) || 0) + '</span>' +
+            '<svg class="cat-arrow" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></span></div>' +
+            '<div class="ch-list' + (i === 0 ? ' open' : '') + '" id="cl-' + i + '" data-category="' + name + '"></div></div>';
+        }).join('') + '<div class="no-results" id="noResults">No channels found</div>';
+        inner.querySelectorAll('.cat-header').forEach(function(hdr){
+          hdr.addEventListener('click', function(){
+            var list = document.getElementById('cl-' + hdr.dataset.ci);
+            if(!list) return;
+            var now = list.classList.toggle('open');
+            hdr.classList.toggle('open', now);
+            if(now) ensureCategoryLoaded(hdr.dataset.category, list);
+          });
+        });
+        var firstHeader = inner.querySelector('.cat-header');
+        if(firstHeader){
+          var firstList = document.getElementById('cl-' + firstHeader.dataset.ci);
+          ensureCategoryLoaded(firstHeader.dataset.category, firstList).then(function(buttons){
+            if(buttons.length) loadChannel(buttons[0].dataset.id, buttons[0].dataset.name);
+          });
+        }
+      })
+      .catch(function(){
+        inner.innerHTML = '<div class="fs-loading" id="channelListLoading" role="button" tabindex="0">Could not load channels. Tap to retry.</div>';
+        var retry = document.getElementById('channelListLoading');
+        if(retry) retry.addEventListener('click', loadSidebarCategories);
+      });
+  }
+  loadSidebarCategories();
 
   function setStatus(msg, type){
     statusText.textContent = msg;
@@ -1948,15 +2028,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       });
   }
 
-  document.querySelectorAll('.ch-btn').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      if(btn.dataset.redirect){
-        window.location.href = btn.dataset.redirect;
-        return;
-      }
-      loadChannel(btn.dataset.id, btn.dataset.name);
-    });
-  });
+  bindChannelButtons(document);
 
   (function(){
     var wrap      = document.getElementById('moreChWrap');
@@ -2000,20 +2072,10 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           }
           panelBody.innerHTML = chans.map(function(ch){
             return ch.redirect
-              ? '<button class="ch-btn ch-btn-redirect" data-id="' + ch.id + '" data-name="' + ch.name + '" data-redirect="' + ch.redirect + '"><span class="ch-dot ch-dot-redirect"></span><span class="ch-name">' + ch.name + '</span></button>'
-              : '<button class="ch-btn" data-id="' + ch.id + '" data-name="' + ch.name + '"><span class="ch-dot"></span><span class="ch-name">' + ch.name + '</span></button>';
+              ? '<button class="ch-btn ch-btn-redirect" data-id="' + escapeHtml(ch.id) + '" data-name="' + escapeHtml(ch.name) + '" data-redirect="' + escapeHtml(ch.redirect) + '"><span class="ch-dot ch-dot-redirect"></span><span class="ch-name">' + escapeHtml(ch.name) + '</span></button>'
+              : channelButtonMarkup(ch);
           }).join('');
-          panelBody.querySelectorAll('.ch-btn').forEach(function(btn){
-            btn.addEventListener('click', function(){
-              if(btn.dataset.redirect){
-                window.location.href = btn.dataset.redirect;
-                return;
-              }
-              closePanel();
-              loadChannel(btn.dataset.id, btn.dataset.name);
-            });
-            if(!btn.dataset.redirect && typeof probeChannel === 'function') probeChannel(btn);
-          });
+          bindChannelButtons(panelBody, function(btn){ closePanel(); loadChannel(btn.dataset.id, btn.dataset.name); });
         })
         .catch(function(){
           panelBody.innerHTML = '<div class="more-ch-loading">Could not load this category. Tap to retry.</div>';
@@ -2032,9 +2094,9 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
             return;
           }
           grid.innerHTML = cats.map(function(cat, i){
-            return '<button type="button" class="more-ch-cat" data-cat="' + cat.category + '" style="background:' + PALETTE[i % PALETTE.length] + '">' +
+            return '<button type="button" class="more-ch-cat" data-cat="' + escapeHtml(cat.category) + '" style="background:' + PALETTE[i % PALETTE.length] + '">' +
               cat.icon +
-              '<span class="more-ch-cat-name">' + cat.category + '</span>' +
+              '<span class="more-ch-cat-name">' + escapeHtml(cat.category) + '</span>' +
               '<span class="more-ch-cat-count">' + cat.count + ' ch</span>' +
             '</button>';
           }).join('') + '<div class="more-ch-end">The End</div>';
@@ -2091,57 +2153,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       loadChannel(_currentChId, _currentChName);
     }, 680); 
   });
-
-  var PROBE_TIMEOUT = 7000;
-
-  function probeChannel(btn){
-    var id  = btn.dataset.id;
-    var dot = btn.querySelector('.ch-dot');
-    if(!dot) return;
-    var url  = '/api/channel-status/' + encodeURIComponent(id);
-    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, PROBE_TIMEOUT);
-    fetch(url, { cache:'no-store', signal: ctrl ? ctrl.signal : undefined })
-      .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
-      .then(function(data){
-        clearTimeout(timer);
-        var ok = !!data.up;
-        dot.classList.toggle('ch-dot-up',   ok);
-        dot.classList.toggle('ch-dot-down', !ok);
-        btn.dataset.chStatus = ok ? 'up' : 'down';
-      })
-      .catch(function(){
-        clearTimeout(timer);
-        dot.classList.add('ch-dot-down');
-        dot.classList.remove('ch-dot-up');
-        btn.dataset.chStatus = 'down';
-      });
-  }
-
-  function probeAll(){
-    document.querySelectorAll('.ch-btn').forEach(function(btn){
-      if(btn.dataset.redirect) return; 
-      probeChannel(btn);
-    });
-  }
-  setTimeout(probeAll, 1500);
-  setInterval(probeAll, 90000);
-
-  function doSearch(q){
-    q = (q || '').trim().toLowerCase();
-    document.querySelectorAll('.cat-group').forEach(function(grp){
-      var btns = grp.querySelectorAll('.ch-btn');
-      var vis  = 0;
-      btns.forEach(function(b){
-        var match = !q || b.dataset.name.toLowerCase().indexOf(q) !== -1;
-        b.style.display = match ? '' : 'none';
-        if(match) vis++;
-      });
-    });
-  }
-
-  var first = Array.prototype.find.call(document.querySelectorAll('.ch-btn'), function(b){ return !b.dataset.redirect; });
-  if(first) loadChannel(first.dataset.id, first.dataset.name);
 
   (function(){
     var btn    = document.getElementById('waBtn');
@@ -2546,31 +2557,41 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   (function(){
     var inp  = document.getElementById('searchInput');
     var drop = document.getElementById('searchDropdown');
-
-    var allCh = [];
-    document.querySelectorAll('.ch-btn').forEach(function(b){
-      allCh.push({ id: b.dataset.id, name: b.dataset.name, btn: b });
-    });
+    var searchTimer = null;
+    var searchSeq = 0;
 
     function renderDrop(q){
       q = (q || '').trim().toLowerCase();
-      if(!q){ drop.innerHTML=''; drop.classList.remove('open'); return; }
-      var matches = allCh.filter(function(c){ return c.name.toLowerCase().indexOf(q) !== -1; }).slice(0,20);
-      if(!matches.length){
-        drop.innerHTML = '<div class="sd-no-result">No Result Found</div>';
-      } else {
-        drop.innerHTML = '<div class="sd-list">' + matches.map(function(c){
-          return '<button class="sd-item" data-id="'+c.id+'" data-name="'+c.name+'"><span class="sd-dot"></span>'+c.name+'</button>';
-        }).join('') + '</div>';
-        drop.querySelectorAll('.sd-item').forEach(function(el){
-          el.addEventListener('click', function(){
-            loadChannel(el.dataset.id, el.dataset.name);
-            inp.value = '';
-            drop.innerHTML = ''; drop.classList.remove('open');
-          });
-        });
-      }
+      if(searchTimer) clearTimeout(searchTimer);
+      var seq = ++searchSeq;
+      if(q.length < 2){ drop.innerHTML=''; drop.classList.remove('open'); return; }
+      drop.innerHTML = '<div class="sd-no-result">Searching…</div>';
       drop.classList.add('open');
+      searchTimer = setTimeout(function(){
+        fetch('/api/channels/search?q=' + encodeURIComponent(q) + '&limit=20')
+          .then(function(r){ return r.ok ? r.json() : Promise.reject(new Error('search unavailable')); })
+          .then(function(data){
+            if(seq !== searchSeq) return;
+            var matches = data.channels || [];
+            if(!matches.length){
+              drop.innerHTML = '<div class="sd-no-result">No Result Found</div>';
+            } else {
+              drop.innerHTML = '<div class="sd-list">' + matches.map(function(channel){
+                return '<button class="sd-item" data-id="' + escapeHtml(channel.id) + '" data-name="' + escapeHtml(channel.name) + '"><span class="sd-dot"></span>' + escapeHtml(channel.name) + '</button>';
+              }).join('') + '</div>';
+              drop.querySelectorAll('.sd-item').forEach(function(el){
+                el.addEventListener('click', function(){
+                  loadChannel(el.dataset.id, el.dataset.name);
+                  inp.value = '';
+                  drop.innerHTML = ''; drop.classList.remove('open');
+                });
+              });
+            }
+          })
+          .catch(function(){
+            if(seq === searchSeq) drop.innerHTML = '<div class="sd-no-result">Could not search channels. Try again.</div>';
+          });
+      }, 350);
     }
 
     inp.addEventListener('input',  function(){ renderDrop(inp.value); });

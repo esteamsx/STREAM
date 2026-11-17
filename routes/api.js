@@ -3,8 +3,8 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
-import { liveTV } from "../data/channels.js";
 import { SimpleRateLimiter } from "../middleware/security-middleware.js";
+import { getCinexoraChannelById, getCinexoraChannels, getCinexoraStreamUrl } from "../services/cinexora-live-tv.js";
 import {
   requireAuth,
   createApiKey,
@@ -26,12 +26,10 @@ import {
 
 const router = express.Router();
 
-const UPSTREAM_BASE = "https://cinexora-static-alpha.vercel.app/api/hls";
-
 const UPSTREAM_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-  Referer: "https://esteamstv.devs.surf/",
-  Origin: "https://esteamstv.devs.surf",
+  Referer: "https://cinexora.name.ng/",
+  Origin: "https://cinexora.name.ng",
 };
 
 const PUBLIC_BASE = "https://esteamstv.devs.surf";
@@ -71,10 +69,6 @@ function getStreamTokenSecret() {
   return generated;
 }
 const STREAM_TOKEN_SECRET = getStreamTokenSecret();
-
-const VALID_CHANNEL_IDS = new Set(
-  liveTV.flatMap((cat) => cat.channels).filter((c) => !c.redirect).map((c) => c.id)
-);
 
 function signStreamToken(channel, ttlMs, keyId, watermark = true) {
   const exp = Date.now() + ttlMs;
@@ -162,8 +156,8 @@ function recordIssuedLink(uid, entry) {
   });
 }
 
-function channelDisplayName(channel) {
-  const meta = liveTV.flatMap((c) => c.channels).find((c) => c.id === channel);
+async function channelDisplayName(channel) {
+  const meta = await getCinexoraChannelById(channel).catch(() => null);
   return meta ? meta.name : channel;
 }
 
@@ -212,8 +206,11 @@ router.get("/api/v1/hls/:channel/master.m3u8", hlsLimiter, async (req, res) => {
   if (!check.valid) return res.status(403).type("text/plain").send("Invalid or expired stream token.");
 
   try {
-    const upstream = await fetchUpstream(`${UPSTREAM_BASE}?ch=${encodeURIComponent(channel)}`);
+    const upstream = await fetchUpstream(getCinexoraStreamUrl(channel));
     const text = await upstream.text();
+    if (!text.trimStart().startsWith("#EXTM3U")) {
+      return res.status(502).type("text/plain").send("The channel source did not return a playable HLS playlist.");
+    }
     const body = rewritePlaylist(text, upstream.url, token, channel, check.exp);
     res.set("Content-Type", "application/vnd.apple.mpegurl");
     res.set("Cache-Control", "no-store");
@@ -237,6 +234,7 @@ router.get("/api/v1/hls/:channel/playlist.m3u8", hlsLimiter, async (req, res) =>
   try {
     const upstream = await fetchUpstream(realUrl);
     const text = await upstream.text();
+    if (!text.trimStart().startsWith("#EXTM3U")) return res.status(502).type("text/plain").send("Invalid HLS playlist.");
     const body = rewritePlaylist(text, upstream.url, token, channel, check.exp);
     res.set("Content-Type", "application/vnd.apple.mpegurl");
     res.set("Cache-Control", "no-store");
@@ -286,7 +284,7 @@ const STATUS_CACHE_MS = 30 * 1000;
 
 router.get("/api/channel-status/:channel", statusLimiter, async (req, res) => {
   const { channel } = req.params;
-  if (!VALID_CHANNEL_IDS.has(channel)) return res.status(404).json({ error: "Unknown channel." });
+  if (!(await getCinexoraChannelById(channel).catch(() => null))) return res.status(404).json({ error: "Unknown channel." });
 
   const cached = statusCache.get(channel);
   if (cached && Date.now() - cached.checkedAt < STATUS_CACHE_MS) {
@@ -294,7 +292,7 @@ router.get("/api/channel-status/:channel", statusLimiter, async (req, res) => {
   }
 
   try {
-    const upstream = await fetch(`${UPSTREAM_BASE}?ch=${encodeURIComponent(channel)}`, {
+    const upstream = await fetch(getCinexoraStreamUrl(channel), {
       method: "HEAD",
       headers: UPSTREAM_HEADERS,
       redirect: "follow",
@@ -309,10 +307,9 @@ router.get("/api/channel-status/:channel", statusLimiter, async (req, res) => {
 });
 
 const internalTokenLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
-
-router.get("/api/stream-token/:channel", requireAuth, internalTokenLimiter, (req, res) => {
+router.get("/api/stream-token/:channel", requireAuth, internalTokenLimiter, async (req, res) => {
   const { channel } = req.params;
-  if (!VALID_CHANNEL_IDS.has(channel)) return res.status(404).json({ error: "Unknown channel." });
+  if (!(await getCinexoraChannelById(channel).catch(() => null))) return res.status(404).json({ error: "Unknown channel." });
   const ttlMs = 30 * 60 * 1000;
   const token = signStreamToken(channel, ttlMs, "");
   res.json({ url: `/api/v1/hls/${channel}/master.m3u8?token=${encodeURIComponent(token)}` });
@@ -347,18 +344,19 @@ export async function requireApiKey(req, res, next) {
 }
 
 const devApiLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.apiKeyId || req.ip).middleware();
-
-router.get("/api/v1/channels", devApiLimiter, (req, res) => {
-  res.json({
-    channels: liveTV.flatMap((cat) =>
-      cat.channels.filter((c) => !c.redirect).map((c) => ({ id: c.id, name: c.name, category: cat.category }))
-    ),
-  });
+router.get("/api/v1/channels", devApiLimiter, async (req, res) => {
+  try {
+    const channels = await getCinexoraChannels();
+    res.json({ total: channels.length, channels: channels.map(({ id, name, group }) => ({ id, name, category: group })) });
+  } catch (err) {
+    console.error("Cinexora developer channel list error:", err.message);
+    res.status(503).json({ error: "Could not load channels right now." });
+  }
 });
 
 router.get("/api/v1/stream/:channel", requireApiKey, devApiLimiter, async (req, res) => {
   const { channel } = req.params;
-  if (!VALID_CHANNEL_IDS.has(channel)) return res.status(404).json({ error: "Unknown channel id. See /api/v1/channels." });
+  if (!(await getCinexoraChannelById(channel).catch(() => null))) return res.status(404).json({ error: "Unknown channel id. See /api/v1/channels." });
 
   const ownerProfile = await getUserProfile(req.apiKeyUid).catch(() => null);
   const plan = getApiPlanConfig(ownerProfile);
@@ -458,7 +456,7 @@ router.get("/embed/:channel", async (req, res) => {
     return;
   }
 
-  const channelMeta = liveTV.flatMap((c) => c.channels).find((c) => c.id === channel);
+  const channelMeta = await getCinexoraChannelById(channel).catch(() => null);
   const title = channelMeta ? channelMeta.name : channel;
   const showWatermark = check.watermark !== false;
 
@@ -467,7 +465,7 @@ router.get("/embed/:channel", async (req, res) => {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title}: ES TEAMS TV</title>
+<title>${escapeAttr(title)}: ES TEAMS TV</title>
 <style>
   html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden}
   .wrap{position:relative;width:100vw;height:100vh;background:#000}
@@ -647,12 +645,12 @@ router.delete("/api/dev/keys/:id", requireAuth, async (req, res) => {
   }
 });
 
-function describeLink(channel, createdAt, exp, token, keyId) {
+async function describeLink(channel, createdAt, exp, token, keyId) {
   const now = Date.now();
   const revoked = !!keyId && revokedApiKeyIds.has(keyId);
   return {
     channel,
-    channel_name: channelDisplayName(channel),
+    channel_name: await channelDisplayName(channel),
     created_at: createdAt ? new Date(createdAt).toISOString() : null,
     expires_at: new Date(exp).toISOString(),
     status: now > exp || revoked ? "expired" : "active",
@@ -665,10 +663,10 @@ router.get("/api/dev/links", requireAuth, async (req, res) => {
   try {
     const list = await getIssuedStreamLinks(req.uid);
     res.json({
-      links: list.map((l) => {
+      links: await Promise.all(list.map(async (l) => {
         const decoded = decodeStreamToken(l.token);
         return describeLink(l.channel, l.createdAt, l.exp, l.token, decoded.ok ? decoded.keyId : undefined);
-      }),
+      })),
     });
   } catch (err) {
     console.error("list issued links error:", err.message);
