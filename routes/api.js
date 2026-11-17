@@ -169,30 +169,20 @@ async function fetchUpstream(url) {
 
 function rewritePlaylist(text, baseUrl, token, channel, exp) {
   const store = getResourceStore(token, exp);
+  const rewriteUri = (uri) => {
+    const abs = new URL(uri, baseUrl).toString();
+    const id = storeResource(store, abs);
+    const isSubPlaylist = /\.m3u8(?:\?|$)/i.test(abs);
+    const route = isSubPlaylist ? "playlist.m3u8" : "seg";
+    return `/api/v1/hls/${channel}/${route}?token=${encodeURIComponent(token)}&r=${id}`;
+  };
   const lines = text.split(/\r?\n/);
   const rewritten = lines.map((line) => {
-    if (line.startsWith("#EXT-X-KEY") || line.startsWith("#EXT-X-MAP")) {
-      return line.replace(/URI="([^"]+)"/, (_, uri) => {
-        const abs = new URL(uri, baseUrl).toString();
-        const id = storeResource(store, abs);
-        return `URI="/api/v1/hls/${channel}/seg?token=${encodeURIComponent(token)}&r=${id}"`;
-      });
+    if (line.startsWith("#")) {
+      return line.replace(/URI="([^"]+)"/gi, (_, uri) => `URI="${rewriteUri(uri)}"`);
     }
-    if (line.startsWith("#EXT-X-MEDIA") && line.includes("URI=")) {
-      return line.replace(/URI="([^"]+)"/, (_, uri) => {
-        const abs = new URL(uri, baseUrl).toString();
-        const id = storeResource(store, abs);
-        const isSubPlaylist = /\.m3u8(\?|$)/i.test(abs);
-        const path = isSubPlaylist ? "playlist.m3u8" : "seg";
-        return `URI="/api/v1/hls/${channel}/${path}?token=${encodeURIComponent(token)}&r=${id}"`;
-      });
-    }
-    if (line.startsWith("#") || line.trim() === "") return line;
-    const abs = new URL(line.trim(), baseUrl).toString();
-    const id = storeResource(store, abs);
-    const isSubPlaylist = /\.m3u8(\?|$)/i.test(abs);
-    const path = isSubPlaylist ? "playlist.m3u8" : "seg";
-    return `/api/v1/hls/${channel}/${path}?token=${encodeURIComponent(token)}&r=${id}`;
+    if (line.trim() === "") return line;
+    return rewriteUri(line.trim());
   });
   return rewritten.join("\n");
 }

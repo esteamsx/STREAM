@@ -480,7 +480,7 @@ ${musicPlayerStyle()}
     </div>
 
     <h1>Live Tv Apis</h1>
-    <p class="doc-p">Pull live channels into your own site, bot, or app, with a key tied to your account, and a link that never exposes the real stream source.</p>
+    <p class="doc-p">Use the ES TEAMS TV Live TV API in your own site, bot, or app. Call the endpoints on this site; your integration does not need a third-party stream URL or source credential. The returned embed link points to our player, which handles playback through this site without exposing the real stream source.</p>
 
     <h2 class="doc-h2">Getting a key</h2>
     <p class="doc-p">Create an API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. How many keys you can have (1 to 15) depends on your plan; see <a href="#" id="docsToDashLink3">Plans &amp; Pricing</a>. You can revoke any key at any time.</p>
@@ -491,31 +491,32 @@ ${musicPlayerStyle()}
 
     <h2 class="doc-h2">List channels</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/channels</code></p>
-    <p class="doc-p">Returns every channel id you can request, grouped by category. No key required.</p>
+    <p class="doc-p">Returns the current ES TEAMS TV channel catalog. Use a channel <code>id</code> from this response with the stream endpoint; each item includes its category. The <code>total</code> reflects the current catalog and may change. No key is required for this list request.</p>
     <pre>curl https://esteamstv.devs.surf/api/v1/channels</pre>
     <pre>{
+  "total": 11543,
   "channels": [
-    { "id": "nickelodeon", "name": "Nickelodeon", "category": "Kids" },
-    { "id": "espn", "name": "ESPN", "category": "Sports" },
+    { "id": "6c00b1b4bbfb06", "name": "2GB (1080p)", "category": "News" },
+    { "id": "53c25a86fb75c8", "name": "3AW (1080p)", "category": "News" },
     ...
   ]
 }</pre>
 
     <h2 class="doc-h2">Get a stream link</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/stream/:channel</code></p>
-    <p class="doc-p">Give it a channel id (e.g. <code>nickelodeon</code>) and get back a watermarked, single-use embed link. It is <strong>not</strong> the real stream URL, it's a short-lived link to our own player, which is the only thing that ever talks to the actual source.</p>
+    <p class="doc-p">Give it a channel id returned by <code>/api/v1/channels</code> and get back an ES TEAMS TV embed link. It is <strong>not</strong> the real stream URL. The signed, time-limited link points to our player; playback and stream delivery are handled by this site.</p>
     <pre>curl -H "x-api-key: estv_your_key_here" \\
-  https://esteamstv.devs.surf/api/v1/stream/nickelodeon</pre>
+  https://esteamstv.devs.surf/api/v1/stream/6c00b1b4bbfb06</pre>
     <pre>{
-  "channel": "nickelodeon",
-  "embed_url": "https://esteamstv.devs.surf/embed/nickelodeon?token=...",
+  "channel": "6c00b1b4bbfb06",
+  "embed_url": "https://esteamstv.devs.surf/embed/6c00b1b4bbfb06?token=...",
   "expires_at": "2026-07-24T18:00:00.000Z",
   "note": "Embed this URL in an iframe (or open it directly)."
 }</pre>
 
     <h2 class="doc-h2">Using the link</h2>
     <p class="doc-p">Drop <code>embed_url</code> straight into an iframe on your site:</p>
-    <pre>&lt;iframe src="https://esteamstv.devs.surf/embed/nickelodeon?token=..." 
+    <pre>&lt;iframe src="https://esteamstv.devs.surf/embed/6c00b1b4bbfb06?token=..."
         width="100%" height="400" frameborder="0" allowfullscreen&gt;
 &lt;/iframe&gt;</pre>
     <p class="doc-p">Or, in a Telegram bot, send it as a link or a Web App button so it opens in-app. On the Free, Starter and Standard plans, viewers see the ES TEAMS TV watermark on the player; Pro and Max remove it.</p>
@@ -1260,7 +1261,7 @@ ${musicPlayerHtml()}
     if(currentEndpoint === 'channels'){
       curlEl.textContent = 'curl ' + origin + '/api/v1/channels';
     } else {
-      var chId = (tryitSelect && tryitSelect.value) || 'nickelodeon';
+      var chId = (tryitSelect && tryitSelect.value) || '6c00b1b4bbfb06';
       var key = (tryitKeyInput && tryitKeyInput.value.trim()) || 'estv_your_key_here';
       curlEl.textContent = 'curl -H "x-api-key: ' + key + '" \\\\\\n  ' + origin + '/api/v1/stream/' + chId;
     }
