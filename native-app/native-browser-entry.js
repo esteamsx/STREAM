@@ -9,14 +9,8 @@ if (Capacitor.isNativePlatform()) {
     const url = new URL(link.href, window.location.href);
 
     if (!['http:', 'https:'].includes(url.protocol)) return;
-    if (url.hostname === window.location.hostname) return;
-
-    // Leave Google sign-in and authentication links untouched.
-    if (
-      url.hostname === 'accounts.google.com' ||
-      url.hostname.endsWith('.google.com') ||
-      link.closest('[data-google-signin]')
-    ) return;
+    const isAuthStart = url.origin === window.location.origin && /^\/api\/(?:telegram|github)-auth\/start$/.test(url.pathname);
+    if (url.hostname === window.location.hostname && !isAuthStart) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
