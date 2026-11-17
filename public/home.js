@@ -183,6 +183,29 @@
   $("hmSideLogout").addEventListener("click", function () { window.EsUI.openLogout(); });
   $("hmBell").addEventListener("click", function () { window.EsUI.openNotifications(); });
 
+  var appDownloadOverlay = $("hmAppDownloadOverlay");
+  var appDownloadOpeners = [$("hmAppDownload"), $("hmAppDownloadMenu")].filter(Boolean);
+  var appDownloadClose = $("hmAppDownloadClose");
+  var appDownloadButton = $("hmAppDownloadButton");
+  function closeAppDownload() {
+    appDownloadOverlay.classList.remove("show");
+    appDownloadOverlay.setAttribute("aria-hidden", "true");
+  }
+  function openAppDownload() {
+    menuEl.classList.remove("open");
+    appDownloadOverlay.classList.add("show");
+    appDownloadOverlay.setAttribute("aria-hidden", "false");
+  }
+  appDownloadOpeners.forEach(function (opener) { opener.addEventListener("click", openAppDownload); });
+  appDownloadClose.addEventListener("click", closeAppDownload);
+  appDownloadOverlay.addEventListener("click", function (event) {
+    if (event.target === appDownloadOverlay) closeAppDownload();
+  });
+  appDownloadButton.addEventListener("click", function () {
+    toast("Starting App Download");
+    closeAppDownload();
+  });
+
   var searchWrap = $("hmSearchWrap");
   var searchInput = $("hmSearchInput");
   var searchDrop = $("hmSearchDrop");
@@ -264,6 +287,7 @@
   });
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
+    closeAppDownload();
     closeSearch();
     menuEl.classList.remove("open");
     searchWrap.classList.remove("open");

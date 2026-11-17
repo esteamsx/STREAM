@@ -8,7 +8,12 @@ const serverSource = readFileSync(new URL("../server.js", import.meta.url), "utf
 test("main page exposes the ES TEAMS TV APK download beside notifications", () => {
   const html = renderHome({ DOMAIN_LOCK_SCRIPT: "", siteHeadFor: () => "" });
   assert.match(html, /id="hmBell"/);
-  assert.match(html, /id="hmAppDownload" href="\/ES%20TEAMS%20TV\.apk" download="ES TEAMS TV\.apk"/);
+  assert.match(html, /id="hmAppDownload" type="button"/);
+  assert.match(html, /id="hmAppDownloadMenu"[^>]*>[^<]*<svg/);
+  assert.match(html, /id="hmAppDownloadOverlay"/);
+  assert.match(html, /Download ES TEAMS TV app/);
+  assert.match(html, /Version: 1\.0/);
+  assert.match(html, /id="hmAppDownloadButton" href="\/ES%20TEAMS%20TV\.apk" download="ES TEAMS TV\.apk"/);
   assert.match(html, /M12 3v12m0 0 5-5m-5 5-5-5M5 21h14/);
   assert.match(serverSource, /const APP_APK_PATH = path\.join\(__dirname, "ES TEAMS TV\.apk"\)/);
   assert.match(serverSource, /app\.get\(\/\^\\\/ES\(\?:%20\| \)TEAMS\(\?:%20\| \)TV\\\.apk\$\/i/);

@@ -38,12 +38,15 @@ const SIDE_LINKS = [
   { href: "/channel-react", label: "Channel Reaction", icon: "react" },
   { href: "/deploy-bot", label: "Deploy Bot", icon: "bot" },
   { href: "/developers", label: "Developers", icon: "api" },
+  { label: "Download App", icon: "download", download: true },
   { href: "/account", label: "Account", icon: "account", dot: true },
 ];
 
 function sideLinks() {
   return SIDE_LINKS.map(
-    (l) => `<a href="${l.href}" class="hm-link${l.active ? " active" : ""}">${icon(l.icon)}<span>${l.label}</span>${l.dot ? '<i class="hm-dot js-dot"></i>' : ""}</a>`
+    (l) => l.download
+      ? `<button type="button" class="hm-link hm-app-download-menu" id="hmAppDownloadMenu">${icon(l.icon)}<span>${l.label}</span></button>`
+      : `<a href="${l.href}" class="hm-link${l.active ? " active" : ""}">${icon(l.icon)}<span>${l.label}</span>${l.dot ? '<i class="hm-dot js-dot"></i>' : ""}</a>`
   ).join("\n        ");
 }
 
@@ -194,6 +197,20 @@ button{cursor:pointer}
 .hm-link[hidden]{display:none}
 .hm-link.logout{color:var(--red)}
 .hm-link.logout:hover{background:rgba(255,59,92,.1)}
+.hm-app-download-menu{cursor:pointer}
+.hm-app-download-overlay{position:fixed;inset:0;z-index:700;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(10,10,15,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.hm-app-download-overlay.show{display:flex}
+.hm-app-download-card{position:relative;width:min(100%,360px);padding:30px 24px 24px;text-align:center;border:1px solid rgba(255,255,255,.22);border-radius:20px;background:linear-gradient(155deg,rgba(255,255,255,.15),rgba(255,255,255,.03) 42%,rgba(255,255,255,.06)),rgba(255,255,255,.06);box-shadow:0 24px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.28);animation:hmAppDownloadIn .24s var(--ease) both}
+:root[data-theme="light"] .hm-app-download-card{background:linear-gradient(155deg,rgba(255,255,255,.72),rgba(255,255,255,.22) 42%,rgba(255,255,255,.36)),rgba(255,255,255,.5);border-color:rgba(255,255,255,.75);box-shadow:0 24px 70px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.9)}
+.hm-app-download-close{position:absolute;top:10px;right:12px;width:32px;height:32px;border:0;border-radius:50%;background:transparent;color:var(--muted);font-size:1.5rem;line-height:1;cursor:pointer}
+.hm-app-download-close:hover{color:var(--text);background:var(--surface-tint)}
+.hm-app-download-icon{width:76px;height:76px;margin:0 auto 16px;border-radius:22px;padding:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 12px 30px rgba(0,224,255,.25)}
+.hm-app-download-icon img{display:block;width:100%;height:100%;object-fit:contain;border-radius:14px}
+.hm-app-download-card h2{font-family:var(--font-display);font-size:1.16rem;line-height:1.2;margin:0}
+.hm-app-download-card p{margin:9px auto 0;max-width:290px;color:var(--muted);font-size:.8rem;line-height:1.5}
+.hm-app-download-version{margin:14px 0 18px;font-family:var(--font-mono);font-size:.72rem;color:var(--muted2);letter-spacing:.04em}
+.hm-app-download-button{width:100%;text-decoration:none}
+@keyframes hmAppDownloadIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
 .hm-me{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px}
 .hm-me[hidden]{display:none}
 .hm-me-info{min-width:0;flex:1}
@@ -272,7 +289,7 @@ button{cursor:pointer}
   <div class="hm-nav-right">
     <button class="hm-icon-btn hm-search-toggle" id="hmSearchToggle" type="button" aria-label="Search">${icon("search", 18)}</button>
     <button class="hm-icon-btn" id="hmBell" type="button" aria-label="Notifications">${icon("bell", 18)}<i class="hm-dot js-dot"></i></button>
-    <a class="hm-icon-btn" id="hmAppDownload" href="/ES%20TEAMS%20TV.apk" download="ES TEAMS TV.apk" aria-label="Download ES TEAMS TV Android app" title="Download ES TEAMS TV app">${icon("download", 18)}</a>
+    <button class="hm-icon-btn" id="hmAppDownload" type="button" aria-label="Download ES TEAMS TV Android app" title="Download ES TEAMS TV app">${icon("download", 18)}</button>
     <div class="hm-user-wrap">
       <button class="hm-avatar" id="hmNavAvatar" type="button" aria-label="Account menu" aria-haspopup="true"></button>
       <div class="hm-menu" id="hmUserMenu" role="menu">
@@ -341,6 +358,17 @@ button{cursor:pointer}
       <div id="hmPeople"></div>
     </section>
   </aside>
+  </div>
+
+<div class="hm-app-download-overlay" id="hmAppDownloadOverlay" aria-hidden="true">
+  <div class="hm-app-download-card" role="dialog" aria-modal="true" aria-labelledby="hmAppDownloadTitle">
+    <button class="hm-app-download-close" id="hmAppDownloadClose" type="button" aria-label="Close download dialog">&times;</button>
+    <div class="hm-app-download-icon"><img src="/icon-32.png" alt="ES TEAMS TV app icon"></div>
+    <h2 id="hmAppDownloadTitle">Download ES TEAMS TV app</h2>
+    <p>Take ES TEAMS TV with you for a smoother, app-like viewing experience.</p>
+    <div class="hm-app-download-version">Version: 1.0</div>
+    <a class="hm-btn hm-app-download-button" id="hmAppDownloadButton" href="/ES%20TEAMS%20TV.apk" download="ES TEAMS TV.apk">${icon("download", 18)}<span>Download</span></a>
+  </div>
 </div>
 
 <link rel="stylesheet" href="/slide-logout.css?v=${BUILD}">
