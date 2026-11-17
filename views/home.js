@@ -367,10 +367,26 @@ button{cursor:pointer}
     <div class="hm-app-download-icon"><img src="/icon-32.png" alt="ES TEAMS TV app icon"></div>
     <h2 id="hmAppDownloadTitle">Download ES TEAMS TV app</h2>
     <p>Take ES TEAMS TV with you for a smoother, app-like viewing experience.</p>
-    <div class="hm-app-download-version">Version: 1.0</div>
+    <div class="hm-app-download-version" id="hmAppDownloadVersion" hidden></div>
     <a class="hm-btn hm-app-download-button" id="hmAppDownloadButton" href="/ES%20TEAMS%20TV.apk" download="ES TEAMS TV.apk">${icon("download", 18)}<span>Download</span></a>
   </div>
 </div>
+
+<script nonce="__CSP_NONCE__">
+(function(){
+  var label = document.getElementById('hmAppDownloadVersion');
+  if(!label) return;
+  fetch('/api/app-version', { cache: 'no-store' })
+    .then(function(response){ return response.ok ? response.json() : null; })
+    .then(function(release){
+      var version = release && typeof release.version === 'string' ? release.version.trim() : '';
+      if(!/^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$/.test(version)) return;
+      label.textContent = 'Version: ' + version;
+      label.hidden = false;
+    })
+    .catch(function(){});
+})();
+</script>
 
 <link rel="stylesheet" href="/slide-logout.css?v=${BUILD}">
 <script nonce="__CSP_NONCE__" src="/site-ui.js?v=${BUILD}" defer></script>

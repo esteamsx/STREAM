@@ -20,6 +20,7 @@ import { renderSnakes } from "./views/snakes.js";
 import { renderTtt } from "./views/tictactoe.js";
 import { renderMovies } from "./views/movies.js";
 import { renderHome } from "./views/home.js";
+import { readAndroidApkVersion } from "./services/android-apk-version.js";
 import { renderLiveTv } from "./views/live-tv.js";
 import { renderProfile } from "./views/profile.js";
 import { renderReset } from "./views/reset.js";
@@ -527,6 +528,16 @@ app.use(
 );
 
 const APP_APK_PATH = path.join(__dirname, "ES TEAMS TV.apk");
+let websiteApkVersionPromise = null;
+function getWebsiteApkVersion() {
+  if (!websiteApkVersionPromise) {
+    websiteApkVersionPromise = readAndroidApkVersion(APP_APK_PATH).catch((error) => {
+      websiteApkVersionPromise = null;
+      throw error;
+    });
+  }
+  return websiteApkVersionPromise;
+}
 app.get(/^\/ES(?:%20| )TEAMS(?:%20| )TV\.apk$/i, (req, res, next) => {
   res.download(APP_APK_PATH, "ES TEAMS TV.apk", (error) => {
     if (error && !res.headersSent) next(error);
@@ -1098,6 +1109,16 @@ app.get("/site.webmanifest", (req, res) => {
   res.type("application/manifest+json").send(JSON.stringify(WEB_MANIFEST));
 });
 app.get("/.well-known/appspecific/com.chrome.devtools.json", (req, res) => res.status(204).end());
+app.get("/api/app-version", async (req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  try {
+    const release = await getWebsiteApkVersion();
+    res.json({ version: release.version, versionCode: release.versionCode });
+  } catch (error) {
+    console.warn("Android APK version is unavailable:", error.message);
+    res.status(503).json({ error: "Android app version is currently unavailable." });
+  }
+});
 
 const { requireUser, guestOnly } = pageGuards({ verifySession });
 

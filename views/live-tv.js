@@ -1935,26 +1935,51 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       .then(function(data){
         if(mySeq !== loadSeq) return; 
         var url = data.url;
+        var HlsPlayer = window.Hls;
+        var hlsSupported = !!(HlsPlayer && typeof HlsPlayer.isSupported === 'function' && HlsPlayer.isSupported());
 
-        if(!Hls.isSupported() && video.canPlayType('application/vnd.apple.mpegurl')){
-          video.src = url;
-          onVideo('loadedmetadata', function(){ setStatus('Playing', ''); });
+        function handlePlaybackError(error){
+          if(mySeq !== loadSeq || (error && error.name === 'AbortError')) return;
+          onRecovered();
+          if(error && error.name === 'NotAllowedError'){
+            hideConnecting();
+            setStatus('Tap play to start', '');
+            return;
+          }
+          hideConnecting();
+          setLivePillOff();
+          setStatus('Playback unavailable', 'error');
+          showChDown(id, name);
+        }
+        function requestPlayback(){
+          try {
+            var playPromise = video.play();
+            if(playPromise && typeof playPromise.catch === 'function') playPromise.catch(handlePlaybackError);
+          } catch(error){
+            handlePlaybackError(error);
+          }
+        }
+
+        if(!hlsSupported && video.canPlayType('application/vnd.apple.mpegurl')){
+          onVideo('loadedmetadata', function(){ setStatus('Starting playback…', 'buffering'); });
           onVideo('waiting',        function(){ if(video.readyState < 3) onStall(); });
           onVideo('playing',        function(){ onRecovered(); setStatus('Playing', ''); hideConnecting(); setLivePillOn(); hideChDown(); });
-          onVideo('canplay',        function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
-          onVideo('loadeddata',     function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
           onVideo('error',          function(){ onRecovered(); setStatus('Stream error', 'error'); hideConnecting(); setLivePillOff(); showChDown(id, name); });
-          video.play().catch(function(){});
+          video.src = url;
+          requestPlayback();
           if(window.innerWidth <= 768) closeSB();
           return;
         }
 
-        if(!Hls.isSupported()){
-          setStatus('HLS not supported in this browser', 'error');
+        if(!hlsSupported){
+          hideConnecting();
+          setLivePillOff();
+          setStatus(HlsPlayer ? 'HLS not supported in this browser' : 'Playback library unavailable', 'error');
+          showChDown(id, name);
           return;
         }
 
-        var hls = new Hls({
+        var hls = new HlsPlayer({
           enableWorker: true,
           lowLatencyMode: true,
           maxBufferLength: 30,
@@ -1967,18 +1992,14 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         var _netRetries = 0;
         var MAX_NET_RETRIES = 3;
 
-        hls.on(Hls.Events.MANIFEST_PARSED, function(){
-          onRecovered();
-          setStatus('Playing', '');
-          hideChDown();
-          hideConnecting();
-          setLivePillOn();
-          video.play().catch(function(){});
+        hls.on(HlsPlayer.Events.MANIFEST_PARSED, function(){
+          setStatus('Starting playback…', 'buffering');
+          requestPlayback();
         });
 
-        hls.on(Hls.Events.ERROR, function(event, data){
+        hls.on(HlsPlayer.Events.ERROR, function(event, data){
           if(!data.fatal){ return; } 
-          if(data.type === Hls.ErrorTypes.NETWORK_ERROR){
+          if(data.type === HlsPlayer.ErrorTypes.NETWORK_ERROR){
             _netRetries++;
             if(_netRetries <= MAX_NET_RETRIES){
               setStatus('Network error, retrying (' + _netRetries + '/' + MAX_NET_RETRIES + ')...', 'error');
@@ -1993,7 +2014,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
               var dBtn = document.querySelector('.ch-btn[data-id="' + id + '"]');
               if(dBtn){ var d=dBtn.querySelector('.ch-dot'); if(d){d.classList.add('ch-dot-down');d.classList.remove('ch-dot-up');} dBtn.dataset.chStatus='down'; }
             }
-          } else if(data.type === Hls.ErrorTypes.MEDIA_ERROR){
+          } else if(data.type === HlsPlayer.ErrorTypes.MEDIA_ERROR){
             setStatus('Media error, recovering...', 'error');
             if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
             hls.recoverMediaError();
@@ -2012,8 +2033,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           if(video.readyState < 3) onStall();
         });
         onVideo('playing',  function(){ onRecovered(); setStatus('Playing', ''); hideConnecting(); setLivePillOn(); hideChDown(); });
-        onVideo('canplay',  function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
-        onVideo('loadeddata', function(){ if(video.readyState >= 3){ onRecovered(); hideConnecting(); } });
 
         window.__hls = hls;
 
