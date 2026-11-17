@@ -1775,7 +1775,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     function onStall(){
       setStatus('Buffering…', 'buffering');
       if(_waitingTimer) return;
-      _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
+      _waitingTimer = setTimeout(function(){ showConnecting(); }, 3000);
     }
     function onRecovered(){
       if(_waitingTimer){ clearTimeout(_waitingTimer); _waitingTimer = null; }
@@ -1886,7 +1886,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
             _netRetries++;
             if(_netRetries <= MAX_NET_RETRIES){
               setStatus('Network error, retrying (' + _netRetries + '/' + MAX_NET_RETRIES + ')...', 'error');
-              if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
+              if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 3000);
               hls.startLoad();
             } else {
               onRecovered();
@@ -1899,7 +1899,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
             }
           } else if(data.type === Hls.ErrorTypes.MEDIA_ERROR){
             setStatus('Media error, recovering...', 'error');
-            if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 600);
+            if(!_waitingTimer) _waitingTimer = setTimeout(function(){ showConnecting(); }, 3000);
             hls.recoverMediaError();
           } else {
             onRecovered();
