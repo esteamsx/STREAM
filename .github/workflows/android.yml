@@ -128,10 +128,18 @@ jobs:
           APKSIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify "$APK_PATH" >/dev/null
-          SIGNER_INFO="$("$APKSIGNER" verify --print-certs "$APK_PATH" 2>/dev/null)"
+          SIGNER_INFO="$("$APKSIGNER" verify --print-certs "$APK_PATH" 2>&1)"
           EXPECTED_SHA256="$(sha256sum "$CERT_PATH" | awk '{print $1}' | tr '[:upper:]' '[:lower:]')"
-          APK_SHA256="$(printf '%s\n' "$SIGNER_INFO" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}' | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
-          if [ -z "$EXPECTED_SHA256" ] || [ "$EXPECTED_SHA256" != "$APK_SHA256" ]; then
+          APK_SHA256="$(printf '%s\n' "$SIGNER_INFO" | awk '/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest:/ {sub(/^.*digest:[[:space:]]*/, ""); print; exit}' | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+          if ! [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo '::error::Could not derive the expected certificate fingerprint from the configured keystore.'
+            exit 1
+          fi
+          if ! [[ "$APK_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo '::error::Could not parse the APK signer certificate fingerprint.'
+            exit 1
+          fi
+          if [ "$EXPECTED_SHA256" != "$APK_SHA256" ]; then
             echo '::error::Release APK certificate does not match the configured keystore.'
             exit 1
           fi
