@@ -1105,7 +1105,7 @@ function esBuildMenu() {
   list.appendChild(link("/live"));
   list.appendChild(item({ href: "/movies", label: "Movies", icon: ES_ICON_MOVIES }));
   list.appendChild(link("/football"));
-  list.appendChild(item({ href: "/download-app", label: "Download App", icon: ES_ICON_DOWNLOAD }));
+  list.appendChild(item({ href: "/ES%20TEAMS%20TV.apk", label: "Download App", icon: ES_ICON_DOWNLOAD }));
 
   section("Social");
   list.appendChild(link("/profile"));
