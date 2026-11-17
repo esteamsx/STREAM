@@ -205,7 +205,7 @@ button{font-family:inherit;cursor:pointer}
 .ch-btn.active{color:var(--accent);background-color:rgba(0,224,255,.1);padding-left:20px;font-weight:600;box-shadow:inset 0 0 24px rgba(0,224,255,.06)}
 .ch-btn.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--accent),var(--accent2));border-radius:0 2px 2px 0;box-shadow:0 0 8px rgba(0,224,255,.65)}
 .ch-btn.active::after{color:var(--accent);text-shadow:0 0 8px rgba(0,224,255,.5)}
-.ch-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;background:var(--red);box-shadow:0 0 5px rgba(255,59,92,.55);transition:background .2s var(--ease),box-shadow .2s var(--ease);position:relative}
+.ch-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;background:#22c55e;box-shadow:0 0 5px rgba(34,197,94,.65);transition:background .2s var(--ease),box-shadow .2s var(--ease);position:relative}
 .ch-btn.active .ch-dot{background:var(--accent);box-shadow:0 0 6px rgba(0,224,255,.75);animation:dotPulse 1.6s ease infinite}
 .ch-btn.active .ch-dot::before,.ch-btn.active .ch-dot::after{
   content:'';position:absolute;inset:0;border-radius:50%;border:1px solid var(--accent);

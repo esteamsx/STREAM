@@ -11,11 +11,13 @@ test("Live TV API docs describe the site-owned catalog and stream endpoints", ()
   assert.match(liveTvDocs, /GET<\/span> <code>\/api\/v1\/stream\/:channel<\/code>/);
   assert.match(liveTvDocs, /"total": 11543/);
   assert.match(liveTvDocs, /"id": "6c00b1b4bbfb06"/);
-  assert.match(liveTvDocs, /embed_url/);
+  assert.match(liveTvDocs, /stream_url/);
+  assert.match(liveTvDocs, /HLS-compatible player/);
   assert.match(liveTvDocs, /does not need a third-party stream URL or source credential/);
 });
 
 test("Live TV docs no longer use stale IDs or claim links are single-use", () => {
   assert.doesNotMatch(liveTvDocs, /nickelodeon|single-use|grouped by category/);
-  assert.doesNotMatch(liveTvDocs, /cinexora|\.m3u8|\/api\/hls/i);
+  assert.match(liveTvDocs, /cinexora|\.m3u8|\/api\/hls/i);
+  assert.doesNotMatch(liveTvDocs, /embed_url|<iframe|Embed URL|Embed link/i);
 });
