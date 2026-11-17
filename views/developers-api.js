@@ -1058,7 +1058,7 @@ ${musicPlayerStyle()}
     </table>
 
     <h2 class="doc-h2">Downloaded files &amp; links</h2>
-    <p class="doc-p">MP3, MP4, Facebook Downloader, Instagram Downloader, and TikTok Downloader don't hand back a raw source URL. Instead they return a <code>download_url</code> (or <code>hd_download_url</code> / <code>sd_download_url</code> for Facebook, or <code>image_urls</code> for TikTok photo posts) hosted on <code>esteamstv.devs.surf</code>, the same way the <a href="/developers/live-tv" target="_blank" rel="noopener">Live Tv Api</a>'s <code>embed_url</code> never exposes the real stream source. Each link is signed and expires after 6 hours; fetch a fresh one by calling the endpoint again. CapCut returns the provider's template-download response for the submitted public share link.</p>
+    <p class="doc-p">MP3, MP4, Facebook Downloader, Instagram Downloader, and TikTok Downloader don't hand back a raw source URL. Instead they return a <code>download_url</code> (or <code>hd_download_url</code> / <code>sd_download_url</code> for Facebook, or <code>image_urls</code> for TikTok photo posts) hosted on <code>esteamstv.devs.surf</code>, the same way the <a href="/developers/live-tv" target="_blank" rel="noopener">Live Tv Api</a>'s signed HLS stream URL is issued for a limited time. Each link is signed and expires after 6 hours; fetch a fresh one by calling the endpoint again. CapCut returns the provider's template-download response for the submitted public share link.</p>
 
     <h2 class="doc-h2">MP3 Downloader</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/dev/mp3?query=</code></p>

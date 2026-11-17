@@ -767,15 +767,6 @@ button{font-family:inherit;cursor:pointer}
   box-shadow:0 2px 16px rgba(0,224,255,.12),inset 0 1px 0 rgba(255,255,255,.10);
 }
 
-.wm-badge{
-  position:absolute;top:50%;right:10px;transform:translateY(-50%);z-index:2;
-  display:flex;align-items:center;gap:5px;
-  padding:0;pointer-events:none;
-  opacity:.6;
-  filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));
-}
-.wm-shield{width:12px;height:12px;stroke:rgba(255,255,255,.95);flex-shrink:0}
-.wm-name{font-family:var(--font-mono);font-size:.55rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.95);text-shadow:0 1px 3px rgba(0,0,0,.6)}
 
 .net-badge{
   position:absolute;top:10px;left:10px;z-index:2;
@@ -1462,13 +1453,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           <span class="net-label" id="netLabel">H</span>
         </div>
 
-        <div class="wm-badge">
-          <svg class="wm-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2L3 6v5c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V6z"/>
-            <path d="M9 12l2 2 4-4" stroke-width="2"/>
-          </svg>
-          <span class="wm-name">ES TEAMS TV</span>
-        </div>
 
         <div class="brightness-zone" id="brightnessZone"></div>
         <div class="brightness-readout" id="brightnessReadout">
