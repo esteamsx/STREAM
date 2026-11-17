@@ -5,3 +5,6 @@ package-lock.json
 dist/
 .bot-deployments/
 .stream-token-secret
+
+# Keep Capacitor lockfile for reproducible mobile builds
+!native-app/package-lock.json
