@@ -525,6 +525,12 @@ app.use(
   })
 );
 
+const APP_APK_PATH = path.join(__dirname, "ES TEAMS TV.apk");
+app.get(/^\/ES(?:%20| )TEAMS(?:%20| )TV\.apk$/i, (req, res, next) => {
+  res.download(APP_APK_PATH, "ES TEAMS TV.apk", (error) => {
+    if (error && !res.headersSent) next(error);
+  });
+});
 app.use(canonicalPath);
 
 const signupLimiter = new DurableRateLimiter(8, 15 * 60 * 1000, undefined, undefined, { bucket: "signup", getDb: () => db }).middleware();
