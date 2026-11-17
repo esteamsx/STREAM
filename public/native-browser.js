@@ -91,7 +91,7 @@
           const createPluginMethod = (impl, prop) => {
             var _a, _b;
             if (pluginHeader) {
-              const methodHeader = pluginHeader === null || pluginHeader === void 0 ? void 0 : pluginHeader.methods.find((m) => prop === m.name);
+              const methodHeader = pluginHeader === null || pluginHeader === void 0 ? void 0 : pluginHeader.methods.find((m2) => prop === m2.name);
               if (methodHeader) {
                 if (methodHeader.rtype === "promise") {
                   return (options) => cap.nativePromise(pluginName, prop.toString(), options);
@@ -152,7 +152,7 @@
             return p;
           };
           const proxy = new Proxy({}, {
-            get(_, prop) {
+            get(_2, prop) {
               switch (prop) {
                 // https://github.com/facebook/react/issues/20030
                 case "$$typeof":
@@ -579,7 +579,98 @@
       init_dist();
       init_definitions();
       Browser2 = registerPlugin("Browser", {
-        web: () => Promise.resolve().then(() => (init_web(), web_exports)).then((m) => new m.BrowserWeb())
+        web: () => Promise.resolve().then(() => (init_web(), web_exports)).then((m2) => new m2.BrowserWeb())
+      });
+    }
+  });
+
+  // node_modules/@capacitor/inappbrowser/dist/web-B3Ll3yFB.js
+  var web_B3Ll3yFB_exports = {};
+  __export(web_B3Ll3yFB_exports, {
+    InAppBrowserWeb: () => m
+  });
+  var m;
+  var init_web_B3Ll3yFB = __esm({
+    "node_modules/@capacitor/inappbrowser/dist/web-B3Ll3yFB.js"() {
+      init_dist();
+      m = class extends WebPlugin {
+        //@ts-ignore
+        openInWebView(e) {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        //@ts-ignore
+        openInSystemBrowser(e) {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        //@ts-ignore
+        openInExternalBrowser(e) {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        //@ts-ignore
+        close() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+      };
+    }
+  });
+
+  // node_modules/@capacitor/inappbrowser/dist/plugin.mjs
+  var t, E, s, a, r, O, T, _, c, o, u, R;
+  var init_plugin = __esm({
+    "node_modules/@capacitor/inappbrowser/dist/plugin.mjs"() {
+      init_dist();
+      t = /* @__PURE__ */ ((e) => (e[e.TOP = 0] = "TOP", e[e.BOTTOM = 1] = "BOTTOM", e))(t || {});
+      E = /* @__PURE__ */ ((e) => (e[e.PAGE_SHEET = 0] = "PAGE_SHEET", e[e.FORM_SHEET = 1] = "FORM_SHEET", e[e.FULL_SCREEN = 2] = "FULL_SCREEN", e))(E || {});
+      s = /* @__PURE__ */ ((e) => (e[e.BOTTOM_SHEET = 0] = "BOTTOM_SHEET", e[e.FULL_SCREEN = 1] = "FULL_SCREEN", e))(s || {});
+      a = /* @__PURE__ */ ((e) => (e[e.FLIP_HORIZONTAL = 0] = "FLIP_HORIZONTAL", e[e.CROSS_DISSOLVE = 1] = "CROSS_DISSOLVE", e[e.COVER_VERTICAL = 2] = "COVER_VERTICAL", e))(a || {});
+      r = /* @__PURE__ */ ((e) => (e[e.FADE_IN = 0] = "FADE_IN", e[e.FADE_OUT = 1] = "FADE_OUT", e[e.SLIDE_IN_LEFT = 2] = "SLIDE_IN_LEFT", e[e.SLIDE_OUT_RIGHT = 3] = "SLIDE_OUT_RIGHT", e))(r || {});
+      O = /* @__PURE__ */ ((e) => (e[e.CLOSE = 0] = "CLOSE", e[e.CANCEL = 1] = "CANCEL", e[e.DONE = 2] = "DONE", e))(O || {});
+      T = {
+        allowZoom: false,
+        hardwareBack: true,
+        pauseMedia: true,
+        isIsolated: true,
+        successUrlPatterns: []
+      };
+      _ = {
+        allowOverScroll: true,
+        enableViewportScale: false,
+        allowInLineMediaPlayback: false,
+        surpressIncrementalRendering: false,
+        viewStyle: E.FULL_SCREEN,
+        animationEffect: a.COVER_VERTICAL,
+        allowsBackForwardNavigationGestures: true
+      };
+      c = {
+        showToolbar: true,
+        showURL: true,
+        clearCache: true,
+        clearSessionCache: true,
+        mediaPlaybackRequiresUserAction: false,
+        closeButtonText: "Close",
+        toolbarPosition: t.TOP,
+        showNavigationButtons: true,
+        leftToRight: false,
+        customWebViewUserAgent: null,
+        android: T,
+        iOS: _
+      };
+      o = {
+        closeButtonText: O.DONE,
+        viewStyle: E.FULL_SCREEN,
+        animationEffect: a.COVER_VERTICAL,
+        enableBarsCollapsing: true,
+        enableReadersMode: false
+      };
+      u = {
+        showTitle: false,
+        hideToolbarOnScroll: false,
+        viewStyle: s.BOTTOM_SHEET,
+        startAnimation: r.FADE_IN,
+        exitAnimation: r.FADE_OUT
+      };
+      R = registerPlugin("InAppBrowser", {
+        web: () => Promise.resolve().then(() => (init_web_B3Ll3yFB(), web_B3Ll3yFB_exports)).then((e) => new e.InAppBrowserWeb())
       });
     }
   });
@@ -588,24 +679,36 @@
   var require_native_browser_entry = __commonJS({
     "native-browser-entry.js"() {
       init_esm();
+      init_plugin();
       init_dist();
       var isNativeApp = Capacitor.isNativePlatform();
       if (isNativeApp) {
         window.__ES_NATIVE_APP__ = true;
         document.addEventListener("click", async (event) => {
           const link = event.target.closest("a[href]");
-          if (!link || event.defaultPrevented) return;
+          if (!link || event.defaultPrevented || link.hasAttribute("download")) return;
           const url = new URL(link.href, window.location.href);
           if (!["http:", "https:"].includes(url.protocol)) return;
           const isAuthStart = url.origin === window.location.origin && /^\/api\/(?:telegram|github)-auth\/start$/.test(url.pathname);
-          if (url.hostname === window.location.hostname && !isAuthStart) return;
+          const opensNewView = link.target.toLowerCase() === "_blank";
+          if (url.hostname === window.location.hostname && !isAuthStart && !opensNewView) return;
           event.preventDefault();
           event.stopImmediatePropagation();
           try {
-            await Browser2.open({
-              url: url.href,
-              toolbarColor: "#080B18"
-            });
+            if (isAuthStart || !Capacitor.isPluginAvailable("InAppBrowser")) {
+              await Browser2.open({ url: url.href, toolbarColor: "#080B18" });
+            } else {
+              await R.openInWebView({
+                url: url.href,
+                options: {
+                  showURL: true,
+                  showToolbar: true,
+                  showNavigationButtons: true,
+                  closeButtonText: "Close",
+                  android: { hardwareBack: true }
+                }
+              });
+            }
           } catch (error) {
             console.error("Could not open in-app browser:", error);
           }

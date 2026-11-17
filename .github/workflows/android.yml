@@ -9,7 +9,6 @@ on:
       - 'native-app/**'
       - 'middleware/promo-slot.js'
       - 'public/native-browser.js'
-      - 'public/native-app-shell.js'
       - '.github/workflows/android.yml'
   workflow_dispatch:
 
