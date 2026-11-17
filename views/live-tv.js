@@ -1697,11 +1697,8 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
   var noResults  = document.getElementById('noResults');
   var hlsInstance= null;
   var loadSeq = 0; 
-  var _pbTimer = null;
   var _pbListeners = [];
-  var _autoReload = { id: null, n: 0 };
   function teardownPlayback(){
-    if(_pbTimer){ clearInterval(_pbTimer); _pbTimer = null; }
     _pbListeners.forEach(function(x){ video.removeEventListener(x[0], x[1]); });
     _pbListeners = [];
   }
@@ -1828,8 +1825,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
     }, 30000);
   }
 
-  function loadChannel(id, name, isAuto){
-    if(!isAuto) _autoReload = { id: id, n: 0 };
+  function loadChannel(id, name){
     teardownPlayback();
     document.querySelectorAll('.ch-btn').forEach(function(b){ b.classList.remove('active'); });
     var btn = document.querySelector('.ch-btn[data-id="' + id + '"]');
@@ -1861,59 +1857,15 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
       if(_waitingTimer){ clearTimeout(_waitingTimer); _waitingTimer = null; }
     }
 
-    var _loadStart = Date.now();
-    var _lastT = -1;
-    var _lastProgress = Date.now();
-    var _ladder = 0;
-    function overlayShown(){ return !!(connectingOverlay && connectingOverlay.classList.contains('show')); }
-    function checkProgress(){
-      if(mySeq !== loadSeq) return false;
-      var t = video.currentTime;
-      var moving = !video.paused && video.readyState >= 2 && t !== _lastT;
-      if(moving){
-        _lastT = t; _lastProgress = Date.now(); _ladder = 0;
-        if(overlayShown()){
-          onRecovered(); hideConnecting(); setStatus('Playing', ''); setLivePillOn(); hideChDown();
-        }
-        return true;
-      }
-      return false;
+    var _waitingTimer = null;
+    function onStall(){
+      setStatus('Buffering…', 'buffering');
+      if(_waitingTimer) return;
+      _waitingTimer = setTimeout(function(){ showConnecting(); }, 3000);
     }
-    onVideo('timeupdate', checkProgress);
-    _pbTimer = setInterval(function(){
-      if(mySeq !== loadSeq){ teardownPlayback(); return; }
-      if(checkProgress()) return;
-      var stalledFor = Date.now() - _lastProgress;
-      if(!overlayShown()){
-        if(_lastT === -1 && stalledFor > 20000){ showConnecting(); setStatus('Buffering…', 'buffering'); }
-        else return;
-      }
-      if(_lastT === -1) return;
-      if(video.paused && video.readyState >= 3){ video.play().catch(function(){}); }
-      var step = Math.floor(stalledFor / 15000);
-      if(step <= _ladder) return;
-      _ladder = step;
-      if(step === 1){
-        setStatus('Reconnecting…', 'buffering');
-        if(hlsInstance){ hlsInstance.startLoad(); }
-        video.play().catch(function(){});
-      } else if(step === 2){
-        if(hlsInstance){ hlsInstance.recoverMediaError(); }
-        video.play().catch(function(){});
-      } else if(_autoReload.id === id && _autoReload.n < 2){
-        _autoReload.n++;
-        loadChannel(id, name, true);
-      } else {
-        teardownPlayback();
-        onRecovered();
-        setStatus('Stream unavailable', 'error');
-        hideConnecting();
-        setLivePillOff();
-        showChDown(id, name);
-        var wBtn = document.querySelector('.ch-btn[data-id="' + id + '"]');
-        if(wBtn){ var wd = wBtn.querySelector('.ch-dot'); if(wd){ wd.classList.add('ch-dot-down'); wd.classList.remove('ch-dot-up'); } wBtn.dataset.chStatus = 'down'; }
-      }
-    }, 1000);
+    function onRecovered(){
+      if(_waitingTimer){ clearTimeout(_waitingTimer); _waitingTimer = null; }
+    }
 
     fetch('/api/stream-token/' + encodeURIComponent(id))
       .then(function(r){ if(!r.ok) throw new Error('token request failed'); return r.json(); })
@@ -1949,10 +1901,7 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           onVideo('loadedmetadata', function(){ setStatus('Starting playback…', 'buffering'); });
           onVideo('waiting',        function(){ if(video.readyState < 3) onStall(); });
           onVideo('playing',        function(){
-            _ladder = 0;
-            _lastProgress = Date.now();
-            _lastT = video.currentTime;
-            onRecovered();
+                  onRecovered();
             setStatus('Playing', '');
             hideConnecting();
             setLivePillOn();
@@ -2031,9 +1980,6 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
         });
         onVideo('playing',  function(){
           _netRetries = 0;
-          _ladder = 0;
-          _lastProgress = Date.now();
-          _lastT = video.currentTime;
           onRecovered();
           setStatus('Playing', '');
           hideConnecting();

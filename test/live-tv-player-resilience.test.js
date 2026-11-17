@@ -28,11 +28,12 @@ test("HLS configuration targets ordinary live playlists rather than low-latency 
   assert.match(html, /maxMaxBufferLength:\s*90/);
 });
 
-test("custom recovery ladder does not restart loading before first video progress", () => {
-  assert.match(html, /if\(_lastT === -1\) return;[\s\S]*?hlsInstance\.startLoad\(\)[\s\S]*?hlsInstance\.recoverMediaError\(\)/);
+test("page-level progress watchdog and automatic channel reload ladder are absent", () => {
+  assert.doesNotMatch(html, /_pbTimer|_autoReload|checkProgress|_lastProgress|_lastT|_ladder/);
   assert.match(html, /\}, 30000\);/);
 });
 
-test("transient network retry count and recovery timer reset only on actual playing events", () => {
-  assert.match(html, /onVideo\('playing',[\s\S]*?_netRetries = 0;[\s\S]*?_ladder = 0;[\s\S]*?_lastProgress = Date\.now\(\)/);
+test("HLS network recovery state resets only after actual playback resumes", () => {
+  assert.match(html, /hls\.on\(HlsPlayer\.Events\.ERROR/);
+  assert.match(html, /onVideo\('playing',[\s\S]*?_netRetries = 0;[\s\S]*?setStatus\('Playing'/);
 });

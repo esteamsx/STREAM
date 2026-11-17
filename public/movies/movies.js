@@ -546,10 +546,15 @@
       document.removeEventListener("keydown", onKeydown);
       document.removeEventListener("fullscreenchange", fullscreenHandler);
       if (document.fullscreenElement === stage && document.exitFullscreen) { try { var exitResult = document.exitFullscreen(); if (exitResult && exitResult.catch) exitResult.catch(function () {}); } catch (e) {} }
+      clearBufferingTimer();
       video.pause(); video.removeAttribute("src"); video.load(); overlay.remove();
     };
     var onKeydown = function (event) { if (event.key === "Escape") close(); };
     var hideTimer;
+    var bufferingTimer = null;
+    var clearBufferingTimer = function () {
+      if (bufferingTimer) { window.clearTimeout(bufferingTimer); bufferingTimer = null; }
+    };
     var revealControls = function () {
       stage.classList.add("controls-visible"); window.clearTimeout(hideTimer);
       if (!video.paused) hideTimer = window.setTimeout(function () { stage.classList.remove("controls-visible"); }, 3000);
@@ -567,8 +572,11 @@
     video.addEventListener("loadedmetadata", function () { syncTime(); status.textContent = "Ready — press Play to start."; });
     video.addEventListener("timeupdate", syncTime); video.addEventListener("durationchange", syncTime); video.addEventListener("play", function () { syncPlay(); status.textContent = ""; revealControls(); });
     video.addEventListener("pause", function () { syncPlay(); revealControls(); });
-    video.addEventListener("waiting", function () { status.textContent = "Buffering video…"; });
-    video.addEventListener("playing", function () { status.textContent = ""; });
+    video.addEventListener("waiting", function () {
+      clearBufferingTimer();
+      bufferingTimer = window.setTimeout(function () { status.textContent = "Buffering video…"; }, 3000);
+    });
+    video.addEventListener("playing", function () { clearBufferingTimer(); status.textContent = ""; });
     video.addEventListener("error", function () {
       var code = video.error && video.error.code;
       status.textContent = code === 2 ? "Network error while loading this video. Try again or choose another quality." : code === 3 ? "This video format could not be decoded by your browser." : "The video could not be played. Try another quality or download it.";
