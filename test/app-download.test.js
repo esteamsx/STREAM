@@ -10,6 +10,7 @@ test("main page exposes the ES TEAMS TV APK download beside notifications", () =
   assert.match(html, /id="hmBell"/);
   assert.match(html, /id="hmAppDownload" type="button"/);
   assert.match(html, /id="hmAppDownloadMenu"[^>]*>[^<]*<svg/);
+  assert.match(html, /id="hmMenuAppDownload"[\s\S]*?Download App/);
   assert.match(html, /id="hmAppDownloadOverlay"/);
   assert.match(html, /Download ES TEAMS TV app/);
   assert.match(html, /Version: 1\.0/);

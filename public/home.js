@@ -184,7 +184,7 @@
   $("hmBell").addEventListener("click", function () { window.EsUI.openNotifications(); });
 
   var appDownloadOverlay = $("hmAppDownloadOverlay");
-  var appDownloadOpeners = [$("hmAppDownload"), $("hmAppDownloadMenu")].filter(Boolean);
+  var appDownloadOpeners = [$("hmAppDownload"), $("hmAppDownloadMenu"), $("hmMenuAppDownload")].filter(Boolean);
   var appDownloadClose = $("hmAppDownloadClose");
   var appDownloadButton = $("hmAppDownloadButton");
   function closeAppDownload() {

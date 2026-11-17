@@ -297,6 +297,7 @@ button{cursor:pointer}
         <a class="hm-menu-item" href="/profile" role="menuitem">${icon("profile", 16)}My profile</a>
         <a class="hm-menu-item" href="/account" role="menuitem">${icon("account", 16)}Account</a>
         <a class="hm-menu-item" href="/admin" id="hmMenuAdmin" role="menuitem" hidden>${icon("admin", 16)}Admin</a>
+        <button class="hm-menu-item" id="hmMenuAppDownload" type="button" role="menuitem">${icon("download", 16)}Download App</button>
         <button class="hm-menu-item" id="hmMenuTheme" type="button" role="menuitem">${icon("theme", 16)}Switch theme</button>
         <button class="hm-menu-item logout" id="hmMenuLogout" type="button" role="menuitem">${icon("logout", 16)}Logout</button>
       </div>
