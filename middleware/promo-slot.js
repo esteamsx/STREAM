@@ -100,7 +100,6 @@ const SLIDE_LOGOUT_CSS_TAG = `<link rel="stylesheet" href="/slide-logout.css?v=$
 const SLIDE_LOGOUT_TAG = `<script nonce="__CSP_NONCE__" src="/slide-logout.js?v=${BUILD}" defer></script>`;
 const SEASONAL_TAG = `<script nonce="__CSP_NONCE__" src="/christmas-theme.js?v=${BUILD}" defer></script>`;
 const APP_BROWSER_TAG = `<script nonce="__CSP_NONCE__" src="/native-browser.js?v=${BUILD}" defer></script>`;
-const APP_SHELL_TAG = `<script nonce="__CSP_NONCE__" src="/native-app-shell.js?v=${BUILD}" defer></script>`;
 
 function matches(path, list) {
   return list.some((entry) => (entry.endsWith("/") ? path.startsWith(entry) : path === entry || path.startsWith(entry + "/")));
@@ -144,8 +143,7 @@ export function injectPromoSlot(req, res, next) {
             (wantsPopunder && adsOk && body.indexOf("/popunder.js") === -1 ? POPUNDER_TAG : "") +
             (wantsNative && adsOk && body.indexOf("/native-banner.js") === -1 ? NATIVE_TAG : "") +
             (wantsSeasonal && body.indexOf("/christmas-theme.js") === -1 ? SEASONAL_TAG : "") +
-            (wantsAppBrowser && body.indexOf("/native-browser.js") === -1 ? APP_BROWSER_TAG : "") +
-            (wantsAppBrowser && body.indexOf("/native-app-shell.js") === -1 ? APP_SHELL_TAG : "");
+            (wantsAppBrowser && body.indexOf("/native-browser.js") === -1 ? APP_BROWSER_TAG : "");
           body = body.slice(0, at) + tags + body.slice(at);
         }
       }

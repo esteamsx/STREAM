@@ -673,6 +673,7 @@ const ES_LINKS = [
 ];
 const ES_ICON_SEARCH = '<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>';
 const ES_ICON_BELL = '<path stroke-linecap="round" stroke-linejoin="round" d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/>';
+const ES_ICON_DOWNLOAD = '<path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/>';
 const ES_ICON_MOON = '<path stroke-linecap="round" stroke-linejoin="round" d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
 const ES_ICON_LUDO = '<rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.1" fill="currentColor"/><circle cx="15" cy="15" r="1.1" fill="currentColor"/><circle cx="15" cy="9" r="1.1" fill="currentColor"/><circle cx="9" cy="15" r="1.1" fill="currentColor"/>';
 const ES_ICON_WHOT = '<rect x="5" y="3.5" width="14" height="17" rx="2.6"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.2l1.2 2.6 2.8.3-2.1 1.9.6 2.8L12 14.3l-2.5 1.5.6-2.8-2.1-1.9 2.8-.3z"/>';
@@ -1104,6 +1105,7 @@ function esBuildMenu() {
   list.appendChild(link("/live"));
   list.appendChild(item({ href: "/movies", label: "Movies", icon: ES_ICON_MOVIES }));
   list.appendChild(link("/football"));
+  list.appendChild(item({ href: "/download-app", label: "Download App", icon: ES_ICON_DOWNLOAD }));
 
   section("Social");
   list.appendChild(link("/profile"));
