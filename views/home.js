@@ -50,7 +50,7 @@ function sideLinks() {
   ).join("\n        ");
 }
 
-export function renderHome({ DOMAIN_LOCK_SCRIPT, siteHeadFor, appVersion = "1.0.0" }) {
+export function renderHome({ DOMAIN_LOCK_SCRIPT, siteHeadFor }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -367,7 +367,7 @@ button{cursor:pointer}
     <div class="hm-app-download-icon"><img src="/icon-32.png" alt="ES TEAMS TV app icon"></div>
     <h2 id="hmAppDownloadTitle">Download ES TEAMS TV app</h2>
     <p>Take ES TEAMS TV with you for a smoother, app-like viewing experience.</p>
-    <div class="hm-app-download-version">Version: ${appVersion}</div>
+    <div class="hm-app-download-version">Version: 1.0</div>
     <a class="hm-btn hm-app-download-button" id="hmAppDownloadButton" href="/ES%20TEAMS%20TV.apk" download="ES TEAMS TV.apk">${icon("download", 18)}<span>Download</span></a>
   </div>
 </div>

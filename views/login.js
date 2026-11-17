@@ -1115,19 +1115,6 @@ if (${JSON.stringify(!!cfg.googleClientId)}) {
     }
   };
   window.addEventListener('load', () => {
-    if (window.__ES_NATIVE_APP__) {
-      const wrap = document.getElementById('gsiWrap');
-      if (wrap) {
-        wrap.innerHTML = '<button type="button" class="social-box" id="nativeGoogleBtn" aria-label="Continue with Google"><svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.2 0 5.4 1.4 6.6 2.6l4.9-4.8C32.5 4.8 28.7 3 24 3 14.9 3 7.3 8.2 3.6 15.8l5.7 4.4C10.7 14.7 16.5 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-2.8-.4-4.1H24v7.8h12.9c-.3 2-1.5 5-4.3 7l5.6 4.3c3.7-3.4 8.3-8.4 8.3-15z"/><path fill="#FBBC05" d="M9.3 28.7A14.7 14.7 0 0 1 8.5 24c0-1.6.3-3.2.8-4.7l-5.7-4.4A21.5 21.5 0 0 0 1.5 24c0 3.5.8 6.8 2.1 9.1l5.7-4.4z"/><path fill="#34A853" d="M24 45c6.1 0 11.2-2 14.9-5.5l-5.6-4.3c-1.5 1-3.7 1.8-9.3 1.8-7.5 0-13.3-5.2-14.7-12.3l-5.7 4.4C7.3 39.8 14.9 45 24 45z"/></svg></button>';
-      const button = document.getElementById('nativeGoogleBtn');
-      button?.addEventListener('click', () => {
-        const next = postSignInTarget();
-        const url = '/api/google-auth/start?next=' + encodeURIComponent(next);
-        if (typeof window.__ES_OPEN_EXTERNAL__ === 'function') window.__ES_OPEN_EXTERNAL__(url);
-        else window.location.href = url;
-      });
-      return;
-    }
     if (!window.google) return;
     window.google.accounts.id.initialize({
       client_id: ${JSON.stringify(cfg.googleClientId)},
@@ -1193,40 +1180,6 @@ document.getElementById('ghSquareBtn').addEventListener('click', signInWithGithu
       await establishSession(idToken, true);
     } catch (err) {
       console.error('[telegram-signin] failed at stage "' + stage + '":', err);
-      overlay.classList.remove('show');
-      showError(err.message);
-    }
-  })();
-})();
-
-(function(){
-  const params = new URLSearchParams(window.location.search);
-  const ticket = params.get('google_ticket');
-  const error = params.get('google_error');
-  if (!ticket && !error) return;
-
-  const cleanUrl = new URL(window.location.href);
-  cleanUrl.searchParams.delete('google_ticket');
-  cleanUrl.searchParams.delete('google_error');
-  window.history.replaceState({}, '', cleanUrl.toString());
-
-  if (error) {
-    showError(error);
-    return;
-  }
-  (async () => {
-    const overlay = document.getElementById('pageOverlay');
-    document.getElementById('pageOverlayText').textContent = 'Signing in with Google…';
-    overlay.classList.add('show');
-    try {
-      const data = await postJSON('/api/google-auth/complete', { ticket });
-      if (data.next) {
-        const targetUrl = new URL(window.location.href);
-        targetUrl.searchParams.set('next', data.next);
-        window.history.replaceState({}, '', targetUrl.toString());
-      }
-      await establishSession(data.idToken, true);
-    } catch (err) {
       overlay.classList.remove('show');
       showError(err.message);
     }
