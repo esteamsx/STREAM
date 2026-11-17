@@ -589,7 +589,9 @@
     "native-browser-entry.js"() {
       init_esm();
       init_dist();
-      if (Capacitor.isNativePlatform()) {
+      var isNativeApp = Capacitor.isNativePlatform();
+      if (isNativeApp) {
+        window.__ES_NATIVE_APP__ = true;
         document.addEventListener("click", async (event) => {
           const link = event.target.closest("a[href]");
           if (!link || event.defaultPrevented) return;

@@ -1,7 +1,9 @@
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 
-if (Capacitor.isNativePlatform()) {
+const isNativeApp = Capacitor.isNativePlatform();
+if (isNativeApp) {
+  window.__ES_NATIVE_APP__ = true;
   document.addEventListener('click', async (event) => {
     const link = event.target.closest('a[href]');
     if (!link || event.defaultPrevented) return;

@@ -1,9 +1,10 @@
 {
   "appId": "com.esteamstv.app",
-  "appName": "ES Teams TV",
+  "appName": "ES TEAMS TV",
   "webDir": "www",
   "server": {
     "url": "https://esteamstv.devs.surf",
-    "cleartext": false
+    "cleartext": false,
+    "androidScheme": "https"
   }
 }
