@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.esteamstv.app",
+      "sha256_cert_fingerprints": ["5E:04:50:C0:80:EE:02:91:18:0E:0B:81:09:CC:5D:0A:7A:E0:0B:26:1B:4E:8B:5E:FE:73:0B:0F:DE:95:FD:60"]
+    }
+  }
+]
