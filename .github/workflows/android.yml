@@ -1,4 +1,3 @@
-
 name: ES Teams TV Android Build
 
 on:
@@ -38,6 +37,16 @@ jobs:
       - name: Install dependencies
         working-directory: native-app
         run: npm ci
+
+      - name: Prepare app icon
+        working-directory: native-app
+        run: |
+          node --input-type=module -e 'import sharp from "sharp"; await sharp("assets/icon.png").resize(1024, 1024).png().toFile("assets/icon-1024.png");'
+          mv assets/icon-1024.png assets/icon.png
+
+      - name: Generate Android and iOS assets
+        working-directory: native-app
+        run: npx capacitor-assets generate --iconBackgroundColor '#080B18' --iconBackgroundColorDark '#080B18'
 
       - name: Sync Capacitor Android
         working-directory: native-app
