@@ -368,13 +368,11 @@ router.get("/api/v1/stream/:channel", requireApiKey, devApiLimiter, async (req, 
   recordIssuedLink(req.apiKeyUid, { channel, token, createdAt, exp: createdAt + ttlMs });
   res.json({
     channel,
-    embed_url: `${PUBLIC_BASE}/embed/${encodeURIComponent(channel)}?token=${encodeURIComponent(token)}`,
+    stream_url: `${PUBLIC_BASE}/api/v1/hls/${encodeURIComponent(channel)}/master.m3u8?token=${encodeURIComponent(token)}`,
     expires_at: new Date(createdAt + ttlMs).toISOString(),
     watermark: plan.watermark,
     plan: plan.name,
-    note: plan.watermark
-      ? "Embed this URL in an iframe (or open it directly). It carries the ES TEAMS TV watermark and expires. It isn't the real stream source, and can't be used to reach it."
-      : "Embed this URL in an iframe (or open it directly). Your plan has the watermark removed. It still expires and isn't the real stream source, so it can't be used to reach it.",
+    note: "Use this HLS stream URL with an HLS-compatible player. It expires with the issued token."
   });
 });
 
@@ -657,7 +655,7 @@ function describeLink(channel, createdAt, exp, token, keyId) {
     expires_at: new Date(exp).toISOString(),
     status: now > exp || revoked ? "expired" : "active",
     ms_left: Math.max(0, exp - now),
-    embed_url: `${PUBLIC_BASE}/embed/${encodeURIComponent(channel)}?token=${encodeURIComponent(token)}`,
+    stream_url: `${PUBLIC_BASE}/api/v1/hls/${encodeURIComponent(channel)}/master.m3u8?token=${encodeURIComponent(token)}`,
   };
 }
 

@@ -480,7 +480,7 @@ ${musicPlayerStyle()}
     </div>
 
     <h1>Live Tv Apis</h1>
-    <p class="doc-p">Pull live channels into your own site, bot, or app, with a key tied to your account, and a link that never exposes the real stream source.</p>
+    <p class="doc-p">Pull live channels into your own site, bot, or app, with a key tied to your account and a signed HLS stream link served through the same Cinxeora-backed HLS path as the Live TV page.</p>
 
     <h2 class="doc-h2">Getting a key</h2>
     <p class="doc-p">Create an API key from the <a href="#" id="docsToDashLink1">API Dashboard</a>. The raw key is shown once, so save it somewhere safe. How many keys you can have (1 to 15) depends on your plan; see <a href="#" id="docsToDashLink3">Plans &amp; Pricing</a>. You can revoke any key at any time.</p>
@@ -503,26 +503,26 @@ ${musicPlayerStyle()}
 
     <h2 class="doc-h2">Get a stream link</h2>
     <p class="doc-p"><span class="badge badge-get">GET</span> <code>/api/v1/stream/:channel</code></p>
-    <p class="doc-p">Give it a channel id (e.g. <code>nickelodeon</code>) and get back a watermarked, single-use embed link. It is <strong>not</strong> the real stream URL, it's a short-lived link to our own player, which is the only thing that ever talks to the actual source.</p>
+    <p class="doc-p">Give it a channel id (e.g. <code>nickelodeon</code>) and get back a signed, time-limited HLS stream URL. The stream is delivered through this site using the same Cinxeora-backed HLS path as the Live TV page.</p>
     <pre>curl -H "x-api-key: estv_your_key_here" \\
   https://esteamstv.devs.surf/api/v1/stream/nickelodeon</pre>
     <pre>{
   "channel": "nickelodeon",
-  "embed_url": "https://esteamstv.devs.surf/embed/nickelodeon?token=...",
+  "stream_url": "https://esteamstv.devs.surf/api/v1/hls/nickelodeon/master.m3u8?token=...",
   "expires_at": "2026-07-24T18:00:00.000Z",
   "note": "Embed this URL in an iframe (or open it directly)."
 }</pre>
 
     <h2 class="doc-h2">Using the link</h2>
-    <p class="doc-p">Drop <code>embed_url</code> straight into an iframe on your site:</p>
-    <pre>&lt;iframe src="https://esteamstv.devs.surf/embed/nickelodeon?token=..." 
-        width="100%" height="400" frameborder="0" allowfullscreen&gt;
-&lt;/iframe&gt;</pre>
-    <p class="doc-p">Or, in a Telegram bot, send it as a link or a Web App button so it opens in-app. On the Free, Starter and Standard plans, viewers see the ES TEAMS TV watermark on the player; Pro and Max remove it.</p>
+    <p class="doc-p">Load <code>stream_url</code> in an HLS-compatible player. On browsers that do not support HLS natively, use the existing HLS.js player pattern used by the Live TV page.</p>
+    <pre>const hls = new Hls();
+hls.loadSource(data.stream_url);
+hls.attachMedia(video);</pre>
+    <p class="doc-p">The URL is signed and expires according to your plan. Request a fresh stream URL when it expires.</p>
 
     <h2 class="doc-h2">Link lifetime</h2>
     <table>
-      <tr><th>Plan</th><th>Embed link expires after</th></tr>
+      <tr><th>Plan</th><th>Stream link expires after</th></tr>
       <tr><td>Free</td><td>6 hours</td></tr>
       <tr><td>Starter</td><td>12 hours</td></tr>
       <tr><td>Standard</td><td>24 hours</td></tr>
@@ -564,7 +564,7 @@ ${musicPlayerStyle()}
     <div class="overlay-title" id="linkUrlOverlayTitle">Direct URL</div>
     <div class="overlay-sub" id="linkUrlOverlaySub"></div>
     <div class="field">
-      <label>Embed URL</label>
+      <label>Stream URL</label>
       <div style="display:flex;gap:6px">
         <input type="text" id="linkUrlOverlayInput" readonly style="flex:1;font-family:var(--font-mono);font-size:.7rem">
         <button class="btn btn-sm" id="linkUrlCopyBtn" type="button">Copy</button>
@@ -1051,7 +1051,7 @@ ${musicPlayerHtml()}
   function openLinkUrlOverlay(l){
     linkUrlOverlaySub.innerHTML = esc(l.channel_name) + ': <span class="status-pill ' +
       (l.status === 'active' ? 'ok' : 'bad') + '" style="margin-left:2px">' + (l.status === 'active' ? 'Active' : 'Inactive') + '</span>';
-    linkUrlOverlayInput.value = l.embed_url || '';
+    linkUrlOverlayInput.value = l.stream_url || '';
     linkUrlCopyBtn.textContent = 'Copy';
     linkUrlOverlay.classList.add('show');
   }
