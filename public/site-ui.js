@@ -1073,6 +1073,17 @@ function esOpenNotifications() {
   openNotifOverlay();
 }
 
+function esOpenAppDownload() {
+  const appOverlay = document.getElementById("hmAppDownloadOverlay");
+  if (!appOverlay) {
+    window.location.href = "/ES%20TEAMS%20TV.apk";
+    return;
+  }
+  esCloseOverlay("esMenuOverlay");
+  appOverlay.classList.add("show");
+  appOverlay.setAttribute("aria-hidden", "false");
+}
+
 function esBuildMenu() {
   const overlay = esEl("div", { class: "page-overlay", id: "esMenuOverlay", role: "dialog", "aria-modal": "true", "aria-label": "Menu" });
   const card = esEl("div", { class: "flist-card es-menu-card" });
@@ -1105,7 +1116,7 @@ function esBuildMenu() {
   list.appendChild(link("/live"));
   list.appendChild(item({ href: "/movies", label: "Movies", icon: ES_ICON_MOVIES }));
   list.appendChild(link("/football"));
-  list.appendChild(item({ href: "/ES%20TEAMS%20TV.apk", label: "Download App", icon: ES_ICON_DOWNLOAD }));
+  list.appendChild(action("Download App", ES_ICON_DOWNLOAD, esOpenAppDownload));
 
   section("Social");
   list.appendChild(link("/profile"));
