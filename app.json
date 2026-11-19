@@ -15,6 +15,14 @@
       "description": "The complete Firebase Admin service-account JSON object, including its surrounding braces.",
       "required": true
     },
+    "GMAIL_USER": {
+      "description": "Gmail or Google Workspace address used to send verification and account emails.",
+      "required": true
+    },
+    "GMAIL_APP_PASSWORD": {
+      "description": "A Google App Password for GMAIL_USER. Do not use the normal Gmail password.",
+      "required": true
+    },
     "SITE_URL": {
       "description": "The public HTTPS URL of this Heroku app, for example https://your-app.herokuapp.com."
     },

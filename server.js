@@ -3374,7 +3374,7 @@ app.post("/api/signup", requireSiteOrigin, signupLimiter, async (req, res) => {
     res.json({ pendingVerification: true, email });
   } catch (err) {
     console.error(err);
-    res.status(400).json({ error: "Could not create account." });
+    res.status(400).json({ error: err.userFacing || "Could not create account." });
   }
 });
 
@@ -3396,7 +3396,7 @@ app.post("/api/resend-code", signupLimiter, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
-    res.status(400).json({ error: "Could not resend code." });
+    res.status(400).json({ error: err.userFacing || "Could not resend code." });
   }
 });
 
@@ -4866,7 +4866,7 @@ app.post("/api/request-password-reset", resetLimiter, async (req, res) => {
     res.json({ uid: userRecord.uid, email });
   } catch (err) {
     console.error(err);
-    res.status(400).json({ error: "Could not send reset code." });
+    res.status(400).json({ error: err.userFacing || "Could not send reset code." });
   }
 });
 

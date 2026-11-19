@@ -1,23 +1,59 @@
 import nodemailer from "nodemailer";
 
+const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
+const requestedPort = Number.parseInt(process.env.SMTP_PORT || "465", 10);
+const SMTP_PORT = requestedPort === 587 ? 587 : 465;
+const SMTP_SECURE = SMTP_PORT === 465
+  ? true
+  : String(process.env.SMTP_SECURE || "false").toLowerCase() === "true";
+const SMTP_MIN_TLS = "TLSv1.2";
+
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_SECURE,
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
+  tls: { minVersion: SMTP_MIN_TLS },
   connectionTimeout: 8000,
   greetingTimeout: 8000,
   socketTimeout: 8000,
 });
 
+function emailConfigurationError() {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    const err = new Error("Email delivery is not configured.");
+    err.userFacing = "Email verification is temporarily unavailable. Please try again later.";
+    err.code = "EMAIL_NOT_CONFIGURED";
+    return err;
+  }
+  return null;
+}
+
+function emailDeliveryError(smtpErr) {
+  const err = new Error("Email delivery failed.");
+  const authFailed = smtpErr?.code === "EAUTH" || Number(smtpErr?.responseCode) === 535;
+  err.userFacing = authFailed
+    ? "Email service authentication failed. Please check the Gmail App Password."
+    : "We could not send the email right now. Please try again later.";
+  err.code = smtpErr?.code || smtpErr?.responseCode || "EMAIL_DELIVERY_FAILED";
+  return err;
+}
+
 async function sendMailWithFallback(mailOptions) {
+  const configError = emailConfigurationError();
+  if (configError) throw configError;
   try {
     await transporter.sendMail(mailOptions);
-    return { provider: "gmail" };
+    return { provider: SMTP_HOST === "smtp.gmail.com" ? "gmail" : "smtp" };
   } catch (smtpErr) {
-    console.error("[mailer] Gmail SMTP send failed:", smtpErr.message);
-    throw smtpErr;
+    console.error("[mailer] SMTP send failed", {
+      code: smtpErr?.code || null,
+      responseCode: smtpErr?.responseCode || null,
+    });
+    throw emailDeliveryError(smtpErr);
   }
 }
 
@@ -154,4 +190,8 @@ function escapeHtml(str) {
   }[c]));
 }
 
-export { sendVerificationCode, sendSignupVerificationCode, sendBanNotificationEmail, sendDmcaReportEmail, sendWithdrawalRequestEmail };
+function getEmailTransportConfig() {
+  return { host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_SECURE, minTls: SMTP_MIN_TLS };
+}
+
+export { sendVerificationCode, sendSignupVerificationCode, sendBanNotificationEmail, sendDmcaReportEmail, sendWithdrawalRequestEmail, getEmailTransportConfig };
