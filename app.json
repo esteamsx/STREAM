@@ -1,0 +1,28 @@
+{
+  "name": "es-teams-tv",
+  "description": "ES TEAMS TV web application",
+  "stack": "heroku-24",
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "env": {
+    "NODE_ENV": {
+      "value": "production"
+    },
+    "FIREBASE_SERVICE_ACCOUNT_KEY": {
+      "description": "The complete Firebase Admin service-account JSON object, including its surrounding braces.",
+      "required": true
+    },
+    "SITE_URL": {
+      "description": "The public HTTPS URL of this Heroku app, for example https://your-app.herokuapp.com."
+    },
+    "ALLOWED_HOSTS": {
+      "description": "Comma-separated public hostnames accepted by the app, including your Heroku hostname."
+    },
+    "SESSION_SECRET": {
+      "description": "A long random secret used to sign application sessions."
+    }
+  }
+}
