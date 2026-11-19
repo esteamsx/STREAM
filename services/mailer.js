@@ -34,10 +34,7 @@ function emailConfigurationError() {
 
 function emailDeliveryError(smtpErr) {
   const err = new Error("Email delivery failed.");
-  const authFailed = smtpErr?.code === "EAUTH" || Number(smtpErr?.responseCode) === 535;
-  err.userFacing = authFailed
-    ? "Email service authentication failed. Please check the Gmail App Password."
-    : "We could not send the email right now. Please try again later.";
+  err.userFacing = "Could not send code. Please try again later.";
   err.code = smtpErr?.code || smtpErr?.responseCode || "EMAIL_DELIVERY_FAILED";
   return err;
 }
