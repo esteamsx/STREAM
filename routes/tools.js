@@ -7,7 +7,8 @@ import crypto from "node:crypto";
 import { Worker } from "node:worker_threads";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { verifySolution } from "altcha-lib";
+import { createAltchaVerifier } from "../services/altcha-security.js";
+import { db } from "../config/firebase.js";
 import QRCode from "qrcode";
 import { TOTP, Secret } from "otpauth";
 import { optionalAuth, isAdminEmail, isVerificationActive, checkAndIncrementDailyLimit } from "../services/auth.js";
@@ -16,15 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = express.Router();
 
 const ALTCHA_HMAC_KEY = process.env.ALTCHA_SECRET;
-
-async function verifyCaptcha(payload) {
-  if (!payload) return false;
-  try {
-    return !!(await verifySolution(payload, ALTCHA_HMAC_KEY));
-  } catch {
-    return false;
-  }
-}
+const verifyCaptcha = createAltchaVerifier({ database: db, key: ALTCHA_HMAC_KEY });
 
 const TOOL_DAILY_LIMIT = 3;
 

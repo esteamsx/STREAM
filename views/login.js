@@ -92,21 +92,6 @@ input{font-family:inherit}
 :root[data-theme="light"] .auth-tabs{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.5)}
 :root[data-theme="light"] .auth-tab.active{background:rgba(255,255,255,.85);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 
-.otp-notice{
-  display:flex;align-items:center;justify-content:center;gap:6px;
-  margin:-6px 0 16px;text-align:center;
-  font-family:var(--font-display);font-weight:600;font-size:.715rem;
-  letter-spacing:-.01em;color:#F5A623;
-  animation:otpPulse 2.4s ease-in-out infinite;
-}
-.otp-notice svg{width:12px;height:12px;flex-shrink:0}
-@keyframes otpPulse{
-  0%,100%{transform:scale(1);opacity:.82}
-  50%{transform:scale(1.05);opacity:1}
-}
-@media(prefers-reduced-motion:reduce){.otp-notice{animation:none;opacity:1}}
-:root[data-theme="light"] .otp-notice{color:#95610A}
-
 .signup-blur-target{filter:blur(6px);pointer-events:none;user-select:none;display:flex;flex-direction:column;gap:14px}
 .signup-lock-overlay{
   position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -378,11 +363,6 @@ html.embed-mode .auth-wrap{max-width:100%;margin:0}
       <button class="auth-tab" data-tab="signup">Create Account</button>
     </div>
 
-    <div class="otp-notice" id="otpNotice">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M10.3 3.9L2.4 17.5A1.8 1.8 0 004 20.2h16a1.8 1.8 0 001.6-2.7L13.7 3.9a1.8 1.8 0 00-3.4 0z"/><path d="M12 17h.01"/></svg>
-      Manual OTP Verification is Currently Unavailable
-    </div>
-
     <div class="auth-error" id="authError"></div>
 
     <form class="auth-form active" id="loginForm">
@@ -632,7 +612,6 @@ function setTab(name){
   tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   forms.login.classList.toggle('active', name === 'login');
   forms.signup.classList.toggle('active', name === 'signup');
-  document.getElementById('otpNotice').style.display = name === 'login' ? '' : 'none';
   clearError();
 }
 tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));

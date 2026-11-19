@@ -23,6 +23,8 @@ import { isFollowSitePromotion, isFollowSiteRuleBlock } from "./promotional-text
 import { getMovieApiQuotaStatus } from "./movie-api-quota.js";
 import { CODING_PLAN_DEFS, CODING_PURCHASABLE_PLAN_KEYS, resolveCodingPlanForProfile } from "./coding-usage.js";
 const CODE_TTL_MS = 5 * 60 * 1000;
+const CODE_MAX_ATTEMPTS = 5;
+const CODE_RESEND_COOLDOWN_MS = 30 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -75,11 +77,38 @@ function generateCode() {
   return String(crypto.randomInt(100000, 1000000));
 }
 
+function otpDigest(uid, purpose, code) {
+  const secret = process.env.OTP_HASH_SECRET || process.env.ALTCHA_SECRET || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!secret) throw Object.assign(new Error("OTP hashing is not configured."), { code: "OTP_HASH_NOT_CONFIGURED", userFacing: "Verification is temporarily unavailable. Please try again later." });
+  return crypto.createHmac("sha256", secret).update(`${String(uid)}:${String(purpose)}:${String(code)}`).digest("hex");
+}
+
+function otpCooldownId(uid, purpose) {
+  return crypto.createHash("sha256").update(`${String(uid)}:${String(purpose)}`).digest("hex");
+}
+
+async function reserveOtpCooldown(uid, purpose, now = Date.now()) {
+  const ref = db.collection("verification_code_cooldowns").doc(otpCooldownId(uid, purpose));
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const nextAllowedAt = Number(snap.data()?.nextAllowedAt || 0);
+    if (snap.exists && nextAllowedAt > now) {
+      throw Object.assign(new Error("Please wait before requesting another code."), { status: 429, code: "OTP_RESEND_COOLDOWN", retryAfterMs: nextAllowedAt - now });
+    }
+    tx.set(ref, { nextAllowedAt: now + CODE_RESEND_COOLDOWN_MS, updatedAt: now });
+  });
+}
+
 async function issueCode(uid, contact, purpose, channel = "email") {
+  await reserveOtpCooldown(uid, purpose);
   const code = generateCode();
-  const expiresAt = Date.now() + CODE_TTL_MS;
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + CODE_TTL_MS;
   await db.collection("verification_codes").doc(`${uid}_${purpose}`).set({
-    code,
+    codeHash: otpDigest(uid, purpose, code),
+    attempts: 0,
+    issuedAt,
+    nextResendAt: issuedAt + CODE_RESEND_COOLDOWN_MS,
     email: channel === "email" ? contact : null,
     expiresAt,
   });
@@ -114,16 +143,37 @@ async function sendTelegramCode(telegramId, code, purpose) {
 
 async function checkCode(uid, purpose, code) {
   const ref = db.collection("verification_codes").doc(`${uid}_${purpose}`);
-  const snap = await ref.get();
-  if (!snap.exists) return { ok: false, reason: "not_found" };
-  const data = snap.data();
-  if (Date.now() > data.expiresAt) {
-    await ref.delete();
-    return { ok: false, reason: "expired" };
-  }
-  if (data.code !== code) return { ok: false, reason: "mismatch" };
-  await ref.delete();
-  return { ok: true, email: data.email };
+  const now = Date.now();
+  let result = { ok: false, reason: "not_found" };
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const data = snap.data();
+    if (Number(data.expiresAt || 0) <= now) {
+      tx.delete(ref);
+      result = { ok: false, reason: "expired" };
+      return;
+    }
+    if (Number(data.attempts || 0) >= CODE_MAX_ATTEMPTS) {
+      tx.delete(ref);
+      result = { ok: false, reason: "locked" };
+      return;
+    }
+    const input = String(code || "");
+    const providedHash = /^\d{6}$/.test(input) ? otpDigest(uid, purpose, input) : "";
+    const storedHash = String(data.codeHash || "");
+    const matches = !!providedHash && /^[a-f0-9]{64}$/.test(storedHash) && crypto.timingSafeEqual(Buffer.from(providedHash, "hex"), Buffer.from(storedHash, "hex"));
+    if (!matches) {
+      const attempts = Number(data.attempts || 0) + 1;
+      if (attempts >= CODE_MAX_ATTEMPTS) tx.delete(ref);
+      else tx.update(ref, { attempts });
+      result = { ok: false, reason: attempts >= CODE_MAX_ATTEMPTS ? "locked" : "mismatch" };
+      return;
+    }
+    tx.delete(ref);
+    result = { ok: true, email: data.email };
+  });
+  return result;
 }
 
 async function createUserAccount({ firstName, lastName, email, password, username }) {
@@ -210,35 +260,61 @@ async function upsertUserProfile(uid, data) {
 }
 
 async function issuePendingSignup({ firstName, lastName, email, username, password, referredByCode }) {
+  await reserveOtpCooldown(email, "signup");
   const code = generateCode();
-  const expiresAt = Date.now() + CODE_TTL_MS;
-  await db.collection("pending_signups").doc(email).set({ firstName, lastName, email, username, password, referredByCode: referredByCode || null, code, expiresAt });
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + CODE_TTL_MS;
+  await db.collection("pending_signups").doc(email).set({ firstName, lastName, email, username, password, referredByCode: referredByCode || null, codeHash: otpDigest(email, "signup", code), attempts: 0, issuedAt, nextResendAt: issuedAt + CODE_RESEND_COOLDOWN_MS, expiresAt });
   await sendVerificationCode(email, code, "signup");
 }
 
 async function resendPendingSignupCode(email) {
+  await reserveOtpCooldown(email, "signup");
   const ref = db.collection("pending_signups").doc(email);
   const snap = await ref.get();
-  if (!snap.exists) throw new Error("No pending signup found for this email.");
+  if (!snap.exists) throw Object.assign(new Error("No pending signup found for this email."), { code: "PENDING_SIGNUP_NOT_FOUND" });
   const data = snap.data();
+  const { code: _legacyPlaintextCode, ...safeData } = data;
   const code = generateCode();
-  const expiresAt = Date.now() + CODE_TTL_MS;
-  await ref.set({ ...data, code, expiresAt });
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + CODE_TTL_MS;
+  await ref.set({ ...safeData, codeHash: otpDigest(email, "signup", code), attempts: 0, issuedAt, nextResendAt: issuedAt + CODE_RESEND_COOLDOWN_MS, expiresAt });
   await sendVerificationCode(email, code, "signup");
 }
 
 async function checkPendingSignupCode(email, code) {
   const ref = db.collection("pending_signups").doc(email);
-  const snap = await ref.get();
-  if (!snap.exists) return { ok: false, reason: "not_found" };
-  const data = snap.data();
-  if (Date.now() > data.expiresAt) {
-    await ref.delete();
-    return { ok: false, reason: "expired" };
-  }
-  if (data.code !== code) return { ok: false, reason: "mismatch" };
-  await ref.delete();
-  return { ok: true, data };
+  const now = Date.now();
+  let result = { ok: false, reason: "not_found" };
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const data = snap.data();
+    if (Number(data.expiresAt || 0) <= now) {
+      tx.delete(ref);
+      result = { ok: false, reason: "expired" };
+      return;
+    }
+    if (Number(data.attempts || 0) >= CODE_MAX_ATTEMPTS) {
+      tx.delete(ref);
+      result = { ok: false, reason: "locked" };
+      return;
+    }
+    const input = String(code || "");
+    const providedHash = /^\d{6}$/.test(input) ? otpDigest(email, "signup", input) : "";
+    const storedHash = String(data.codeHash || "");
+    const matches = !!providedHash && /^[a-f0-9]{64}$/.test(storedHash) && crypto.timingSafeEqual(Buffer.from(providedHash, "hex"), Buffer.from(storedHash, "hex"));
+    if (!matches) {
+      const attempts = Number(data.attempts || 0) + 1;
+      if (attempts >= CODE_MAX_ATTEMPTS) tx.delete(ref);
+      else tx.update(ref, { attempts });
+      result = { ok: false, reason: attempts >= CODE_MAX_ATTEMPTS ? "locked" : "mismatch" };
+      return;
+    }
+    tx.delete(ref);
+    result = { ok: true, data };
+  });
+  return result;
 }
 
 const userProfileCache = new Map();
@@ -462,6 +538,26 @@ async function seedWatchSecondsIfEmpty(uid, seedSeconds) {
 async function markEmailVerified(uid) {
   await auth.updateUser(uid, { emailVerified: true });
   await db.collection("users").doc(uid).update({ emailVerified: true });
+}
+
+async function isEmailVerifiedForUser(uid, profile = null) {
+  if (!uid) return false;
+  const currentProfile = profile || await getUserProfile(uid, 0);
+  const profileEmail = String(currentProfile?.email || "").trim().toLowerCase();
+  if (!profileEmail) return false;
+  const account = await auth.getUser(uid);
+  const authEmail = String(account?.email || "").trim().toLowerCase();
+  const verified = account?.emailVerified === true && authEmail === profileEmail;
+  if (verified && currentProfile.emailVerified !== true) {
+    db.collection("users").doc(uid).set({ emailVerified: true }, { merge: true }).catch(() => {});
+  }
+  return verified;
+}
+
+function maskEmailAddress(email) {
+  const [local, domain] = String(email || "").trim().split("@");
+  if (!local || !domain) return "";
+  return `${local.slice(0, 1)}${"•".repeat(Math.min(6, Math.max(3, local.length - 1)))}@${domain}`;
 }
 
 async function ensureGoogleUserProfile(decodedToken) {
@@ -1227,6 +1323,25 @@ async function verifySession(sessionId, req = null) {
     return data.uid;
   } catch {
     return null;
+  }
+}
+
+async function isSessionRecent(sessionId, maxAgeMs = 10 * 60 * 1000) {
+  const now = Date.now();
+  const payload = readSessionToken(sessionId);
+  if (payload) {
+    const issuedAt = Number(payload.iat);
+    return Number(payload.exp) > now && Number.isFinite(issuedAt) && issuedAt <= now + 30_000 && now - issuedAt <= maxAgeMs;
+  }
+  if (!sessionId || !LEGACY_SESSION_ID.test(sessionId)) return false;
+  try {
+    const snap = await db.collection("sessions").doc(sessionId).get();
+    if (!snap.exists) return false;
+    const data = snap.data();
+    const issuedAt = Number(data.createdAt || data.issuedAt || 0);
+    return Number(data.expiresAt || 0) > now && issuedAt > 0 && issuedAt <= now + 30_000 && now - issuedAt <= maxAgeMs;
+  } catch {
+    return false;
   }
 }
 
@@ -6384,6 +6499,8 @@ export {
   addWatchSeconds,
   seedWatchSecondsIfEmpty,
   markEmailVerified,
+  isEmailVerifiedForUser,
+  maskEmailAddress,
   ensureGoogleUserProfile,
   verifyTelegramLoginPayload,
   verifyTelegramIdToken,
@@ -6524,6 +6641,7 @@ export {
   consumeResetToken,
   createSession,
   verifySession,
+  isSessionRecent,
   readSessionToken,
   refreshSession,
   deleteSession,

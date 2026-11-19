@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { siteOrigin } from "../config/site.js";
 
 const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
 const requestedPort = Number.parseInt(process.env.SMTP_PORT || "465", 10);
@@ -54,6 +55,28 @@ async function sendMailWithFallback(mailOptions) {
   }
 }
 
+function verificationEmailHtml({ heading, intro, code, expiryText, footer }) {
+  const origin = escapeHtml(siteOrigin());
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+    <body style="margin:0;padding:0;background:#090b12;color:#f3f4fa;font-family:Arial,Helvetica,sans-serif">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#090b12;padding:26px 12px"><tr><td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#111521;border:1px solid #32394b;border-radius:20px;overflow:hidden">
+          <tr><td style="height:4px;background:#00e0ff"></td></tr>
+          <tr><td style="padding:28px 28px 10px">
+            <table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="vertical-align:middle;padding-right:11px"><img src="${origin}/favicon.svg" width="42" height="42" alt="ES Teams TV" style="display:block;border:0;border-radius:10px"></td><td style="vertical-align:middle;color:#f3f4fa;font-size:18px;font-weight:700;letter-spacing:.4px">ES TEAMS TV</td></tr></table>
+            <p style="margin:26px 0 8px;color:#00e0ff;font-size:11px;font-weight:700;letter-spacing:1.7px">${escapeHtml(heading)}</p>
+            <h1 style="margin:0 0 12px;color:#f3f4fa;font-size:24px;line-height:1.25">Your secure code</h1>
+            <p style="margin:0;color:#c1c6d4;font-size:15px;line-height:1.65">${escapeHtml(intro)}</p>
+            <div style="margin:24px 0;padding:17px 14px;text-align:center;background:#090c14;border:1px solid #374157;border-radius:14px;color:#fff;font-family:Consolas,Monaco,monospace;font-size:32px;font-weight:700;letter-spacing:9px">${escapeHtml(code)}</div>
+            <p style="margin:0;color:#b8bfd0;font-size:13px;line-height:1.6">${escapeHtml(expiryText)}</p>
+            <p style="margin:12px 0 0;color:#8f98ad;font-size:13px;line-height:1.6">${escapeHtml(footer)}</p>
+          </td></tr>
+          <tr><td style="padding:18px 28px 24px;border-top:1px solid #262d3c;color:#7f899e;font-size:12px;line-height:1.6">ES TEAMS TV · Secure account services</td></tr>
+        </table>
+      </td></tr></table>
+    </body></html>`;
+}
+
 async function sendVerificationCode(email, code, purpose) {
   const isReset = purpose === "forgot_password";
   const isDeletion = purpose === "delete_account";
@@ -68,19 +91,12 @@ async function sendVerificationCode(email, code, purpose) {
     from: `"ES TEAMS TV" <${process.env.GMAIL_USER}>`,
     to: email,
     subject: isDeletion
-      ? `${code} is your ES TEAMS TV account deletion code`
+      ? "Your ES TEAMS TV account deletion code"
       : isReset
-      ? `${code} is your ES TEAMS TV password reset code`
-      : `${code} is your ES TEAMS TV verification code`,
-    html: `
-      <div style="font-family:Arial,sans-serif;background:#0A0A0F;padding:32px;color:#F3F3FA">
-        <h2 style="color:#00E0FF;margin:0 0 12px">ES TEAMS TV</h2>
-        <p style="margin:0 0 4px;font-weight:700;letter-spacing:1px;color:${isDeletion ? "#FF3B5C" : "rgba(255,255,255,.6)"};font-size:12px">${heading}</p>
-        <p style="margin:0 0 20px">${intro}</p>
-        <div style="font-size:32px;font-weight:700;letter-spacing:8px;background:#15151F;padding:16px 24px;border-radius:8px;display:inline-block">${code}</div>
-        <p style="margin:20px 0 0;color:rgba(255,255,255,.5);font-size:13px">This code expires in 5 minutes. ${footer}</p>
-      </div>
-    `,
+      ? "Your ES TEAMS TV password reset code"
+      : "Your ES TEAMS TV verification code",
+    text: `${intro}\n\n${code}\n\nThis code expires in 5 minutes. ${footer}\n\nES TEAMS TV`,
+    html: verificationEmailHtml({ heading, intro, code, expiryText: "This code expires in 5 minutes.", footer }),
   });
 }
 
@@ -90,16 +106,45 @@ async function sendSignupVerificationCode(email, code) {
   return sendMailWithFallback({
     from: `"ES TEAMS TV" <${SIGNUP_GMAIL_USER}>`,
     to: email,
-    subject: `${code} is your ES TEAMS TV verification code`,
-    html: `
-      <div style="font-family:Arial,sans-serif;background:#0A0A0F;padding:32px;color:#F3F3FA">
-        <h2 style="color:#00E0FF;margin:0 0 12px">ES TEAMS TV</h2>
-        <p style="margin:0 0 4px;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,.6);font-size:12px">VERIFICATION CODE</p>
-        <p style="margin:0 0 20px">Your verification code is:</p>
-        <div style="font-size:32px;font-weight:700;letter-spacing:8px;background:#15151F;padding:16px 24px;border-radius:8px;display:inline-block">${code}</div>
-        <p style="margin:20px 0 0;color:rgba(255,255,255,.5);font-size:13px">This code expires in 5 minutes. If you didn't request this, ignore this email.</p>
-      </div>
-    `,
+    subject: "Your ES TEAMS TV verification code",
+    text: `Your verification code is ${code}. It expires in 5 minutes. If you didn't request this, ignore this email.\n\nES TEAMS TV`,
+    html: verificationEmailHtml({ heading: "EMAIL VERIFICATION", intro: "Use this one-time code to verify your ES TEAMS TV account email address:", code, expiryText: "This code expires in 5 minutes.", footer: "If you didn't request this, ignore this email." }),
+  });
+}
+
+async function sendPremiumExpiryReminderEmail(email, expiryDate, renewalUrl) {
+  if (email && typeof email === "object") {
+    const reminder = email;
+    email = reminder.email;
+    expiryDate = reminder.expiryDate;
+    renewalUrl = reminder.renewUrl;
+  }
+  const safeDate = escapeHtml(expiryDate);
+  const safeUrl = escapeHtml(renewalUrl);
+  const origin = escapeHtml(siteOrigin());
+  const text = `Your ES TEAMS TV Premium membership expires in 3 days, on ${expiryDate}. Renew to keep your Premium benefits. Renew Premium: ${renewalUrl}\n\nThank you for being part of ES TEAMS TV.`;
+  return sendMailWithFallback({
+    from: `"ES TEAMS TV" <${process.env.GMAIL_USER}>`,
+    to: email,
+    subject: "Your ES TEAMS TV Premium membership expires in 3 days",
+    text,
+    html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+      <body style="margin:0;padding:0;background:#090b12;color:#f3f4fa;font-family:Arial,Helvetica,sans-serif">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#090b12;padding:26px 12px"><tr><td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:580px;background:#111521;border:1px solid #32394b;border-radius:20px;overflow:hidden">
+            <tr><td style="height:4px;background:#00e0ff"></td></tr>
+            <tr><td style="padding:28px 28px 26px">
+              <table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="vertical-align:middle;padding-right:11px"><img src="${origin}/favicon.svg" width="42" height="42" alt="ES Teams TV" style="display:block;border:0;border-radius:10px"></td><td style="vertical-align:middle;color:#f3f4fa;font-size:18px;font-weight:700;letter-spacing:.4px">ES TEAMS TV</td></tr></table>
+              <p style="margin:28px 0 8px;color:#00e0ff;font-size:11px;font-weight:700;letter-spacing:1.7px">PREMIUM MEMBERSHIP</p>
+              <h1 style="margin:0 0 12px;color:#f3f4fa;font-size:26px;line-height:1.25">Your Premium expires in 3 days</h1>
+              <p style="margin:0;color:#c1c6d4;font-size:15px;line-height:1.65">Your membership is set to expire on <strong style="color:#fff">${safeDate}</strong>. Renewing helps you keep enjoying your Premium benefits without interruption.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin:25px 0 20px"><tr><td align="center" style="border-radius:11px;background:#00d9f2"><a href="${safeUrl}" style="display:inline-block;padding:14px 24px;color:#06141a;font-size:13px;font-weight:800;letter-spacing:1px;text-decoration:none;border-radius:11px">RENEW PREMIUM</a></td></tr></table>
+              <p style="margin:0;color:#8f98ad;font-size:13px;line-height:1.6">If you have already renewed, thank you—your membership will continue as usual.</p>
+            </td></tr>
+            <tr><td style="padding:18px 28px 24px;border-top:1px solid #262d3c;color:#7f899e;font-size:12px;line-height:1.6">Thanks for being with us,<br><strong style="color:#c1c6d4">The ES TEAMS TV team</strong></td></tr>
+          </table>
+        </td></tr></table>
+      </body></html>`,
   });
 }
 
@@ -191,4 +236,4 @@ function getEmailTransportConfig() {
   return { host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_SECURE, minTls: SMTP_MIN_TLS };
 }
 
-export { sendVerificationCode, sendSignupVerificationCode, sendBanNotificationEmail, sendDmcaReportEmail, sendWithdrawalRequestEmail, getEmailTransportConfig };
+export { sendVerificationCode, sendSignupVerificationCode, sendPremiumExpiryReminderEmail, sendBanNotificationEmail, sendDmcaReportEmail, sendWithdrawalRequestEmail, getEmailTransportConfig };

@@ -4,6 +4,7 @@ export function registerWeeklyActivityRoutes(router, {
   SimpleRateLimiter,
   getSummary,
   verifyCaptcha,
+  emailVerifiedOrRespond,
   claimReward,
 }) {
   const summaryLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
@@ -26,8 +27,16 @@ export function registerWeeklyActivityRoutes(router, {
     async (req, res) => {
       try {
         res.set("Cache-Control", "no-store");
-        if (!(await verifyCaptcha(req.body?.altcha))) {
+        const payload = req.body?.altcha;
+        const validCaptcha = typeof verifyCaptcha.verifyOnly === "function"
+          ? await verifyCaptcha.verifyOnly(payload)
+          : await verifyCaptcha(payload);
+        if (!validCaptcha) {
           return res.status(400).json({ error: "Captcha not completed." });
+        }
+        if (emailVerifiedOrRespond && !(await emailVerifiedOrRespond(req, res))) return;
+        if (typeof verifyCaptcha.consumeVerified === "function" && !(await verifyCaptcha.consumeVerified(payload))) {
+          return res.status(400).json({ error: "This anti-bot check has expired or was already used. Complete it again." });
         }
         res.json(await claimReward(req.uid));
       } catch (err) {

@@ -210,6 +210,8 @@ import {
   addWatchSeconds,
   seedWatchSecondsIfEmpty,
   markEmailVerified,
+  isEmailVerifiedForUser,
+  maskEmailAddress,
   ensureGoogleUserProfile,
   verifyTelegramIdToken,
   createOrGetTelegramUser,
@@ -224,6 +226,7 @@ import {
   createSession,
   createDeviceSession,
   verifySession,
+  isSessionRecent,
   refreshSession,
   deleteSession,
   isSessionRevoked,
@@ -400,8 +403,10 @@ import {
   broadcastPush,
   sendPushToUid,
 } from "./config/push.js";
-import { sendDmcaReportEmail } from "./services/mailer.js";
-import { createChallenge, verifySolution } from "altcha-lib";
+import { sendDmcaReportEmail, sendPremiumExpiryReminderEmail } from "./services/mailer.js";
+import { createChallenge } from "altcha-lib";
+import { createAltchaVerifier, pruneExpiredAltchaSolutions } from "./services/altcha-security.js";
+import { createPremiumExpiryReminderService } from "./services/premium-expiry-reminders.js";
 import {
   securityHeaders,
   helmetMiddleware,
@@ -565,6 +570,12 @@ const oauthCallbackLimiter = new SimpleRateLimiter(15, 15 * 60 * 1000).middlewar
 const identifierLookupLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware();
 const twoFactorToggleLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000, (req) => req.uid).middleware();
 const emailCodeLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000, (req) => req.uid).middleware();
+async function requireRecentAuthentication(req, res, next) {
+  try {
+    if (await isSessionRecent(req.cookies?.session)) return next();
+  } catch {}
+  return res.status(403).json({ code: "REAUTH_REQUIRED", error: "Sign in again before changing your account email, then return and retry." });
+}
 const resetLimiter = new DurableRateLimiter(5, 15 * 60 * 1000, undefined, undefined, { bucket: "reset", getDb: () => db }).middleware();
 const dmcaLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000).middleware();
 const usernameCheckLimiter = new SimpleRateLimiter(40, 60 * 1000).middleware();
@@ -727,15 +738,7 @@ if (!ALTCHA_HMAC_KEY) {
   console.warn("WARNING: ALTCHA_SECRET is not set. Set it in your .env file or captcha verification will fail.");
 }
 
-async function verifyCaptcha(payload) {
-  if (!payload) return false;
-  try {
-    const result = await verifySolution(payload, ALTCHA_HMAC_KEY);
-    return !!result;
-  } catch {
-    return false;
-  }
-}
+const verifyCaptcha = createAltchaVerifier({ database: db, key: ALTCHA_HMAC_KEY });
 
 app.use(crossOriginWriteGuard);
 
@@ -3380,49 +3383,74 @@ app.post("/api/signup", requireSiteOrigin, signupLimiter, async (req, res) => {
 
 app.post("/api/resend-code", signupLimiter, async (req, res) => {
   try {
-    const { uid, email, purpose } = req.body;
-    if ((purpose || "signup") === "signup") {
+    const { uid, email, identifier } = req.body || {};
+    const purpose = String(req.body?.purpose || "signup");
+    if (purpose === "signup") {
       if (!email) return res.status(400).json({ error: "Missing email." });
-      await resendPendingSignupCode(email);
+      try {
+        await resendPendingSignupCode(String(email).trim().toLowerCase());
+      } catch (err) {
+        if (err?.code !== "PENDING_SIGNUP_NOT_FOUND") throw err;
+      }
       return res.json({ ok: true });
     }
-    const profile = await getUserProfile(uid);
-    if (!profile) return res.status(404).json({ error: "Account not found." });
-    if ((purpose || "signup") === "delete_account" && profile.provider === "telegram" && profile.telegramId) {
-      await issueCode(uid, profile.telegramId, "delete_account", "telegram");
-    } else {
-      await issueCode(uid, profile.email, purpose || "signup");
+    if (purpose === "forgot_password") {
+      const lookup = String(identifier || "").trim();
+      if (lookup) {
+        let account = null;
+        if (lookup.includes("@")) account = await firebaseAuth.getUserByEmail(lookup.toLowerCase()).catch(() => null);
+        else {
+          const found = await findUserByUsername(lookup.toLowerCase()).catch(() => null);
+          if (found?.uid) account = await firebaseAuth.getUser(found.uid).catch(() => null);
+        }
+        if (account?.email && !account.disabled) {
+          await issueCode(account.uid, account.email, "forgot_password").catch((err) => {
+            console.error("[otp-resend] reset delivery failed", { code: err?.code || "EMAIL_DELIVERY_FAILED" });
+          });
+        }
+      }
+      return res.json({ ok: true });
     }
+    if (purpose !== "delete_account") return res.status(400).json({ error: "Invalid verification request." });
+    const sessionUid = await verifySession(req.cookies?.session, req);
+    if (!sessionUid || String(sessionUid) !== String(uid || "")) return res.status(401).json({ error: "not_authenticated" });
+    const profile = await getUserProfile(sessionUid, 0);
+    if (!profile) return res.status(401).json({ error: "not_authenticated" });
+    if (profile.provider === "telegram" && profile.telegramId) await issueCode(sessionUid, profile.telegramId, "delete_account", "telegram");
+    else if (profile.email) await issueCode(sessionUid, profile.email, "delete_account");
+    else return res.status(400).json({ error: "Add a verified email address before requesting this code." });
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: err.userFacing || "Could not resend code." });
+    console.error("[otp-resend] request failed", { code: err?.code || "OTP_RESEND_FAILED" });
+    res.status(err.status || 400).json({ error: err.userFacing || "Could not resend code." });
   }
 });
 
 app.post("/api/verify-email", signupLimiter, async (req, res) => {
   try {
-    const { uid, email, code, purpose } = req.body;
+    const { uid, email, code } = req.body || {};
+    const purpose = String(req.body?.purpose || "signup");
 
-    if ((purpose || "signup") === "signup") {
+    if (purpose === "signup") {
       if (!email) return res.status(400).json({ error: "Missing email." });
-      const result = await checkPendingSignupCode(email, code);
+      const normalizedEmail = String(email).trim().toLowerCase();
+      const result = await checkPendingSignupCode(normalizedEmail, code);
       if (!result.ok) {
-        const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", not_found: "Code expired. Request a new one." };
+        const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "Code expired. Request a new one." };
         return res.status(400).json({ error: messages[result.reason] || "Invalid code." });
       }
       const { firstName, lastName, password, username } = result.data;
-      if (!(await usernameFullyAvailable(username, { excludeEmail: email }))) {
+      if (!(await usernameFullyAvailable(username, { excludeEmail: normalizedEmail }))) {
         return res.status(400).json({ error: "That username was just taken. Please sign up again with a different username." });
       }
-      const existingUser = await firebaseAuth.getUserByEmail(email).catch(() => null);
+      const existingUser = await firebaseAuth.getUserByEmail(normalizedEmail).catch(() => null);
       let newUid;
       if (existingUser) {
         await firebaseAuth.updateUser(existingUser.uid, { password, displayName: `${firstName} ${lastName}` });
-        await upsertUserProfile(existingUser.uid, { firstName, lastName, email, username, provider: "password" });
+        await upsertUserProfile(existingUser.uid, { firstName, lastName, email: normalizedEmail, username, provider: "password" });
         newUid = existingUser.uid;
       } else {
-        newUid = await createUserAccount({ firstName, lastName, email, password, username });
+        newUid = await createUserAccount({ firstName, lastName, email: normalizedEmail, password, username });
         await applyReferral(newUid, result.data.referredByCode);
       }
       await markEmailVerified(newUid);
@@ -3431,21 +3459,54 @@ app.post("/api/verify-email", signupLimiter, async (req, res) => {
       return res.json({ customToken });
     }
 
-    const result = await checkCode(uid, purpose, code);
+    if (purpose !== "password_reset" || !uid) return res.status(400).json({ error: "Invalid verification request." });
+    const result = await checkCode(String(uid), purpose, code);
     if (!result.ok) {
-      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", not_found: "Code expired. Request a new one." };
+      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "Code expired. Request a new one." };
       return res.status(400).json({ error: messages[result.reason] || "Invalid code." });
     }
-    if (purpose === "password_reset") {
-      const resetToken = await issueResetToken(uid);
-      return res.json({ resetToken });
-    }
-    await markEmailVerified(uid);
-    const customToken = await firebaseAuth.createCustomToken(uid);
-    res.json({ customToken });
+    const resetToken = await issueResetToken(String(uid));
+    return res.json({ resetToken });
   } catch (err) {
-    console.error(err);
+    console.error("[otp-verify] request failed", { code: err?.code || "OTP_VERIFY_FAILED" });
     res.status(400).json({ error: "Could not verify code." });
+  }
+});
+
+app.post("/api/email-verification/request", requireAuth, requireSiteOrigin, emailCodeLimiter, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.uid, 0);
+    if (!profile?.email) return res.status(400).json({ code: "EMAIL_REQUIRED", error: "Add an email address to your account before continuing." });
+    const account = await firebaseAuth.getUser(req.uid);
+    const email = String(account.email || "").trim().toLowerCase();
+    if (!email || email !== String(profile.email).trim().toLowerCase()) {
+      return res.status(409).json({ error: "Your account email needs attention before it can be verified. Please contact support." });
+    }
+    if (await isEmailVerifiedForUser(req.uid, profile)) return res.json({ ok: true, alreadyVerified: true, email: maskEmailAddress(email) });
+    await issueCode(req.uid, email, "protected_action_email");
+    res.set("Cache-Control", "no-store").json({ ok: true, email: maskEmailAddress(email), expiresInSeconds: 300, resendInSeconds: 30 });
+  } catch (err) {
+    console.error("[email-verification] code request failed", { code: err?.code || "EMAIL_VERIFICATION_REQUEST_FAILED" });
+    res.status(err.status || 503).json({ error: err.userFacing || "Could not send a verification code right now." });
+  }
+});
+
+app.post("/api/email-verification/confirm", requireAuth, requireSiteOrigin, emailCodeLimiter, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.uid, 0);
+    const account = await firebaseAuth.getUser(req.uid);
+    const email = String(account.email || "").trim().toLowerCase();
+    if (!email || email !== String(profile?.email || "").trim().toLowerCase()) return res.status(409).json({ error: "Your account email changed. Request a new code for the current address." });
+    const result = await checkCode(req.uid, "protected_action_email", req.body?.code);
+    if (!result.ok || String(result.email || "").trim().toLowerCase() !== email) {
+      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "Code expired. Request a new one." };
+      return res.status(400).json({ error: messages[result.reason] || "Invalid verification code." });
+    }
+    await markEmailVerified(req.uid);
+    res.set("Cache-Control", "no-store").json({ ok: true });
+  } catch (err) {
+    console.error("[email-verification] code confirmation failed", { code: err?.code || "EMAIL_VERIFICATION_CONFIRM_FAILED" });
+    res.status(err.status || 400).json({ error: err.userFacing || "Could not verify this code." });
   }
 });
 
@@ -4598,7 +4659,7 @@ app.post("/api/change-password", resetLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/account/request-email", requireAuth, emailCodeLimiter, async (req, res) => {
+app.post("/api/account/request-email", requireAuth, requireRecentAuthentication, emailCodeLimiter, async (req, res) => {
   try {
     const email = String(req.body.email || "").trim().toLowerCase();
     const domain = (email.split("@")[1] || "").toLowerCase();
@@ -4615,12 +4676,12 @@ app.post("/api/account/request-email", requireAuth, emailCodeLimiter, async (req
   }
 });
 
-app.post("/api/account/confirm-email", requireAuth, emailCodeLimiter, async (req, res) => {
+app.post("/api/account/confirm-email", requireAuth, requireRecentAuthentication, emailCodeLimiter, async (req, res) => {
   try {
     const { code } = req.body;
     const result = await checkCode(req.uid, "add_email", code);
     if (!result.ok) {
-      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", not_found: "Code expired. Request a new one." };
+      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "Code expired. Request a new one." };
       return res.status(400).json({ error: messages[result.reason] || "Invalid code." });
     }
     const email = result.email;
@@ -4833,7 +4894,7 @@ app.post("/api/confirm-account-deletion", requireAuth, emailCodeLimiter, async (
     const { code } = req.body;
     const result = await checkCode(req.uid, "delete_account", code);
     if (!result.ok) {
-      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", not_found: "Code expired. Request a new one." };
+      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "Code expired. Request a new one." };
       return res.status(400).json({ error: messages[result.reason] || "Invalid code." });
     }
     await scheduleAccountDeletion(req.uid);
@@ -4849,24 +4910,21 @@ app.post("/api/request-password-reset", resetLimiter, async (req, res) => {
   try {
     const identifier = String(req.body.identifier || req.body.email || "").trim();
     if (!identifier) return res.status(400).json({ error: "Please enter your email or username." });
-    const isEmail = identifier.includes("@");
-    let email = identifier;
-    if (!isEmail) {
-      const user = await findUserByUsername(identifier.toLowerCase());
-      if (!user || !user.email) return res.status(404).json({ error: "No account found with that username." });
-      email = user.email;
+    let userRecord = null;
+    if (identifier.includes("@")) userRecord = await firebaseAuth.getUserByEmail(identifier.toLowerCase()).catch(() => null);
+    else {
+      const found = await findUserByUsername(identifier.toLowerCase()).catch(() => null);
+      if (found?.uid) userRecord = await firebaseAuth.getUser(found.uid).catch(() => null);
     }
-    let userRecord;
-    try {
-      userRecord = await firebaseAuth.getUserByEmail(email);
-    } catch (err) {
-      return res.status(404).json({ error: isEmail ? "No account found with that email." : "No account found with that username." });
+    if (userRecord?.email && !userRecord.disabled) {
+      await issueCode(userRecord.uid, userRecord.email, "forgot_password").catch((err) => {
+        console.error("[password-reset] code delivery failed", { code: err?.code || "EMAIL_DELIVERY_FAILED" });
+      });
     }
-    await issueCode(userRecord.uid, email, "forgot_password");
-    res.json({ uid: userRecord.uid, email });
+    res.json({ ok: true, message: "If an account matches, a reset code has been sent to its registered email address." });
   } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: err.userFacing || "Could not send reset code." });
+    console.error("[password-reset] request failed", { code: err?.code || "PASSWORD_RESET_REQUEST_FAILED" });
+    res.json({ ok: true, message: "If an account matches, a reset code has been sent to its registered email address." });
   }
 });
 
@@ -4886,15 +4944,23 @@ app.post("/api/resolve-login-identifier", identifierLookupLimiter, async (req, r
 
 app.post("/api/verify-reset-code", resetLimiter, async (req, res) => {
   try {
-    const { uid, code } = req.body;
-
-    const result = await checkCode(uid, "forgot_password", code);
+    const identifier = String(req.body?.identifier || "").trim();
+    const code = req.body?.code;
+    let user = null;
+    if (identifier.includes("@")) user = await firebaseAuth.getUserByEmail(identifier.toLowerCase()).catch(() => null);
+    else if (identifier) {
+      const found = await findUserByUsername(identifier.toLowerCase()).catch(() => null);
+      if (found?.uid) user = await firebaseAuth.getUser(found.uid).catch(() => null);
+    }
+    if (!user) return res.status(400).json({ error: "Invalid or expired code. Request a new one and try again." });
+    const result = await checkCode(user.uid, "forgot_password", code);
 
     if (!result.ok) {
       const messages = {
         expired: "Code expired. Request a new one.",
         mismatch: "Incorrect code.",
-        not_found: "Code expired. Request a new one."
+        locked: "Too many incorrect attempts. Request a new code.",
+        not_found: "Invalid or expired code. Request a new one."
       };
 
       return res.status(400).json({
@@ -4902,15 +4968,13 @@ app.post("/api/verify-reset-code", resetLimiter, async (req, res) => {
       });
     }
 
-    const user = await firebaseAuth.getUser(uid);
-
     if (user.disabled) {
       return res.status(403).json({
         error: "This account has been recently deactivated."
       });
     }
 
-    const resetToken = await issueResetToken(uid);
+    const resetToken = await issueResetToken(user.uid);
 
     res.json({ resetToken });
 
@@ -4988,6 +5052,31 @@ setTimeout(() => {
 setInterval(() => {
   sweepSubscriptionRenewals().catch((err) => console.error("Auto-renew sweep failed:", err));
 }, RENEWAL_SWEEP_MS);
+
+const premiumExpiryReminderService = createPremiumExpiryReminderService({
+  database: db,
+  sendReminder: sendPremiumExpiryReminderEmail,
+  renewUrl: () => `${siteOrigin()}/account?premium=1`,
+});
+const PREMIUM_REMINDER_SWEEP_MS = 60 * 1000;
+let premiumReminderSweepRunning = false;
+async function sweepPremiumExpiryReminders() {
+  if (premiumReminderSweepRunning) return;
+  premiumReminderSweepRunning = true;
+  try {
+    await premiumExpiryReminderService.run();
+  } catch (err) {
+    console.error("Premium expiry reminder sweep failed:", err?.code || err?.name || "ERROR");
+  } finally {
+    premiumReminderSweepRunning = false;
+  }
+}
+setTimeout(() => { sweepPremiumExpiryReminders().catch(() => {}); }, 15 * 1000);
+setInterval(() => { sweepPremiumExpiryReminders().catch(() => {}); }, PREMIUM_REMINDER_SWEEP_MS);
+
+setInterval(() => {
+  pruneExpiredAltchaSolutions(db).catch((err) => console.error("ALTCHA replay cleanup failed:", err?.code || err?.name || "ERROR"));
+}, 6 * 60 * 60 * 1000).unref?.();
 
 app.use(notFoundHandler);
 app.use(errorHandler);

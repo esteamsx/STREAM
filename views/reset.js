@@ -273,8 +273,7 @@ document.querySelectorAll('.pw-toggle').forEach(btn => {
   });
 });
 
-let uid = null;
-let email = null;
+let resetIdentifier = "";
 let timerInterval = null;
 let secondsLeft = 300;
 
@@ -344,10 +343,9 @@ document.getElementById('emailSubmit').addEventListener('click', async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner"></span>Sending…';
   try {
-    const data = await postJSON('/api/request-password-reset', { identifier });
-    uid = data.uid;
-    email = data.email;
-    document.getElementById('codeEmailLabel').textContent = email;
+    await postJSON('/api/request-password-reset', { identifier });
+    resetIdentifier = identifier;
+    document.getElementById('codeEmailLabel').textContent = 'your registered email address, if an account matches';
     document.getElementById('stepEmail').classList.remove('active');
     document.getElementById('stepCode').classList.add('active');
     startTimer();
@@ -366,7 +364,7 @@ document.getElementById('rResend').addEventListener('click', async () => {
   const resendBtn = document.getElementById('rResend');
   resendBtn.disabled = true;
   try {
-    await postJSON('/api/resend-code', { uid, purpose: 'forgot_password' });
+    await postJSON('/api/resend-code', { identifier: resetIdentifier, purpose: 'forgot_password' });
     startTimer();
     startResendCooldown();
   } catch (err) {
@@ -383,7 +381,7 @@ document.getElementById('verifyCodeBtn').addEventListener('click', async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner"></span>Verifying…';
   try {
-    const { resetToken } = await postJSON('/api/verify-reset-code', { uid, code });
+    const { resetToken } = await postJSON('/api/verify-reset-code', { identifier: resetIdentifier, code });
     window.resetToken = resetToken;
     document.getElementById('pwOverlay').classList.add('show');
   } catch (err) {

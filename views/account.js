@@ -2056,6 +2056,24 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 </div>
 
+<div class="page-overlay" id="emailVerificationOverlay" role="dialog" aria-modal="true" aria-labelledby="emailVerificationTitle">
+  <div class="overlay-card" style="max-width:390px">
+    <div class="overlay-title" id="emailVerificationTitle">Verify your email</div>
+    <div class="overlay-sub" id="emailVerificationIntro">Confirm that you own the email on your account to continue.</div>
+    <div class="code-row" id="emailVerificationCodeRow">
+      <input class="code-digit email-verify-digit" maxlength="1" inputmode="numeric" autocomplete="one-time-code" aria-label="Digit 1">
+      <input class="code-digit email-verify-digit" maxlength="1" inputmode="numeric" aria-label="Digit 2">
+      <input class="code-digit email-verify-digit" maxlength="1" inputmode="numeric" aria-label="Digit 3">
+      <input class="code-digit email-verify-digit" maxlength="1" inputmode="numeric" aria-label="Digit 4">
+      <input class="code-digit email-verify-digit" maxlength="1" inputmode="numeric" aria-label="Digit 5">
+      <input class="code-digit email-verify-digit" maxlength="1" inputmode="numeric" autocomplete="one-time-code" aria-label="Digit 6">
+    </div>
+    <div class="acc-msg" id="emailVerificationMsg" role="status" aria-live="polite"></div>
+    <button class="acc-btn" id="emailVerificationConfirmBtn" type="button" style="width:100%;justify-content:center">Verify email</button>
+    <button class="overlay-resend" id="emailVerificationResendBtn" type="button" disabled>Resend code (<span id="emailVerificationResendWait">30</span>s)</button>
+    <button class="overlay-cancel" id="emailVerificationCancelBtn" type="button">Cancel</button>
+  </div>
+</div>
 <div class="page-overlay" id="addEmailOverlay">
   <div class="overlay-card">
     <div class="overlay-step active" id="addEmailStepInput">
@@ -2366,7 +2384,168 @@ document.getElementById('accBackBtn').addEventListener('click', () => {
   else window.location.href = '/';
 });
 
-async function postJSON(url, body, timeoutMs){
+let emailVerificationOpening = false;
+let emailVerificationResendTimer = null;
+let pendingEmailVerificationAction = null;
+const emailVerificationOverlay = document.getElementById('emailVerificationOverlay');
+const emailVerificationDigits = Array.from(document.querySelectorAll('.email-verify-digit'));
+const emailVerificationMessage = document.getElementById('emailVerificationMsg');
+const emailVerificationConfirm = document.getElementById('emailVerificationConfirmBtn');
+const emailVerificationResend = document.getElementById('emailVerificationResendBtn');
+
+function setEmailVerificationMessage(text, isError) {
+  emailVerificationMessage.textContent = text || '';
+  emailVerificationMessage.className = 'acc-msg' + (isError ? ' err' : '');
+}
+
+function resetAccountAltchaWidgets() {
+  document.querySelectorAll('altcha-widget').forEach((widget) => {
+    try { if (typeof widget.reset === 'function') widget.reset(); } catch {}
+  });
+}
+
+function startEmailVerificationResendCooldown(seconds) {
+  if (emailVerificationResendTimer) clearInterval(emailVerificationResendTimer);
+  let remaining = Math.max(1, Number(seconds) || 30);
+  emailVerificationResend.disabled = true;
+  emailVerificationResend.textContent = 'Resend code (' + remaining + 's)';
+  emailVerificationResendTimer = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(emailVerificationResendTimer);
+      emailVerificationResendTimer = null;
+      emailVerificationResend.disabled = false;
+      emailVerificationResend.textContent = 'Resend code';
+      return;
+    }
+    emailVerificationResend.textContent = 'Resend code (' + remaining + 's)';
+  }, 1000);
+}
+
+async function resumePendingEmailVerificationAction() {
+  const pending = pendingEmailVerificationAction;
+  if (!pending) return false;
+  setEmailVerificationMessage('Email verified. Continuing your action…', false);
+  try {
+    const result = pending.resume
+      ? await pending.resume()
+      : await postJSON(pending.url, pending.body, pending.timeoutMs, true);
+    pendingEmailVerificationAction = null;
+    pending.resolve?.(result);
+    emailVerificationOverlay.classList.remove('show');
+    setEmailVerificationMessage('', false);
+    showToast('Email verified and your action is complete.');
+  } catch (err) {
+    pendingEmailVerificationAction = null;
+    pending.reject?.(err);
+    emailVerificationOverlay.classList.remove('show');
+    setEmailVerificationMessage('', false);
+    resetAccountAltchaWidgets();
+    showToast(err.message || 'Email verified, but the action could not be completed. Please retry it.');
+  }
+  return true;
+}
+
+async function openEmailVerificationOverlay(maskedEmail, resumeAction) {
+  if (typeof resumeAction === 'function' && !pendingEmailVerificationAction) pendingEmailVerificationAction = { resume: resumeAction };
+  if (emailVerificationOpening) return;
+  emailVerificationOpening = true;
+  try {
+    if (!profile?.email) {
+      document.getElementById('addEmailInputMsg').textContent = 'Add an email address before using this account action.';
+      document.getElementById('addEmailOverlay').classList.add('show');
+      return;
+    }
+    document.getElementById('emailVerificationIntro').textContent = 'Confirm that you own ' + (maskedEmail || 'the email address on your account') + ' to continue.';
+    emailVerificationDigits.forEach((digit) => { digit.value = ''; });
+    emailVerificationOverlay.classList.add('show');
+    setEmailVerificationMessage('Sending a one-time code…', false);
+    const result = await postJSON('/api/email-verification/request', {});
+    if (result.alreadyVerified) {
+      profile.emailVerified = true;
+      if (!(await resumePendingEmailVerificationAction())) {
+        emailVerificationOverlay.classList.remove('show');
+        showToast('Your email is already verified.');
+      }
+      return;
+    }
+    document.getElementById('emailVerificationIntro').textContent = 'We sent a 6-digit code to ' + (result.email || maskedEmail || 'your account email') + '. It expires in 5 minutes.';
+    setEmailVerificationMessage('Enter the code to continue. Complete a fresh anti-bot check after verification.', false);
+    startEmailVerificationResendCooldown(result.resendInSeconds || 30);
+    emailVerificationDigits[0]?.focus();
+  } catch (err) {
+    setEmailVerificationMessage(err.message || 'Could not send a verification code.', true);
+    emailVerificationResend.disabled = false;
+  } finally {
+    emailVerificationOpening = false;
+  }
+}
+window.openEmailVerificationOverlay = openEmailVerificationOverlay;
+
+emailVerificationDigits.forEach((digit, index) => {
+  digit.addEventListener('input', () => {
+    digit.value = digit.value.replace(/[^0-9]/g, '').slice(0, 1);
+    if (digit.value && index < emailVerificationDigits.length - 1) emailVerificationDigits[index + 1].focus();
+  });
+  digit.addEventListener('keydown', (event) => {
+    if (event.key === 'Backspace' && !digit.value && index > 0) emailVerificationDigits[index - 1].focus();
+  });
+  digit.addEventListener('paste', (event) => {
+    event.preventDefault();
+    const value = (event.clipboardData.getData('text') || '').replace(/[^0-9]/g, '').slice(0, 6);
+    value.split('').forEach((char, idx) => { if (emailVerificationDigits[idx]) emailVerificationDigits[idx].value = char; });
+    emailVerificationDigits[Math.min(value.length, 5)]?.focus();
+  });
+});
+
+emailVerificationConfirm.addEventListener('click', async () => {
+  const code = emailVerificationDigits.map((digit) => digit.value).join('');
+  if (!/^\d{6}$/.test(code)) return setEmailVerificationMessage('Enter all 6 digits.', true);
+  emailVerificationConfirm.disabled = true;
+  emailVerificationConfirm.textContent = 'Verifying…';
+  try {
+    await postJSON('/api/email-verification/confirm', { code });
+    if (profile) profile.emailVerified = true;
+    const pending = pendingEmailVerificationAction;
+    if (!pending) {
+      emailVerificationOverlay.classList.remove('show');
+      setEmailVerificationMessage('', false);
+      showToast('Email verified successfully.');
+      return;
+    }
+    await resumePendingEmailVerificationAction();
+  } catch (err) {
+    setEmailVerificationMessage(err.message || 'Could not verify this code.', true);
+  } finally {
+    emailVerificationConfirm.disabled = false;
+    emailVerificationConfirm.textContent = 'Verify email';
+  }
+});
+
+emailVerificationResend.addEventListener('click', async () => {
+  emailVerificationResend.disabled = true;
+  setEmailVerificationMessage('Sending a new code…', false);
+  try {
+    const result = await postJSON('/api/email-verification/request', {});
+    document.getElementById('emailVerificationIntro').textContent = 'We sent a 6-digit code to ' + (result.email || 'your account email') + '. It expires in 5 minutes.';
+    setEmailVerificationMessage('Enter the new code to continue.', false);
+    startEmailVerificationResendCooldown(result.resendInSeconds || 30);
+  } catch (err) {
+    setEmailVerificationMessage(err.message || 'Could not resend the code.', true);
+    emailVerificationResend.disabled = false;
+  }
+});
+
+document.getElementById('emailVerificationCancelBtn').addEventListener('click', () => {
+  emailVerificationOverlay.classList.remove('show');
+  if (pendingEmailVerificationAction) {
+    const pending = pendingEmailVerificationAction;
+    pendingEmailVerificationAction = null;
+    pending.reject?.(Object.assign(new Error('Verify your email to continue.'), { code: 'EMAIL_VERIFICATION_REQUIRED' }));
+  }
+});
+
+async function postJSON(url, body, timeoutMs, retryAfterVerification){
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs || 12000);
   let res;
@@ -2378,7 +2557,31 @@ async function postJSON(url, body, timeoutMs){
     clearTimeout(timer);
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Something went wrong');
+  if (!res.ok) {
+    const error = new Error(data.error || 'Something went wrong');
+    error.code = data.code || '';
+    if (error.code === 'EMAIL_VERIFICATION_REQUIRED') {
+      if (retryAfterVerification) throw error;
+      if (pendingEmailVerificationAction) throw new Error('Finish the current email verification first.');
+      return new Promise((resolve, reject) => {
+        pendingEmailVerificationAction = {
+          url,
+          body: JSON.parse(JSON.stringify(body || {})),
+          timeoutMs,
+          resolve,
+          reject,
+        };
+        openEmailVerificationOverlay(data.email).catch((openError) => {
+          const pending = pendingEmailVerificationAction;
+          pendingEmailVerificationAction = null;
+          pending?.reject?.(openError);
+        });
+      });
+    }
+    if (/captcha|anti-bot check/i.test(error.message)) resetAccountAltchaWidgets();
+    throw error;
+  }
+  if (body?.altcha) resetAccountAltchaWidgets();
   return data;
 }
 async function getJSON(url){
@@ -2739,6 +2942,7 @@ async function loadProfile(){
   if (window.location.hash === '#addEmail' && addEmailLink.style.display !== 'none') {
     document.getElementById('addEmailOverlay').classList.add('show');
   }
+  if (window.location.hash === '#verifyEmail') openEmailVerificationOverlay();
   if (window.location.hash === '#verify' && !profile.verified && !profile.isAdmin) {
     setTimeout(openVerifyOverlay, 0);
   }
@@ -3690,6 +3894,11 @@ function closeAddEmailOverlay(){
   document.getElementById('addEmailInput').value = '';
   addEmailDigits.forEach(d => d.value = '');
   if (addEmailResendInterval) clearInterval(addEmailResendInterval);
+  if (pendingEmailVerificationAction && !profile?.email) {
+    const pending = pendingEmailVerificationAction;
+    pendingEmailVerificationAction = null;
+    pending.reject?.(Object.assign(new Error('Add and verify an email address to continue.'), { code: 'EMAIL_VERIFICATION_REQUIRED' }));
+  }
 }
 document.getElementById('addEmailCancel1').addEventListener('click', closeAddEmailOverlay);
 document.getElementById('addEmailCancel2').addEventListener('click', closeAddEmailOverlay);
@@ -3772,6 +3981,7 @@ document.getElementById('addEmailConfirmBtn').addEventListener('click', async ()
   try {
     const result = await postJSON('/api/account/confirm-email', { code });
     profile.email = result.email;
+    profile.emailVerified = true;
     document.getElementById('emailFieldLabel').textContent = 'Email';
     const emailField = document.getElementById('emailField');
     emailField.type = 'email';
@@ -3779,6 +3989,7 @@ document.getElementById('addEmailConfirmBtn').addEventListener('click', async ()
     document.getElementById('addEmailLink').style.display = 'none';
     closeAddEmailOverlay();
     flashMsg(document.getElementById('profileMsg'), 'Email added.', true);
+    if (pendingEmailVerificationAction) await resumePendingEmailVerificationAction();
   } catch (err) {
     flashMsg(msg, err.message, false);
   }

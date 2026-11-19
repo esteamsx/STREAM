@@ -1,5 +1,6 @@
 import express from "express";
-import { verifySolution } from "altcha-lib";
+import { createAltchaVerifier } from "../services/altcha-security.js";
+import { db } from "../config/firebase.js";
 import {
   requireAuth,
   getUserProfile,
@@ -16,6 +17,8 @@ import {
   ensureReferralCode,
   isAdminEmail,
   isVerificationActive,
+  isEmailVerifiedForUser,
+  maskEmailAddress,
   COIN_STORE_ITEMS,
   COIN_PACKAGES,
   discountedCashPrice,
@@ -43,26 +46,47 @@ import { listCryptoDeposits } from "../services/crypto-deposits.js";
 
 const router = express.Router();
 
+const PUBLIC_BASE = "https://esteamstv.devs.surf";
+const verifyCaptcha = createAltchaVerifier({ database: db, key: process.env.ALTCHA_SECRET });
+
+async function emailVerifiedOrRespond(req, res) {
+  try {
+    if (await isEmailVerifiedForUser(req.uid, req.userProfile)) return true;
+  } catch {
+    res.status(503).json({ error: "Email verification status is temporarily unavailable. Please try again." });
+    return false;
+  }
+  res.status(403).json({
+    code: "EMAIL_VERIFICATION_REQUIRED",
+    error: "Verify your registered email address to continue. Complete a fresh anti-bot check after verification.",
+    email: maskEmailAddress(req.userProfile?.email),
+  });
+  return false;
+}
+
+async function verifyProtectedAction(req, res) {
+  const payload = req.body?.altcha;
+  if (!(await verifyCaptcha.verifyOnly(payload))) {
+    res.status(400).json({ error: "Captcha not completed." });
+    return false;
+  }
+  if (!(await emailVerifiedOrRespond(req, res))) return false;
+  if (!(await verifyCaptcha.consumeVerified(payload))) {
+    res.status(400).json({ error: "This anti-bot check has expired or was already used. Complete it again." });
+    return false;
+  }
+  return true;
+}
+
 registerWeeklyActivityRoutes(router, {
   requireAuth,
   requireSiteOrigin,
   SimpleRateLimiter,
   getSummary: getWeeklyActivitySummary,
   verifyCaptcha,
+  emailVerifiedOrRespond,
   claimReward: claimWeeklyActivity,
 });
-
-const PUBLIC_BASE = "https://esteamstv.devs.surf";
-const ALTCHA_HMAC_KEY = process.env.ALTCHA_SECRET;
-
-async function verifyCaptcha(payload) {
-  if (!payload) return false;
-  try {
-    return !!(await verifySolution(payload, ALTCHA_HMAC_KEY));
-  } catch {
-    return false;
-  }
-}
 
 const summaryLimiter = new SimpleRateLimiter(30, 60 * 1000, (req) => req.uid).middleware();
 const claimLimiter = new SimpleRateLimiter(5, 60 * 60 * 1000, (req) => req.uid).middleware();
@@ -151,9 +175,7 @@ router.get("/api/rewards/summary", requireAuth, summaryLimiter, async (req, res)
 
 router.post("/api/rewards/daily-claim", requireAuth, requireSiteOrigin, claimLimiter, async (req, res) => {
   try {
-    if (!(await verifyCaptcha(req.body?.altcha))) {
-      return res.status(400).json({ error: "Captcha not completed." });
-    }
+    if (!(await verifyProtectedAction(req, res))) return;
     const result = await claimDailyCoins(req.uid, req.body?.faceDescriptor, req.body?.paymentReference);
     res.json({ ok: true, amount: result.amount });
   } catch (err) {
@@ -193,9 +215,7 @@ router.post("/api/rewards/redeem", requireAuth, redeemLimiter, async (req, res) 
 
 router.post("/api/rewards/bank-details", requireAuth, bankLimiter, async (req, res) => {
   try {
-    if (!(await verifyCaptcha(req.body?.altcha))) {
-      return res.status(400).json({ error: "Captcha not completed." });
-    }
+    if (!(await verifyProtectedAction(req, res))) return;
     const result = await setBankDetails(req.uid, {
       bankName: req.body?.bankName,
       accountNumber: req.body?.accountNumber,
@@ -209,9 +229,7 @@ router.post("/api/rewards/bank-details", requireAuth, bankLimiter, async (req, r
 
 router.post("/api/rewards/bank-details/delete", requireAuth, bankDeleteLimiter, async (req, res) => {
   try {
-    if (!(await verifyCaptcha(req.body?.altcha))) {
-      return res.status(400).json({ error: "Captcha not completed." });
-    }
+    if (!(await verifyProtectedAction(req, res))) return;
     await deleteBankDetails(req.uid);
     res.json({ ok: true });
   } catch (err) {
@@ -237,9 +255,7 @@ router.get("/api/rewards/resolve-account", requireAuth, resolveAccountLimiter, a
 
 router.post("/api/rewards/withdraw", requireAuth, withdrawLimiter, async (req, res) => {
   try {
-    if (!(await verifyCaptcha(req.body?.altcha))) {
-      return res.status(400).json({ error: "Captcha not completed." });
-    }
+    if (!(await verifyProtectedAction(req, res))) return;
     const result = await requestWithdrawal(req.uid, req.body?.amountNgn);
     res.json({ ok: true, id: result.id });
   } catch (err) {
@@ -270,9 +286,7 @@ router.get("/api/rewards/lookup-user", requireAuth, transferLookupLimiter, async
 
 router.post("/api/rewards/transfer", requireAuth, transferLimiter, async (req, res) => {
   try {
-    if (!(await verifyCaptcha(req.body?.altcha))) {
-      return res.status(400).json({ error: "Captcha not completed." });
-    }
+    if (!(await verifyProtectedAction(req, res))) return;
     const result = await transferCoins(req.uid, req.body?.username, req.body?.amount);
     res.json({ ok: true, amount: result.amount, toUsername: result.toUsername, newBalance: result.newBalance });
   } catch (err) {

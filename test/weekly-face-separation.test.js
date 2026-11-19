@@ -12,7 +12,11 @@ test("Weekly Rewards is independent of Daily Face ID and uses ALTCHA", () => {
   assert.match(weeklyClient, /weekly-activity\/claim/);
   assert.match(weeklyClient, /altcha/);
   assert.doesNotMatch(weeklyRoute, /verifyFaceId|faceDescriptor|facescan/i);
-  assert.match(weeklyRoute, /verifyCaptcha\(req\.body\?\.altcha\)/);
+  assert.match(weeklyRoute, /verifyCaptcha\.verifyOnly\(payload\)/);
+  assert.match(weeklyRoute, /emailVerifiedOrRespond\(req, res\)/);
+  assert.match(weeklyRoute, /verifyCaptcha\.consumeVerified\(payload\)/);
+  assert.ok(weeklyRoute.indexOf("verifyCaptcha.verifyOnly(payload)") < weeklyRoute.indexOf("emailVerifiedOrRespond(req, res)"));
+  assert.ok(weeklyRoute.indexOf("emailVerifiedOrRespond(req, res)") < weeklyRoute.indexOf("verifyCaptcha.consumeVerified(payload)"));
   assert.doesNotMatch(rewardsRoute, /verifyWeeklyActivityFace/);
   assert.match(weeklyClient, /location\.pathname === "\/account"/);
   assert.match(weeklyClient, /accountPage \? null : buildUi\(\)/);
