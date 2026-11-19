@@ -115,7 +115,6 @@
     { href: '/live', label: 'Live TV' },
     { href: '/movies', label: 'Movies' },
     { href: '/football', label: 'Football' },
-    { href: '/ES%20TEAMS%20TV.apk', label: 'Download App' },
     { href: '/profile', label: 'Profile' },
     { href: '/tools', label: 'Tools' },
     { href: '/tools/trading', label: 'Trading' },

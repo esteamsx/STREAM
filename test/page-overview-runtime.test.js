@@ -201,10 +201,10 @@ test("pinching in opens the overview with the full page list and marks the curre
   assert.equal(overlay.attrs["aria-hidden"], "false");
   const grid = overlay._byClass["es-overview-scroll"] && overlay.querySelector(".es-overview-grid");
   assert.ok(grid, "grid exists");
-  assert.equal(grid.children.length, 20);
+  assert.equal(grid.children.length, 19);
   const labels = grid.children.map((c) => c.attrs["aria-label"]);
   assert.ok(labels.includes("Home") && labels.includes("Developers") && labels.includes("Tic-Tac-Toe") && labels.includes("Cod\\ng"));
-  assert.ok(labels.includes("Download App"));
+  assert.ok(!labels.includes("Download App"));
   assert.ok(!labels.includes("Page overview"));
   const current = grid.children.filter((c) => c.attrs["aria-current"] === "page");
   assert.equal(current.length, 1);
