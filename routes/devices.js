@@ -1,7 +1,7 @@
 import express from "express";
 import { requireAuth, sessionSid, reissueSessionToken, SESSION_TTL_MS, userHasFaceId, verifyLoginFace } from "../services/auth.js";
 import { listUserBans } from "../services/device-bans.js";
-import { getDeviceSession, listDevices, setTrusted, removeTrustedDevice, revokeDeviceSession } from "../services/device-sessions.js";
+import { getDeviceSession, listDevices, setTrusted, removeTrustedDevice, removeTrustedDevices, setTrustedDevicesLabel, revokeDeviceSession } from "../services/device-sessions.js";
 
 export const devicesRouter = express.Router();
 
@@ -70,6 +70,33 @@ devicesRouter.delete("/api/devices/trusted/:deviceId", requireAuth, async (req, 
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Could not remove this device." });
+  }
+});
+
+devicesRouter.post("/api/devices/trusted-group/name", requireAuth, async (req, res) => {
+  try {
+    const deviceIds = req.body?.deviceIds;
+    const label = String(req.body?.label || "").trim();
+    if (!Array.isArray(deviceIds) || !label || label.length > 48) return res.status(400).json({ error: "Enter a device name of 1 to 48 characters." });
+    const ok = await setTrustedDevicesLabel(req.uid, deviceIds, label);
+    if (!ok) return res.status(404).json({ error: "Those trusted device profiles could not be updated. Reload and try again." });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not rename this device." });
+  }
+});
+
+devicesRouter.post("/api/devices/trusted-group/remove", requireAuth, async (req, res) => {
+  try {
+    const deviceIds = req.body?.deviceIds;
+    if (!Array.isArray(deviceIds)) return res.status(400).json({ error: "Invalid device group." });
+    const ok = await removeTrustedDevices(req.uid, deviceIds);
+    if (!ok) return res.status(404).json({ error: "Those trusted device profiles could not be removed. Reload and try again." });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Could not remove trust from this device group." });
   }
 });
 

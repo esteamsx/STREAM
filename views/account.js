@@ -4237,9 +4237,79 @@ function devConfirm(o){
   });
 }
 
+function devInputPrompt(o){
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.className = 'page-overlay show';
+    const card = document.createElement('div');
+    card.className = 'overlay-card';
+    const t = document.createElement('div');
+    t.className = 'overlay-title';
+    t.style.textAlign = 'center';
+    t.textContent = o.title || 'Name this device';
+    const sub = document.createElement('div');
+    sub.className = 'overlay-sub';
+    sub.style.textAlign = 'center';
+    sub.textContent = o.text || '';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 48;
+    input.autocomplete = 'off';
+    input.placeholder = o.placeholder || 'e.g. My phone';
+    input.value = o.value || '';
+    input.setAttribute('aria-label', 'Friendly device name');
+    input.style.cssText = 'width:100%;box-sizing:border-box;margin:10px 0;padding:12px 14px;border-radius:12px;border:1px solid var(--border-strong);background:var(--surface-2,rgba(255,255,255,.08));color:var(--text);font:inherit';
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'acc-btn';
+    save.style.cssText = 'width:100%;margin-top:6px';
+    save.textContent = 'Save name';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'overlay-cancel';
+    cancel.textContent = 'Cancel';
+    function done(value){ ov.remove(); resolve(value); }
+    save.addEventListener('click', () => {
+      const value = input.value.trim();
+      if (!value) { input.focus(); return; }
+      done(value);
+    });
+    input.addEventListener('keydown', (event) => { if (event.key === 'Enter') save.click(); });
+    cancel.addEventListener('click', () => done(null));
+    ov.addEventListener('click', (event) => { if (event.target === ov) done(null); });
+    card.appendChild(t);
+    card.appendChild(sub);
+    card.appendChild(input);
+    card.appendChild(save);
+    card.appendChild(cancel);
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+    input.focus();
+    input.select();
+  });
+}
+
 function devFlash(text, ok){
   const el = document.getElementById('devicesMsg');
   if (el) flashMsg(el, text, ok);
+}
+
+function devRenameButton(deviceIds, label, name, type){
+  const rename = document.createElement('button');
+  rename.type = 'button';
+  rename.className = 'pv-configure';
+  rename.textContent = 'Rename';
+  rename.addEventListener('click', async () => {
+    const phone = type === 'phone' || type === 'tablet';
+    const nextLabel = await devInputPrompt({ title: phone ? 'Name this phone' : 'Name this device', text: 'Choose a name you will recognize in your trusted-device list.', value: label || name, placeholder: phone ? 'e.g. My iPhone' : 'e.g. Work laptop' });
+    if (!nextLabel) return;
+    try {
+      await postJSON('/api/devices/trusted-group/name', { deviceIds, label: nextLabel });
+      await loadDevices();
+      devFlash('Device name updated.', true);
+    } catch (err) { devFlash(err.message || 'Could not rename this device.', false); }
+  });
+  return rename;
 }
 
 function devBanButton(h){
@@ -4324,7 +4394,7 @@ async function loadDevices(){
           btn.disabled = false;
           flashMsg(document.getElementById('devicesMsg'), err.message || 'Could not update this device.', false);
         }
-      }, '(current)', Object.assign({}, c, { active: true })));
+      }, '(current)', Object.assign({}, c, { active: true }), c.trusted ? devRenameButton([c.deviceId], c.label, c.name, c.type) : null));
     } else {
       const none = document.createElement('div');
       none.className = 'tfa-toggle-sub';
@@ -4333,24 +4403,31 @@ async function loadDevices(){
       body.appendChild(none);
     }
 
-    const others = data.trusted.filter((t) => !t.isCurrent);
+    const currentDeviceId = data.current?.deviceId || '';
+    const others = data.trusted.filter((t) => (t.deviceIds || [t.deviceId]).some((deviceId) => deviceId !== currentDeviceId));
     if (others.length) {
       body.appendChild(devHeading('Trusted devices'));
       const trustedBox = document.createElement('div');
       trustedBox.className = 'dev-scroll';
       body.appendChild(trustedBox);
       others.forEach((t) => {
-        trustedBox.appendChild(devRow(t.name, '', 'Remove', async (btn) => {
+        const deviceIds = t.deviceIds || [t.deviceId];
+        const browsers = t.browsers || (t.browser ? [t.browser] : []);
+        const browserSummary = browsers.length ? browsers.join(', ') : 'Browser profiles';
+        const details = { name: t.name, os: t.os, browser: browserSummary, ip: t.ip, lastActiveAt: t.lastUsedAt, trusted: true, active: false, type: t.type || (/Android|iOS|iPadOS/.test(t.os || '') ? 'phone' : 'desktop'), model: t.model || '' };
+        const rename = devRenameButton(deviceIds, t.label, t.name, t.type);
+        trustedBox.appendChild(devRow(t.name, [browserSummary, t.os, deviceIds.length + (deviceIds.length === 1 ? ' browser profile' : ' browser profiles')].filter(Boolean).join(' · '), 'Remove trust', async (btn) => {
+          const ok = await devConfirm({ icon: 'shield', danger: true, title: 'Remove trust from this phone?', text: 'This removes trusted status from the listed browser profiles (' + browserSummary + '). They will need to verify again before signing in.', confirmLabel: 'Remove trust' });
+          if (!ok) return;
           btn.disabled = true;
           try {
-            const r = await fetch('/api/devices/trusted/' + encodeURIComponent(t.deviceId), { method: 'DELETE', credentials: 'same-origin' });
-            if (!r.ok) throw new Error((await r.json()).error || 'Could not remove device.');
-            loadDevices();
+            await postJSON('/api/devices/trusted-group/remove', { deviceIds });
+            await loadDevices();
           } catch (err) {
             btn.disabled = false;
             flashMsg(document.getElementById('devicesMsg'), err.message, false);
           }
-        }, '', { name: t.name, os: t.os, browser: t.browser, ip: t.ip, lastActiveAt: t.lastUsedAt, trusted: true, active: false, type: /Android|iOS|iPadOS/.test(t.os || '') ? 'phone' : 'desktop' }));
+        }, '', details, rename));
       });
     }
 
@@ -4372,7 +4449,7 @@ async function loadDevices(){
     noteSum.style.cssText = 'cursor:pointer;color:var(--accent);font-weight:600;list-style:none';
     const noteText = document.createElement('div');
     noteText.style.marginTop = '6px';
-    noteText.textContent = 'Only one device can be signed in at a time. A trusted device stays signed in while you use it and signs out after 5 days of inactivity, or when your account is signed in on another device.';
+    noteText.textContent = 'Only one device can be signed in at a time. A trusted device stays signed in while you use it and signs out after 5 days of inactivity, or when your account is signed in on another device. Phone browsers with the same reported model and OS are grouped in this list, but each browser profile is still verified separately. Identical phone models can appear in one group; use Rename to set a friendly label.';
     note.appendChild(noteSum);
     note.appendChild(noteText);
     body.appendChild(note);

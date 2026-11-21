@@ -140,9 +140,9 @@ export async function openDeviceSession({ uid, req, res, trustedOverride = false
   const trustRef = db.collection(TRUSTED).doc(uid + "_" + deviceId);
   const trustSnap = await trustRef.get();
   const trusted = (trustSnap.exists && trustSnap.data().trusted === true) || trustedOverride;
-  if (trusted) trustRef.update({ lastUsedAt: Date.now(), name: device.name, os: device.os, browser: device.browser, ip: device.ip }).catch(() => {});
+  if (trusted) trustRef.update({ lastUsedAt: Date.now(), name: device.name, model: device.model, type: device.type, os: device.os, browser: device.browser, ip: device.ip }).catch(() => {});
   if (trustedOverride && !(trustSnap.exists && trustSnap.data().trusted === true)) {
-    await trustRef.set({ uid, deviceId, trusted: true, name: device.name, os: device.os, browser: device.browser, ip: device.ip, trustedAt: Date.now(), lastUsedAt: Date.now() });
+    await trustRef.set({ uid, deviceId, trusted: true, name: device.name, model: device.model, type: device.type, os: device.os, browser: device.browser, ip: device.ip, trustedAt: Date.now(), lastUsedAt: Date.now() });
   }
 
   const active = await db.collection(SESSIONS).where("uid", "==", uid).where("revoked", "==", false).get();
@@ -245,13 +245,15 @@ export async function listDevices(uid, currentSid) {
     db.collection(TRUSTED).where("uid", "==", uid).get(),
   ]);
   const all = sessSnap.docs.map((d) => d.data()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const newestSessionByDevice = new Map();
+  all.forEach((r) => { if (r.deviceId && !newestSessionByDevice.has(r.deviceId)) newestSessionByDevice.set(r.deviceId, r); });
 
   const keyOf = new Map();
   const newestPerDevice = new Map();
   all.forEach((r) => {
     const phone = r.type === "phone" || r.type === "tablet";
     const key = phone
-      ? "m|" + String(r.model || r.name || "").toLowerCase() + "|" + String(r.browser || "").replace(/\s*\d.*$/, "").toLowerCase() + "|" + String(r.os || "").toLowerCase()
+      ? trustedDeviceGroupKey(r)
       : "d|" + (r.deviceId || r.sid);
     keyOf.set(r.sid, key);
     if (!newestPerDevice.has(key)) newestPerDevice.set(key, r);
@@ -270,18 +272,74 @@ export async function listDevices(uid, currentSid) {
   const isLive = (r) => !r.revoked && !(r.trusted && now - (r.lastActiveAt || r.createdAt || 0) > TRUSTED_IDLE_MS);
   const current = keep.find((r) => r.sid === currentSid) || null;
   const devices = Array.from(newestPerDevice.values()).filter((r) => keep.includes(r));
+  const trustedGroups = new Map();
+  trustSnap.docs.forEach((doc) => {
+    const stored = doc.data();
+    if (stored.trusted !== true || !stored.deviceId) return;
+    const session = newestSessionByDevice.get(stored.deviceId) || {};
+    const device = {
+      ...session,
+      ...stored,
+      model: stored.model || session.model || "",
+      type: stored.type || session.type || (/Android|iOS|iPadOS/i.test(stored.os || session.os || "") ? "phone" : "desktop"),
+      name: stored.label || stored.name || session.name || "Device",
+      os: stored.os || session.os || "",
+      browser: stored.browser || session.browser || "",
+    };
+    const key = trustedDeviceGroupKey(device);
+    let group = trustedGroups.get(key);
+    if (!group) {
+      group = {
+        deviceId: stored.deviceId,
+        deviceIds: [],
+        name: device.name,
+        label: stored.label || "",
+        model: device.model || "",
+        type: device.type,
+        os: device.os,
+        browsers: [],
+        ip: device.ip || "",
+        trustedAt: stored.trustedAt || 0,
+        lastUsedAt: stored.lastUsedAt || stored.trustedAt || 0,
+        isCurrent: false,
+      };
+      trustedGroups.set(key, group);
+    }
+    group.deviceIds.push(stored.deviceId);
+    const browserFamily = String(device.browser || "").replace(/\s+\d+(?:\.\d+)*.*$/, "").trim();
+    if (browserFamily && !group.browsers.includes(browserFamily)) group.browsers.push(browserFamily);
+    if (stored.label) { group.label = stored.label; group.name = stored.label; }
+    group.trustedAt = Math.max(group.trustedAt, stored.trustedAt || 0);
+    const lastUsedAt = stored.lastUsedAt || stored.trustedAt || 0;
+    if (lastUsedAt >= group.lastUsedAt) { group.lastUsedAt = lastUsedAt; group.ip = device.ip || group.ip; }
+    if (current && current.deviceId === stored.deviceId) group.isCurrent = true;
+  });
+  const trusted = Array.from(trustedGroups.values()).map((group) => ({
+    ...group,
+    deviceIds: Array.from(new Set(group.deviceIds)),
+    browsers: group.browsers.sort((a, b) => a.localeCompare(b)),
+    browser: group.browsers.join(", "),
+  })).sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+  const currentTrusted = current && trustSnap.docs.map((doc) => doc.data()).find((record) => record.deviceId === current.deviceId && record.trusted === true);
   return {
-    current: current ? publicRec(current) : null,
-    trusted: trustSnap.docs.map((d) => {
-      const t = d.data();
-      return { deviceId: t.deviceId, name: t.name || "Device", os: t.os || "", browser: t.browser || "", ip: t.ip || "", trustedAt: t.trustedAt || 0, lastUsedAt: t.lastUsedAt || t.trustedAt || 0, isCurrent: !!(current && current.deviceId === t.deviceId) };
-    }).sort((a, b) => b.lastUsedAt - a.lastUsedAt),
+    current: current ? { ...publicRec(current), name: currentTrusted?.label || current.name } : null,
+    trusted,
     history: devices.slice(0, 20).map((r) => {
       const key = keyOf.get(r.sid);
       const group = keep.filter((x) => keyOf.get(x.sid) === key);
       return { ...publicRec(r), active: group.some(isLive), current: group.some((x) => x.sid === currentSid) };
     }),
   };
+}
+
+function trustedDeviceGroupKey(device) {
+  const mobile = device.type === "phone" || device.type === "tablet";
+  if (!mobile) return "profile|" + String(device.deviceId || "");
+  const model = String(device.model || device.name || "").trim().toLowerCase();
+  const osFamily = String(device.os || "").trim().split(/\s+/)[0].toLowerCase();
+  if (!model || /^android device$/.test(model) || !osFamily) return "profile|" + String(device.deviceId || "");
+  // Group phone/tablet models across browsers in the account UI only; login trust remains cookie-specific.
+  return ["mobile", device.type, model, osFamily].join("|");
 }
 
 export async function setTrusted(uid, sid, trusted) {
@@ -295,7 +353,7 @@ export async function setTrusted(uid, sid, trusted) {
   remember(sid, { ...rec, ...patch });
   const trustRef = db.collection(TRUSTED).doc(uid + "_" + rec.deviceId);
   if (trusted) {
-    await trustRef.set({ uid, deviceId: rec.deviceId, trusted: true, name: rec.name, os: rec.os, browser: rec.browser, ip: rec.ip, trustedAt: now, lastUsedAt: now });
+    await trustRef.set({ uid, deviceId: rec.deviceId, trusted: true, name: rec.name, model: rec.model || "", type: rec.type || "", os: rec.os, browser: rec.browser, ip: rec.ip, trustedAt: now, lastUsedAt: now });
   } else {
     await trustRef.delete().catch(() => {});
   }
@@ -311,6 +369,39 @@ export async function removeTrustedDevice(uid, deviceId) {
     if (d.data().deviceId === deviceId) { batch.update(d.ref, { trusted: false, trustedAt: null }); cache.delete(d.id); }
   });
   await batch.commit().catch(() => {});
+}
+
+export async function setTrustedDevicesLabel(uid, deviceIds, label) {
+  const ids = Array.from(new Set((Array.isArray(deviceIds) ? deviceIds : []).map((id) => String(id || ""))));
+  const cleanLabel = clip(label, 48);
+  if (!ids.length || ids.length > 100 || ids.some((id) => !/^[a-f0-9]{32}$/.test(id)) || !cleanLabel) return false;
+  const refs = ids.map((id) => db.collection(TRUSTED).doc(uid + "_" + id));
+  const snaps = await Promise.all(refs.map((ref) => ref.get()));
+  if (snaps.some((snap) => !snap.exists || snap.data().uid !== uid || snap.data().trusted !== true)) return false;
+  const batch = db.batch();
+  refs.forEach((ref) => batch.update(ref, { label: cleanLabel }));
+  await batch.commit();
+  return true;
+}
+
+export async function removeTrustedDevices(uid, deviceIds) {
+  const ids = Array.from(new Set((Array.isArray(deviceIds) ? deviceIds : []).map((id) => String(id || ""))));
+  if (!ids.length || ids.length > 100 || ids.some((id) => !/^[a-f0-9]{32}$/.test(id))) return false;
+  const refs = ids.map((id) => db.collection(TRUSTED).doc(uid + "_" + id));
+  const snaps = await Promise.all(refs.map((ref) => ref.get()));
+  if (snaps.some((snap) => !snap.exists || snap.data().uid !== uid || snap.data().trusted !== true)) return false;
+  const sessions = await db.collection(SESSIONS).where("uid", "==", uid).where("revoked", "==", false).get();
+  const idsSet = new Set(ids);
+  const batch = db.batch();
+  refs.forEach((ref) => batch.delete(ref));
+  sessions.docs.forEach((doc) => {
+    if (idsSet.has(doc.data().deviceId)) {
+      batch.update(doc.ref, { trusted: false, trustedAt: null });
+      cache.delete(doc.id);
+    }
+  });
+  await batch.commit();
+  return true;
 }
 
 export async function revokeSessionsForDevice(uid, deviceId, reason) {
