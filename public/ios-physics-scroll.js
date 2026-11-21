@@ -123,16 +123,23 @@
   var cfg, started = false, wrap = null, offset = 0, raw = 0, edge = 0; // edge: +1 top, -1 bottom
   var anim = null, releaseTimer = 0, scrollAnim = null;
   var prevOff = 0, prevT = 0, vel = 0;
-  var tStartY = 0, tEdge = 0, pulling = false, htmlOverscroll = '';
+  var tStartY = 0, tEdge = 0, pulling = false, htmlOverscroll = '', overscrollManaged = false;
   var reduce = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
   var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  function maxScroll() {
-    var d = document.documentElement;
-    return Math.max(0, Math.max(d.scrollHeight, document.body.scrollHeight) - window.innerHeight);
+  function scrollRoot() { return document.scrollingElement || document.documentElement; }
+  function scrollPosition() {
+    var root = scrollRoot();
+    return Math.max(window.scrollY || 0, root.scrollTop || 0, document.body ? document.body.scrollTop || 0 : 0);
   }
-  function atTop() { return window.scrollY <= 0; }
-  function atBottom() { return window.scrollY >= maxScroll() - 1; }
+  function maxScroll() {
+    var root = scrollRoot();
+    var contentHeight = Math.max(root.scrollHeight, document.body ? document.body.scrollHeight : 0);
+    var viewportHeight = root.clientHeight || document.documentElement.clientHeight || window.innerHeight;
+    return Math.max(0, contentHeight - viewportHeight);
+  }
+  function atTop() { return scrollPosition() <= 0; }
+  function atBottom() { return scrollPosition() >= maxScroll() - 1; }
   function viewSize() { return window.innerHeight; } // d
 
   function skip(el, dy) {
@@ -224,10 +231,13 @@
     wrap = document.querySelector(cfg.wrapperSelector);
     if (!wrap) return;                       // nothing opted in: change nothing
     started = true;
-    htmlOverscroll = document.documentElement.style.overscrollBehaviorY;
-    document.documentElement.style.overscrollBehaviorY = 'none'; // stop native pull-to-refresh fighting us
+    overscrollManaged = !isIOS || cfg.touchOnIOS;
+    if (overscrollManaged) {
+      htmlOverscroll = document.documentElement.style.overscrollBehaviorY;
+      document.documentElement.style.overscrollBehaviorY = 'none'; // stop native pull-to-refresh fighting us
+    }
     window.addEventListener('wheel', onWheel, { passive: false });
-    if (!isIOS || cfg.touchOnIOS) {
+    if (overscrollManaged) {
       window.addEventListener('touchstart', onTouchStart, { passive: true });
       window.addEventListener('touchmove', onTouchMove, { passive: false });
       window.addEventListener('touchend', onTouchEnd, { passive: true });
@@ -242,7 +252,8 @@
     window.removeEventListener('touchmove', onTouchMove, { passive: false });
     window.removeEventListener('touchend', onTouchEnd);
     window.removeEventListener('touchcancel', onTouchEnd);
-    document.documentElement.style.overscrollBehaviorY = htmlOverscroll;
+    if (overscrollManaged) document.documentElement.style.overscrollBehaviorY = htmlOverscroll;
+    overscrollManaged = false;
     if (wrap) { wrap.style.transform = ''; wrap.style.willChange = ''; }
     offset = raw = edge = 0;
   }
@@ -251,7 +262,7 @@
     if (scrollAnim) scrollAnim.cancel();
     if (reduce.matches) { window.scrollTo(0, y); return; }
     scrollAnim = spring({
-      from: window.scrollY, to: y, preset: preset || (cfg && cfg.preset) || 'smooth',
+      from: scrollPosition(), to: y, preset: preset || (cfg && cfg.preset) || 'smooth',
       onUpdate: function (v) { try { window.scrollTo({ top: v, behavior: 'instant' }); } catch (e) { window.scrollTo(0, v); } },
       onDone: function () { scrollAnim = null; }
     });

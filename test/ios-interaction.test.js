@@ -65,6 +65,22 @@ test("success/error outcome haptics use existing message presenters only", () =>
   assert.match(account, /window\.ESIOSFeedback\.result\(ok \? 'success' : 'error'\)/);
 });
 
+test("physics uses the document scroll viewport and leaves native iOS bounce enabled by default", () => {
+  const physics = read("../public/ios-physics-scroll.js");
+  const motion = read("../public/ios-motion.js");
+  assert.match(physics, /function scrollRoot\(\) \{ return document\.scrollingElement \|\| document\.documentElement; \}/);
+  assert.match(physics, /function scrollPosition\(\)/);
+  assert.match(physics, /document\.body \? document\.body\.scrollTop/);
+  assert.match(physics, /root\.clientHeight \|\| document\.documentElement\.clientHeight \|\| window\.innerHeight/);
+  assert.match(physics, /overscrollManaged = !isIOS \|\| cfg\.touchOnIOS/);
+  assert.match(physics, /if \(overscrollManaged\) document\.documentElement\.style\.overscrollBehaviorY = htmlOverscroll/);
+  assert.match(motion, /var pageScrollY = function\(\)/);
+  assert.match(motion, /var pageScrollMax = function\(\)/);
+  assert.match(motion, /document\.body \? document\.body\.scrollTop/);
+  assert.match(motion, /pageScrollY\(\) <= 0/);
+  assert.match(motion, /pageScrollY\(\) > 0/);
+});
+
 test("dialog transitions are progressive and reduced-motion-aware while page transitions remain CSS-native", () => {
   const site = read("../config/site.js");
   const motion = read("../public/ios-motion.js");

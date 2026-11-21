@@ -7,6 +7,18 @@
   var root = document.querySelector('[data-ios-rubber]') || document.querySelector('main') || document.body;
   if (!root) return;
 
+  var scrollRoot = function(){ return document.scrollingElement || document.documentElement; };
+  var pageScrollY = function(){
+    var scroller = scrollRoot();
+    return Math.max(window.scrollY || 0, scroller.scrollTop || 0, document.body ? document.body.scrollTop || 0 : 0);
+  };
+  var pageScrollMax = function(){
+    var scroller = scrollRoot();
+    var contentHeight = Math.max(scroller.scrollHeight, document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
+    var viewportHeight = scroller.clientHeight || document.documentElement.clientHeight || window.innerHeight;
+    return Math.max(0, contentHeight - viewportHeight);
+  };
+
   var lastTapHapticAt = 0;
   function vibrate(pattern){
     if (reduceMotion || !navigator || typeof navigator.vibrate !== 'function') return false;
@@ -449,8 +461,8 @@
   if (!window.CSS || !CSS.supports || !CSS.supports('animation-timeline: scroll(root block)')) {
     var ticking = false;
     var update = function(){
-      var max = document.documentElement.scrollHeight - window.innerHeight;
-      progress.style.transform = 'scaleX(' + (max > 0 ? Math.min(1, window.scrollY / max) : 0) + ')';
+      var max = pageScrollMax();
+      progress.style.transform = 'scaleX(' + (max > 0 ? Math.min(1, pageScrollY() / max) : 0) + ')';
       ticking = false;
     };
     window.addEventListener('scroll', function(){
@@ -504,14 +516,14 @@
     pullRefresh.classList.add('show');
   };
   document.addEventListener('touchstart', function(event){
-    pullTracking = !reduceMotion && event.touches.length === 1 && window.scrollY <= 0 && !pullExcluded(event.target);
+    pullTracking = !reduceMotion && event.touches.length === 1 && pageScrollY() <= 0 && !pullExcluded(event.target);
     if (!pullTracking) return;
     touchStartY = event.touches[0].clientY;
     touchStartX = event.touches[0].clientX;
   }, { passive:true });
   document.addEventListener('touchmove', function(event){
     if (!pullTracking) return;
-    if (reduceMotion || event.touches.length !== 1 || window.scrollY > 0 || pullExcluded(event.target)) {
+    if (reduceMotion || event.touches.length !== 1 || pageScrollY() > 0 || pullExcluded(event.target)) {
       pullTracking = false;
       if (pullActive) resetPull();
       return;
