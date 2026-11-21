@@ -456,8 +456,9 @@ input{font-family:inherit}
           try {
             if (act === 'stop') await postJSON('/api/bots/' + id + '/stop');
             else if (act === 'restart') await postJSON('/api/bots/' + id + '/restart');
-            else if (act === 'delete') { await deleteReq('/api/bots/' + id); refreshCap(); }
+            else if (act === 'delete') await deleteReq('/api/bots/' + id);
             refreshList();
+            refreshCap();
           } catch (e) {
             showInlineError(el, e.message);
             btn.disabled = false;
@@ -482,12 +483,18 @@ input{font-family:inherit}
   const cardsById = new Map();
   const BOT_REFRESH_ACTIVE_MS = 15000;
   const BOT_REFRESH_SETTLED_MS = 6 * 60 * 60 * 1000;
+  const CAP_REFRESH_ACTIVE_MS = 60 * 1000;
+  const CAP_REFRESH_SETTLED_MS = 6 * 60 * 60 * 1000;
   const BOT_ACTIVE_POLL_STATUSES = new Set(['downloading','extracting','installing','starting','reconnecting']);
   let latestBotStatuses = new Map();
   let botRefreshTimer = null;
+  let capacityRefreshTimer = null;
   let refreshPending = false;
   let refreshRequested = false;
   let botRefreshFailed = false;
+  let capacityRefreshPending = false;
+  let capacityRefreshRequested = false;
+  let capacityRefreshFailed = false;
 
   function scheduleBotRefresh(){
     if (botRefreshTimer) clearTimeout(botRefreshTimer);
@@ -495,8 +502,14 @@ input{font-family:inherit}
     const activeWork = botRefreshFailed || [...latestBotStatuses.values()].some((status) => BOT_ACTIVE_POLL_STATUSES.has(status));
     botRefreshTimer = setTimeout(() => {
       refreshList();
-      refreshCap();
     }, activeWork ? BOT_REFRESH_ACTIVE_MS : BOT_REFRESH_SETTLED_MS);
+  }
+
+  function scheduleCapacityRefresh(){
+    if (capacityRefreshTimer) clearTimeout(capacityRefreshTimer);
+    if (document.hidden || capacityRefreshPending) return;
+    const activeWork = botRefreshFailed || capacityRefreshFailed || [...latestBotStatuses.values()].some((status) => BOT_ACTIVE_POLL_STATUSES.has(status));
+    capacityRefreshTimer = setTimeout(() => refreshCap(), activeWork ? CAP_REFRESH_ACTIVE_MS : CAP_REFRESH_SETTLED_MS);
   }
 
   async function refreshList(){
@@ -540,6 +553,7 @@ input{font-family:inherit}
       const shouldRefreshAgain = refreshRequested;
       refreshRequested = false;
       scheduleBotRefresh();
+      scheduleCapacityRefresh();
       if (shouldRefreshAgain) refreshList();
     }
   }
@@ -639,12 +653,24 @@ input{font-family:inherit}
   });
 
   async function refreshCap(){
+    if (capacityRefreshPending) { capacityRefreshRequested = true; return; }
+    capacityRefreshPending = true;
     try {
       const data = await getJSON('/api/bots/cap');
+      capacityRefreshFailed = false;
       document.getElementById('capLabel').textContent = data.active + '/' + data.max;
       userCapInfo = data;
       updateDeployBtnLook();
-    } catch { document.getElementById('capLabel').textContent = ''; }
+    } catch {
+      capacityRefreshFailed = true;
+      document.getElementById('capLabel').textContent = '';
+    } finally {
+      capacityRefreshPending = false;
+      const shouldRefreshAgain = capacityRefreshRequested;
+      capacityRefreshRequested = false;
+      scheduleCapacityRefresh();
+      if (shouldRefreshAgain) refreshCap();
+    }
   }
 
   refreshList();
@@ -653,6 +679,7 @@ input{font-family:inherit}
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       if (botRefreshTimer) clearTimeout(botRefreshTimer);
+      if (capacityRefreshTimer) clearTimeout(capacityRefreshTimer);
       return;
     }
     refreshList();

@@ -173,14 +173,14 @@ test("a missed turn is played for you, and three misses in a row put you out", (
   const ctx = setup(["a", "b"]);
   ctx.hub.challenge("a", { toUid: "b", size: 2 });
   ctx.hub.respond("b", ctx.chess.last("b", "whot_challenge").id, true);
-  const start = ctx.chess.last("a", "whot_game_start");
-  const first = ctx.chess.last("a", "whot_game_start").you === start.state.turn ? "a" : "b";
+  const starts = { a: ctx.chess.last("a", "whot_game_start"), b: ctx.chess.last("b", "whot_game_start") };
+  const first = starts.a.you === starts.a.state.turn ? "a" : "b";
   const idle = first;
   ctx.advance(TURN_MS + 10);
   ctx.hub.sweep();
   const s1 = ctx.chess.last("a", "whot_state");
   assert.ok(s1.event.auto, "the clock played a move");
-  assert.notEqual(s1.state.turn, ctx.chess.last(idle, "whot_game_start").you);
+  assert.equal(s1.event.seat, starts[idle].you, "the timed-out player made the automatic move");
   // the idle player keeps missing; their opponent keeps playing
   const other = idle === "a" ? "b" : "a";
   let guard = 0;
