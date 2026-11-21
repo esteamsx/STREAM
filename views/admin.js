@@ -491,7 +491,13 @@ body:has(.ad-overlay.show){overflow:hidden}
   flex-shrink:0;background:transparent;border:1px solid var(--border);color:var(--text);
   border-radius:8px;padding:6px 12px;font-size:.72rem;font-weight:700;
 }
+.ad-tpl-check-btn svg{display:block;width:15px;height:15px}
 .ad-tpl-check-btn:disabled{opacity:.5}
+.bot-api-key-form{margin:0 0 12px;padding:13px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.025)}
+.bot-api-key-form[hidden]{display:none}
+.bot-api-key-note{font-size:.68rem;line-height:1.45;color:var(--muted);margin:-3px 0 11px}
+.bot-api-key-actions{display:flex;gap:8px}
+.bot-api-key-actions button{padding:9px 12px;font-size:.74rem}
 
 .bonus-form{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
 .tp-code-form{flex-direction:column;flex-wrap:nowrap}
@@ -1180,6 +1186,23 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
       <svg class="ad-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
     </div>
     <div class="ad-card-body"><div class="ad-card-body-inner">
+      <div class="ad-tpl-status" id="botApiKeyStatusRow">
+        <span id="botApiKeyStatusText">Checking developer API key…</span>
+        <button type="button" class="ad-tpl-check-btn" id="botApiKeyEditBtn" aria-label="Edit developer API key" title="Edit developer API key">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4Z"/></svg>
+        </button>
+      </div>
+      <form class="bot-api-key-form" id="botApiKeyForm" hidden>
+        <div class="mt-field">
+          <label for="botApiKeyInput">Developer API key</label>
+          <input type="password" id="botApiKeyInput" autocomplete="new-password" spellcheck="false" maxlength="512" placeholder="Paste your developer API key">
+        </div>
+        <div class="bot-api-key-note">Saved on the server and never sent back to this page. New deployments and bot restarts will use the saved key.</div>
+        <div class="bot-api-key-actions">
+          <button type="button" class="ad-modal-btn ghost" id="botApiKeyCancelBtn">Cancel</button>
+          <button type="submit" class="ad-modal-btn primary" id="botApiKeySaveBtn">Save changes</button>
+        </div>
+      </form>
       <div class="ad-tpl-status" id="tplStatusRow">
         <span id="tplStatusText">Checking template status…</span>
         <button type="button" class="ad-tpl-check-btn" id="tplCheckBtn">Check now</button>
@@ -3276,6 +3299,54 @@ document.getElementById('tplCheckBtn').addEventListener('click', async () => {
     btn.textContent = original;
   }
 });
+
+async function loadBotApiKeyStatus(){
+  const row = document.getElementById('botApiKeyStatusRow');
+  const text = document.getElementById('botApiKeyStatusText');
+  try {
+    const data = await getJSON('/api/admin/bots/api-key');
+    row.className = 'ad-tpl-status' + (data.configured ? ' current' : ' stale');
+    text.textContent = data.configured
+      ? 'Developer API key saved — kept server-side.'
+      : 'Developer API key not set — API-backed bot commands will not work.';
+  } catch {
+    row.className = 'ad-tpl-status stale';
+    text.textContent = 'Could not check the developer API key setting.';
+  }
+}
+
+const botApiKeyForm = document.getElementById('botApiKeyForm');
+document.getElementById('botApiKeyEditBtn').addEventListener('click', () => {
+  botApiKeyForm.hidden = !botApiKeyForm.hidden;
+  if (!botApiKeyForm.hidden) document.getElementById('botApiKeyInput').focus();
+});
+document.getElementById('botApiKeyCancelBtn').addEventListener('click', () => {
+  botApiKeyForm.reset();
+  botApiKeyForm.hidden = true;
+});
+botApiKeyForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const input = document.getElementById('botApiKeyInput');
+  const button = document.getElementById('botApiKeySaveBtn');
+  const apiKey = input.value.trim();
+  if (!apiKey) { showToast('Enter your developer API key first.'); input.focus(); return; }
+  button.disabled = true;
+  const original = button.textContent;
+  button.innerHTML = '<span class="ad-spinner"></span> Saving…';
+  try {
+    await postJSON('/api/admin/bots/api-key', { apiKey });
+    botApiKeyForm.reset();
+    botApiKeyForm.hidden = true;
+    await loadBotApiKeyStatus();
+    showToast('Developer API key saved for new deployments and bot restarts.');
+  } catch (err) {
+    showToast(err.message || 'Could not save the developer API key.');
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+});
+loadBotApiKeyStatus();
 
 async function loadBotsUsers(){
   const list = document.getElementById('botsUsersList');

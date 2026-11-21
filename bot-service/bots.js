@@ -8,8 +8,8 @@ import { db } from "./bot-firebase.js";
 import admin from "firebase-admin";
 
 const PUBLIC_BASE = "https://esteamstv.devs.surf";
-const REPO_TARBALL_URL = "https://github.com/paskito002/ES_TEAMS-V1/archive/refs/heads/main.tar.gz";
-const REPO_LATEST_COMMIT_API = "https://api.github.com/repos/paskito002/ES_TEAMS-V1/commits/main";
+const REPO_TARBALL_URL = "https://github.com/esteamsx/ES_TEAMS-V1/archive/refs/heads/main.tar.gz";
+const REPO_LATEST_COMMIT_API = "https://api.github.com/repos/esteamsx/ES_TEAMS-V1/commits/main";
 const BOTS_ROOT = path.join(process.cwd(), ".bot-deployments");
 const TEMPLATE_DIR = path.join(BOTS_ROOT, "_template");
 const TEMPLATE_MARKER = path.join(TEMPLATE_DIR, ".built-meta.json");
@@ -451,6 +451,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   const setStatus = (status, extra = {}) =>
     ref.update({ status, updatedAt: Date.now(), logs: entry.logs.slice(-150), ...extra }).catch(() => {});
 
+  await ensureLatestTemplate();
   if (!templateExists()) pushLog(entry, "Preparing shared files (first deploy on this server, this one's slower, later ones won't be)...");
   await ensureTemplate(async (stage) => {
     pushLog(entry, stage === "downloading" ? "Downloading ES_TEAMS-V1…" : stage === "extracting" ? "Extracting…" : "Installing dependencies…");
@@ -473,7 +474,11 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
   pushLog(entry, "Starting bot…");
   await setStatus("starting");
 
+  const apiKeySnap = await db.collection("botServiceSettings").doc("deploy").get().catch(() => null);
+  const deployApiKey = String(apiKeySnap?.data()?.esTeamsApiKey || "").trim();
   const childEnv = { ...process.env, PHONE_NUMBER: phoneNumber };
+  delete childEnv.ES_TEAMS_API_KEY;
+  if (deployApiKey) childEnv.ES_TEAMS_API_KEY = deployApiKey;
   if (!childEnv.SELF_URL) childEnv.SELF_URL = `${PUBLIC_BASE}/health`;
   delete childEnv.PORT;
 
@@ -569,9 +574,13 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         }
         return;
       }
-      if (/ACCOUNT BANNED/i.test(line)) {
-        setStatus("banned", { lastError: "This WhatsApp number has been banned by WhatsApp. Delete this deployment and use a different number." });
-        if (entry.proc) entry.proc.kill("SIGTERM");
+      if (/ACCOUNT BANNED|WhatsApp refused this connection \(HTTP 403\)|may be restricted or banned/i.test(line)) {
+        entry.autoRestartDisabled = true;
+        setStatus("disconnected", {
+          lastError: /ACCOUNT BANNED/i.test(line)
+            ? "This WhatsApp number has been banned by WhatsApp. Automatic restarts are paused to avoid repeated connection attempts."
+            : "WhatsApp refused this connection (HTTP 403). Automatic restarts are paused to avoid repeated pairing attempts; check the number in WhatsApp before restarting.",
+        });
         return;
       }
       if (/PING FAILED/i.test(line)) {
@@ -599,7 +608,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
     backupSessionFiles(workDir, botId).finally(() => {
       if (running.get(botId) === entry) running.delete(botId);
       entry._resolveExited?.();
-      if (entry.stoppedByUser) return;
+      if (entry.stoppedByUser || entry.autoRestartDisabled) return;
       ref.get().then((snap) => {
         if (!snap.exists) return;
         const status = snap.data().status;

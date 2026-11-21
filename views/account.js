@@ -4037,7 +4037,7 @@ document.getElementById('tfaHeader').addEventListener('click', () => {
 
 (function(){
   const st = document.createElement('style');
-  st.textContent = '.dev-scroll{max-height:250px;overflow-y:auto;overscroll-behavior:contain;margin-bottom:6px;padding-right:4px}';
+  st.textContent = '.dev-section{margin:0 0 14px;padding:12px;border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.025)}.dev-section-title{margin:0 0 10px;color:var(--muted);font-size:.68rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.dev-section-list{display:flex;flex-direction:column;gap:8px}.dev-scroll{max-height:260px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px}.dev-device-row{display:flex;align-items:center;justify-content:space-between;gap:14px;min-width:0;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--card2)}.dev-device-info{min-width:0;flex:1}.dev-device-title{font-size:.84rem;color:var(--text);font-weight:700;overflow-wrap:anywhere}.dev-device-meta{font-size:.7rem;color:var(--muted);line-height:1.45;margin-top:3px;overflow-wrap:anywhere}.dev-device-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-shrink:0;flex-wrap:wrap}.dev-device-actions .pv-configure,.dev-detail-btn{display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:6px 10px;border:1px solid var(--border-strong);border-radius:9px;background:transparent;color:var(--accent);font:700 .7rem var(--font-body);text-decoration:none;white-space:nowrap}.dev-detail-btn{cursor:pointer}.dev-device-actions .pv-configure:hover,.dev-detail-btn:hover{border-color:var(--accent);background:rgba(0,224,255,.07)}@media(max-width:540px){.dev-section{padding:10px}.dev-device-row{align-items:flex-start;flex-direction:column;gap:9px}.dev-device-actions{width:100%;justify-content:flex-start}.dev-device-actions .pv-configure,.dev-detail-btn{min-height:34px}}';
   document.head.appendChild(st);
 })();
 
@@ -4054,44 +4054,52 @@ function devAgo(ts){
 
 function devRow(title, sub, btnLabel, onClick, titleExtra, detail, extra){
   const row = document.createElement('div');
-  row.className = 'tfa-toggle-row';
-  row.style.marginBottom = '14px';
+  row.className = 'dev-device-row';
   const left = document.createElement('div');
+  left.className = 'dev-device-info';
   const t = document.createElement('div');
-  t.className = 'tfa-toggle-label';
+  t.className = 'dev-device-title';
   t.textContent = title + (titleExtra ? ' ' + titleExtra : '');
   const s = document.createElement('div');
-  s.className = 'tfa-toggle-sub';
+  s.className = 'dev-device-meta';
   s.textContent = sub;
-  if (detail) {
-    const a = document.createElement('button');
-    a.type = 'button';
-    a.textContent = 'View Details';
-    a.style.cssText = 'background:none;border:0;padding:0;color:var(--accent);font-weight:700;font-size:inherit;font-family:inherit;cursor:pointer;text-decoration:underline';
-    a.addEventListener('click', () => openDeviceDetails(detail));
-    s.appendChild(a);
-  }
   left.appendChild(t);
   left.appendChild(s);
   row.appendChild(left);
+  const actions = document.createElement('div');
+  actions.className = 'dev-device-actions';
+  if (detail) {
+    const a = document.createElement('button');
+    a.type = 'button';
+    a.className = 'dev-detail-btn';
+    a.textContent = 'View details';
+    a.addEventListener('click', () => openDeviceDetails(detail));
+    actions.appendChild(a);
+  }
   if (btnLabel) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'pv-configure';
     b.textContent = btnLabel;
     b.addEventListener('click', () => onClick(b));
-    row.appendChild(b);
+    actions.appendChild(b);
   }
-  if (extra) row.appendChild(extra);
+  if (extra) actions.appendChild(extra);
+  if (actions.childNodes.length) row.appendChild(actions);
   return row;
 }
 
-function devHeading(text){
+function devSection(text){
+  const section = document.createElement('section');
+  section.className = 'dev-section';
   const h = document.createElement('div');
-  h.className = 'tfa-toggle-sub';
-  h.style.cssText = 'margin:6px 0 10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.68rem';
+  h.className = 'dev-section-title';
   h.textContent = text;
-  return h;
+  const list = document.createElement('div');
+  list.className = 'dev-section-list';
+  section.appendChild(h);
+  section.appendChild(list);
+  return { section, list };
 }
 
 const DEV_ICONS = {
@@ -4377,10 +4385,11 @@ async function loadDevices(){
     if (!res.ok) throw new Error(data.error || 'Could not load devices.');
     body.textContent = '';
 
-    body.appendChild(devHeading('This device'));
+    const currentSection = devSection('This device');
+    body.appendChild(currentSection.section);
     if (data.current) {
       const c = data.current;
-      body.appendChild(devRow(c.name, '', c.trusted ? 'Remove trust' : 'Trust', async (btn) => {
+      currentSection.list.appendChild(devRow(c.name, '', c.trusted ? 'Remove trust' : 'Trust', async (btn) => {
         if (!c.trusted) {
           const ok = await devConfirm({ icon: 'shield', title: 'Trust this device?', text: 'Only trust a device that belongs to you. It will stay signed in until 5 days of inactivity, or until your account is signed in on another device.', confirmLabel: 'Yes, trust it' });
           if (!ok) return;
@@ -4397,26 +4406,24 @@ async function loadDevices(){
       }, '(current)', Object.assign({}, c, { active: true }), c.trusted ? devRenameButton([c.deviceId], c.label, c.name, c.type) : null));
     } else {
       const none = document.createElement('div');
-      none.className = 'tfa-toggle-sub';
-      none.style.marginBottom = '14px';
+      none.className = 'dev-device-meta';
       none.textContent = 'Log out and sign in again to register this device.';
-      body.appendChild(none);
+      currentSection.list.appendChild(none);
     }
 
     const currentDeviceId = data.current?.deviceId || '';
     const others = data.trusted.filter((t) => (t.deviceIds || [t.deviceId]).some((deviceId) => deviceId !== currentDeviceId));
     if (others.length) {
-      body.appendChild(devHeading('Trusted devices'));
-      const trustedBox = document.createElement('div');
-      trustedBox.className = 'dev-scroll';
-      body.appendChild(trustedBox);
+      const trustedSection = devSection('Trusted devices');
+      trustedSection.list.classList.add('dev-scroll');
+      body.appendChild(trustedSection.section);
       others.forEach((t) => {
         const deviceIds = t.deviceIds || [t.deviceId];
         const browsers = t.browsers || (t.browser ? [t.browser] : []);
         const browserSummary = browsers.length ? browsers.join(', ') : 'Browser profiles';
         const details = { name: t.name, os: t.os, browser: browserSummary, ip: t.ip, lastActiveAt: t.lastUsedAt, trusted: true, active: false, type: t.type || (/Android|iOS|iPadOS/.test(t.os || '') ? 'phone' : 'desktop'), model: t.model || '' };
         const rename = devRenameButton(deviceIds, t.label, t.name, t.type);
-        trustedBox.appendChild(devRow(t.name, [browserSummary, t.os, deviceIds.length + (deviceIds.length === 1 ? ' browser profile' : ' browser profiles')].filter(Boolean).join(' · '), 'Remove trust', async (btn) => {
+        trustedSection.list.appendChild(devRow(t.name, [browserSummary, t.os, deviceIds.length + (deviceIds.length === 1 ? ' browser profile' : ' browser profiles')].filter(Boolean).join(' · '), 'Remove trust', async (btn) => {
           const ok = await devConfirm({ icon: 'shield', danger: true, title: 'Remove trust from this phone?', text: 'This removes trusted status from the listed browser profiles (' + browserSummary + '). They will need to verify again before signing in.', confirmLabel: 'Remove trust' });
           if (!ok) return;
           btn.disabled = true;
@@ -4432,12 +4439,11 @@ async function loadDevices(){
     }
 
     if (data.history.length) {
-      body.appendChild(devHeading('Recent logins'));
-      const historyBox = document.createElement('div');
-      historyBox.className = 'dev-scroll';
-      body.appendChild(historyBox);
+      const historySection = devSection('Recent logins');
+      historySection.list.classList.add('dev-scroll');
+      body.appendChild(historySection.section);
       data.history.forEach((h) => {
-        historyBox.appendChild(devRow(h.name, '', null, null, h.current ? '(current)' : '', h, h.current ? null : devBanButton(h)));
+        historySection.list.appendChild(devRow(h.name, devInfo(h), null, null, h.current ? '(current)' : '', h, h.current ? null : devBanButton(h)));
       });
     }
 

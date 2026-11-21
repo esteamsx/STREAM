@@ -131,6 +131,7 @@ const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 const BOT_SERVICE_TIMEOUT_MS = 15000;
 const BOT_PATH_SEGMENT_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const BOT_DEPLOY_API_KEY_SETTINGS = db.collection("botServiceSettings").doc("deploy");
 
 function botPathSegment(value) {
   const raw = String(value == null ? "" : value);
@@ -1984,6 +1985,28 @@ app.post("/api/admin/bots/check-updates", requireAuth, requireAdmin, async (req,
     res.json(await botServiceFetch("/internal/admin/bots/check-updates", { method: "POST" }));
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || "Update check failed." });
+  }
+});
+
+app.get("/api/admin/bots/api-key", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const snap = await BOT_DEPLOY_API_KEY_SETTINGS.get();
+    res.set("Cache-Control", "no-store").json({ configured: !!String(snap.data()?.esTeamsApiKey || "").trim() });
+  } catch (err) {
+    res.status(500).json({ error: "Could not check the deploy bot API key setting." });
+  }
+});
+
+app.post("/api/admin/bots/api-key", requireAuth, requireSiteOrigin, requireAdmin, async (req, res) => {
+  const apiKey = typeof req.body?.apiKey === "string" ? req.body.apiKey.trim() : "";
+  if (apiKey.length < 8 || apiKey.length > 512 || /[\u0000-\u001f\u007f]/.test(apiKey)) {
+    return res.status(400).json({ error: "Enter a valid developer API key." });
+  }
+  try {
+    await BOT_DEPLOY_API_KEY_SETTINGS.set({ esTeamsApiKey: apiKey, updatedAt: Date.now(), updatedBy: req.uid }, { merge: true });
+    res.set("Cache-Control", "no-store").json({ configured: true });
+  } catch (err) {
+    res.status(500).json({ error: "Could not save the deploy bot API key." });
   }
 });
 

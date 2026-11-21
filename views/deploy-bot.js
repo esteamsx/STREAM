@@ -480,35 +480,67 @@ input{font-family:inherit}
 
   let expandedLogsFor = new Set();
   const cardsById = new Map();
+  const BOT_REFRESH_ACTIVE_MS = 15000;
+  const BOT_REFRESH_SETTLED_MS = 6 * 60 * 60 * 1000;
+  const BOT_ACTIVE_POLL_STATUSES = new Set(['downloading','extracting','installing','starting','reconnecting']);
+  let latestBotStatuses = new Map();
+  let botRefreshTimer = null;
+  let refreshPending = false;
+  let refreshRequested = false;
+  let botRefreshFailed = false;
+
+  function scheduleBotRefresh(){
+    if (botRefreshTimer) clearTimeout(botRefreshTimer);
+    if (document.hidden) return;
+    const activeWork = botRefreshFailed || [...latestBotStatuses.values()].some((status) => BOT_ACTIVE_POLL_STATUSES.has(status));
+    botRefreshTimer = setTimeout(() => {
+      refreshList();
+      refreshCap();
+    }, activeWork ? BOT_REFRESH_ACTIVE_MS : BOT_REFRESH_SETTLED_MS);
+  }
 
   async function refreshList(){
-    let bots;
-    try { bots = (await getJSON('/api/bots')).bots; } catch { return; }
-    const list = document.getElementById('botsList');
+    if (refreshPending) { refreshRequested = true; return; }
+    refreshPending = true;
+    try {
+      const bots = (await getJSON('/api/bots')).bots || [];
+      botRefreshFailed = false;
+      latestBotStatuses = new Map(bots.map((bot) => [bot.id, bot.status]));
+      const list = document.getElementById('botsList');
 
-    if (!bots.length) {
-      cardsById.clear();
-      list.innerHTML = '<div class="db-empty">No deployments yet.</div>';
-      return;
-    }
-    if (list.querySelector('.db-empty, .sk-stack')) {
-      list.innerHTML = '';
-      cardsById.clear();
-    }
-
-    const seen = new Set();
-    for (const bot of bots) {
-      seen.add(bot.id);
-      let el = cardsById.get(bot.id);
-      if (!el) {
-        el = botCardEl(bot);
-        cardsById.set(bot.id, el);
-        list.appendChild(el);
+      if (!bots.length) {
+        cardsById.clear();
+        list.innerHTML = '<div class="db-empty">No deployments yet.</div>';
+        return;
       }
-      patchBotCard(el, bot);
-    }
-    for (const [id, el] of cardsById) {
-      if (!seen.has(id)) { el.remove(); cardsById.delete(id); expandedLogsFor.delete(id); }
+      if (list.querySelector('.db-empty, .sk-stack')) {
+        list.innerHTML = '';
+        cardsById.clear();
+      }
+
+      const seen = new Set();
+      for (const bot of bots) {
+        seen.add(bot.id);
+        let el = cardsById.get(bot.id);
+        if (!el) {
+          el = botCardEl(bot);
+          cardsById.set(bot.id, el);
+          list.appendChild(el);
+        }
+        patchBotCard(el, bot);
+      }
+      for (const [id, el] of cardsById) {
+        if (!seen.has(id)) { el.remove(); cardsById.delete(id); expandedLogsFor.delete(id); }
+      }
+    } catch {
+      // Keep the last view; a later scheduled refresh can recover from transient errors.
+      botRefreshFailed = true;
+    } finally {
+      refreshPending = false;
+      const shouldRefreshAgain = refreshRequested;
+      refreshRequested = false;
+      scheduleBotRefresh();
+      if (shouldRefreshAgain) refreshList();
     }
   }
 
@@ -537,10 +569,11 @@ input{font-family:inherit}
   setInterval(() => {
     if (document.hidden) return;
     for (const id of expandedLogsFor) {
+      if (!BOT_ACTIVE_POLL_STATUSES.has(latestBotStatuses.get(id))) continue;
       const el = cardsById.get(id);
       if (el) loadLogs(id, el.querySelector('.db-logs'));
     }
-  }, 4000);
+  }, 15000);
 
   let userCapInfo = { mine: 0, maxMine: 3, isAdmin: false };
   let isVerified = false;
@@ -617,10 +650,13 @@ input{font-family:inherit}
   refreshList();
   refreshCap();
   loadVerification();
-  setInterval(() => { if (!document.hidden) refreshList(); }, 5000);
-  setInterval(() => { if (!document.hidden) refreshCap(); }, 15000);
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) { refreshList(); refreshCap(); }
+    if (document.hidden) {
+      if (botRefreshTimer) clearTimeout(botRefreshTimer);
+      return;
+    }
+    refreshList();
+    refreshCap();
   });
 </script>
 </body>
