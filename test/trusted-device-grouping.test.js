@@ -34,3 +34,8 @@ test("trusted group updates are authenticated and limited to the account's own t
   assert.match(sessions, /snap\.data\(\)\.uid !== uid \|\| snap\.data\(\)\.trusted !== true/);
   assert.match(sessions, /cleanLabel = clip\(label, 48\)/);
 });
+
+test("trusted-device accordion contains its scrollable lists without overflowing adjacent cards", () => {
+  assert.match(account, /\.tfa-card\.open \.tfa-body\{max-height:500px;overflow:visible\}[\s\S]*?#devicesCard\.open \.tfa-body\{max-height:1200px\}/);
+  assert.match(account, /\.dev-scroll\{max-height:260px;overflow-y:auto/);
+});

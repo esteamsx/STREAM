@@ -772,6 +772,7 @@ input{font-family:inherit}
 .tfa-card.open .tfa-chevron{transform:rotate(180deg)}
 .tfa-body{max-height:0;overflow:hidden;transition:max-height .3s var(--ease)}
 .tfa-card.open .tfa-body{max-height:500px;overflow:visible}
+#devicesCard.open .tfa-body{max-height:1200px}
 .tfa-card.open{overflow:visible}
 .tfa-body-inner{padding:0 18px 18px}
 .tfa-setup-btn{
