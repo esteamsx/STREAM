@@ -8,7 +8,7 @@ export function registerChannelRoutes(router, deps) {
   const {
     requireAuth, requireSiteOrigin, SimpleRateLimiter, verifyCaptcha, spendCoins, refundCoins, addNotification,
     notifyAdminOfCoinSpend, checkAndIncrementDailyLimit, releaseDailyLimit, logChannelJob, getUserProfile, getAdminUid,
-    isAdminEmail, isVerificationActive, reactPrice,
+    isAdminEmail, isVerificationActive, reactPrice, isEmailVerifiedForUser, maskEmailAddress,
   } = deps;
 
   const PRICE = { react: reactPrice, vote: FREE_CHANNEL_POLL_VOTE_COST };
@@ -93,9 +93,25 @@ export function registerChannelRoutes(router, deps) {
   async function paidJob(req, res, type, execute) {
     const uid = req.uid;
     const profile = req.userProfile;
-    if (!(await verifyCaptcha(req.body && req.body.altcha))) return fail(res, 400, "CAPTCHA", "Captcha not completed.");
+    const altcha = req.body && req.body.altcha;
+    if (typeof verifyCaptcha.verifyOnly !== "function" || typeof verifyCaptcha.consumeVerified !== "function") {
+      return fail(res, 503, "CAPTCHA_UNAVAILABLE", "This security check is unavailable right now.");
+    }
+    const captchaValid = await verifyCaptcha.verifyOnly(altcha);
+    if (!captchaValid) return fail(res, 400, "CAPTCHA", "Captcha not completed.");
     const p = ch.parseLink(req.body && req.body.link);
     if (!p) return fail(res, 400, "REQUEST", "That link is missing the post number at the end, like /5749.");
+    if (!(await isEmailVerifiedForUser(uid, profile))) {
+      return res.status(403).json({
+        ok: false,
+        code: "EMAIL_VERIFICATION_REQUIRED",
+        error: "Verify your account email before using paid channel actions.",
+        email: maskEmailAddress(profile && profile.email),
+      });
+    }
+    if (!(await verifyCaptcha.consumeVerified(altcha))) {
+      return fail(res, 400, "CAPTCHA", "Captcha expired. Please complete it again.");
+    }
     if (tooFast(uid, type, 4000)) return fail(res, 429, "BUSY", "Please wait a few seconds between requests.");
     const lock = `${uid}:${type}:${p.link}`;
     if (inFlight.has(lock)) return fail(res, 409, "BUSY", "This request is already running.");

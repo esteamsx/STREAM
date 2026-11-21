@@ -1,5 +1,5 @@
 import express from "express";
-import { requireAuth, getUserProfile, isAdminEmail, spinTheWheel, getSpinStatus } from "../services/auth.js";
+import { requireAuth, getUserProfile, isAdminEmail, spinTheWheel, getSpinStatus, isEmailVerifiedForUser, maskEmailAddress } from "../services/auth.js";
 import { SimpleRateLimiter, requireSiteOrigin } from "../middleware/security-middleware.js";
 import {
   getPublicStatus,
@@ -62,7 +62,22 @@ export function createGiveawayRouter({ verifyCaptcha }) {
 
   router.post("/api/giveaway/enter", requireAuth, requireSiteOrigin, enterLimiter, async (req, res) => {
     try {
-      if (!(await verifyCaptcha(req.body?.altcha))) return res.status(400).json({ error: "Captcha not completed." });
+      const altcha = req.body?.altcha;
+      if (typeof verifyCaptcha.verifyOnly !== "function" || typeof verifyCaptcha.consumeVerified !== "function") {
+        return res.status(503).json({ error: "This security check is unavailable right now.", code: "CAPTCHA_UNAVAILABLE" });
+      }
+      const valid = await verifyCaptcha.verifyOnly(altcha);
+      if (!valid) return res.status(400).json({ error: "Captcha not completed.", code: "CAPTCHA" });
+      if (!(await isEmailVerifiedForUser(req.uid, req.userProfile))) {
+        return res.status(403).json({
+          error: "Verify your account email before entering this giveaway.",
+          code: "EMAIL_VERIFICATION_REQUIRED",
+          email: maskEmailAddress(req.userProfile?.email),
+        });
+      }
+      if (!(await verifyCaptcha.consumeVerified(altcha))) {
+        return res.status(400).json({ error: "Captcha expired. Please complete it again.", code: "CAPTCHA" });
+      }
       res.json(await enterGiveaway(req.uid, req.body));
     } catch (err) {
       fail(res, err, "Could not enter the giveaway.");

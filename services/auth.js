@@ -22,6 +22,8 @@ import { analyzePromotionalContent, legacyTextLooksPromotional, blockLegacyPromo
 import { isFollowSitePromotion, isFollowSiteRuleBlock } from "./promotional-text-signals.js";
 import { getMovieApiQuotaStatus } from "./movie-api-quota.js";
 import { CODING_PLAN_DEFS, CODING_PURCHASABLE_PLAN_KEYS, resolveCodingPlanForProfile } from "./coding-usage.js";
+import { getVerifiedGoogleEmail, normalizeEmail } from "./provider-email.js";
+import { DEFAULT_RECENT_AUTH_MAX_AGE_MS, isRecentAuthentication } from "./recent-auth.js";
 const CODE_TTL_MS = 5 * 60 * 1000;
 const CODE_MAX_ATTEMPTS = 5;
 const CODE_RESEND_COOLDOWN_MS = 30 * 1000;
@@ -537,7 +539,11 @@ async function seedWatchSecondsIfEmpty(uid, seedSeconds) {
 
 async function markEmailVerified(uid) {
   await auth.updateUser(uid, { emailVerified: true });
-  await db.collection("users").doc(uid).update({ emailVerified: true });
+  await db.collection("users").doc(uid).update({
+    emailVerified: true,
+    emailVerificationSource: "otp",
+    emailVerifiedAt: Date.now(),
+  });
 }
 
 async function isEmailVerifiedForUser(uid, profile = null) {
@@ -545,6 +551,9 @@ async function isEmailVerifiedForUser(uid, profile = null) {
   const currentProfile = profile || await getUserProfile(uid, 0);
   const profileEmail = String(currentProfile?.email || "").trim().toLowerCase();
   if (!profileEmail) return false;
+  const provider = String(currentProfile?.provider || "").trim().toLowerCase();
+  const verificationSource = String(currentProfile?.emailVerificationSource || "").trim().toLowerCase();
+  if (["google", "github"].includes(provider) && !["otp", "google", "github"].includes(verificationSource)) return false;
   const account = await auth.getUser(uid);
   const authEmail = String(account?.email || "").trim().toLowerCase();
   const verified = account?.emailVerified === true && authEmail === profileEmail;
@@ -563,18 +572,56 @@ function maskEmailAddress(email) {
 async function ensureGoogleUserProfile(decodedToken) {
   const uid = decodedToken.uid;
   const existing = await getUserProfile(uid);
-  if (existing) return { ...existing, isNew: false };
-  const [firstName, ...rest] = (decodedToken.name || decodedToken.email).split(" ");
-  const username = await generateUniqueUsername(firstName || decodedToken.email.split("@")[0]);
+  const email = normalizeEmail(decodedToken.email);
+  const verifiedEmail = getVerifiedGoogleEmail(decodedToken);
+  if (existing) {
+    const authUser = await auth.getUser(uid);
+    const authEmail = normalizeEmail(authUser.email);
+    const profileEmail = normalizeEmail(existing.email);
+    const matchesGoogleEmail = !!email && authEmail === email && (!profileEmail || profileEmail === email);
+    const hasTrustedVerification = existing.emailVerificationSource === "otp"
+      || existing.emailVerificationSource === "github"
+      || existing.emailVerificationSource === "google";
+    if (matchesGoogleEmail && !hasTrustedVerification) {
+      const emailVerified = verifiedEmail === email;
+      if (authUser.emailVerified !== emailVerified) await auth.updateUser(uid, { emailVerified });
+      const patch = { email, emailVerified };
+      if (emailVerified) {
+        patch.emailVerificationSource = "google";
+        patch.emailVerifiedAt = Date.now();
+      } else {
+        patch.emailVerificationSource = "";
+        patch.emailVerifiedAt = 0;
+      }
+      await db.collection("users").doc(uid).set(patch, { merge: true });
+      return { ...existing, ...patch, isNew: false };
+    }
+    if (!profileEmail && email && authEmail === email) {
+      const emailVerified = verifiedEmail === email;
+      if (authUser.emailVerified !== emailVerified) await auth.updateUser(uid, { emailVerified });
+      const patch = {
+        email,
+        emailVerified,
+        emailVerificationSource: emailVerified ? "google" : "",
+        emailVerifiedAt: emailVerified ? Date.now() : 0,
+      };
+      await db.collection("users").doc(uid).set(patch, { merge: true });
+      return { ...existing, ...patch, isNew: false };
+    }
+    return { ...existing, isNew: false };
+  }
+  const [firstName, ...rest] = String(decodedToken.name || email || "ES Teams User").split(" ");
+  const username = await generateUniqueUsername(firstName || email.split("@")[0] || "user");
   const referralCode = await generateReferralCode();
   const profile = {
     firstName: firstName || "",
     lastName: rest.join(" ") || "",
-    email: decodedToken.email,
+    email,
     username,
     provider: "google",
     photoURL: decodedToken.picture || null,
-    emailVerified: true,
+    emailVerified: verifiedEmail === email && !!email,
+    ...(verifiedEmail === email && email ? { emailVerificationSource: "google", emailVerifiedAt: Date.now() } : {}),
     followersCount: 0,
     followingCount: 0,
     likesCount: 0,
@@ -734,15 +781,35 @@ async function findUserByGithubId(githubId) {
   return { uid: snap.docs[0].id, ...snap.docs[0].data() };
 }
 
-async function createOrGetGithubUser({ id, login, name, email, avatar_url }) {
+async function createOrGetGithubUser({ id, login, name, verifiedEmail, avatar_url }) {
   const githubId = String(id);
   const existing = await findUserByGithubId(githubId);
-  if (existing) return { uid: existing.uid, isNew: false };
+  verifiedEmail = normalizeEmail(verifiedEmail);
+  if (existing) {
+    const profileEmail = normalizeEmail(existing.email);
+    const authUser = await auth.getUser(existing.uid);
+    const authEmail = normalizeEmail(authUser.email);
+    const trustedSource = ["otp", "google", "github"].includes(existing.emailVerificationSource);
+    if (existing.provider === "github" && profileEmail && authEmail === profileEmail && !trustedSource) {
+      const emailVerified = verifiedEmail === profileEmail;
+      if (authUser.emailVerified !== emailVerified) await auth.updateUser(existing.uid, { emailVerified });
+      const patch = { emailVerified };
+      if (emailVerified) {
+        patch.emailVerificationSource = "github";
+        patch.emailVerifiedAt = Date.now();
+      } else {
+        patch.emailVerificationSource = "";
+        patch.emailVerifiedAt = 0;
+      }
+      await db.collection("users").doc(existing.uid).set(patch, { merge: true });
+    }
+    return { uid: existing.uid, isNew: false };
+  }
 
   const uid = `gh_${githubId}`;
   const displayName = name || login || "GitHub User";
   try {
-    await auth.createUser({ uid, displayName, email: email || undefined, emailVerified: !!email });
+    await auth.createUser({ uid, displayName, email: verifiedEmail || undefined, emailVerified: !!verifiedEmail });
   } catch (err) {
     if (err.code !== "auth/uid-already-exists") throw err;
   }
@@ -752,14 +819,15 @@ async function createOrGetGithubUser({ id, login, name, email, avatar_url }) {
   const profile = {
     firstName: name || login || "",
     lastName: "",
-    email: email || "",
+    email: verifiedEmail || "",
     username: uniqueUsername,
     provider: "github",
     githubId,
     githubLogin: login || "",
     githubLoginLower: (login || "").toLowerCase(),
     photoURL: avatar_url || null,
-    emailVerified: !!email,
+    emailVerified: !!verifiedEmail,
+    ...(verifiedEmail ? { emailVerificationSource: "github", emailVerifiedAt: Date.now() } : {}),
     followersCount: 0,
     followingCount: 0,
     likesCount: 0,
@@ -1266,7 +1334,7 @@ function isSessionRevoked(token, profile) {
 
 async function createSession(uid) {
   const now = Date.now();
-  return signSessionToken({ uid, iat: now, exp: now + SESSION_TTL_MS });
+  return signSessionToken({ uid, iat: now, authTimeMs: now, exp: now + SESSION_TTL_MS });
 }
 
 async function createDeviceSession(uid, req, res, options = {}) {
@@ -1286,7 +1354,8 @@ async function createDeviceSession(uid, req, res, options = {}) {
     addNotification(uid, "new_login", `Your account was signed in on ${who}${device && device.browser ? " (" + device.browser + ")" : ""}. Other devices were signed out. If this wasn't you, change your password.`, {}).catch(() => {});
   }
   const ttl = trusted ? TRUSTED_SESSION_TTL_MS : SESSION_TTL_MS;
-  const token = signSessionToken({ uid, iat: now, exp: now + ttl, ...(sid ? { sid } : {}) });
+  const authTimeMs = Number.isFinite(Number(options.authTimeMs)) ? Number(options.authTimeMs) : null;
+  const token = signSessionToken({ uid, iat: now, authTimeMs, exp: now + ttl, ...(sid ? { sid } : {}) });
   return { token, trusted, maxAge: ttl };
 }
 
@@ -1326,12 +1395,11 @@ async function verifySession(sessionId, req = null) {
   }
 }
 
-async function isSessionRecent(sessionId, maxAgeMs = 10 * 60 * 1000) {
+async function isSessionRecent(sessionId, maxAgeMs = DEFAULT_RECENT_AUTH_MAX_AGE_MS) {
   const now = Date.now();
   const payload = readSessionToken(sessionId);
   if (payload) {
-    const issuedAt = Number(payload.iat);
-    return Number(payload.exp) > now && Number.isFinite(issuedAt) && issuedAt <= now + 30_000 && now - issuedAt <= maxAgeMs;
+    return Number(payload.exp) > now && isRecentAuthentication(payload, now, maxAgeMs);
   }
   if (!sessionId || !LEGACY_SESSION_ID.test(sessionId)) return false;
   try {
@@ -1415,12 +1483,13 @@ async function verifyTwoFactorCode(uid, code) {
   return delta !== null;
 }
 
-async function issueTwoFactorPendingLogin(uid, remember, deviceFaceVerified = false) {
+async function issueTwoFactorPendingLogin(uid, remember, deviceFaceVerified = false, authTimeMs = null) {
   const token = crypto.randomBytes(24).toString("hex");
   await db.collection("twofa_pending_logins").doc(token).set({
     uid,
     remember: !!remember,
     deviceFaceVerified: deviceFaceVerified === true,
+    authTimeMs: Number.isFinite(Number(authTimeMs)) ? Number(authTimeMs) : null,
     expiresAt: Date.now() + TWOFA_PENDING_TTL_MS,
   });
   return token;

@@ -384,6 +384,8 @@ import { registerCodingRoutes } from "./routes/coding.js";
 import { registerGithubAgentRoutes } from "./routes/github-agent.js";
 import { movieApiRouter } from "./routes/movie-api.js";
 import { registerChannelRoutes } from "./routes/channel-tools.js";
+import { assertEmailAvailableForUid, getVerifiedGithubEmail } from "./services/provider-email.js";
+import { normalizeFirebaseAuthTime } from "./services/recent-auth.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
 import { deviceBansRouter, enforceLoginDevice } from "./routes/device-bans.js";
@@ -3214,7 +3216,7 @@ const channelToolsRouter = express.Router();
 registerChannelRoutes(channelToolsRouter, {
   requireAuth, requireSiteOrigin, SimpleRateLimiter, verifyCaptcha, spendCoins, refundCoins, addNotification,
   notifyAdminOfCoinSpend, checkAndIncrementDailyLimit, releaseDailyLimit, logChannelJob, getUserProfile, getAdminUid,
-  isAdminEmail, isVerificationActive, reactPrice: CHANNEL_REACT_COIN_COST,
+  isAdminEmail, isVerificationActive, isEmailVerifiedForUser, maskEmailAddress, reactPrice: CHANNEL_REACT_COIN_COST,
 });
 app.use(channelToolsRouter);
 
@@ -3652,21 +3654,21 @@ app.get("/api/github-auth/callback", oauthCallbackLimiter, async (req, res) => {
       return res.redirect("/login?gh_error=" + encodeURIComponent("Could not verify GitHub login."));
     }
 
-    let email = ghUser.email || null;
-    if (!email) {
+    let email = null;
+    try {
       const emailsRes = await fetch("https://api.github.com/user/emails", { headers: ghHeaders });
-      const emails = await emailsRes.json().catch(() => null);
-      if (Array.isArray(emails)) {
-        const primary = emails.find((e) => e.primary && e.verified) || emails.find((e) => e.verified);
-        email = primary ? primary.email : null;
-      }
+      const emails = emailsRes.ok ? await emailsRes.json().catch(() => null) : null;
+      email = getVerifiedGithubEmail(emails);
+    } catch {
+      // GitHub login remains available if email access is private or unavailable.
+      // An ES Teams OTP can verify an address later from the existing account.
     }
 
     const { uid, isNew } = await createOrGetGithubUser({
       id: ghUser.id,
       login: ghUser.login,
       name: ghUser.name,
-      email,
+      verifiedEmail: email,
       avatar_url: ghUser.avatar_url,
     });
     if (isNew) await applyReferral(uid, req.cookies?.ref_code);
@@ -3714,6 +3716,10 @@ app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, re
   try {
     const { idToken, remember, altcha } = req.body;
     const decoded = await withDeadline(firebaseAuth.verifyIdToken(idToken), "firebaseAuth.verifyIdToken");
+    const authTimeMs = normalizeFirebaseAuthTime(decoded.auth_time);
+    if (authTimeMs === null) {
+      return res.status(401).json({ code: "invalid-auth-time", error: "Could not verify the sign-in time. Please sign in again." });
+    }
     if (req.body && req.body.privateMode === true && !/^(1|true|yes)$/i.test(String(process.env.ALLOW_PRIVATE_BROWSING || process.env.ALLOW_PRIVATE_LOGIN || ""))) {
       return res.status(403).json({ code: "private-mode", error: "Private browsing detected. Open this page in a normal browser window to log in." });
     }
@@ -3736,10 +3742,10 @@ app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, re
       return res.status(403).json({ error: "This account is scheduled for deletion." });
     }
     if (profile?.twoFactorEnabled) {
-      const pendingToken = await withDeadline(issueTwoFactorPendingLogin(decoded.uid, remember, req.deviceFaceVerified === true), "issueTwoFactorPendingLogin");
+      const pendingToken = await withDeadline(issueTwoFactorPendingLogin(decoded.uid, remember, req.deviceFaceVerified === true, authTimeMs), "issueTwoFactorPendingLogin");
       return res.json({ requires2FA: true, pendingToken });
     }
-    const login = await withDeadline(createDeviceSession(decoded.uid, req, res, { trustedOverride: req.deviceFaceVerified === true }), "createSession");
+    const login = await withDeadline(createDeviceSession(decoded.uid, req, res, { trustedOverride: req.deviceFaceVerified === true, authTimeMs }), "createSession");
     res.cookie("session", login.token, {
       httpOnly: true,
       secure: true,
@@ -3833,7 +3839,7 @@ app.post("/api/2fa/login-verify", requireSiteOrigin, twoFactorLoginLimiter, asyn
     const valid = await verifyTwoFactorCode(pending.uid, code);
     if (!valid) return res.status(400).json({ error: "Incorrect code." });
     await deleteTwoFactorPendingLogin(pendingToken);
-    const login = await createDeviceSession(pending.uid, req, res, { trustedOverride: pending.deviceFaceVerified === true });
+    const login = await createDeviceSession(pending.uid, req, res, { trustedOverride: pending.deviceFaceVerified === true, authTimeMs: pending.authTimeMs });
     res.cookie("session", login.token, {
       httpOnly: true,
       secure: true,
@@ -4666,12 +4672,12 @@ app.post("/api/account/request-email", requireAuth, requireRecentAuthentication,
     if (!ALLOWED_EMAIL_DOMAINS.includes(domain)) return res.status(400).json({ error: "Please enter a valid email address." });
     const profile = await getUserProfile(req.uid);
     if (!profile) return res.status(404).json({ error: "Profile not found." });
-    const existing = await firebaseAuth.getUserByEmail(email).catch(() => null);
-    if (existing && existing.uid !== req.uid) return res.status(400).json({ error: "That email is already in use by another account." });
+    await assertEmailAvailableForUid((address) => firebaseAuth.getUserByEmail(address), email, req.uid);
     await issueCode(req.uid, email, "add_email");
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
+    if (err.code === "email-already-in-use") return res.status(409).json({ error: err.message, code: err.code });
     res.status(400).json({ error: "Could not send code." });
   }
 });
@@ -4685,13 +4691,20 @@ app.post("/api/account/confirm-email", requireAuth, requireRecentAuthentication,
       return res.status(400).json({ error: messages[result.reason] || "Invalid code." });
     }
     const email = result.email;
-    const existing = await firebaseAuth.getUserByEmail(email).catch(() => null);
-    if (existing && existing.uid !== req.uid) return res.status(400).json({ error: "That email was just claimed by another account." });
+    await assertEmailAvailableForUid((address) => firebaseAuth.getUserByEmail(address), email, req.uid);
     await firebaseAuth.updateUser(req.uid, { email, emailVerified: true });
-    await updateUserProfile(req.uid, { email, emailVerified: true });
+    await updateUserProfile(req.uid, {
+      email,
+      emailVerified: true,
+      emailVerificationSource: "otp",
+      emailVerifiedAt: Date.now(),
+    });
     res.json({ ok: true, email });
   } catch (err) {
     console.error(err);
+    if (err.code === "email-already-in-use" || err.code === "auth/email-already-exists") {
+      return res.status(409).json({ error: "That email is already in use by another account.", code: "email-already-in-use" });
+    }
     res.status(400).json({ error: "Could not verify code." });
   }
 });

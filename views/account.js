@@ -1231,6 +1231,8 @@ body:has(.page-overlay.show){overflow:hidden}
       <label id="emailFieldLabel">Email</label>
       <input type="email" id="emailField" disabled>
       <button type="button" class="acc-inline-link" id="addEmailLink" style="display:none">Add Email</button>
+      <button type="button" class="acc-inline-link" id="verifyEmailLink" style="display:none">Verify Email</button>
+      <button type="button" class="acc-inline-link" id="changeEmailLink" style="display:none">Change Email</button>
     </div>
     <button class="acc-btn" id="saveProfileBtn" style="margin-top:6px" disabled>Save Changes</button>
     <div class="acc-msg" id="profileMsg"></div>
@@ -2077,8 +2079,8 @@ body:has(.page-overlay.show){overflow:hidden}
 <div class="page-overlay" id="addEmailOverlay">
   <div class="overlay-card">
     <div class="overlay-step active" id="addEmailStepInput">
-      <div class="overlay-title">Add Email</div>
-      <div class="overlay-sub">Add an email so you can also sign in and recover your account with it.</div>
+      <div class="overlay-title" id="addEmailTitle">Add Email</div>
+      <div class="overlay-sub" id="addEmailSub">Add an email so you can also sign in and recover your account with it.</div>
       <div class="field" style="margin-bottom:0">
         <label>Email Address</label>
         <input type="email" id="addEmailInput" placeholder="you@example.com" autocomplete="email">
@@ -2908,21 +2910,29 @@ async function loadProfile(){
   const emailField = document.getElementById('emailField');
   const emailFieldLabel = document.getElementById('emailFieldLabel');
   const addEmailLink = document.getElementById('addEmailLink');
+  const verifyEmailLink = document.getElementById('verifyEmailLink');
+  const changeEmailLink = document.getElementById('changeEmailLink');
   if (profile.email) {
     emailFieldLabel.textContent = 'Email';
     emailField.type = 'email';
     emailField.value = profile.email;
     addEmailLink.style.display = 'none';
+    verifyEmailLink.style.display = profile.emailVerified ? 'none' : 'inline-block';
+    changeEmailLink.style.display = 'inline-block';
   } else if (profile.telegramId) {
     emailFieldLabel.textContent = 'Telegram ID';
     emailField.type = 'text';
     emailField.value = profile.telegramId;
     addEmailLink.style.display = 'inline-block';
+    verifyEmailLink.style.display = 'none';
+    changeEmailLink.style.display = 'none';
   } else {
     emailFieldLabel.textContent = 'Email';
     emailField.type = 'email';
     emailField.value = '';
-    addEmailLink.style.display = 'none';
+    addEmailLink.style.display = 'inline-block';
+    verifyEmailLink.style.display = 'none';
+    changeEmailLink.style.display = 'none';
   }
 
   initAltUsernames();
@@ -3886,6 +3896,19 @@ const addEmailOverlay = document.getElementById('addEmailOverlay');
 const addEmailStepInput = document.getElementById('addEmailStepInput');
 const addEmailStepCode = document.getElementById('addEmailStepCode');
 let addEmailResendInterval = null;
+let addEmailMode = 'add';
+
+function openAddEmailOverlay(mode){
+  addEmailMode = mode === 'change' ? 'change' : 'add';
+  const changing = addEmailMode === 'change';
+  document.getElementById('addEmailTitle').textContent = changing ? 'Change Email' : 'Add Email';
+  document.getElementById('addEmailSub').textContent = changing
+    ? 'Your current email stays on your account until you verify the new address.'
+    : 'Add an email so you can recover and secure your existing account.';
+  document.getElementById('addEmailConfirmBtn').textContent = changing ? 'Verify & Change' : 'Verify & Add';
+  addEmailOverlay.classList.add('show');
+  document.getElementById('addEmailInput').focus();
+}
 
 function closeAddEmailOverlay(){
   addEmailOverlay.classList.remove('show');
@@ -3894,6 +3917,7 @@ function closeAddEmailOverlay(){
   document.getElementById('addEmailInput').value = '';
   addEmailDigits.forEach(d => d.value = '');
   if (addEmailResendInterval) clearInterval(addEmailResendInterval);
+  addEmailMode = 'add';
   if (pendingEmailVerificationAction && !profile?.email) {
     const pending = pendingEmailVerificationAction;
     pendingEmailVerificationAction = null;
@@ -3904,7 +3928,13 @@ document.getElementById('addEmailCancel1').addEventListener('click', closeAddEma
 document.getElementById('addEmailCancel2').addEventListener('click', closeAddEmailOverlay);
 
 document.getElementById('addEmailLink').addEventListener('click', () => {
-  addEmailOverlay.classList.add('show');
+  openAddEmailOverlay('add');
+});
+document.getElementById('changeEmailLink').addEventListener('click', () => {
+  openAddEmailOverlay('change');
+});
+document.getElementById('verifyEmailLink').addEventListener('click', () => {
+  openEmailVerificationOverlay().catch((err) => flashMsg(document.getElementById('profileMsg'), err.message, false));
 });
 
 document.getElementById('addEmailSendBtn').addEventListener('click', async () => {
@@ -3980,21 +4010,25 @@ document.getElementById('addEmailConfirmBtn').addEventListener('click', async ()
   btn.innerHTML = '<span class="btn-spinner"></span>Verifying…';
   try {
     const result = await postJSON('/api/account/confirm-email', { code });
+    const wasChange = addEmailMode === 'change';
     profile.email = result.email;
     profile.emailVerified = true;
+    profile.emailVerificationSource = 'otp';
     document.getElementById('emailFieldLabel').textContent = 'Email';
     const emailField = document.getElementById('emailField');
     emailField.type = 'email';
     emailField.value = result.email;
     document.getElementById('addEmailLink').style.display = 'none';
+    document.getElementById('verifyEmailLink').style.display = 'none';
+    document.getElementById('changeEmailLink').style.display = 'inline-block';
     closeAddEmailOverlay();
-    flashMsg(document.getElementById('profileMsg'), 'Email added.', true);
+    flashMsg(document.getElementById('profileMsg'), wasChange ? 'Email changed and verified.' : 'Email added and verified.', true);
     if (pendingEmailVerificationAction) await resumePendingEmailVerificationAction();
   } catch (err) {
     flashMsg(msg, err.message, false);
   }
   btn.disabled = false;
-  btn.textContent = 'Verify & Add';
+  btn.textContent = addEmailMode === 'change' ? 'Verify & Change' : 'Verify & Add';
 });
 
 document.getElementById('tfaHeader').addEventListener('click', () => {

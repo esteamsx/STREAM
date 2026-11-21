@@ -15,6 +15,7 @@ ${siteHeadFor("channelReact")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <script nonce="__CSP_NONCE__" async defer src="https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js" type="module"></script>
+<script nonce="__CSP_NONCE__" src="/email-verification.js" defer></script>
 <script nonce="__CSP_NONCE__" src="https://js.paystack.co/v2/inline.js"></script>
 <script nonce="__CSP_NONCE__" src="/pay-method.js?v=${ASSET_VERSION}"></script>
 <title>ES TEAMS TV</title>
@@ -534,7 +535,7 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
   async function postJSON(url, body){
     const r = await fetch(url, { method:'POST', credentials: 'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body || {}) });
     const d = await r.json().catch(function(){ return {}; });
-    if(!r.ok) throw new Error(d.error || 'Request failed');
+    if(!r.ok) throw Object.assign(new Error(d.error || 'Request failed'), { code: d.code || '', email: d.email || '' });
     return d;
   }
 
@@ -852,9 +853,17 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
     setMsg('');
     try {
       const body = { link: link, altcha: altchaValue, amount: amount };
+      const endpoint = vote ? '/api/wa/vote' : '/api/wa/react';
+      if (vote) body.option = state.option;
+      else body.emojis = state.emojis.slice();
+      const submit = () => postJSON(endpoint, body);
       let res;
-      if (vote) { body.option = state.option; res = await postJSON('/api/wa/vote', body); }
-      else { body.emojis = state.emojis.slice(); res = await postJSON('/api/wa/react', body); }
+      try {
+        res = await submit();
+      } catch (err) {
+        if (err.code !== 'EMAIL_VERIFICATION_REQUIRED' || !window.ESTEmailVerification) throw err;
+        res = await window.ESTEmailVerification.require({ email: err.email, onVerified: submit });
+      }
       const n = Number(res.sent || 0).toLocaleString();
       setMsg(vote
         ? n + ' vote' + (res.sent === 1 ? '' : 's') + ' sent' + (res.option ? ' for ' + res.option : '') + '.'
@@ -865,6 +874,10 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
       loadHistory();
     } catch (err) {
       setMsg(err.message || 'Could not send that.', 'err');
+      if (err.code === 'CAPTCHA') {
+        if (crAltcha.reset) crAltcha.reset();
+        altchaPassed = false; altchaValue = '';
+      }
     } finally {
       state.sending = false;
       sendLabel.textContent = vote ? 'Send votes' : 'Send reactions';

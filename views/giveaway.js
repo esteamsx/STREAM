@@ -15,6 +15,7 @@ ${siteHeadFor("giveaway")}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script nonce="__CSP_NONCE__" async defer src="https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js" type="module"></script>
+<script nonce="__CSP_NONCE__" src="/email-verification.js" defer></script>
 <style>
 ${cfg.protectionCSS || ""}
 :root{
@@ -234,7 +235,7 @@ async function api(path, body){
   const opts = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error || 'Something went wrong. Please try again.'), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(data.error || 'Something went wrong. Please try again.'), { status: res.status, code: data.code || '', email: data.email || '' });
   return data;
 }
 
@@ -423,13 +424,20 @@ async function onEnter(){
       status.hasFaceId = true;
       btn.innerHTML = '<span class="gv-spin"></span>Submitting...';
     }
-    await api('/api/giveaway/enter', {
+    const entryPayload = {
       name,
       phone,
       altcha: captchaValue,
       faceDescriptor: (cap.samples && cap.samples.length) ? cap.samples.map((v) => ({ v })) : cap.descriptor,
       snapshot: cap.snapshot,
-    });
+    };
+    const submitEntry = () => api('/api/giveaway/enter', entryPayload);
+    try {
+      await submitEntry();
+    } catch (err) {
+      if (err.code !== 'EMAIL_VERIFICATION_REQUIRED' || !window.ESTEmailVerification) throw err;
+      await window.ESTEmailVerification.require({ email: err.email, onVerified: submitEntry });
+    }
     status.entered = true;
     showEntered();
   } catch (err) {

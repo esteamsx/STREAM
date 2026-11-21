@@ -47,7 +47,7 @@ test("an existing session cannot elevate to trusted without Face ID", () => {
 });
 
 test("2FA preserves the Face ID decision and uses same-origin protection", () => {
-  assert.match(login, /issueTwoFactorPendingLogin\(decoded\.uid, remember, req\.deviceFaceVerified === true\)/);
+  assert.match(login, /issueTwoFactorPendingLogin\(decoded\.uid, remember, req\.deviceFaceVerified === true, authTimeMs\)/);
   assert.match(login, /app\.post\("\/api\/2fa\/login-verify", requireSiteOrigin/);
   assert.match(login, /trustedOverride: pending\.deviceFaceVerified === true/);
 });
