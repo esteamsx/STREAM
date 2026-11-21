@@ -25,6 +25,11 @@
       .es-verify-msg.success{color:var(--green,#12c48b)}
       .es-verify-btn{width:100%;min-height:44px;border:0;border-radius:12px;background:linear-gradient(120deg,var(--accent,#00e0ff),var(--accent2,#7c5cff));color:#07121d;font:800 .86rem var(--font-body,Inter,system-ui,sans-serif);box-shadow:0 8px 24px rgba(0,224,255,.18)}
       .es-verify-btn:disabled{opacity:.55;cursor:not-allowed}
+      .es-verify-email-entry{display:none;gap:9px;margin:14px 0}
+      .es-verify-email-entry.show{display:grid}
+      .es-verify-email-entry input{width:100%;height:46px;padding:0 13px;border-radius:11px;border:1px solid var(--border-strong,rgba(255,255,255,.16));background:rgba(255,255,255,.05);color:var(--text,#f3f3fa);font:500 .88rem var(--font-body,Inter,system-ui,sans-serif);outline:none}
+      .es-verify-email-entry input:focus{border-color:var(--accent,#00e0ff);box-shadow:0 0 0 3px rgba(0,224,255,.12)}
+      :root[data-theme="light"] .es-verify-email-entry input{background:rgba(255,255,255,.82)}
       .es-verify-secondary{display:block;width:100%;margin-top:11px;padding:7px;border:0;background:transparent;color:var(--muted,rgba(255,255,255,.55));font:600 .78rem var(--font-body,Inter,system-ui,sans-serif)}
       .es-verify-link{display:none;margin:0 auto 12px;color:var(--accent,#00e0ff);font-size:.8rem;font-weight:700;text-align:center;text-decoration:none}
       .es-verify-link:hover{text-decoration:underline}
@@ -44,6 +49,10 @@
         <div class="es-verify-title" id="esVerifyTitle">Verify your email</div>
         <div class="es-verify-intro" id="esVerifyIntro">Confirm that you own the email on your account to continue.</div>
         <a class="es-verify-link" id="esVerifyAddLink" href="/account#addEmail">Add an email to your account</a>
+        <div class="es-verify-email-entry" id="esVerifyEmailEntry">
+          <input type="email" id="esVerifyEmailInput" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-label="Email address">
+          <button class="es-verify-btn" id="esVerifySendEmail" type="button">Send verification code</button>
+        </div>
         <div class="es-verify-digits" aria-label="Six-digit verification code">
           <input maxlength="1" inputmode="numeric" autocomplete="one-time-code" aria-label="Digit 1">
           <input maxlength="1" inputmode="numeric" aria-label="Digit 2">
@@ -77,7 +86,8 @@
       });
     });
     shell.querySelector('#esVerifyConfirm').addEventListener('click', confirmCode);
-    shell.querySelector('#esVerifyResend').addEventListener('click', requestCode);
+    shell.querySelector('#esVerifyResend').addEventListener('click', () => requestCode());
+    shell.querySelector('#esVerifySendEmail').addEventListener('click', () => requestCode(shell.querySelector('#esVerifyEmailInput').value.trim()));
     shell.querySelector('#esVerifyCancel').addEventListener('click', () => close(false));
     shell.addEventListener('click', (event) => { if (event.target === shell) close(false); });
     return shell;
@@ -118,25 +128,45 @@
     }, 1000);
   }
 
-  async function requestCode() {
+  async function requestCode(email = '') {
     if (!active) return;
     const resend = shell.querySelector('#esVerifyResend');
+    const addEmail = shell.querySelector('#esVerifySendEmail');
     resend.disabled = true;
+    addEmail.disabled = true;
     try {
-      const result = await post('/api/email-verification/request');
-      if (result.alreadyVerified) return finishVerification();
+      const result = active.requestCode
+        ? await active.requestCode(email)
+        : await post('/api/email-verification/request');
+      if (result.alreadyVerified) return finishVerification(result);
       const intro = shell.querySelector('#esVerifyIntro');
       intro.textContent = result.email ? `A six-digit code was sent to ${result.email}.` : 'A six-digit code was sent to the email on your account.';
       shell.querySelector('#esVerifyAddLink').style.display = 'none';
+      shell.querySelector('#esVerifyEmailEntry').classList.remove('show');
+      shell.querySelector('.es-verify-digits').style.display = 'flex';
+      shell.querySelector('#esVerifyConfirm').style.display = 'block';
+      resend.style.display = 'block';
       setMessage('Check your inbox and enter the code below.');
       startCooldown();
     } catch (error) {
       if (error.code === 'EMAIL_REQUIRED') {
-        shell.querySelector('#esVerifyIntro').textContent = 'Add an email address to your existing account before continuing. Your account and data will stay the same.';
-        shell.querySelector('#esVerifyAddLink').style.display = 'block';
+        if (active.allowAddEmail) {
+          shell.querySelector('#esVerifyIntro').textContent = 'Add an email to your existing account. We will only attach it after you verify the code.';
+          shell.querySelector('#esVerifyEmailEntry').classList.add('show');
+          shell.querySelector('.es-verify-digits').style.display = 'none';
+          shell.querySelector('#esVerifyConfirm').style.display = 'none';
+          resend.style.display = 'none';
+          shell.querySelector('#esVerifyEmailInput').focus();
+        } else {
+          shell.querySelector('#esVerifyIntro').textContent = 'Add an email address to your existing account before continuing. Your account and data will stay the same.';
+          shell.querySelector('#esVerifyAddLink').style.display = 'block';
+        }
       }
       setMessage(error.message, 'error');
       resend.disabled = false;
+      addEmail.disabled = false;
+    } finally {
+      addEmail.disabled = false;
     }
   }
 
@@ -148,8 +178,10 @@
     button.disabled = true;
     button.textContent = 'Verifying…';
     try {
-      await post('/api/email-verification/confirm', { code });
-      await finishVerification();
+      const result = active.confirmCode
+        ? await active.confirmCode(code)
+        : await post('/api/email-verification/confirm', { code });
+      await finishVerification(result);
     } catch (error) {
       setMessage(error.message, 'error');
     } finally {
@@ -160,7 +192,7 @@
     }
   }
 
-  async function finishVerification() {
+  async function finishVerification(confirmation) {
     if (!active) return;
     const state = active;
     active = null;
@@ -168,7 +200,7 @@
     if (resendTimer) clearInterval(resendTimer);
     resendTimer = null;
     try {
-      const result = await state.onVerified?.();
+      const result = state.onVerified ? await state.onVerified(confirmation) : confirmation;
       state.resolve(result);
     } catch (error) {
       state.reject(error);
@@ -187,7 +219,7 @@
   }
 
   window.ESTEmailVerification = {
-    require({ email = '', onVerified } = {}) {
+    require({ email = '', onVerified, requestCode: requestCodeHandler, confirmCode: confirmCodeHandler, allowAddEmail = false } = {}) {
       if (active) return Promise.reject(new Error('Email verification is already open.'));
       ensureShell();
       shell.querySelectorAll('.es-verify-digits input').forEach((input) => { input.value = ''; });
@@ -195,10 +227,15 @@
       shell.querySelector('#esVerifyAddLink').style.display = 'none';
       shell.querySelector('#esVerifyConfirm').disabled = false;
       shell.querySelector('#esVerifyConfirm').textContent = 'Verify email & continue';
+      shell.querySelector('#esVerifyEmailEntry').classList.remove('show');
+      shell.querySelector('#esVerifyEmailInput').value = '';
+      shell.querySelector('.es-verify-digits').style.display = 'flex';
+      shell.querySelector('#esVerifyConfirm').style.display = 'block';
+      shell.querySelector('#esVerifyResend').style.display = 'block';
       setMessage('');
       shell.classList.add('show');
       return new Promise((resolve, reject) => {
-        active = { resolve, reject, onVerified };
+        active = { resolve, reject, onVerified, requestCode: requestCodeHandler, confirmCode: confirmCodeHandler, allowAddEmail };
         requestCode();
       });
     },

@@ -188,6 +188,7 @@ export async function checkDeviceSession(sid, uid, deviceId = null) {
 }
 
 export async function isTrustedDevice(uid, deviceId) {
+  // Browser profiles are separate security contexts; never inherit trust from IP or user-agent guesses.
   if (!/^[a-f0-9]{32}$/.test(String(deviceId || ""))) return false;
   const snap = await db.collection(TRUSTED).doc(uid + "_" + deviceId).get();
   return snap.exists && snap.data().trusted === true;

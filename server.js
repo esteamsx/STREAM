@@ -212,6 +212,10 @@ import {
   markEmailVerified,
   isEmailVerifiedForUser,
   maskEmailAddress,
+  issueDeviceEmailLogin,
+  getDeviceEmailLogin,
+  setDeviceEmailLoginEmail,
+  deleteDeviceEmailLogin,
   ensureGoogleUserProfile,
   verifyTelegramIdToken,
   createOrGetTelegramUser,
@@ -384,7 +388,7 @@ import { registerCodingRoutes } from "./routes/coding.js";
 import { registerGithubAgentRoutes } from "./routes/github-agent.js";
 import { movieApiRouter } from "./routes/movie-api.js";
 import { registerChannelRoutes } from "./routes/channel-tools.js";
-import { assertEmailAvailableForUid, getVerifiedGithubEmail } from "./services/provider-email.js";
+import { assertEmailAvailableForUid, getVerifiedGithubEmail, normalizeEmail } from "./services/provider-email.js";
 import { normalizeFirebaseAuthTime } from "./services/recent-auth.js";
 import { startGiveawaySweep } from "./services/giveaway.js";
 import { devicesRouter } from "./routes/devices.js";
@@ -3741,6 +3745,13 @@ app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, re
     if (profile?.pendingDeletion) {
       return res.status(403).json({ error: "This account is scheduled for deletion." });
     }
+    if (req.deviceFaceVerified === true) {
+      const pendingToken = await withDeadline(
+        issueDeviceEmailLogin(decoded.uid, remember, authTimeMs),
+        "issueDeviceEmailLogin"
+      );
+      return res.json({ requiresDeviceEmailVerification: true, pendingToken });
+    }
     if (profile?.twoFactorEnabled) {
       const pendingToken = await withDeadline(issueTwoFactorPendingLogin(decoded.uid, remember, req.deviceFaceVerified === true, authTimeMs), "issueTwoFactorPendingLogin");
       return res.json({ requires2FA: true, pendingToken });
@@ -3763,6 +3774,110 @@ app.post("/api/session", requireSiteOrigin, passwordLoginLimiter, async (req, re
     if (err?.status) return res.status(err.status).json({ code: err.code || "auth/unavailable", error: err.message });
     console.error("[/api/session] failed:", err);
     res.status(401).json({ error: "Could not sign in." });
+  }
+});
+
+app.post("/api/device-login/email/request", requireSiteOrigin, emailCodeLimiter, async (req, res) => {
+  try {
+    const pendingToken = String(req.body?.pendingToken || "");
+    const pending = await getDeviceEmailLogin(pendingToken);
+    if (!pending?.deviceFaceVerified) return res.status(400).json({ code: "LOGIN_CHALLENGE_EXPIRED", error: "This verification session expired. Please sign in again." });
+
+    const [profile, account] = await Promise.all([
+      getUserProfile(pending.uid, 0),
+      firebaseAuth.getUser(pending.uid),
+    ]);
+    const profileEmail = normalizeEmail(profile?.email);
+    const authEmail = normalizeEmail(account?.email);
+    if (profileEmail && authEmail && profileEmail !== authEmail) {
+      return res.status(409).json({ error: "Your account email needs attention before it can be verified. Please contact support." });
+    }
+    const currentEmail = authEmail || profileEmail;
+    const requestedEmail = normalizeEmail(req.body?.email);
+    if (currentEmail && requestedEmail && requestedEmail !== currentEmail) {
+      return res.status(409).json({ error: "Use the email already attached to this account. Email changes must be made from Account settings." });
+    }
+    const email = currentEmail || requestedEmail;
+    if (!email) return res.status(400).json({ code: "EMAIL_REQUIRED", error: "Add an email address to your account to finish signing in." });
+    const domain = (email.split("@")[1] || "").toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !ALLOWED_EMAIL_DOMAINS.includes(domain)) {
+      return res.status(400).json({ error: "Please enter a valid email address." });
+    }
+    await assertEmailAvailableForUid((address) => firebaseAuth.getUserByEmail(address), email, pending.uid);
+    await issueCode(pending.uid, email, "new_device_login");
+    if (!(await setDeviceEmailLoginEmail(pendingToken, email))) {
+      return res.status(400).json({ code: "LOGIN_CHALLENGE_EXPIRED", error: "This verification session expired. Please sign in again." });
+    }
+    res.set("Cache-Control", "no-store").json({ ok: true, email: maskEmailAddress(email), expiresInSeconds: 300, resendInSeconds: 30 });
+  } catch (err) {
+    if (err.code === "email-already-in-use" || err.code === "auth/email-already-exists") {
+      return res.status(409).json({ error: "That email is already in use by another account.", code: "email-already-in-use" });
+    }
+    console.error("[device-login] email OTP request failed", { code: err?.code || "DEVICE_LOGIN_OTP_REQUEST_FAILED" });
+    res.status(err.status || 503).json({ error: err.userFacing || "Could not send a verification code right now." });
+  }
+});
+
+app.post("/api/device-login/email/confirm", requireSiteOrigin, emailCodeLimiter, async (req, res) => {
+  try {
+    const pendingToken = String(req.body?.pendingToken || "");
+    const pending = await getDeviceEmailLogin(pendingToken);
+    if (!pending?.deviceFaceVerified) return res.status(400).json({ code: "LOGIN_CHALLENGE_EXPIRED", error: "This verification session expired. Please sign in again." });
+    const email = normalizeEmail(pending.email);
+    if (!email) return res.status(400).json({ code: "EMAIL_REQUIRED", error: "Request a verification code first." });
+
+    const result = await checkCode(pending.uid, "new_device_login", req.body?.code);
+    if (!result.ok || normalizeEmail(result.email) !== email) {
+      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "Code expired. Request a new one." };
+      return res.status(400).json({ error: messages[result.reason] || "Invalid verification code." });
+    }
+
+    const [profile, account] = await Promise.all([
+      getUserProfile(pending.uid, 0),
+      firebaseAuth.getUser(pending.uid),
+    ]);
+    if (account.disabled || profile?.banned) return res.status(403).json({ error: "This account has been deactivated." });
+    if (profile?.pendingDeletion) return res.status(403).json({ error: "This account is scheduled for deletion." });
+    const profileEmail = normalizeEmail(profile?.email);
+    const authEmail = normalizeEmail(account?.email);
+    if (profileEmail && authEmail && profileEmail !== authEmail) {
+      return res.status(409).json({ error: "Your account email changed. Please sign in again and retry." });
+    }
+    const currentEmail = authEmail || profileEmail;
+    if (currentEmail && currentEmail !== email) {
+      return res.status(409).json({ error: "The email on this account changed. Please sign in again." });
+    }
+    await assertEmailAvailableForUid((address) => firebaseAuth.getUserByEmail(address), email, pending.uid);
+    if (account.email !== email || account.emailVerified !== true) {
+      await firebaseAuth.updateUser(pending.uid, { email, emailVerified: true });
+    }
+    await updateUserProfile(pending.uid, {
+      email,
+      emailVerified: true,
+      emailVerificationSource: "otp",
+      emailVerifiedAt: Date.now(),
+    });
+
+    if (profile?.twoFactorEnabled) {
+      const twoFactorToken = await issueTwoFactorPendingLogin(pending.uid, pending.remember, true, pending.authTimeMs);
+      await deleteDeviceEmailLogin(pendingToken);
+      return res.set("Cache-Control", "no-store").json({ ok: true, requires2FA: true, pendingToken: twoFactorToken });
+    }
+    const login = await createDeviceSession(pending.uid, req, res, { trustedOverride: true, authTimeMs: pending.authTimeMs });
+    res.cookie("session", login.token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      ...((pending.remember || login.trusted) ? { maxAge: login.maxAge } : {}),
+    });
+    await deleteDeviceEmailLogin(pendingToken);
+    res.set("Cache-Control", "no-store").json({ ok: true });
+  } catch (err) {
+    if (err.code === "email-already-in-use" || err.code === "auth/email-already-exists") {
+      return res.status(409).json({ error: "That email is already in use by another account.", code: "email-already-in-use" });
+    }
+    console.error("[device-login] email OTP confirmation failed", { code: err?.code || "DEVICE_LOGIN_OTP_CONFIRM_FAILED" });
+    res.status(err.status || 400).json({ error: err.userFacing || "Could not verify this code." });
   }
 });
 

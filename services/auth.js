@@ -1510,6 +1510,44 @@ async function deleteTwoFactorPendingLogin(token) {
   await db.collection("twofa_pending_logins").doc(token).delete().catch(() => {});
 }
 
+async function issueDeviceEmailLogin(uid, remember, authTimeMs = null) {
+  const token = crypto.randomBytes(24).toString("hex");
+  await db.collection("device_email_logins").doc(token).set({
+    uid,
+    remember: !!remember,
+    deviceFaceVerified: true,
+    authTimeMs: Number.isFinite(Number(authTimeMs)) ? Number(authTimeMs) : null,
+    email: "",
+    expiresAt: Date.now() + TWOFA_PENDING_TTL_MS,
+  });
+  return token;
+}
+
+async function getDeviceEmailLogin(token) {
+  if (!/^[a-f0-9]{48}$/.test(String(token || ""))) return null;
+  const ref = db.collection("device_email_logins").doc(token);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  if (Date.now() > Number(data.expiresAt || 0)) {
+    await ref.delete().catch(() => {});
+    return null;
+  }
+  return data;
+}
+
+async function setDeviceEmailLoginEmail(token, email) {
+  const pending = await getDeviceEmailLogin(token);
+  if (!pending) return false;
+  await db.collection("device_email_logins").doc(token).update({ email: String(email || "").trim().toLowerCase() });
+  return true;
+}
+
+async function deleteDeviceEmailLogin(token) {
+  if (!/^[a-f0-9]{48}$/.test(String(token || ""))) return;
+  await db.collection("device_email_logins").doc(token).delete().catch(() => {});
+}
+
 const DELETION_GRACE_MS = 24 * 60 * 60 * 1000;
 const pendingDeletionTimers = new Map();
 
@@ -6641,6 +6679,10 @@ export {
   claimDailyCoins,
   userHasFaceId,
   verifyLoginFace,
+  issueDeviceEmailLogin,
+  getDeviceEmailLogin,
+  setDeviceEmailLoginEmail,
+  deleteDeviceEmailLogin,
   createDeviceSession,
   sessionSid,
   reissueSessionToken,
