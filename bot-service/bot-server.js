@@ -113,7 +113,7 @@ app.get("/internal/bots/cap", async (req, res) => {
 });
 
 const listCache = new Map(); 
-const LIST_CACHE_TTL_MS = 4000;
+const LIST_CACHE_TTL_MS = 20 * 1000;
 
 app.get("/internal/bots", async (req, res) => {
   try {

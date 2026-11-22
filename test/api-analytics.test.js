@@ -285,3 +285,21 @@ test("captures a disconnected API request once without duplicating the finish ev
   assert.equal(events[0].status, 499);
   assert.equal(events[0].failed, true);
 });
+
+test("short analytics ranges read current-month rollups but exclude older months", async () => {
+  const db = new FakeDb();
+  db.seed("apiAnalyticsDaily", "2026-10-29_developer_0", {
+    date: "2026-10-29", api: "developer", requests: 4, successful: 4, failed: 0, quotaConsumed: 0,
+  });
+  db.seed("apiAnalyticsDaily", "2026-10-02_developer_0", {
+    date: "2026-10-02", api: "developer", requests: 13, successful: 12, failed: 1, quotaConsumed: 0,
+  });
+  db.seed("apiAnalyticsDaily", "2026-07-31_developer_0", {
+    date: "2026-07-31", api: "developer", requests: 900, successful: 900, failed: 0, quotaConsumed: 0,
+  });
+
+  const analytics = await getApiAnalytics(db, { range: "7d", now: NOW });
+  assert.equal(analytics.totals.requests, 4);
+  assert.equal(analytics.periods.month.requests, 17);
+  assert.equal(db.reads, 3, "two current-month rollups and the tracking metadata document are read");
+});

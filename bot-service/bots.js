@@ -373,7 +373,7 @@ async function restoreSessionFiles(workDir, botId) {
   }
 }
 
-async function backupSessionFiles(workDir, botId, entry) {
+async function backupSessionFilesOnce(workDir, botId, entry) {
   const sessionDir = path.join(workDir, SESSION_DIR_NAME);
   let names;
   try { names = fs.readdirSync(sessionDir); } catch { return; }
@@ -419,15 +419,19 @@ async function backupSessionFiles(workDir, botId, entry) {
   }
 
   const ops = [...writes.map((w) => ({ type: "set", ref: w.ref, data: w.data })), ...deletes.map((ref) => ({ type: "delete", ref }))];
-  for (let i = 0; i < ops.length; i += 400) {
-    const batch = db.batch();
-    for (const op of ops.slice(i, i + 400)) {
-      if (op.type === "set") batch.set(op.ref, op.data);
-      else batch.delete(op.ref);
+  try {
+    for (let i = 0; i < ops.length; i += 400) {
+      const batch = db.batch();
+      for (const op of ops.slice(i, i + 400)) {
+        if (op.type === "set") batch.set(op.ref, op.data);
+        else batch.delete(op.ref);
+      }
+      await batch.commit();
     }
-    await batch.commit().catch(() => {});
+  } catch (err) {
+    console.error(`Session backup failed for ${botId}:`, err.message);
+    return;
   }
-  await db.collection("botDeployments").doc(botId).update({ updatedAt: Date.now() }).catch(() => {});
   if (entry) {
     entry.lastBackupSignature = signature;
     if (!entry.lastFileSignatures) entry.lastFileSignatures = new Map();
@@ -437,6 +441,26 @@ async function backupSessionFiles(workDir, botId, entry) {
     }
     for (const id of currentDocIds) entry.knownDocIds.add(id);
     for (const ref of deletes) entry.knownDocIds.delete(ref.id);
+  }
+}
+
+function backupSessionFiles(workDir, botId, entry) {
+  if (!entry) return backupSessionFilesOnce(workDir, botId, entry);
+  if (entry.backupInFlight) return entry.backupInFlight;
+  const pending = backupSessionFilesOnce(workDir, botId, entry).finally(() => {
+    if (entry.backupInFlight === pending) entry.backupInFlight = null;
+  });
+  entry.backupInFlight = pending;
+  return pending;
+}
+
+async function backupSessionFilesOnExit(workDir, botId, entry) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await backupSessionFiles(workDir, botId, entry);
+    } catch (err) {
+      console.error(`Session backup failed on exit for ${botId}:`, err.message);
+    }
   }
 }
 
@@ -538,8 +562,8 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
         entry.deleteSessionCount = 0;
         entry.badMacCount = 0;
         if (!entry.backupTimer) {
-          backupSessionFiles(workDir, botId, entry);
-          entry.backupTimer = setInterval(() => backupSessionFiles(workDir, botId, entry), SESSION_BACKUP_INTERVAL_MS);
+          backupSessionFiles(workDir, botId, entry).catch(() => {});
+          entry.backupTimer = setInterval(() => backupSessionFiles(workDir, botId, entry).catch(() => {}), SESSION_BACKUP_INTERVAL_MS);
         }
         return;
       }
@@ -606,7 +630,7 @@ async function runDeployment(botId, uid, phoneNumber, { isRestore = false } = {}
 
   proc.on("exit", (code) => {
     if (entry.backupTimer) clearInterval(entry.backupTimer);
-    backupSessionFiles(workDir, botId).finally(() => {
+    backupSessionFilesOnExit(workDir, botId, entry).finally(() => {
       if (running.get(botId) === entry) running.delete(botId);
       entry._resolveExited?.();
       if (entry.stoppedByUser || entry.autoRestartDisabled) return;

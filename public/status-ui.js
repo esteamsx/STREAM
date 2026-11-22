@@ -440,22 +440,25 @@
     }
   }
 
-  function refreshRings(force) {
+  function applyRingData(f) {
     var els = document.querySelectorAll("[data-st-self],[data-st-uid]");
     if (!els.length) return;
-    getRingData(force === true).then(function (f) {
-      var map = {};
-      f.users.forEach(function (u) { map[u.uid] = u; });
-      Array.prototype.forEach.call(els, function (el) {
-        var uid = el.hasAttribute("data-st-self") ? f.meUid : el.getAttribute("data-st-uid");
-        var info = uid === f.meUid ? (f.mine ? { allSeen: !!f.mine.allSeen } : null) : (map[uid] || null);
-        markRing(el, uid, info, !el.hasAttribute("data-st-noclick"));
-      });
-    }).catch(function () {});
+    var map = {};
+    f.users.forEach(function (u) { map[u.uid] = u; });
+    Array.prototype.forEach.call(els, function (el) {
+      var uid = el.hasAttribute("data-st-self") ? f.meUid : el.getAttribute("data-st-uid");
+      var info = uid === f.meUid ? (f.mine ? { allSeen: !!f.mine.allSeen } : null) : (map[uid] || null);
+      markRing(el, uid, info, !el.hasAttribute("data-st-noclick"));
+    });
+  }
+
+  function refreshRings(force) {
+    getRingData(force === true).then(applyRingData).catch(function () {});
   }
 
     function loadFeed() {
     return api("/api/status/feed").then(function (f) {
+      ringCache = { t: Date.now(), data: f };
       state.feed = f;
       if (state.hint) state.hint.classList.toggle("has-new", f.users.some(function (u) { return !u.allSeen; }));
       return f;
@@ -798,8 +801,10 @@
   }
 
   function afterPost() {
-    loadFeed().then(function () { if (panelOpen()) renderList(); }).catch(function () {});
-    refreshRings(true);
+    loadFeed().then(function (f) {
+      if (panelOpen()) renderList();
+      applyRingData(f);
+    }).catch(function () {});
     window.dispatchEvent(new CustomEvent("es-status-changed"));
   }
 
@@ -858,8 +863,10 @@
       clearInterval(timer);
       document.removeEventListener("keydown", onKey);
       ov.remove();
-      loadFeed().then(function () { if (panelOpen()) renderList(); }).catch(function () {});
-      refreshRings(true);
+      loadFeed().then(function (f) {
+        if (panelOpen()) renderList();
+        applyRingData(f);
+      }).catch(function () {});
       if (window.EsUI && window.EsUI.refreshDots) window.EsUI.refreshDots();
       if (onClose) onClose();
     }

@@ -24,7 +24,7 @@ const VIEWER_CACHE_MS = 60 * 1000;
 const TOKEN_TTL_MS = 30 * 60 * 1000;
 const IMPRESSION_DEDUPE_MS = 60 * 1000;
 const CLICK_DEDUPE_MS = 5 * 60 * 1000;
-const FLUSH_INTERVAL_MS = 15 * 1000;
+const FLUSH_INTERVAL_MS = 60 * 1000;
 const CHART_DAYS = 14;
 const MAX_ADS_PER_USER = 20;
 const MAX_DRAFTS_PER_USER = 5;
@@ -429,12 +429,12 @@ function ctrOf(impressions, clicks) {
 }
 
 export async function listAdsWithStats(uid) {
+  const days = recentDays(CHART_DAYS);
   const [adSnap, daySnap] = await Promise.all([
     db.collection("ads").where("uid", "==", uid).get(),
-    db.collection("adDaily").where("uid", "==", uid).limit(2000).get(),
+    db.collection("adDaily").where("uid", "==", uid).where("day", ">=", days[0]).where("day", "<=", days[days.length - 1]).limit(2000).get(),
   ]);
 
-  const days = recentDays(CHART_DAYS);
   const perAd = new Map();
   const touch = (adId, day, impressions, clicks) => {
     let series = perAd.get(adId);
@@ -627,8 +627,9 @@ export async function adminAdDetail(adId) {
   const snap = await db.collection("ads").doc(id).get();
   if (!snap.exists) throw fail("Ad not found.", 404);
   const ad = snap.data();
+  const days = recentDays(ADMIN_CHART_DAYS);
   const [daySnap, owners] = await Promise.all([
-    db.collection("adDaily").where("adId", "==", id).limit(400).get(),
+    db.collection("adDaily").where("adId", "==", id).where("day", ">=", days[0]).where("day", "<=", days[days.length - 1]).limit(ADMIN_CHART_DAYS).get(),
     ownersFor([ad.uid]),
   ]);
 
@@ -649,7 +650,7 @@ export async function adminAdDetail(adId) {
   }
 
   const row = adminRow(id, ad, owners.get(ad.uid), held, Date.now());
-  const daily = recentDays(ADMIN_CHART_DAYS).map((day) => {
+  const daily = days.map((day) => {
     const point = series.get(day) || { impressions: 0, clicks: 0 };
     return { day, impressions: point.impressions, clicks: point.clicks };
   });

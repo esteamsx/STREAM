@@ -36,5 +36,25 @@ test("session backup defaults to 15 minutes and accepts only 1 minute to 1 hour"
 test("bot session backup timer uses the configurable interval", () => {
   const bots = read("../bot-service/bots.js");
   assert.match(bots, /parseSessionBackupIntervalMs\(process\.env\.BOT_SESSION_BACKUP_INTERVAL_MS\)/);
-  assert.match(bots, /setInterval\(\(\) => backupSessionFiles\(workDir, botId, entry\), SESSION_BACKUP_INTERVAL_MS\)/);
+  assert.match(bots, /setInterval\(\(\) => backupSessionFiles\(workDir, botId, entry\)\.catch\(\(\) => \{\}\), SESSION_BACKUP_INTERVAL_MS\)/);
+});
+
+test("session backups coalesce overlapping snapshots and take a fresh snapshot on process exit", () => {
+  const bots = read("../bot-service/bots.js");
+  assert.match(bots, /if \(entry\.backupInFlight\) return entry\.backupInFlight/);
+  assert.match(bots, /backupSessionFilesOnExit\(workDir, botId, entry\)\.finally\(\(\) =>/);
+  const exitBackup = bots.slice(bots.indexOf("async function backupSessionFilesOnExit"), bots.indexOf("async function runDeployment"));
+  assert.match(exitBackup, /attempt < 2/);
+  assert.match(exitBackup, /await backupSessionFiles\(workDir, botId, entry\)/);
+  const backup = bots.slice(bots.indexOf("async function backupSessionFilesOnce"), bots.indexOf("function backupSessionFiles("));
+  assert.doesNotMatch(backup, /collection\("botDeployments"\)\.doc\(botId\)\.update/);
+});
+
+test("a failed session-file batch is not marked as successfully backed up", () => {
+  const bots = read("../bot-service/bots.js");
+  const backup = bots.slice(bots.indexOf("async function backupSessionFilesOnce"), bots.indexOf("function backupSessionFiles("));
+  assert.match(backup, /await batch\.commit\(\)/);
+  assert.match(backup, /catch \(err\) \{\s*console\.error\(`Session backup failed for \$\{botId\}:`, err\.message\);\s*return;\s*\}/);
+  const failureAt = backup.indexOf("Session backup failed for");
+  assert.ok(backup.indexOf("return;", failureAt) < backup.indexOf("entry.lastBackupSignature = signature", failureAt));
 });

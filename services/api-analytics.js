@@ -15,7 +15,8 @@ function normalizeRange(range, now) {
   const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
   const current = new Date(now);
   const startAt = Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate() - days + 1);
-  const rollupStartAt = Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate() - MAX_RANGE_DAYS + 1);
+  const monthStartAt = Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), 1);
+  const rollupStartAt = Math.min(startAt, monthStartAt);
   return {
     range: `${days}d`,
     today: utcDateKey(now),

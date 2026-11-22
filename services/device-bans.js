@@ -6,7 +6,6 @@ export const BAN_MS = 72 * 60 * 60 * 1000;
 
 const BANS = "deviceBans";
 const BLACKLIST = "deviceBlacklist";
-const BLACKLIST_REFRESH_MS = 30 * 1000;
 
 function browserFamily(browser) {
   return String(browser || "").replace(/\s*\d.*$/, "").trim().toLowerCase();
@@ -173,7 +172,6 @@ function listenBlacklist() {
   }
 }
 listenBlacklist();
-setInterval(refreshBlacklist, 60 * 60 * 1000).unref();   // hourly safety check
 
 export function isBlacklistedRequest(req) {
   if (!blDeviceIds.size && !blFps.size) return false;

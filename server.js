@@ -628,10 +628,16 @@ function bulkGroupId(category, symbol) {
 }
 const bulkGroupCache = new Map();
 const BULK_GROUP_CACHE_MS = 10000;
-function invalidateBulkGroupCache(category, symbol) {
+const activeBulkGroupListCache = new Map();
+const ACTIVE_BULK_GROUP_LIST_CACHE_MS = 10000;
+function activeBulkGroupListCacheKey(adminUid, category) {
+  return `${adminUid}|${category}`;
+}
+function invalidateBulkGroupCache(category, symbol, adminUid = null) {
   const key = bulkGroupId(category, symbol);
   bulkGroupCache.delete(key);
   virtualBulkCache.delete(key);
+  if (adminUid) activeBulkGroupListCache.delete(activeBulkGroupListCacheKey(adminUid, category));
 }
 async function getActiveBulkGroup(category, symbol) {
   const key = bulkGroupId(category, symbol);
@@ -647,13 +653,22 @@ async function saveBulkGroup({ category, symbol, side, leverage, createdBy, part
     category, symbol, side, leverage, createdBy, participants, active: true, updatedAt: Date.now(),
     takeProfit: takeProfit || null, stopLoss: stopLoss || null,
   });
-  invalidateBulkGroupCache(category, symbol);
+  invalidateBulkGroupCache(category, symbol, createdBy);
 }
 async function listActiveBulkGroupsByAdmin(adminUid, category) {
-  const snap = await db.collection(BULK_GROUPS_COLLECTION).where("createdBy", "==", adminUid).get();
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((g) => g.active && g.category === category);
+  const cacheKey = activeBulkGroupListCacheKey(adminUid, category);
+  const now = Date.now();
+  const cached = activeBulkGroupListCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.data;
+  const snap = await db.collection(BULK_GROUPS_COLLECTION)
+    .where("createdBy", "==", adminUid)
+    .where("active", "==", true)
+    .where("category", "==", category)
+    .get();
+  const groups = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  if (activeBulkGroupListCache.size >= 1000) activeBulkGroupListCache.clear();
+  activeBulkGroupListCache.set(cacheKey, { data: groups, expiresAt: now + ACTIVE_BULK_GROUP_LIST_CACHE_MS });
+  return groups;
 }
 const virtualBulkCache = new Map();
 const VIRTUAL_BULK_CACHE_MS = 15000;
@@ -729,7 +744,7 @@ async function cascadeBulkAction({ category, symbol, adminUid, perParticipant, d
   }));
   if (deactivateAfter) {
     await db.collection(BULK_GROUPS_COLLECTION).doc(group.id).update({ active: false, closedAt: Date.now() }).catch(() => {});
-    invalidateBulkGroupCache(category, symbol);
+    invalidateBulkGroupCache(category, symbol, group.createdBy);
   }
   return succeeded;
 }
@@ -2354,7 +2369,7 @@ app.post("/api/tools/trading/tpsl", requireAuth, tradingOrderLimiter, async (req
         return res.status(400).json({ error: "No active bulk trade for this pair." });
       }
       await db.collection(BULK_GROUPS_COLLECTION).doc(group.id).update({ takeProfit: takeProfit || null, stopLoss: stopLoss || null }).catch(() => {});
-      invalidateBulkGroupCache(category, symbol);
+      invalidateBulkGroupCache(category, symbol, group.createdBy);
       const bulkUpdated = await cascadeBulkAction({
         category, symbol, adminUid: req.uid,
         perParticipant: (service, override, p) => service.setTradingStop(category, symbol, { takeProfit, stopLoss, demo: p.mode === "demo", override }),

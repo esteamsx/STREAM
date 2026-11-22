@@ -203,11 +203,25 @@ async function createUserAccount({ firstName, lastName, email, password, usernam
   return userRecord.uid;
 }
 
+const userByUsernameCache = new Map();
+const USERNAME_LOOKUP_CACHE_TTL_MS = 30 * 1000;
+
 async function findUserByUsername(username) {
   if (!username) return null;
+  const cached = userByUsernameCache.get(username);
+  if (cached && Date.now() - cached.at < USERNAME_LOOKUP_CACHE_TTL_MS) {
+    const data = await getUserProfile(cached.uid);
+    if (data) return { uid: cached.uid, ...data };
+    userByUsernameCache.delete(username);
+  }
   const snap = await db.collection("users").where("username", "==", username).limit(1).get();
   if (snap.empty) return null;
-  return { uid: snap.docs[0].id, ...snap.docs[0].data() };
+  const doc = snap.docs[0];
+  const data = doc.data();
+  rememberUserProfile(doc.id, data);
+  if (userByUsernameCache.size >= USER_PROFILE_CACHE_MAX) userByUsernameCache.clear();
+  userByUsernameCache.set(username, { uid: doc.id, at: Date.now() });
+  return { uid: doc.id, ...data };
 }
 
 async function isUsernameAvailable(username, excludeUid) {
@@ -325,6 +339,9 @@ const userProfileInflight = new Map();
 
 function invalidateUserProfileCache(uid) {
   userProfileCache.delete(uid);
+  for (const [username, cached] of userByUsernameCache) {
+    if (cached.uid === uid) userByUsernameCache.delete(username);
+  }
   const pending = userProfileInflight.get(uid);
   if (pending) {
     pending.invalidated = true;
@@ -383,6 +400,23 @@ async function loadUserDocsCached(uids, maxAgeMs = 60 * 1000) {
 async function updateUserProfile(uid, data) {
   await db.collection("users").doc(uid).update(data);
   invalidateUserProfileCache(uid);
+}
+
+const userActivityTouchInflight = new Map();
+
+function touchUserLastActive(uid, at) {
+  const current = userActivityTouchInflight.get(uid);
+  if (current) return current;
+  const pending = db.collection("users").doc(uid).update({ lastActiveAt: at }).then(() => {
+    const cached = userProfileCache.get(uid);
+    if (cached?.data) {
+      userProfileCache.set(uid, { data: { ...cached.data, lastActiveAt: at }, at: cached.at });
+    }
+  }).catch(() => {}).finally(() => {
+    if (userActivityTouchInflight.get(uid) === pending) userActivityTouchInflight.delete(uid);
+  });
+  userActivityTouchInflight.set(uid, pending);
+  return pending;
 }
 
 function watchLaterMovieId(slug) {
@@ -3537,14 +3571,22 @@ async function getSuggestedUsers(uid, limit = 6) {
 const UNSEEN_FEED_TTL_MS = 120 * 1000;
 let feedCountIndexRetryAt = 0;
 const unseenFeedCache = new Map();
+const unseenFeedInflight = new Map();
 
 async function getFollowingFeedUnseenCount(uid, cachedProfile) {
   const hit = unseenFeedCache.get(uid);
   if (hit && Date.now() - hit.at < UNSEEN_FEED_TTL_MS) return hit.count;
-  const count = await computeFollowingFeedUnseenCount(uid, cachedProfile);
-  if (unseenFeedCache.size >= 5000) unseenFeedCache.clear();
-  unseenFeedCache.set(uid, { count, at: Date.now() });
-  return count;
+  const current = unseenFeedInflight.get(uid);
+  if (current) return current;
+  const pending = computeFollowingFeedUnseenCount(uid, cachedProfile).then((count) => {
+    if (unseenFeedCache.size >= 5000) unseenFeedCache.clear();
+    unseenFeedCache.set(uid, { count, at: Date.now() });
+    return count;
+  }).finally(() => {
+    if (unseenFeedInflight.get(uid) === pending) unseenFeedInflight.delete(uid);
+  });
+  unseenFeedInflight.set(uid, pending);
+  return pending;
 }
 
 async function computeFollowingFeedUnseenCount(uid, cachedProfile) {
@@ -3661,7 +3703,7 @@ function requireAuth(req, res, next) {
       const activeSid = sessionSid(sessionId);
       if (activeSid && !BACKGROUND_POLL_PATHS.some((p) => req.path.startsWith(p))) touchDeviceSession(activeSid);
       if (!profile.lastActiveAt || Date.now() - profile.lastActiveAt > LAST_ACTIVE_UPDATE_THROTTLE_MS) {
-        updateUserProfile(uid, { lastActiveAt: Date.now() }).catch(() => {});
+        touchUserLastActive(uid, Date.now());
       }
       next();
     })

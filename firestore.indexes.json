@@ -83,6 +83,31 @@
         { "fieldPath": "viewerUid", "order": "ASCENDING" },
         { "fieldPath": "statusId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "bulkPositionGroups",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdBy", "order": "ASCENDING" },
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "adDaily",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "day", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "adDaily",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "adId", "order": "ASCENDING" },
+        { "fieldPath": "day", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
