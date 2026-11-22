@@ -6,6 +6,7 @@ import { spawn, exec } from "child_process";
 import { fileURLToPath } from "url";
 import { db } from "./bot-firebase.js";
 import admin from "firebase-admin";
+import { parseSessionBackupIntervalMs } from "./runtime-config.js";
 
 const PUBLIC_BASE = "https://esteamstv.devs.surf";
 const REPO_TARBALL_URL = "https://github.com/esteamsx/ES_TEAMS-V1/archive/refs/heads/main.tar.gz";
@@ -19,7 +20,7 @@ const MAX_ACTIVE_BOTS = 5;
 const MAX_INSTANCES_PER_USER = 1;
 const ACTIVE_STATUSES = ["downloading", "extracting", "installing", "starting", "pairing", "connected", "reconnecting"];
 const LOG_LINES_KEPT = 300;
-const SESSION_BACKUP_INTERVAL_MS = 5 * 60 * 1000;
+const SESSION_BACKUP_INTERVAL_MS = parseSessionBackupIntervalMs(process.env.BOT_SESSION_BACKUP_INTERVAL_MS);
 
 const running = new Map();
 

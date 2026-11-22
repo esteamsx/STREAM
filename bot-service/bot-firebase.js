@@ -1,10 +1,10 @@
 import admin from "firebase-admin";
 
-const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+const raw = process.env.BOT_FIREBASE_SERVICE_ACCOUNT_KEY;
 
 if (!raw || !raw.trim()) {
   throw new Error(
-    "FIREBASE_SERVICE_ACCOUNT_KEY is not set. Add the Firebase service account JSON " +
+    "BOT_FIREBASE_SERVICE_ACCOUNT_KEY is not set. Add the bot Firebase project's service account JSON " +
       "as an environment variable before starting the bot service."
   );
 }
@@ -14,17 +14,16 @@ try {
   serviceAccount = JSON.parse(raw);
 } catch (err) {
   throw new Error(
-    "FIREBASE_SERVICE_ACCOUNT_KEY is set but is not valid JSON. Paste the whole service " +
+    "BOT_FIREBASE_SERVICE_ACCOUNT_KEY is set but is not valid JSON. Paste the whole service " +
       `account file, including the surrounding braces. (${err.message})`
   );
 }
 
 const app = admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-});
+}, "es-teams-bot-database");
 
-const db = admin.firestore();
-const auth = admin.auth();
+const db = admin.firestore(app);
 
-export { db, auth };
+export { db };
 export default db;

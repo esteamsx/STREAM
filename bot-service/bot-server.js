@@ -1,6 +1,7 @@
 import express from "express";
 import "dotenv/config";
 import { exec } from "child_process";
+import { db } from "./bot-firebase.js";
 import {
   deployBot, listBotsForUser, getBotStatus, stopBot, restartBot, deleteBot, sendBotChannelReact, checkWhatsAppNumber,
   countActiveBots, MAX_ACTIVE_BOTS, countBotsForUser, MAX_INSTANCES_PER_USER,
@@ -133,6 +134,19 @@ app.get("/internal/bots", async (req, res) => {
   }
 });
 
+app.get("/internal/bots/connected", async (req, res) => {
+  try {
+    const snap = await db.collection("botDeployments").where("status", "==", "connected").get();
+    res.json({ bots: snap.docs.map((doc) => ({
+      id: doc.id,
+      uid: doc.data().uid,
+      createdAt: doc.data().createdAt || 0,
+    })) });
+  } catch (err) {
+    res.status(500).json({ error: "Could not list connected deployments." });
+  }
+});
+
 app.post("/internal/bots/deploy", async (req, res) => {
   try {
     const { uid, isAdmin, ...body } = req.body || {};
@@ -261,6 +275,32 @@ app.post("/internal/admin/bots/check-updates", async (req, res) => {
     res.json(await checkForUpdates());
   } catch (err) {
     res.status(500).json({ error: err.message || "Update check failed." });
+  }
+});
+
+app.get("/internal/admin/deploy-api-key", async (req, res) => {
+  try {
+    const snap = await db.collection("botServiceSettings").doc("deploy").get();
+    res.set("Cache-Control", "no-store").json({ configured: !!String(snap.data()?.esTeamsApiKey || "").trim() });
+  } catch (err) {
+    res.status(500).json({ error: "Could not check the deploy bot API key setting." });
+  }
+});
+
+app.put("/internal/admin/deploy-api-key", async (req, res) => {
+  const apiKey = typeof req.body?.apiKey === "string" ? req.body.apiKey.trim() : "";
+  if (apiKey.length < 8 || apiKey.length > 512 || /[\u0000-\u001f\u007f]/.test(apiKey)) {
+    return res.status(400).json({ error: "Enter a valid developer API key." });
+  }
+  try {
+    await db.collection("botServiceSettings").doc("deploy").set({
+      esTeamsApiKey: apiKey,
+      updatedAt: Date.now(),
+      updatedBy: String(req.body?.updatedBy || "").slice(0, 128),
+    }, { merge: true });
+    res.set("Cache-Control", "no-store").json({ configured: true });
+  } catch (err) {
+    res.status(500).json({ error: "Could not save the deploy bot API key." });
   }
 });
 
