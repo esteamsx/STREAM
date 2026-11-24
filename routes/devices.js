@@ -1,9 +1,11 @@
 import express from "express";
-import { requireAuth, sessionSid, reissueSessionToken, SESSION_TTL_MS, userHasFaceId, verifyLoginFace } from "../services/auth.js";
+import { SimpleRateLimiter } from "../middleware/security-middleware.js";
+import { requireAuth, sessionSid, reissueSessionToken, SESSION_TTL_MS, userHasFaceId, verifyLoginFace, issueCode, checkCode, getUserProfile } from "../services/auth.js";
 import { listUserBans } from "../services/device-bans.js";
 import { getDeviceSession, listDevices, setTrusted, removeTrustedDevice, removeTrustedDevices, setTrustedDevicesLabel, revokeDeviceSession } from "../services/device-sessions.js";
 
 export const devicesRouter = express.Router();
+const deviceOtpLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000, (req) => req.uid).middleware();
 
 function cookieOpts(maxAge) {
   return { httpOnly: true, secure: true, sameSite: "lax", maxAge };
@@ -62,15 +64,7 @@ devicesRouter.post("/api/devices/trust", requireAuth, async (req, res) => {
 });
 
 devicesRouter.delete("/api/devices/trusted/:deviceId", requireAuth, async (req, res) => {
-  try {
-    const deviceId = String(req.params.deviceId || "");
-    if (!/^[a-f0-9]{32}$/.test(deviceId)) return res.status(400).json({ error: "Invalid device." });
-    await removeTrustedDevice(req.uid, deviceId);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: "Could not remove this device." });
-  }
+  return res.status(410).json({ code: "OTP_REQUIRED", error: "Email verification is required before removing trusted devices." });
 });
 
 devicesRouter.post("/api/devices/trusted-group/name", requireAuth, async (req, res) => {
@@ -87,17 +81,32 @@ devicesRouter.post("/api/devices/trusted-group/name", requireAuth, async (req, r
   }
 });
 
-devicesRouter.post("/api/devices/trusted-group/remove", requireAuth, async (req, res) => {
+devicesRouter.post("/api/devices/trusted-group/remove/request", requireAuth, deviceOtpLimiter, async (req, res) => {
   try {
     const deviceIds = req.body?.deviceIds;
-    if (!Array.isArray(deviceIds)) return res.status(400).json({ error: "Invalid device group." });
+    if (!Array.isArray(deviceIds) || !deviceIds.length || deviceIds.length > 100 || deviceIds.some((id) => !/^[a-f0-9]{32}$/.test(String(id || "")))) return res.status(400).json({ error: "Invalid device group." });
+    const profile = await getUserProfile(req.uid);
+    if (!profile?.email) return res.status(400).json({ code: "EMAIL_REQUIRED", error: "Add and verify an email before removing trusted devices." });
+    const purpose = "remove_trusted_devices";
+    await issueCode(req.uid, profile.email, purpose);
+    res.json({ ok: true, email: profile.email.replace(/(^.).*(@.*$)/, "$1••••$2") });
+  } catch (err) {
+    res.status(err.status || 400).json({ code: err.code || "DEVICE_OTP_REQUEST_FAILED", error: err.userFacing || err.message || "Could not send a verification code." });
+  }
+});
+devicesRouter.post("/api/devices/trusted-group/remove/confirm", requireAuth, deviceOtpLimiter, async (req, res) => {
+  try {
+    const deviceIds = req.body?.deviceIds;
+    if (!Array.isArray(deviceIds) || !deviceIds.length || deviceIds.length > 100 || deviceIds.some((id) => !/^[a-f0-9]{32}$/.test(String(id || "")))) return res.status(400).json({ error: "Invalid device group." });
+    const result = await checkCode(req.uid, "remove_trusted_devices", req.body?.code);
+    if (!result.ok) return res.status(400).json({ code: "OTP_INVALID", error: result.reason === "expired" ? "That code has expired. Request a new code." : "That verification code is not valid." });
     const ok = await removeTrustedDevices(req.uid, deviceIds);
     if (!ok) return res.status(404).json({ error: "Those trusted device profiles could not be removed. Reload and try again." });
     res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: "Could not remove trust from this device group." });
-  }
+  } catch (err) { res.status(400).json({ error: "Could not remove trust from this device group." }); }
+});
+devicesRouter.post("/api/devices/trusted-group/remove", requireAuth, async (req, res) => {
+  return res.status(410).json({ code: "OTP_REQUIRED", error: "Email verification is required before removing trusted devices." });
 });
 
 devicesRouter.post("/api/devices/:sid/logout", requireAuth, async (req, res) => {

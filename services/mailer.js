@@ -204,6 +204,35 @@ async function sendDmcaReportEmail(report) {
   });
 }
 
+async function sendNewDeviceLoginAlertEmail(email, details = {}) {
+  const username = escapeHtml(details.username || "ES TEAMS TV member");
+  const loginAt = escapeHtml(details.loginAt || new Date().toISOString());
+  const device = escapeHtml(details.device || "Unknown device");
+  const browser = escapeHtml(details.browser || "Unknown browser");
+  const os = escapeHtml(details.os || "Unknown operating system");
+  const ip = escapeHtml(details.ip || "Unavailable");
+  const location = escapeHtml(details.location || "Unavailable");
+  const passwordUrl = escapeHtml(details.passwordUrl || siteOrigin() + "/account");
+  const text = [
+    "A new device signed in to your ES TEAMS TV account.",
+    "Username: " + (details.username || "ES TEAMS TV member"),
+    "Date and time: " + (details.loginAt || new Date().toISOString()),
+    "Device: " + (details.device || "Unknown device"),
+    "Browser: " + (details.browser || "Unknown browser"),
+    "Operating system: " + (details.os || "Unknown operating system"),
+    "IP address: " + (details.ip || "Unavailable"),
+    "Approximate location: " + (details.location || "Unavailable"),
+    "If this was not you, change your password immediately: " + (details.passwordUrl || siteOrigin() + "/account"),
+    "This email does not contain a password, code, or sign-in token."
+  ].join("\n");
+  return sendMailWithFallback({
+    from: `"ES TEAMS TV Security" <${process.env.GMAIL_USER}>`,
+    to: email,
+    subject: "New device sign-in to your ES TEAMS TV account",
+    text,
+    html: `<!doctype html><html lang="en"><body style="margin:0;padding:26px 12px;background:#090b12;color:#f3f4fa;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%"><tr><td align="center"><table role="presentation" width="100%" style="max-width:580px;background:#111521;border:1px solid #32394b;border-radius:20px;overflow:hidden"><tr><td style="height:4px;background:linear-gradient(90deg,#00e0ff,#7c5cff)"></td></tr><tr><td style="padding:28px"><table role="presentation"><tr><td style="padding-right:11px"><img src="${escapeHtml(siteOrigin())}/favicon.svg" width="42" height="42" alt="ES Teams TV" style="display:block;border-radius:10px"></td><td style="color:#f3f4fa;font-size:18px;font-weight:700">ES TEAMS TV</td></tr></table><p style="margin:26px 0 8px;color:#00e0ff;font-size:11px;font-weight:700;letter-spacing:1.7px">ACCOUNT SECURITY</p><h1 style="margin:0 0 12px;font-size:25px">New device sign-in</h1><p style="color:#c1c6d4;font-size:15px;line-height:1.6">Hi <strong style="color:#fff">${username}</strong>, a new device signed in to your account.</p><table role="presentation" width="100%" style="border-collapse:collapse;margin:20px 0;color:#c1c6d4;font-size:14px"><tr><td style="padding:8px 0;color:#8f98ad">Date and time</td><td style="padding:8px 0;color:#fff">${loginAt}</td></tr><tr><td style="padding:8px 0;color:#8f98ad">Device</td><td style="padding:8px 0;color:#fff">${device}</td></tr><tr><td style="padding:8px 0;color:#8f98ad">Browser</td><td style="padding:8px 0;color:#fff">${browser}</td></tr><tr><td style="padding:8px 0;color:#8f98ad">Operating system</td><td style="padding:8px 0;color:#fff">${os}</td></tr><tr><td style="padding:8px 0;color:#8f98ad">IP address</td><td style="padding:8px 0;color:#fff">${ip}</td></tr><tr><td style="padding:8px 0;color:#8f98ad">Approx. location</td><td style="padding:8px 0;color:#fff">${location}</td></tr></table><p style="margin:0 0 18px;color:#ffcf70;font-size:14px;line-height:1.55"><strong>Wasn't you?</strong> Change your password now and review your trusted devices.</p><a href="${passwordUrl}" style="display:inline-block;padding:13px 21px;border-radius:11px;background:linear-gradient(135deg,#00e0ff,#7c5cff);color:#06141a;font-weight:800;text-decoration:none">CHANGE PASSWORD</a><p style="margin:22px 0 0;color:#8f98ad;font-size:12px;line-height:1.6">This alert never includes your password, a verification code, or an authentication token.</p></td></tr><tr><td style="padding:18px 28px 24px;border-top:1px solid #262d3c;color:#7f899e;font-size:12px">ES TEAMS TV · Secure account services</td></tr></table></td></tr></table></body></html>`,
+  });
+}
 async function sendWithdrawalRequestEmail(adminEmail, username, amountNgn, bankDetails) {
   await sendMailWithFallback({
     from: `"ES TEAMS TV" <${process.env.GMAIL_USER}>`,
@@ -236,4 +265,4 @@ function getEmailTransportConfig() {
   return { host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_SECURE, minTls: SMTP_MIN_TLS };
 }
 
-export { sendVerificationCode, sendSignupVerificationCode, sendPremiumExpiryReminderEmail, sendBanNotificationEmail, sendDmcaReportEmail, sendWithdrawalRequestEmail, getEmailTransportConfig };
+export { sendVerificationCode, sendSignupVerificationCode, sendPremiumExpiryReminderEmail, sendBanNotificationEmail, sendDmcaReportEmail, sendWithdrawalRequestEmail, sendNewDeviceLoginAlertEmail, getEmailTransportConfig };

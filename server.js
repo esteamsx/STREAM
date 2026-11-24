@@ -577,6 +577,10 @@ const oauthCallbackLimiter = new SimpleRateLimiter(15, 15 * 60 * 1000).middlewar
 const identifierLookupLimiter = new SimpleRateLimiter(20, 15 * 60 * 1000).middleware();
 const twoFactorToggleLimiter = new SimpleRateLimiter(10, 15 * 60 * 1000, (req) => req.uid).middleware();
 const emailCodeLimiter = new SimpleRateLimiter(5, 15 * 60 * 1000, (req) => req.uid).middleware();
+const LANGUAGE_OPTIONS = Object.freeze([
+  ["en", "English"], ["es", "Español"], ["fr", "Français"], ["de", "Deutsch"], ["pt", "Português"], ["it", "Italiano"], ["nl", "Nederlands"], ["sv", "Svenska"], ["no", "Norsk"], ["da", "Dansk"], ["fi", "Suomi"], ["is", "Íslenska"], ["pl", "Polski"], ["cs", "Čeština"], ["sk", "Slovenčina"], ["hu", "Magyar"], ["ro", "Română"], ["bg", "Български"], ["uk", "Українська"], ["ru", "Русский"], ["el", "Ελληνικά"], ["tr", "Türkçe"], ["ar", "العربية"], ["he", "עברית"], ["fa", "فارسی"], ["hi", "हिन्दी"], ["bn", "বাংলা"], ["ur", "اردو"], ["ta", "தமிழ்"], ["te", "తెలుగు"], ["mr", "मराठी"], ["gu", "ગુજરાતી"], ["kn", "ಕನ್ನಡ"], ["ml", "മലയാളം"], ["th", "ไทย"], ["vi", "Tiếng Việt"], ["id", "Bahasa Indonesia"], ["ms", "Bahasa Melayu"], ["fil", "Filipino"], ["sw", "Kiswahili"], ["am", "አማርኛ"], ["yo", "Yorùbá"], ["ig", "Igbo"], ["ha", "Hausa"], ["zu", "isiZulu"], ["xh", "isiXhosa"], ["ja", "日本語"], ["ko", "한국어"], ["zh", "中文"], ["et", "Eesti"]
+]);
+const LANGUAGE_CODES = new Set(LANGUAGE_OPTIONS.map(([code]) => code));
 async function requireRecentAuthentication(req, res, next) {
   try {
     if (await isSessionRecent(req.cookies?.session)) return next();
@@ -1585,6 +1589,13 @@ app.get("/api/premium-promotion", requireAuth, premiumPromoLimiter, async (req, 
     res.status(503).json({ eligible: false });
   }
 });
+app.post("/api/account/language", requireAuth, requireSiteOrigin, async (req, res) => {
+  const language = String(req.body?.language || "").trim().toLowerCase();
+  if (!LANGUAGE_CODES.has(language)) return res.status(400).json({ error: "Choose a supported language." });
+  await db.collection("users").doc(req.uid).set({ language }, { merge: true });
+  res.json({ ok: true, language });
+});
+app.get("/api/account/languages", requireAuth, (req, res) => res.json({ languages: LANGUAGE_OPTIONS.map(([code, name]) => ({ code, name })) }));
 app.post("/api/premium-promotion/shown", requireAuth, requireSiteOrigin, premiumPromoLimiter, async (req, res) => {
   try {
     const profile = await getUserProfile(req.uid, 0);

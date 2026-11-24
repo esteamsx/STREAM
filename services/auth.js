@@ -12,7 +12,7 @@ import { checkQuotaError } from "../middleware/quota-guard.js";
 import { VERIFICATION_ROLLOVER_PRICE_NGN } from "./paystack.js";
 import { channelCoinCost, dailyCoinClaimAmount, FREE_CHANNEL_REACTION_COST, FREE_DAILY_COIN_CLAIM_AMOUNT, nextVerificationExpiry } from "./coin-pricing.js";
 import { isFirstPremiumPayment, planPremiumReferralAwards } from "./premium-referral-rewards.js";
-import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEmail } from "./mailer.js";
+import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEmail, sendNewDeviceLoginAlertEmail } from "./mailer.js";
 import { appendCoinLedger, coinLedgerMismatch, verifyCoinLedgerChain } from "./coin-ledger.js";
 import { openDeviceSession, checkDeviceSession, touchDeviceSession, revokeDeviceSession, revokeAllDeviceSessions, TRUSTED_SESSION_TTL_MS } from "./device-sessions.js";
 import { createWeeklyActivityService } from "./weekly-activity.js";
@@ -24,6 +24,7 @@ import { getMovieApiQuotaStatus } from "./movie-api-quota.js";
 import { CODING_PLAN_DEFS, CODING_PURCHASABLE_PLAN_KEYS, resolveCodingPlanForProfile } from "./coding-usage.js";
 import { getVerifiedGoogleEmail, normalizeEmail } from "./provider-email.js";
 import { DEFAULT_RECENT_AUTH_MAX_AGE_MS, isRecentAuthentication } from "./recent-auth.js";
+import { siteOrigin } from "../config/site.js";
 const CODE_TTL_MS = 5 * 60 * 1000;
 const CODE_MAX_ATTEMPTS = 5;
 const CODE_RESEND_COOLDOWN_MS = 30 * 1000;
@@ -1377,8 +1378,9 @@ async function createDeviceSession(uid, req, res, options = {}) {
   let trusted = false;
   let kicked = [];
   let device = null;
+  let newDevice = false;
   try {
-    ({ sid, trusted, kicked, device } = await openDeviceSession({ uid, req, res, trustedOverride: options.trustedOverride === true }));
+    ({ sid, trusted, kicked, device, newDevice } = await openDeviceSession({ uid, req, res, trustedOverride: options.trustedOverride === true }));
   } catch (err) {
     console.error("[device-sessions] could not record device session:", err.message);
     throw Object.assign(new Error("Secure device session could not be established."), { status: 503, code: "device/session-unavailable" });
@@ -1386,6 +1388,12 @@ async function createDeviceSession(uid, req, res, options = {}) {
   if (kicked.length) {
     const who = device && device.name ? device.name : "a new device";
     addNotification(uid, "new_login", `Your account was signed in on ${who}${device && device.browser ? " (" + device.browser + ")" : ""}. Other devices were signed out. If this wasn't you, change your password.`, {}).catch(() => {});
+  }
+  if (newDevice) {
+      const profile = await getUserProfile(uid).catch(() => null);
+      const loginAt = new Date(now).toISOString();
+      const passwordUrl = `${siteOrigin()}/account#password`;
+      sendNewDeviceLoginAlertEmail(profile?.email, { username: profile?.username || profile?.handle || "ES TEAMS TV member", loginAt, device: device?.name, browser: device?.browser, os: device?.os, ip: device?.ip, location: "Unavailable", passwordUrl }).catch((err) => console.error("[security-alert] email failed", err?.code || err?.message || err));
   }
   const ttl = trusted ? TRUSTED_SESSION_TTL_MS : SESSION_TTL_MS;
   const authTimeMs = Number.isFinite(Number(options.authTimeMs)) ? Number(options.authTimeMs) : null;

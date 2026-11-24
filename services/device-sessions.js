@@ -139,6 +139,8 @@ export async function openDeviceSession({ uid, req, res, trustedOverride = false
   const device = parseDevice(req);
   const trustRef = db.collection(TRUSTED).doc(uid + "_" + deviceId);
   const trustSnap = await trustRef.get();
+  const priorSnap = await db.collection(SESSIONS).where("uid", "==", uid).where("deviceId", "==", deviceId).limit(1).get();
+  const newDevice = !trustSnap.exists && priorSnap.empty;
   const trusted = (trustSnap.exists && trustSnap.data().trusted === true) || trustedOverride;
   if (trusted) trustRef.update({ lastUsedAt: Date.now(), name: device.name, model: device.model, type: device.type, os: device.os, browser: device.browser, ip: device.ip }).catch(() => {});
   if (trustedOverride && !(trustSnap.exists && trustSnap.data().trusted === true)) {
@@ -168,7 +170,7 @@ export async function openDeviceSession({ uid, req, res, trustedOverride = false
   };
   await db.collection(SESSIONS).doc(sid).set(rec);
   remember(sid, rec);
-  return { sid, trusted, device, kicked };
+  return { sid, trusted, device, kicked, newDevice };
 }
 
 export async function checkDeviceSession(sid, uid, deviceId = null) {

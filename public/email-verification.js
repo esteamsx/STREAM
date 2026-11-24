@@ -187,7 +187,7 @@
     } finally {
       if (active) {
         button.disabled = false;
-        button.textContent = 'Verify email & continue';
+        button.textContent = active?.confirmLabel || 'Verify email & continue';
       }
     }
   }
@@ -219,14 +219,15 @@
   }
 
   window.ESTEmailVerification = {
-    require({ email = '', onVerified, requestCode: requestCodeHandler, confirmCode: confirmCodeHandler, allowAddEmail = false } = {}) {
+    require(options = {}) {
+      const { email = '', onVerified, requestCode: requestCodeHandler, confirmCode: confirmCodeHandler, allowAddEmail = false, confirmLabel = 'Verify email & continue' } = options;
       if (active) return Promise.reject(new Error('Email verification is already open.'));
       ensureShell();
       shell.querySelectorAll('.es-verify-digits input').forEach((input) => { input.value = ''; });
       shell.querySelector('#esVerifyIntro').textContent = email ? `Confirm ownership of ${email} to continue.` : 'Confirm that you own the email on your account to continue.';
       shell.querySelector('#esVerifyAddLink').style.display = 'none';
       shell.querySelector('#esVerifyConfirm').disabled = false;
-      shell.querySelector('#esVerifyConfirm').textContent = 'Verify email & continue';
+      shell.querySelector('#esVerifyConfirm').textContent = confirmLabel;
       shell.querySelector('#esVerifyEmailEntry').classList.remove('show');
       shell.querySelector('#esVerifyEmailInput').value = '';
       shell.querySelector('.es-verify-digits').style.display = 'flex';
@@ -235,7 +236,7 @@
       setMessage('');
       shell.classList.add('show');
       return new Promise((resolve, reject) => {
-        active = { resolve, reject, onVerified, requestCode: requestCodeHandler, confirmCode: confirmCodeHandler, allowAddEmail };
+        active = { resolve, reject, onVerified, requestCode: requestCodeHandler, confirmCode: confirmCodeHandler, allowAddEmail, confirmLabel };
         requestCode();
       });
     },

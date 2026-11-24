@@ -853,6 +853,8 @@ input{font-family:inherit}
 .danger-warning-box ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
 .danger-warning-box li{font-size:.76rem;color:var(--text);line-height:1.4}
 
+.language-card{max-width:620px}.language-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:minmax(42px,auto);gap:7px;max-height:260px;overflow:auto;padding:2px;scrollbar-color:var(--accent) transparent}.language-grid button{border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.045);color:var(--text);padding:9px 6px;font:600 .75rem var(--font-body);cursor:pointer}.language-grid button:hover,.language-grid button.on{border-color:var(--accent);background:rgba(0,224,255,.11);color:var(--accent)}@media(max-width:620px){.language-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(prefers-reduced-motion:reduce){.language-grid button{transition:none}}
+@media(prefers-reduced-motion:reduce){.overlay-card{backdrop-filter:none;-webkit-backdrop-filter:none}}
 .page-overlay{
   position:fixed;inset:0;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);
   display:none;align-items:center;justify-content:center;z-index:100;padding:24px;
@@ -864,12 +866,13 @@ body:has(.page-overlay.show){overflow:hidden}
   background:linear-gradient(155deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 40%,rgba(255,255,255,.05) 100%),rgba(255,255,255,.06);
   border:1px solid rgba(255,255,255,.22);border-radius:16px;
   padding:26px 22px;display:flex;flex-direction:column;gap:14px;
-  box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);
+  box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3),inset 0 -18px 36px rgba(0,0,0,.08);
+  backdrop-filter:blur(18px) saturate(1.18);-webkit-backdrop-filter:blur(18px) saturate(1.18);
 }
 :root[data-theme="light"] .overlay-card{
   background:linear-gradient(155deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 40%,rgba(255,255,255,.3) 100%);
   border:1px solid rgba(255,255,255,.65);
-  box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7);
+  box-shadow:0 20px 60px rgba(20,20,28,.16),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -18px 36px rgba(25,35,65,.05);
 }
 .overlay-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem}
 .overlay-sub{font-size:.82rem;color:var(--muted);line-height:1.5}
@@ -1923,6 +1926,7 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 </div>
 
+<div class="page-overlay" id="languageOverlay"><div class="overlay-card language-card"><div class="overlay-title" style="text-align:center">Language</div><div class="overlay-sub" style="text-align:center">Your preference is saved. It is applied where ES TEAMS TV has localization coverage.</div><div class="language-grid" id="languageGrid"></div><div class="theme-note" id="languageNote"></div><button class="overlay-cancel" id="languageCloseBtn" type="button">Close</button></div></div>
 <div class="page-overlay" id="themesOverlay">
   <div class="overlay-card" style="max-width:380px">
     <div class="overlay-title" style="text-align:center">Themes</div>
@@ -2343,6 +2347,7 @@ body:has(.page-overlay.show){overflow:hidden}
       <path d="M12 11V7m-3 0h6"/>
     </svg>
   </a>
+  <button type="button" class="acc-fab-sub" id="languageFab" aria-label="Language" title="Language"><span class="acc-fab-sub-label">Language</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></button>
   <button type="button" class="acc-fab-sub" id="themesFab" aria-label="Themes" title="Themes">
     <span class="acc-fab-sub-label">Themes</span>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 100 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 005-5c0-4.1-4-7.2-9-7.2z"/><circle cx="7.5" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="10.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="7.5" r="1" fill="currentColor" stroke="none"/></svg>
@@ -4429,7 +4434,12 @@ async function loadDevices(){
           if (!ok) return;
           btn.disabled = true;
           try {
-            await postJSON('/api/devices/trusted-group/remove', { deviceIds });
+            await ESTEmailVerification.require({
+              email: profile?.email || '',
+              confirmLabel: 'Verify & remove trust',
+              requestCode: () => postJSON('/api/devices/trusted-group/remove/request', { deviceIds }),
+              confirmCode: (code) => postJSON('/api/devices/trusted-group/remove/confirm', { deviceIds, code })
+            });
             await loadDevices();
           } catch (err) {
             btn.disabled = false;
@@ -4810,6 +4820,9 @@ function paintThemes(){
   });
   document.getElementById('themeNote').textContent = can ? 'Your theme is saved to your account.' : 'Verified members can unlock all themes.';
 }
+const languageOverlay = document.getElementById('languageOverlay');
+async function paintLanguages(){ const grid=document.getElementById('languageGrid'); if(!grid) return; const data=await fetch('/api/account/languages',{credentials:'same-origin'}).then(r=>r.json()); const current=profile?.language||'en'; grid.innerHTML=''; data.languages.forEach(item=>{ const b=document.createElement('button'); b.type='button'; b.textContent=item.name; b.className=item.code===current?'on':''; b.title=item.name; b.addEventListener('click',async()=>{ try{const saved=await postJSON('/api/account/language',{language:item.code}); profile.language=saved.language; paintLanguages(); showToast('Language preference saved');}catch(err){showToast(err.message||'Could not save language');} }); grid.appendChild(b); }); document.getElementById('languageNote').textContent='Selected: '+(data.languages.find(x=>x.code===current)?.name||'English'); }
+document.getElementById('languageFab').addEventListener('click',()=>{paintLanguages();languageOverlay.classList.add('show');}); document.getElementById('languageCloseBtn').addEventListener('click',()=>languageOverlay.classList.remove('show')); languageOverlay.addEventListener('click',e=>{if(e.target===languageOverlay)languageOverlay.classList.remove('show');});
 document.getElementById('themesFab').addEventListener('click', () => { paintThemes(); themesOverlay.classList.add('show'); });
 document.getElementById('themesCloseBtn').addEventListener('click', () => themesOverlay.classList.remove('show'));
 themesOverlay.addEventListener('click', (e) => { if (e.target === themesOverlay) themesOverlay.classList.remove('show'); });
