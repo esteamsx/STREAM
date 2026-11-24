@@ -534,14 +534,19 @@ html.embed-mode .auth-wrap{max-width:100%;margin:0}
 </div>
 
 <script nonce="__CSP_NONCE__" type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   GoogleAuthProvider, signInWithCredential, signInWithCustomToken
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = ${JSON.stringify(cfg.firebaseConfig)};
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const appCheck = window.__esTeamsFirebaseAppCheck || (window.__esTeamsFirebaseAppCheck = initializeAppCheck(app, {
+  provider: new ReCaptchaEnterpriseProvider('6LeeIy8uAAAAAMID8hOwXSalr-RW5wLdmgYVGAZf'),
+  isTokenAutoRefreshEnabled: true,
+}));
 const fbAuth = getAuth(app);
 
 const LG_ICONS = {

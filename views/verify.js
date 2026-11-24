@@ -247,10 +247,15 @@ document.getElementById('codeForm').addEventListener('submit', async (e) => {
   try {
     if (purpose === 'signup') {
       const { customToken } = await postJSON('/api/verify-email', { email, code, purpose });
-      const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+      const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+      const { initializeAppCheck, ReCaptchaEnterpriseProvider } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js');
       const { getAuth, signInWithCustomToken } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
       const firebaseConfig = ${JSON.stringify(cfg.firebaseConfig)};
-      const app = initializeApp(firebaseConfig);
+      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+      const appCheck = window.__esTeamsFirebaseAppCheck || (window.__esTeamsFirebaseAppCheck = initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider('6LeeIy8uAAAAAMID8hOwXSalr-RW5wLdmgYVGAZf'),
+        isTokenAutoRefreshEnabled: true,
+      }));
       const fbAuth = getAuth(app);
       const cred = await signInWithCustomToken(fbAuth, customToken);
       const idToken = await cred.user.getIdToken();
