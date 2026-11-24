@@ -853,7 +853,7 @@ input{font-family:inherit}
 .danger-warning-box ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
 .danger-warning-box li{font-size:.76rem;color:var(--text);line-height:1.4}
 
-.language-card{max-width:620px}.language-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:minmax(42px,auto);gap:7px;max-height:260px;overflow:auto;padding:2px;scrollbar-color:var(--accent) transparent}.language-grid button{border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.045);color:var(--text);padding:9px 6px;font:600 .75rem var(--font-body);cursor:pointer}.language-grid button:hover,.language-grid button.on{border-color:var(--accent);background:rgba(0,224,255,.11);color:var(--accent)}@media(max-width:620px){.language-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(prefers-reduced-motion:reduce){.language-grid button{transition:none}}
+.language-card{max-width:620px;animation:languageCardIn .18s var(--ease, ease-out)}.language-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:minmax(42px,auto);gap:7px;max-height:260px;overflow:auto;padding:2px;scrollbar-color:var(--accent) transparent}.language-grid button{border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.045);color:var(--text);padding:9px 6px;font:600 .75rem var(--font-body);cursor:pointer}.language-grid button:hover,.language-grid button.on{border-color:var(--accent);background:rgba(0,224,255,.11);color:var(--accent)}@media(max-width:620px){.language-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@keyframes languageCardIn{from{opacity:0;transform:translateY(5px) scale(.99)}to{opacity:1;transform:none}}.language-loading{grid-column:1/-1;text-align:center;color:var(--muted);padding:20px;font-size:.8rem}@media(prefers-reduced-motion:reduce){.language-grid button,.language-card{transition:none;animation:none}}
 @media(prefers-reduced-motion:reduce){.overlay-card{backdrop-filter:none;-webkit-backdrop-filter:none}}
 .page-overlay{
   position:fixed;inset:0;background:rgba(10,10,15,.75);backdrop-filter:blur(8px);
@@ -1926,7 +1926,7 @@ body:has(.page-overlay.show){overflow:hidden}
   </div>
 </div>
 
-<div class="page-overlay" id="languageOverlay"><div class="overlay-card language-card"><div class="overlay-title" style="text-align:center">Language</div><div class="overlay-sub" style="text-align:center">Your preference is saved. It is applied where ES TEAMS TV has localization coverage.</div><div class="language-grid" id="languageGrid"></div><div class="theme-note" id="languageNote"></div><button class="overlay-cancel" id="languageCloseBtn" type="button">Close</button></div></div>
+<div class="page-overlay" id="languageOverlay"><div class="overlay-card language-card"><div class="overlay-title" style="text-align:center">Language</div><div class="overlay-sub" style="text-align:center">Your preference is saved to your account. Page translations will appear as localized copy is added.</div><div class="language-grid" id="languageGrid" aria-live="polite"></div><div class="theme-note" id="languageNote"></div><button class="overlay-cancel" id="languageCloseBtn" type="button">Close</button></div></div>
 <div class="page-overlay" id="themesOverlay">
   <div class="overlay-card" style="max-width:380px">
     <div class="overlay-title" style="text-align:center">Themes</div>
@@ -4821,8 +4821,51 @@ function paintThemes(){
   document.getElementById('themeNote').textContent = can ? 'Your theme is saved to your account.' : 'Verified members can unlock all themes.';
 }
 const languageOverlay = document.getElementById('languageOverlay');
-async function paintLanguages(){ const grid=document.getElementById('languageGrid'); if(!grid) return; const data=await fetch('/api/account/languages',{credentials:'same-origin'}).then(r=>r.json()); const current=profile?.language||'en'; grid.innerHTML=''; data.languages.forEach(item=>{ const b=document.createElement('button'); b.type='button'; b.textContent=item.name; b.className=item.code===current?'on':''; b.title=item.name; b.addEventListener('click',async()=>{ try{const saved=await postJSON('/api/account/language',{language:item.code}); profile.language=saved.language; paintLanguages(); showToast('Language preference saved');}catch(err){showToast(err.message||'Could not save language');} }); grid.appendChild(b); }); document.getElementById('languageNote').textContent='Selected: '+(data.languages.find(x=>x.code===current)?.name||'English'); }
-document.getElementById('languageFab').addEventListener('click',()=>{paintLanguages();languageOverlay.classList.add('show');}); document.getElementById('languageCloseBtn').addEventListener('click',()=>languageOverlay.classList.remove('show')); languageOverlay.addEventListener('click',e=>{if(e.target===languageOverlay)languageOverlay.classList.remove('show');});
+const languageGrid = document.getElementById('languageGrid');
+let languageOptionsCache = null;
+let languageOptionsPromise = null;
+let languageSaveInFlight = false;
+async function getLanguageOptions(){
+  if (languageOptionsCache) return languageOptionsCache;
+  if (!languageOptionsPromise) languageOptionsPromise = fetch('/api/account/languages', { credentials:'same-origin' }).then((res) => { if (!res.ok) throw new Error('Could not load languages.'); return res.json(); }).then((data) => { languageOptionsCache = Array.isArray(data.languages) ? data.languages : []; return languageOptionsCache; }).finally(() => { languageOptionsPromise = null; });
+  return languageOptionsPromise;
+}
+function renderLanguages(options){
+  if (!languageGrid) return;
+  const current = profile?.language || localStorage.getItem('es_language') || 'en';
+  languageGrid.textContent = '';
+  options.forEach((item) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.textContent = item.name; button.title = item.name;
+    button.className = item.code === current ? 'on' : '';
+    button.disabled = languageSaveInFlight;
+    button.addEventListener('click', async () => {
+      if (languageSaveInFlight || item.code === current) return;
+      languageSaveInFlight = true; renderLanguages(options);
+      try {
+        const saved = await postJSON('/api/account/language', { language: item.code });
+        profile.language = saved.language;
+        localStorage.setItem('es_language', saved.language);
+        document.documentElement.lang = saved.language;
+        renderLanguages(options);
+        showToast('Language preference saved. Translated copy is not available on this page yet.');
+      } catch (err) {
+        showToast(err.message || 'Could not save language.');
+      } finally { languageSaveInFlight = false; renderLanguages(options); }
+    });
+    languageGrid.appendChild(button);
+  });
+  const selected = options.find((item) => item.code === current);
+  document.getElementById('languageNote').textContent = 'Selected: ' + (selected?.name || 'English') + ' · preference saved';
+}
+async function paintLanguages(){
+  if (!languageGrid) return;
+  if (!languageOptionsCache) { languageGrid.innerHTML = '<div class="language-loading">Loading languages…</div>'; }
+  try { renderLanguages(await getLanguageOptions()); } catch (err) { languageGrid.innerHTML = ''; document.getElementById('languageNote').textContent = err.message || 'Could not load languages.'; }
+}
+document.getElementById('languageFab').addEventListener('click', () => { languageOverlay.classList.add('show'); paintLanguages(); });
+document.getElementById('languageCloseBtn').addEventListener('click', () => languageOverlay.classList.remove('show'));
+languageOverlay.addEventListener('click', (e) => { if (e.target === languageOverlay) languageOverlay.classList.remove('show'); });
 document.getElementById('themesFab').addEventListener('click', () => { paintThemes(); themesOverlay.classList.add('show'); });
 document.getElementById('themesCloseBtn').addEventListener('click', () => themesOverlay.classList.remove('show'));
 themesOverlay.addEventListener('click', (e) => { if (e.target === themesOverlay) themesOverlay.classList.remove('show'); });
