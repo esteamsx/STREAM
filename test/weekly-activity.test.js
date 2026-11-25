@@ -27,10 +27,14 @@ function qualifyingData(now) {
 
 function adminQualifyingData(now) {
   const period = getWeeklyActivityPeriod(now);
+  const daySeconds = {};
+  for (let index = 0; index < 3; index++) {
+    daySeconds[new Date(period.startAt + index * 24 * HOUR).toISOString().slice(0, 10)] = 60 * 60;
+  }
   return {
     weekKey: period.key,
     seconds: ADMIN_WEEKLY_ACTIVITY_HOURS * 60 * 60,
-    daySeconds: { [new Date(period.startAt).toISOString().slice(0, 10)]: 60 * 60 },
+    daySeconds,
     claimedWeek: null,
   };
 }
