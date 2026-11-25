@@ -432,7 +432,9 @@ export async function listAdsWithStats(uid) {
   const days = recentDays(CHART_DAYS);
   const [adSnap, daySnap] = await Promise.all([
     db.collection("ads").where("uid", "==", uid).get(),
-    db.collection("adDaily").where("uid", "==", uid).where("day", ">=", days[0]).where("day", "<=", days[days.length - 1]).limit(2000).get(),
+    // Keep this query to the existing single-field index. The compound index is
+    // declared in firestore.indexes.json, but may not yet be deployed remotely.
+    db.collection("adDaily").where("uid", "==", uid).limit(2000).get(),
   ]);
 
   const perAd = new Map();
@@ -449,6 +451,7 @@ export async function listAdsWithStats(uid) {
   };
   daySnap.forEach((doc) => {
     const d = doc.data();
+    if (d.day < days[0] || d.day > days[days.length - 1]) return;
     touch(d.adId, d.day, d.impressions || 0, d.clicks || 0);
   });
   const unflushed = new Map();
@@ -629,13 +632,16 @@ export async function adminAdDetail(adId) {
   const ad = snap.data();
   const days = recentDays(ADMIN_CHART_DAYS);
   const [daySnap, owners] = await Promise.all([
-    db.collection("adDaily").where("adId", "==", id).where("day", ">=", days[0]).where("day", "<=", days[days.length - 1]).limit(ADMIN_CHART_DAYS).get(),
+    // Filter the bounded chart window below so this remains usable before the
+    // optional adId/day compound index reaches the live Firestore project.
+    db.collection("adDaily").where("adId", "==", id).limit(400).get(),
     ownersFor([ad.uid]),
   ]);
 
   const series = new Map();
   daySnap.forEach((doc) => {
     const d = doc.data();
+    if (d.day < days[0] || d.day > days[days.length - 1]) return;
     series.set(d.day, { impressions: d.impressions || 0, clicks: d.clicks || 0 });
   });
   const held = { impressions: 0, clicks: 0 };
