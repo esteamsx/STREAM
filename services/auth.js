@@ -6574,6 +6574,8 @@ const weeklyActivityService = createWeeklyActivityService({
   appendCoinLedger,
   coinLedgerMismatch,
   assertCoinsAllowed,
+  getUserProfile,
+  isAdminEmail,
   invalidateProfileCache: invalidateUserProfileCache,
   onAbuse: ({ uid, code, at, weekKey }) => {
     console.warn("[weekly-activity] suspicious event", { uid, code, at, weekKey });

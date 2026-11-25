@@ -1,7 +1,9 @@
 import crypto from "crypto";
 
 export const WEEKLY_ACTIVITY_HOURS = 25;
-export const WEEKLY_ACTIVITY_REQUIRED_DAYS = 5;
+export const WEEKLY_ACTIVITY_REQUIRED_DAYS = 3;
+export const ADMIN_WEEKLY_ACTIVITY_HOURS = 3;
+export const ADMIN_WEEKLY_ACTIVITY_REQUIRED_DAYS = 1;
 export const WEEKLY_ACTIVITY_REWARD_COINS = 10;
 export const WEEKLY_ACTIVITY_TARGET_SECONDS = WEEKLY_ACTIVITY_HOURS * 60 * 60;
 export const WEEKLY_ACTIVITY_DAY_SECONDS = 60 * 60;
@@ -58,9 +60,18 @@ function dataForPeriod(data, period) {
   };
 }
 
-export function summarizeWeeklyActivity(data, now = Date.now(), coinBalance = 0) {
+function thresholdsForProfile(profile, isAdminEmail) {
+  return typeof isAdminEmail === "function" && isAdminEmail(profile?.email)
+    ? { hours: ADMIN_WEEKLY_ACTIVITY_HOURS, requiredDays: ADMIN_WEEKLY_ACTIVITY_REQUIRED_DAYS }
+    : { hours: WEEKLY_ACTIVITY_HOURS, requiredDays: WEEKLY_ACTIVITY_REQUIRED_DAYS };
+}
+
+export function summarizeWeeklyActivity(data, now = Date.now(), coinBalance = 0, thresholds = {}) {
   const period = getWeeklyActivityPeriod(now);
   const state = dataForPeriod(data, period);
+  const hours = Number(thresholds.hours) > 0 ? Number(thresholds.hours) : WEEKLY_ACTIVITY_HOURS;
+  const requiredDays = Number(thresholds.requiredDays) > 0 ? Number(thresholds.requiredDays) : WEEKLY_ACTIVITY_REQUIRED_DAYS;
+  const targetSeconds = hours * 60 * 60;
   const seconds = Math.min(WEEKLY_ACTIVITY_TARGET_SECONDS, state.seconds);
   const days = Array.from({ length: 7 }, (_, index) => {
     const at = period.startAt + index * DAY_MS;
@@ -70,8 +81,8 @@ export function summarizeWeeklyActivity(data, now = Date.now(), coinBalance = 0)
   });
   const qualifyingDays = days.filter((day) => day.qualifies).length;
   const claimed = state.claimedWeek === period.key;
-  const eligible = !claimed && seconds >= WEEKLY_ACTIVITY_TARGET_SECONDS && qualifyingDays >= WEEKLY_ACTIVITY_REQUIRED_DAYS;
-  const secondsRemaining = Math.max(0, WEEKLY_ACTIVITY_TARGET_SECONDS - seconds);
+  const eligible = !claimed && seconds >= targetSeconds && qualifyingDays >= requiredDays;
+  const secondsRemaining = Math.max(0, targetSeconds - seconds);
 
   return {
     weekKey: period.key,
@@ -79,15 +90,16 @@ export function summarizeWeeklyActivity(data, now = Date.now(), coinBalance = 0)
     resetAt: period.endAt,
     serverNow: now,
     seconds,
-    targetSeconds: WEEKLY_ACTIVITY_TARGET_SECONDS,
+    targetSeconds,
+    targetHours: hours,
     hoursCompleted: Math.floor(seconds / 3600),
     hoursExact: Math.round((seconds / 3600) * 10) / 10,
     hoursRemaining: Math.ceil(secondsRemaining / 3600),
     secondsRemaining,
-    progressPercent: Math.min(100, Math.round((seconds / WEEKLY_ACTIVITY_TARGET_SECONDS) * 1000) / 10),
+    progressPercent: Math.min(100, Math.round((seconds / targetSeconds) * 1000) / 10),
     qualifyingDays,
-    requiredDays: WEEKLY_ACTIVITY_REQUIRED_DAYS,
-    daysRemaining: Math.max(0, WEEKLY_ACTIVITY_REQUIRED_DAYS - qualifyingDays),
+    requiredDays,
+    daysRemaining: Math.max(0, requiredDays - qualifyingDays),
     days,
     claimed,
     eligible,
@@ -194,6 +206,8 @@ export function createWeeklyActivityService({
   appendCoinLedger,
   coinLedgerMismatch,
   assertCoinsAllowed,
+  getUserProfile,
+  isAdminEmail,
   invalidateProfileCache = () => {},
   now = () => Date.now(),
   onAbuse = () => {},
@@ -230,7 +244,8 @@ export function createWeeklyActivityService({
     const nowValue = now();
     const ref = activityRefFor(String(uid));
     const snap = await ref.get();
-    return summarizeWeeklyActivity(snap.exists ? snap.data() : null, nowValue, coinBalance);
+    const profile = typeof getUserProfile === "function" ? await getUserProfile(String(uid)) : null;
+    return summarizeWeeklyActivity(snap.exists ? snap.data() : null, nowValue, coinBalance, thresholdsForProfile(profile, isAdminEmail));
   }
 
   async function recordPulse(uid, body) {
@@ -395,15 +410,16 @@ export function createWeeklyActivityService({
           throw makeError("Activity data changed at the weekly reset. Refresh and try again.", 409, "weekly_activity/stale_week");
         }
         const state = dataForPeriod(stored, period);
+        if (!userSnap.exists) throw makeError("Your account could not be found.", 404, "weekly_activity/account_missing");
+        const userData = userSnap.data() || {};
+        const thresholds = thresholdsForProfile(userData, isAdminEmail);
         if (state.claimedWeek === period.key) {
           throw makeError("This week's activity reward has already been claimed.", 409, "weekly_activity/already_claimed");
         }
-        const summary = summarizeWeeklyActivity(state, timestamp, 0);
+        const summary = summarizeWeeklyActivity(state, timestamp, 0, thresholds);
         if (!summary.eligible) {
-          throw makeError("Complete 25 active hours across 5 qualifying days before claiming.", 409, "weekly_activity/not_eligible");
+          throw makeError(`Complete ${thresholds.hours} active hours across ${thresholds.requiredDays} qualifying day${thresholds.requiredDays === 1 ? "" : "s"} before claiming.`, 409, "weekly_activity/not_eligible");
         }
-        if (!userSnap.exists) throw makeError("Your account could not be found.", 404, "weekly_activity/account_missing");
-        const userData = userSnap.data() || {};
         if (typeof assertCoinsAllowed === "function") assertCoinsAllowed(userData);
         if (typeof coinLedgerMismatch === "function" && coinLedgerMismatch(userData)) {
           const error = makeError("Your coin balance is under review. Contact support before claiming.", 409, "weekly_activity/coin_review");
@@ -432,7 +448,7 @@ export function createWeeklyActivityService({
           ok: true,
           coinsAwarded: WEEKLY_ACTIVITY_REWARD_COINS,
           coinBalance,
-          summary: summarizeWeeklyActivity({ ...state, claimedWeek: period.key }, timestamp, coinBalance),
+          summary: summarizeWeeklyActivity({ ...state, claimedWeek: period.key }, timestamp, coinBalance, thresholds),
         };
       });
     } catch (err) {

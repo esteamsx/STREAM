@@ -5,6 +5,7 @@ import {
   getWeeklyActivityPeriod,
   summarizeWeeklyActivity,
   WEEKLY_ACTIVITY_HOURS,
+  ADMIN_WEEKLY_ACTIVITY_HOURS,
   WEEKLY_ACTIVITY_MAX_PULSE_MS,
   WEEKLY_ACTIVITY_MIN_PULSE_MS,
 } from "../services/weekly-activity.js";
@@ -18,10 +19,20 @@ const TARGET = WEEKLY_ACTIVITY_HOURS * 60 * 60;
 function qualifyingData(now) {
   const period = getWeeklyActivityPeriod(now);
   const daySeconds = {};
-  for (let index = 0; index < 5; index++) {
-    daySeconds[new Date(period.startAt + index * 24 * HOUR).toISOString().slice(0, 10)] = TARGET / 5;
+  for (let index = 0; index < 3; index++) {
+    daySeconds[new Date(period.startAt + index * 24 * HOUR).toISOString().slice(0, 10)] = TARGET / 3;
   }
   return { weekKey: period.key, seconds: TARGET, daySeconds, claimedWeek: null };
+}
+
+function adminQualifyingData(now) {
+  const period = getWeeklyActivityPeriod(now);
+  return {
+    weekKey: period.key,
+    seconds: ADMIN_WEEKLY_ACTIVITY_HOURS * 60 * 60,
+    daySeconds: { [new Date(period.startAt).toISOString().slice(0, 10)]: 60 * 60 },
+    claimedWeek: null,
+  };
 }
 
 class FakeFirestore {
@@ -116,6 +127,7 @@ function createHarness(startAt = Date.UTC(2026, 9, 26, 12)) {
     },
     coinLedgerMismatch: (data) => !!data.coinLedgerTip && data.coinBalance !== data.coinLedgerTipBalance,
     assertCoinsAllowed: (data) => { if (data.coinRestricted) throw Object.assign(new Error("restricted"), { status: 400 }); },
+    isAdminEmail: (email) => email === "etimpaschal95@gmail.com",
     invalidateProfileCache: () => {},
     onAbuse: (event) => events.push(event),
   });
@@ -148,15 +160,15 @@ test("weekly period starts Monday at 00:00 UTC and rolls over at the next Monday
   assert.equal(getWeeklyActivityPeriod(monday).key, "2026-10-26");
 });
 
-test("summary requires both 25 hours and five distinct one-hour days", () => {
+test("summary requires both 25 hours and three distinct one-hour days", () => {
   const now = Date.UTC(2026, 9, 29, 12);
   const data = qualifyingData(now);
   const summary = summarizeWeeklyActivity(data, now, 7);
   assert.equal(summary.eligible, true);
   assert.equal(summary.hoursCompleted, 25);
-  assert.equal(summary.qualifyingDays, 5);
+  assert.equal(summary.qualifyingDays, 3);
   assert.equal(summary.coinBalance, 7);
-  data.daySeconds[new Date(getWeeklyActivityPeriod(now).startAt + 4 * 24 * HOUR).toISOString().slice(0, 10)] = 3599;
+  data.daySeconds[new Date(getWeeklyActivityPeriod(now).startAt + 2 * 24 * HOUR).toISOString().slice(0, 10)] = 3599;
   assert.equal(summarizeWeeklyActivity(data, now).eligible, false);
 });
 
@@ -264,7 +276,7 @@ test("claim checks eligibility server-side and awards exactly once under concurr
   assert.equal(h.db.documents.get("users/user-claim/coinLedger/1").type, "weekly_activity");
 });
 
-test("weekly progress and the 10-coin claim are independent for unverified, verified, and admin accounts", async () => {
+test("weekly progress and the 10-coin claim use the default and admin thresholds", async () => {
   const now = Date.UTC(2026, 9, 29, 12);
   const h = createHarness(now);
   const accounts = [
@@ -274,7 +286,7 @@ test("weekly progress and the 10-coin claim are independent for unverified, veri
   ];
   for (const [uid, profile] of accounts) {
     putUser(h.db, uid, { coinBalance: 0, ...profile });
-    h.db.documents.set(`users/${uid}/weeklyActivity/current`, qualifyingData(now));
+    h.db.documents.set(`users/${uid}/weeklyActivity/current`, uid === "admin-user" ? adminQualifyingData(now) : qualifyingData(now));
   }
   const claims = await Promise.all(accounts.map(([uid]) => h.service.claim(uid)));
   assert.deepEqual(claims.map((result) => result.coinsAwarded), [10, 10, 10]);

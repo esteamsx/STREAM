@@ -224,10 +224,10 @@
       '<div class="es-weekly-coins"><span>Coin balance</span><b id="esWeeklyCoins">—</b></div></div>' +
       '<div class="es-weekly-progress-track" role="progressbar" aria-label="Weekly active hour progress" aria-valuemin="0" aria-valuemax="25" aria-valuenow="0"><span id="esWeeklyProgress"></span></div>' +
       '<div class="es-weekly-progress-foot"><span id="esWeeklyHoursLeft">Loading progress</span><span id="esWeeklyPercent">0%</span></div></div>' +
-      '<div class="es-weekly-stats"><div class="es-weekly-stat"><span>Qualifying days</span><b id="esWeeklyDays">— / 5</b></div>' +
+      '<div class="es-weekly-stats"><div class="es-weekly-stat"><span>Qualifying days</span><b id="esWeeklyDays">— / 3</b></div>' +
       '<div class="es-weekly-stat"><span>Weekly reset</span><b id="esWeeklyReset">—</b></div></div>' +
       '<div class="es-weekly-day-section"><div class="es-weekly-section-title">Activity by day <span>1+ hour qualifies</span></div><div class="es-weekly-days" id="esWeeklyDayGrid"></div></div>' +
-      '<div class="es-weekly-reward-card"><div class="es-weekly-reward-icon" aria-hidden="true">🎁</div><div class="es-weekly-reward-copy"><b>Weekly milestone</b><span>Earn 10 coins after 25 active hours across 5 qualifying days.</span></div></div>' +
+      '<div class="es-weekly-reward-card"><div class="es-weekly-reward-icon" aria-hidden="true">🎁</div><div class="es-weekly-reward-copy"><b>Weekly milestone</b><span id="esWeeklyMilestone">Earn 10 coins after meeting this week’s activity target.</span></div></div>' +
       '<div class="es-weekly-altcha" id="esWeeklyAltchaWrap" hidden><p>Confirm you are not a robot to claim your weekly reward.</p><altcha-widget id="esWeeklyAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>' +
       '<div class="es-weekly-status" id="esWeeklyStatus" role="status" aria-live="polite">Loading your account activity…</div>' +
       '<button type="button" class="es-weekly-claim" id="esWeeklyClaim" disabled>Complete the milestone to claim</button>' +
@@ -373,13 +373,17 @@
         resetWeeklyCaptcha(true);
       }
       var hours = Number(data.hoursExact || 0);
-      overlay.querySelector("#esWeeklyHours").textContent = hours + " / 25 hours";
+      var targetHours = Number(data.targetHours || 25);
+      var requiredDays = Number(data.requiredDays || 3);
+      overlay.querySelector("#esWeeklyHours").textContent = hours + " / " + targetHours + " hours";
       overlay.querySelector("#esWeeklyCoins").textContent = Number(data.coinBalance || 0).toLocaleString() + " coins";
-      overlay.querySelector("#esWeeklyHoursLeft").textContent = data.hoursRemaining ? data.hoursRemaining + " hour" + (data.hoursRemaining === 1 ? "" : "s") + " remaining" : "25-hour target complete";
-      overlay.querySelector("#esWeeklyDays").textContent = data.qualifyingDays + " / 5";
+      overlay.querySelector("#esWeeklyHoursLeft").textContent = data.hoursRemaining ? data.hoursRemaining + " hour" + (data.hoursRemaining === 1 ? "" : "s") + " remaining" : targetHours + "-hour target complete";
+      overlay.querySelector("#esWeeklyDays").textContent = data.qualifyingDays + " / " + requiredDays;
+      overlay.querySelector("#esWeeklyMilestone").textContent = "Earn 10 coins after " + targetHours + " active hour" + (targetHours === 1 ? "" : "s") + " across " + requiredDays + " qualifying day" + (requiredDays === 1 ? "" : "s") + ".";
       overlay.querySelector("#esWeeklyPercent").textContent = Number(data.progressPercent || 0) + "%";
       overlay.querySelector("#esWeeklyProgress").style.width = Math.min(100, Number(data.progressPercent || 0)) + "%";
-      overlay.querySelector(".es-weekly-progress-track").setAttribute("aria-valuenow", String(Math.min(25, Math.floor(Number(data.seconds || 0) / 3600))));
+      overlay.querySelector(".es-weekly-progress-track").setAttribute("aria-valuemax", String(targetHours));
+      overlay.querySelector(".es-weekly-progress-track").setAttribute("aria-valuenow", String(Math.min(targetHours, Math.floor(Number(data.seconds || 0) / 3600))));
       renderDayGrid(data);
       countdown();
 
@@ -428,7 +432,7 @@
           status.className = "es-weekly-status";
           status.innerHTML = 'Sign in to view and earn weekly activity rewards. <a href="/login">Sign in</a>';
           overlay.querySelector("#esWeeklyHours").textContent = "— / 25 hours";
-          overlay.querySelector("#esWeeklyDays").textContent = "— / 5";
+          overlay.querySelector("#esWeeklyDays").textContent = "— / 3";
           overlay.querySelector("#esWeeklyCoins").textContent = "Sign in required";
           overlay.querySelector("#esWeeklyHoursLeft").textContent = "Activity is saved to your account";
           overlay.querySelector("#esWeeklyProgress").style.width = "0%";
