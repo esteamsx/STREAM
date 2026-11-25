@@ -14,6 +14,7 @@ import { channelCoinCost, dailyCoinClaimAmount, FREE_CHANNEL_REACTION_COST, FREE
 import { isFirstPremiumPayment, planPremiumReferralAwards } from "./premium-referral-rewards.js";
 import { sendVerificationCode, sendBanNotificationEmail, sendWithdrawalRequestEmail, sendNewDeviceLoginAlertEmail } from "./mailer.js";
 import { appendCoinLedger, coinLedgerMismatch, verifyCoinLedgerChain } from "./coin-ledger.js";
+import { finalizeCoinCreditPayment } from "./coin-payment-finalization.js";
 import { openDeviceSession, checkDeviceSession, touchDeviceSession, revokeDeviceSession, revokeAllDeviceSessions, TRUSTED_SESSION_TTL_MS } from "./device-sessions.js";
 import { createWeeklyActivityService } from "./weekly-activity.js";
 import { fetchVisibleFollowingPosts } from "./following-feed-queries.js";
@@ -5629,27 +5630,22 @@ async function getCoinPurchasePayment(reference) {
 }
 
 async function finalizeCoinPurchasePayment(reference, paystackData) {
-  const ref = db.collection("coinPurchasePayments").doc(reference);
-  const claim = await claimPendingPayment(ref, paystackData);
-  if (claim.notOurs) return { notOurs: true };
-  if (claim.alreadyProcessed) return { alreadyProcessed: true, uid: claim.uid };
-  if (claim.inProgress) return { alreadyProcessed: true };
-  if (claim.failed) throw new Error("Payment was not successful.");
-
-  const record = claim.record;
-  const pkg = COIN_PACKAGES[record.packageKey];
-  const coins = pkg ? pkg.coins : 0;
-  const userRef = db.collection("users").doc(record.uid);
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(userRef);
-    const data = snap.exists ? snap.data() : {};
-    const ledger = appendCoinLedger(tx, userRef, data, coins, "coin_purchase", { packageKey: record.packageKey, reference });
-    tx.set(userRef, { coinBalance: admin.firestore.FieldValue.increment(coins), ...ledger }, { merge: true });
+  const result = await finalizeCoinCreditPayment({
+    db,
+    reference,
+    paystackData,
+    paymentCollection: "coinPurchasePayments",
+    ledgerType: "coin_purchase",
+    getCoins: (record) => COIN_PACKAGES[record.packageKey]?.coins || 0,
+    getLedgerMeta: (record, paymentReference) => ({ packageKey: record.packageKey, reference: paymentReference }),
+    increment: (coins) => admin.firestore.FieldValue.increment(coins),
+    appendCoinLedger,
+    invalidateProfileCache: invalidateUserProfileCache,
   });
-  invalidateUserProfileCache(record.uid);
-  await ref.update({ status: "success", confirmedAt: Date.now() });
-  await addNotification(record.uid, "coin_purchase", `+${coins} coins added to your balance`, { coins });
-  return { alreadyProcessed: false, uid: record.uid, coins };
+  if (result.notOurs) return { notOurs: true };
+  if (result.alreadyProcessed) return { alreadyProcessed: true, uid: result.uid };
+  await addNotification(result.uid, "coin_purchase", `+${result.coins} coins added to your balance`, { coins: result.coins });
+  return { alreadyProcessed: false, uid: result.uid, coins: result.coins };
 }
 
 const COIN_REQUEST_NGN_PER_COIN = 62.5;
@@ -5728,35 +5724,29 @@ async function getCoinRequestPayment(reference) {
 }
 
 async function finalizeCoinRequestPayment(reference, paystackData) {
-  const ref = db.collection("coinRequestPayments").doc(reference);
-  const claim = await claimPendingPayment(ref, paystackData);
-  if (claim.notOurs) return { notOurs: true };
-  if (claim.alreadyProcessed) return { alreadyProcessed: true, uid: claim.uid };
-  if (claim.inProgress) return { alreadyProcessed: true };
-  if (claim.failed) throw new Error("Payment was not successful.");
-
-  const record = claim.record;
-  const coins = record.coins || 0;
-  const userRef = db.collection("users").doc(record.uid);
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(userRef);
-    const data = snap.exists ? snap.data() : {};
-    const ledger = appendCoinLedger(tx, userRef, data, coins, "coin_request_payment", { token: record.token, reference });
-    tx.set(userRef, { coinBalance: admin.firestore.FieldValue.increment(coins), ...ledger }, { merge: true });
+  const result = await finalizeCoinCreditPayment({
+    db,
+    reference,
+    paystackData,
+    paymentCollection: "coinRequestPayments",
+    ledgerType: "coin_request_payment",
+    getCoins: (record) => record.coins,
+    getLedgerMeta: (record, paymentReference) => ({ token: record.token, reference: paymentReference }),
+    increment: (coins) => admin.firestore.FieldValue.increment(coins),
+    appendCoinLedger,
+    invalidateProfileCache: invalidateUserProfileCache,
+    linkedCollection: "coinRequestLinks",
+    getLinkedId: (record) => record.token,
   });
-  invalidateUserProfileCache(record.uid);
-  await ref.update({ status: "success", confirmedAt: Date.now() });
-  await db.collection("coinRequestLinks").doc(record.token).set(
-    { paid: true, paidAt: Date.now(), paidReference: reference },
-    { merge: true }
-  );
+  if (result.notOurs) return { notOurs: true };
+  if (result.alreadyProcessed) return { alreadyProcessed: true, uid: result.uid };
   await addNotification(
-    record.uid,
+    result.uid,
     "coin_request_paid",
-    `Someone paid your payment link. +${coins} coins added to your balance`,
-    { coins }
+    `Someone paid your payment link. +${result.coins} coins added to your balance`,
+    { coins: result.coins }
   );
-  return { alreadyProcessed: false, uid: record.uid, coins };
+  return { alreadyProcessed: false, uid: result.uid, coins: result.coins };
 }
 
 async function creditReferralCommission(uid, amountNgn, sourceLabel) {

@@ -4,6 +4,7 @@ import {
   createWeeklyActivityService,
   getWeeklyActivityPeriod,
   summarizeWeeklyActivity,
+  WEEKLY_ACTIVITY_HOURS,
   WEEKLY_ACTIVITY_MAX_PULSE_MS,
   WEEKLY_ACTIVITY_MIN_PULSE_MS,
 } from "../services/weekly-activity.js";
@@ -12,13 +13,13 @@ import { registerWeeklyActivityRoutes } from "../routes/weekly-activity.js";
 import { injectPromoSlot } from "../middleware/promo-slot.js";
 
 const HOUR = 60 * 60 * 1000;
-const TARGET = 50 * 60 * 60;
+const TARGET = WEEKLY_ACTIVITY_HOURS * 60 * 60;
 
 function qualifyingData(now) {
   const period = getWeeklyActivityPeriod(now);
   const daySeconds = {};
   for (let index = 0; index < 5; index++) {
-    daySeconds[new Date(period.startAt + index * 24 * HOUR).toISOString().slice(0, 10)] = 10 * 60 * 60;
+    daySeconds[new Date(period.startAt + index * 24 * HOUR).toISOString().slice(0, 10)] = TARGET / 5;
   }
   return { weekKey: period.key, seconds: TARGET, daySeconds, claimedWeek: null };
 }
@@ -147,12 +148,12 @@ test("weekly period starts Monday at 00:00 UTC and rolls over at the next Monday
   assert.equal(getWeeklyActivityPeriod(monday).key, "2026-10-26");
 });
 
-test("summary requires both 50 hours and five distinct one-hour days", () => {
+test("summary requires both 25 hours and five distinct one-hour days", () => {
   const now = Date.UTC(2026, 9, 29, 12);
   const data = qualifyingData(now);
   const summary = summarizeWeeklyActivity(data, now, 7);
   assert.equal(summary.eligible, true);
-  assert.equal(summary.hoursCompleted, 50);
+  assert.equal(summary.hoursCompleted, 25);
   assert.equal(summary.qualifyingDays, 5);
   assert.equal(summary.coinBalance, 7);
   data.daySeconds[new Date(getWeeklyActivityPeriod(now).startAt + 4 * 24 * HOUR).toISOString().slice(0, 10)] = 3599;

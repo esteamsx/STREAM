@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-export const WEEKLY_ACTIVITY_HOURS = 50;
+export const WEEKLY_ACTIVITY_HOURS = 25;
 export const WEEKLY_ACTIVITY_REQUIRED_DAYS = 5;
 export const WEEKLY_ACTIVITY_REWARD_COINS = 10;
 export const WEEKLY_ACTIVITY_TARGET_SECONDS = WEEKLY_ACTIVITY_HOURS * 60 * 60;
@@ -400,7 +400,7 @@ export function createWeeklyActivityService({
         }
         const summary = summarizeWeeklyActivity(state, timestamp, 0);
         if (!summary.eligible) {
-          throw makeError("Complete 50 active hours across 5 qualifying days before claiming.", 409, "weekly_activity/not_eligible");
+          throw makeError("Complete 25 active hours across 5 qualifying days before claiming.", 409, "weekly_activity/not_eligible");
         }
         if (!userSnap.exists) throw makeError("Your account could not be found.", 404, "weekly_activity/account_missing");
         const userData = userSnap.data() || {};

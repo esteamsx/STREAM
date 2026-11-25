@@ -7,6 +7,8 @@ const GUEST_MATCH = /^\/chess\/guest\/([A-Za-z0-9_-]{6,40})\/?$/.exec(location.p
 const GUEST_TOKEN = GUEST_MATCH ? GUEST_MATCH[1] : null;
 const BASE = GUEST_TOKEN ? "/api/chess/guest" : "/api/chess";
 const SAVE_KEY = "cx_savedgame";
+const CHESS_MOVE_MS = 90 * 1000;
+const CHESS_GAME_MAX_MS = 90 * 60 * 1000;
 const BOT_IMG = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#04141a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M32 10v7"/><circle cx="32" cy="8" r="2.4" fill="#04141a"/><rect x="12" y="17" width="40" height="30" rx="10"/><circle cx="24" cy="31" r="4.2" fill="#04141a"/><circle cx="40" cy="31" r="4.2" fill="#04141a"/><path d="M25 40h14"/><path d="M12 29H7M57 29h-5M24 47v6M40 47v6"/></svg>');
 const TIME_LABELS = { 10: "10 minutes", 30: "30 minutes", 60: "1 hour", 180: "3 hours", 1440: "24 hours" };
 
@@ -357,7 +359,7 @@ function guestBox() {
   box.appendChild(h("button", { type: "button", class: "cx-btn", id: "cxMakeLink", onclick: (e) => createLink(e.currentTarget) }, ["Create game link"]));
   box.appendChild(learnMore([
     "Make a link for someone who does not have an account. They can play you straight away.",
-    "Each player must make each move within 60 seconds.",
+    "Each player must make each move within 90 seconds.",
     "A link nobody plays on stops working after 24 hours, and it stops working when the game ends.",
   ]));
   if (state.links && state.links.length) {
@@ -490,8 +492,8 @@ function openChallengeSheet(p) {
     colorRow,
     learnMore([
       "They will see your request and can accept or decline.",
-      "Each player must make each move within 60 seconds.",
-      "Each game lasts up to 40 minutes. If it is still undecided, the stronger position wins.",
+      "Each player must make each move within 90 seconds.",
+      "Each game lasts up to 90 minutes. If it is still undecided, the stronger position wins.",
     ]),
     h("div", { class: "row" }, [
       h("button", { type: "button", class: "cx-btn ghost", onclick: () => m.close() }, ["Cancel"]),
@@ -582,11 +584,14 @@ function askBot(payload) {
 function startBotGame() {
   const color = state.color === "random" ? (Math.random() < 0.5 ? "w" : "b") : state.color === "white" ? "w" : "b";
   const level = state.level;
+  const startedAt = Date.now();
   enterGame({
     mode: "bot", chess: new Chess(), myColor: color, flipped: color === "b", level,
     selected: null, targets: new Map(), legal: [], last: null, over: false, result: null, thinking: false, botToken: 0,
     opponent: botOpponent(level),
-    rewardToken: null, humanLog: [], blur: { count: 0, ms: 0, at: 0 }, undone: false, turnStart: Date.now(),
+    rewardToken: null, humanLog: [], blur: { count: 0, ms: 0, at: 0 }, undone: false,
+    minutes: 90, endsAt: startedAt + CHESS_GAME_MAX_MS, turnStart: startedAt,
+    clocks: { w: CHESS_MOVE_MS, b: CHESS_MOVE_MS },
   });
   const g = state.game;
   if (level === "hard" && !GUEST_TOKEN) {
@@ -634,8 +639,20 @@ function saveGame() {
   const g = state.game;
   try {
     if (GUEST_TOKEN || !g || g.mode !== "bot" || g.over) { localStorage.removeItem(SAVE_KEY); return; }
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, mode: "bot", fen: g.chess.startFen, moves: g.chess.uciHistory(), color: g.myColor, level: g.level, flipped: !!g.flipped, rt: g.rewardToken || null, hl: g.humanLog || [], bl: g.blur ? { count: g.blur.count, ms: g.blur.ms } : { count: 0, ms: 0 }, un: !!g.undone, at: Date.now() }));
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, mode: "bot", fen: g.chess.startFen, moves: g.chess.uciHistory(), color: g.myColor, level: g.level, flipped: !!g.flipped, rt: g.rewardToken || null, hl: g.humanLog || [], bl: g.blur ? { count: g.blur.count, ms: g.blur.ms } : { count: 0, ms: 0 }, un: !!g.undone, ea: g.endsAt, ts: g.turnStart, at: Date.now() }));
   } catch { /* storage full or private mode: the game just will not survive a reload */ }
+}
+
+function finishBotByTime(g, winner, reason) {
+  if (!g || g.mode !== "bot" || g.over) return;
+  if (reason === "move_timeout") g.clocks[g.chess.turnColor()] = 0;
+  g.botToken++;
+  g.thinking = false;
+  g.over = true;
+  g.result = { winner, reason };
+  renderGameInfo();
+  paintBoard();
+  showResult();
 }
 
 function markOnline(id) {
@@ -663,7 +680,9 @@ function restoreBotGame() {
       selected: null, targets: new Map(), legal: [], last: last ? { from: last.slice(0, 2), to: last.slice(2, 4) } : null, over: false, result: null, thinking: false, botToken: 0,
       opponent: botOpponent(d.level),
       rewardToken: typeof d.rt === "string" ? d.rt : null, humanLog: Array.isArray(d.hl) ? d.hl.slice(-400) : [],
-      blur: { count: Number(d.bl && d.bl.count) || 0, ms: Number(d.bl && d.bl.ms) || 0, at: 0 }, undone: !!d.un, turnStart: Date.now(),
+      blur: { count: Number(d.bl && d.bl.count) || 0, ms: Number(d.bl && d.bl.ms) || 0, at: 0 }, undone: !!d.un,
+      minutes: 90, endsAt: Number(d.ea) || Date.now() + CHESS_GAME_MAX_MS,
+      turnStart: Number(d.ts) || Date.now(), clocks: { w: CHESS_MOVE_MS, b: CHESS_MOVE_MS },
     });
     toast("Welcome back to your game.");
     const g = state.game;
@@ -883,7 +902,7 @@ function submitMove(from, to, promotion) {
   if (g.mode === "bot") {
     const res = g.chess.result();
     if (res.over) checkBotEnd();
-    else botTurn();
+    else { g.turnStart = Date.now(); botTurn(); }
     return;
   }
   g.pending = info.uci;
@@ -1020,7 +1039,7 @@ function renderGameInfo() {
 function resultText(g) {
   const r = g.result || {};
   if (g.spectator) {
-    const why = { checkmate: "checkmate", resign: "resignation", timeout: "time", move_timeout: "a move taking over 60 seconds", adjudicated: "the better position when time ended", abandoned: "a player leaving", stalemate: "stalemate", agreement: "agreement", insufficient: "not enough pieces", repetition: "repetition", fifty: "the 50-move rule" }[r.reason] || r.reason;
+    const why = { checkmate: "checkmate", resign: "resignation", timeout: "time", move_timeout: "a move taking over 90 seconds", adjudicated: "the better position when time ended", abandoned: "a player leaving", stalemate: "stalemate", agreement: "agreement", insufficient: "not enough pieces", repetition: "repetition", fifty: "the 50-move rule" }[r.reason] || r.reason;
     return r.winner == null ? "Draw by " + why : (r.winner === "w" ? "White" : "Black") + " won by " + why;
   }
   const you = g.myColor;
@@ -1029,7 +1048,7 @@ function resultText(g) {
     return "Draw by " + why;
   }
   const won = r.winner === you;
-  const why = { checkmate: "checkmate", resign: won ? "your opponent resigned" : "you resigned", timeout: "time", move_timeout: won ? "your opponent took longer than 60 seconds to move" : "taking longer than 60 seconds to move", adjudicated: won ? "a clearly better position when the game time ended" : "your opponent having a clearly better position when the game time ended", abandoned: won ? "your opponent left" : "you left" }[r.reason] || r.reason;
+  const why = { checkmate: "checkmate", resign: won ? "your opponent resigned" : "you resigned", timeout: "time", move_timeout: won ? "your opponent took longer than 90 seconds to move" : "taking longer than 90 seconds to move", adjudicated: won ? "a clearly better position when the game time ended" : "your opponent having a clearly better position when the game time ended", abandoned: won ? "your opponent left" : "you left" }[r.reason] || r.reason;
   return (won ? "You won by " : "You lost by ") + why;
 }
 
@@ -1078,14 +1097,26 @@ function showResult() {
 function tickClocks() {
   const g = state.game;
   updateGameTimer(g);
-  if (!g || g.mode !== "online") {
+  if (!g || (g.mode !== "online" && g.mode !== "bot")) {
     const a = $("cxOppClk"), b = $("cxMeClk");
     if (a) a.style.display = "none";
     if (b) b.style.display = "none";
     return;
   }
+  if (g.mode === "bot" && !g.over) {
+    if (Date.now() >= g.endsAt) {
+      const score = capturedOf(g).score;
+      finishBotByTime(g, score >= 2 ? "w" : score <= -2 ? "b" : null, "adjudicated");
+      return;
+    }
+    if (Date.now() - g.turnStart >= CHESS_MOVE_MS) {
+      const turn = g.chess.turnColor();
+      finishBotByTime(g, turn === g.myColor ? (g.myColor === "w" ? "b" : "w") : g.myColor, "move_timeout");
+      return;
+    }
+  }
   const turn = g.chess.turnColor();
-  const elapsed = g.over || g.paused ? 0 : serverNow() - g.clockAt;
+  const elapsed = g.over || g.paused ? 0 : g.mode === "bot" ? Date.now() - g.turnStart : serverNow() - g.clockAt;
   const left = (c) => (g.clocks[c] - (!g.over && turn === c ? elapsed : 0));
   const oppC = g.myColor === "w" ? "b" : "w";
   const paint = (id, c) => {
@@ -1119,7 +1150,7 @@ function closeGameTimer() {
 
 function paintDial(g, left) {
   if (!gtDial) return;
-  const total = Math.max(1, (g.minutes || 40) * 60000);
+  const total = Math.max(1, (g.minutes || 90) * 60000);
   const frac = Math.max(0, Math.min(1, left / total));
   const secs = Math.ceil(left / 1000);
   gtDial.prog.style.strokeDashoffset = String(DIAL_C * (1 - frac));
@@ -1144,11 +1175,11 @@ function openGameTimer() {
     + '<g class="ticks">' + ticks.join("") + "</g>"
     + '<line class="hand" x1="100" y1="100" x2="100" y2="48"/><circle class="hub" cx="100" cy="100" r="4.5"/></svg>'
     + '<div class="cx-dialtxt"><b></b><span></span></div>';
-  const mins = g.minutes || 40;
+  const mins = g.minutes || 90;
   const learn = h("details", { class: "cx-learn mini" }, [
     h("summary", { text: "Learn more" }),
     h("div", {}, [
-      h("p", { text: "Each player must make each move within 60 seconds. If you run out of time, your opponent wins." }),
+      h("p", { text: "Each player must make each move within 90 seconds. If you run out of time, your opponent wins." }),
       h("p", { text: "Every game lasts up to " + mins + " minutes. If it is still going when the time is up, the player with the stronger position wins, or it is a draw if both sides are equal." }),
       h("p", { text: "If a player is away or reconnecting, their move clock waits for them." }),
     ]),
@@ -1164,7 +1195,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeGameT
 
 function updateGameTimer(g) {
   const gameEl = $("cxGame");
-  const show = !!(g && g.mode === "online" && !g.over && g.endsAt && gameEl && !gameEl.hidden);
+  const show = !!(g && (g.mode === "online" || g.mode === "bot") && !g.over && g.endsAt && gameEl && !gameEl.hidden);
   if (!show) {
     if (gtBtn) { gtBtn.remove(); gtBtn = null; }
     closeGameTimer();
@@ -1847,7 +1878,7 @@ function renderGuest() {
   card([
     hostLine,
     h("h2", { text: (host.name || host.username || "Someone") + " invited you to play chess" }),
-    h("p", { class: "cx-hint", style: "margin-top:8px", text: "60 seconds a move. No account needed. Pick a name and join." }),
+    h("p", { class: "cx-hint", style: "margin-top:8px", text: "90 seconds a move. No account needed. Pick a name and join." }),
     input,
     h("button", { type: "button", class: "cx-btn", id: "cxGuestJoin", onclick: (e) => joinGuest(e.currentTarget, input) }, ["Join game"]),
   ]);

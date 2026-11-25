@@ -3,8 +3,8 @@ import { Chess } from "../public/chess/chess-engine.js";
 
 
 export const TIME_OPTIONS = [3, 5, 10, 15, 30];     // kept only so older callers keep working
-export const MOVE_MS = 60 * 1000;
-export const GAME_MAX_MS = 40 * 60 * 1000;
+export const MOVE_MS = 90 * 1000;
+export const GAME_MAX_MS = 90 * 60 * 1000;
 const RESUME_MIN_MS = 30 * 1000;         // a player who comes back (a refresh, a reconnect) always gets at least this long to move
 const ACK_MAX_MS = 45 * 1000;           // a player whose phone has not yet confirmed the last move gets up to this much extra
 const ADJUDICATE_CP = 120;              // about a pawn and a bit: the side ahead by this much (or more) is likely to win
@@ -365,7 +365,7 @@ export function createChessHub({ now = () => Date.now(), randomHex = (n) => cryp
       keys: { w: randomHex(16), b: randomHex(16) },
       profiles: { [fromUid]: users.get(fromUid).profile, [toUid]: users.get(toUid).profile },
       chess: new Chess(),
-      minutes: 0,
+      minutes: 90,
       clocks: { w: MOVE_MS, b: MOVE_MS },
       turnStartedAt: now(),
       moveDeadline: now() + MOVE_MS,
