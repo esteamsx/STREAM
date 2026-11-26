@@ -1925,8 +1925,10 @@ video::cue{display:none!important;visibility:hidden!important;opacity:0!importan
           lowLatencyMode: false,
           liveSyncDurationCount: 4,
           liveMaxLatencyDurationCount: 12,
+          capLevelToPlayerSize: true,
           maxBufferLength: 45,
           maxMaxBufferLength: 90,
+          backBufferLength: 30,
         });
 
         hlsInstance = hls;

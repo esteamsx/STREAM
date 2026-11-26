@@ -364,6 +364,10 @@
       var contentRange = String(response.headers.get("content-range") || "");
       var media = /^(video\/mp4|application\/octet-stream)(?:;|$)/i.test(contentType);
       var oneByteRange = /^bytes 0-0\/(?:\d+|\*)$/i.test(contentRange);
+      if (action === "playback" && media && (response.status === 200 || response.status === 206)) {
+        if (response.body) await response.body.cancel().catch(function () {});
+        return true;
+      }
       if (response.status === 206 && media && oneByteRange) {
         if (response.body) await response.body.cancel().catch(function () {});
         return true;

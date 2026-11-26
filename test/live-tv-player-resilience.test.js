@@ -24,8 +24,10 @@ test("HLS configuration targets ordinary live playlists rather than low-latency 
   assert.match(html, /lowLatencyMode:\s*false/);
   assert.match(html, /liveSyncDurationCount:\s*4/);
   assert.match(html, /liveMaxLatencyDurationCount:\s*12/);
+  assert.match(html, /capLevelToPlayerSize:\s*true/);
   assert.match(html, /maxBufferLength:\s*45/);
   assert.match(html, /maxMaxBufferLength:\s*90/);
+  assert.match(html, /backBufferLength:\s*30/);
 });
 
 test("page-level progress watchdog and automatic channel reload ladder are absent", () => {
