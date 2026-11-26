@@ -90,3 +90,13 @@ test("dialog transitions are progressive and reduced-motion-aware while page tra
   assert.match(motion, /@view-transition\{navigation:auto;\}/);
   assert.match(motion, /@media\(prefers-reduced-motion:reduce\)/);
 });
+
+test("shared motion adds restrained glass depth, touch edge lighting, and hidden-page animation pausing", () => {
+  const motion = read("../public/ios-motion.js");
+  assert.match(motion, /es-ios-nav-depth/);
+  assert.match(motion, /es-ios-scrolled/);
+  assert.match(motion, /es-ios-glow-active/);
+  assert.match(motion, /visibilitychange/);
+  assert.match(motion, /es-ios-page-hidden/);
+  assert.match(motion, /esIosStatusPulse/);
+});

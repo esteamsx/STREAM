@@ -47,6 +47,7 @@
 @keyframes esIosScrollGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}\
 @keyframes esIosSoftPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.08)}}\
 @keyframes esIosRefreshSpin{to{transform:rotate(360deg)}}\
+@keyframes esIosStatusPulse{0%,100%{opacity:.58;transform:scale(.86)}50%{opacity:1;transform:scale(1)}}\
 @view-transition{navigation:auto;}\
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.24s;animation-timing-function:cubic-bezier(.22,.61,.36,1)}\
 #esIosScrollProgress{position:fixed;top:0;left:0;width:100%;height:2px;z-index:1001;pointer-events:none;transform:scaleX(0);transform-origin:0 50%;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 12px color-mix(in srgb,var(--accent) 55%,transparent);}\
@@ -64,14 +65,18 @@
 .es-ios-pull-refresh.show .es-ios-pull-label{opacity:.82;transform:none;}\
 .ios-motion-enabled .es-ios-glass-item{position:relative;isolation:isolate;}\
 .ios-motion-enabled .es-ios-glass-glow{position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;background:radial-gradient(circle at var(--es-glass-x,50%) var(--es-glass-y,50%),rgba(255,255,255,.18),transparent 30%);opacity:0;mix-blend-mode:screen;transition:opacity .28s ease;}\
-.ios-motion-enabled .es-ios-glass-item:hover .es-ios-glass-glow{opacity:.72;}\
+.ios-motion-enabled .es-ios-glass-item:hover .es-ios-glass-glow,.ios-motion-enabled .es-ios-glass-item.es-ios-glow-active .es-ios-glass-glow{opacity:.72;}\
 .ios-motion-enabled .es-ios-glass-item > :not(.es-ios-glass-glow){position:relative;z-index:1;}\
 .ios-motion-enabled .es-ios-glass-item button:hover > svg,.ios-motion-enabled .es-ios-glass-item a:hover > svg{transform:translateY(-1px) rotate(-3deg);}\
 .ios-motion-enabled .es-ios-motion-item{opacity:0;transform:translateY(14px) scale(.985);transition:opacity .52s cubic-bezier(.22,.61,.36,1),transform .62s cubic-bezier(.22,.61,.36,1);will-change:opacity,transform;}\
 .ios-motion-enabled .es-ios-motion-item.es-ios-visible{opacity:1;transform:none;}\
+.ios-motion-enabled .es-ios-nav-depth{transition:box-shadow .32s ease,border-color .32s ease,background-color .32s ease;}\
+.ios-motion-enabled.es-ios-scrolled .es-ios-nav-depth{box-shadow:0 8px 28px rgba(0,0,0,.2),inset 0 -1px 0 rgba(255,255,255,.08);border-bottom-color:color-mix(in srgb,var(--accent) 22%,var(--border));}\
+.ios-motion-enabled [aria-busy="true"] .status-dot,.ios-motion-enabled [aria-busy="true"] .live-dot,.ios-motion-enabled .es-ios-status-pulse{animation:esIosStatusPulse 1.4s ease-in-out infinite;}\
+.es-ios-page-hidden .es-ios-status-pulse,.es-ios-page-hidden [aria-busy="true"] .status-dot,.es-ios-page-hidden [aria-busy="true"] .live-dot{animation-play-state:paused!important;}\
 .ios-motion-enabled button:not([data-no-smooth]),.ios-motion-enabled a:not([data-no-smooth]){transition:transform .26s cubic-bezier(.34,1.35,.64,1),filter .18s ease;}\
 .ios-motion-enabled button:not([data-no-smooth]):active,.ios-motion-enabled a:not([data-no-smooth]):active{transform:scale(.97);}\
-@media(prefers-reduced-motion:reduce){#esIosScrollProgress{display:none!important}.es-ios-motion-item{opacity:1!important;transform:none!important;transition:none!important}::view-transition-group(root),::view-transition-image-pair(root),::view-transition-old(root),::view-transition-new(root){animation-duration:0s!important;animation-delay:0s!important}}';
+@media(prefers-reduced-motion:reduce){#esIosScrollProgress{display:none!important}.es-ios-motion-item{opacity:1!important;transform:none!important;transition:none!important}.es-ios-status-pulse,[aria-busy="true"] .status-dot,[aria-busy="true"] .live-dot{animation:none!important}::view-transition-group(root),::view-transition-image-pair(root),::view-transition-old(root),::view-transition-new(root){animation-duration:0s!important;animation-delay:0s!important}}';
   (document.head || document.documentElement).appendChild(style);
 
   var overviewStyle = document.createElement('style');
@@ -415,6 +420,30 @@
   if (reduceMotion) return;
   document.documentElement.classList.add('ios-motion-enabled');
 
+  var navSelector = 'nav,header,.acc-nav,.ad-nav,.cr-nav,.cx-nav,.db-nav,.gv-nav,.mv-nav,.pf-nav,.pm-nav,.bottom-nav,.hm-nav';
+  var navItems = Array.prototype.slice.call(document.querySelectorAll(navSelector)).filter(function(el){
+    var position = window.getComputedStyle ? window.getComputedStyle(el).position : '';
+    return position === 'fixed' || position === 'sticky';
+  });
+  navItems.forEach(function(el){ el.classList.add('es-ios-nav-depth'); });
+  var depthTicking = false;
+  var updateDepth = function(){
+    var depth = Math.min(1, pageScrollY() / 110);
+    document.documentElement.style.setProperty('--es-ios-scroll-depth', depth.toFixed(3));
+    document.documentElement.classList.toggle('es-ios-scrolled', depth > .08);
+    depthTicking = false;
+  };
+  var requestDepth = function(){
+    if (depthTicking) return;
+    depthTicking = true;
+    requestAnimationFrame(updateDepth);
+  };
+  window.addEventListener('scroll', requestDepth, { passive:true });
+  updateDepth();
+  document.addEventListener('visibilitychange', function(){
+    document.documentElement.classList.toggle('es-ios-page-hidden', document.hidden);
+  });
+
   var selector = 'section,article,.card,.dcard,.feature-card,.ad-card,.acc-card,.tool-card,.movie-card,.mv-card,.key-row,.hero,.hero-card';
   var items = Array.prototype.slice.call(root.querySelectorAll(selector)).filter(function(el){
     if (el.closest('[data-no-smooth],video,iframe,canvas,[class*="chat"],[class*="comment"],[class*="feed"],[class*="map"]')) return false;
@@ -432,15 +461,18 @@
       glow.setAttribute('aria-hidden', 'true');
       el.appendChild(glow);
       el.addEventListener('pointermove', function(event){
-        if (event.pointerType === 'touch') return;
         var rect = el.getBoundingClientRect();
         el.style.setProperty('--es-glass-x', ((event.clientX - rect.left) / rect.width * 100) + '%');
         el.style.setProperty('--es-glass-y', ((event.clientY - rect.top) / rect.height * 100) + '%');
+        if (event.pointerType === 'touch') el.classList.add('es-ios-glow-active');
       });
       el.addEventListener('pointerleave', function(){
         el.style.setProperty('--es-glass-x', '50%');
         el.style.setProperty('--es-glass-y', '50%');
+        el.classList.remove('es-ios-glow-active');
       });
+      el.addEventListener('pointerup', function(){ el.classList.remove('es-ios-glow-active'); });
+      el.addEventListener('pointercancel', function(){ el.classList.remove('es-ios-glow-active'); });
     }
   });
 
