@@ -54,15 +54,19 @@ import {
   getClaimPayment,
   findUnusedClaimPayment,
   finalizeClaimPayment,
+  checkCode,
 } from "../services/auth.js";
 import { initializeTransaction, verifyTransaction, verifyWebhookSignature, VERIFICATION_PRICE_NGN, VERIFICATION_ROLLOVER_PRICE_NGN, normalizePaymentMethod, ngnToUsd, NGN_PER_USD } from "../services/paystack.js";
-import { SimpleRateLimiter } from "../middleware/security-middleware.js";
+import { SimpleRateLimiter, requireSiteOrigin } from "../middleware/security-middleware.js";
+import { createAltchaVerifier } from "../services/altcha-security.js";
+import { db } from "../config/firebase.js";
 import { finalizeAdPayment } from "../services/ads.js";
 import { CODING_PLAN_DEFS, CODING_PURCHASABLE_PLAN_KEYS } from "../services/coding-usage.js";
 
 const router = express.Router();
 
 const PAYSTACK_PUBLIC_KEY = process.env.PAYSTACK_PUBLIC_KEY || "";
+const verifyCaptcha = createAltchaVerifier({ database: db, key: process.env.ALTCHA_SECRET });
 
 const initLimiter = new SimpleRateLimiter(
   5,
@@ -606,8 +610,18 @@ router.post("/api/billing/auto-renew", requireAuth, billingLimiter, async (req, 
   }
 });
 
-router.post("/api/billing/card/remove", requireAuth, billingLimiter, async (req, res) => {
+router.post("/api/billing/card/remove", requireAuth, requireSiteOrigin, billingLimiter, async (req, res) => {
   try {
+    const payload = req.body?.altcha;
+    if (!(await verifyCaptcha.verifyOnly(payload))) return res.status(400).json({ error: "Captcha not completed." });
+    const email = String(req.userProfile?.email || "").trim().toLowerCase();
+    if (!email) return res.status(403).json({ code: "EMAIL_REQUIRED", error: "Add and verify an email address before managing a card." });
+    const result = await checkCode(req.uid, "card_action", req.body?.emailOtp);
+    if (!result.ok || String(result.email || "").trim().toLowerCase() !== email) {
+      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "Code expired. Request a new one." };
+      return res.status(400).json({ error: messages[result.reason] || "Invalid security code." });
+    }
+    if (!(await verifyCaptcha.consumeVerified(payload))) return res.status(400).json({ error: "This anti-bot check has expired or was already used. Complete it again." });
     await removeBillingAuthorization(req.uid);
     res.json({ ok: true });
   } catch (err) {

@@ -15,6 +15,8 @@ const channelRouterSource = await readFile(new URL("../routes/channel-tools.js",
 const giveawayRouterSource = await readFile(new URL("../routes/giveaway.js", import.meta.url), "utf8");
 const channelViewSource = await readFile(new URL("../views/channel-react.js", import.meta.url), "utf8");
 const giveawayViewSource = await readFile(new URL("../views/giveaway.js", import.meta.url), "utf8");
+const rewardsRouterSource = await readFile(new URL("../routes/rewards.js", import.meta.url), "utf8");
+const paymentsRouterSource = await readFile(new URL("../routes/payments.js", import.meta.url), "utf8");
 
 test("Google email is trusted only from a non-empty server-verified email_verified claim", () => {
   assert.equal(getVerifiedGoogleEmail({ email: "  Person@Example.com ", email_verified: true }), "person@example.com");
@@ -109,4 +111,20 @@ test("high-value ALTCHA actions validate, verify email, then consume the proof b
   ordered(giveawayFlow, "const valid = await verifyCaptcha.verifyOnly", "if (!(await isEmailVerifiedForUser", "if (!(await verifyCaptcha.consumeVerified", "enterGiveaway(req.uid");
   assert.match(channelViewSource, /ESTEmailVerification\.require\(\{ email: err\.email, onVerified: submit \}\)/);
   assert.match(giveawayViewSource, /ESTEmailVerification\.require\(\{ email: err\.email, onVerified: submitEntry \}\)/);
+});
+
+test("card mutations require ALTCHA plus a fresh one-time email OTP", () => {
+  for (const routeSource of [rewardsRouterSource, paymentsRouterSource]) {
+    assert.match(routeSource, /verifyCaptcha\.verifyOnly\(payload\)/);
+    assert.match(routeSource, /checkCode\(req\.uid, "card_action", req\.body\?\.emailOtp\)/);
+    assert.match(routeSource, /verifyCaptcha\.consumeVerified\(payload\)/);
+  }
+  assert.match(rewardsRouterSource, /router\.post\("\/api\/rewards\/bank-details"[\s\S]*?verifyCardAction/);
+  assert.match(rewardsRouterSource, /router\.post\("\/api\/rewards\/bank-details\/delete"[\s\S]*?verifyCardAction/);
+  assert.match(paymentsRouterSource, /router\.post\("\/api\/billing\/card\/remove"[\s\S]*?requireSiteOrigin/);
+  assert.match(serverSource, /app\.post\("\/api\/card-security\/request-otp"[\s\S]*?issueCode\(req\.uid, email, "card_action"\)/);
+  assert.match(authSource, /tx\.delete\(ref\)[\s\S]*?result = \{ ok: true, email: data\.email \}/);
+  assert.match(accountSource, /openFreshCardEmailVerificationOverlay/);
+  assert.match(accountSource, /code === 'EMAIL_REQUIRED'/);
+  assert.match(accountSource, /emailOtp: cardOtp/);
 });

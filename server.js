@@ -3554,6 +3554,19 @@ app.post("/api/email-verification/confirm", requireAuth, requireSiteOrigin, emai
   }
 });
 
+app.post("/api/card-security/request-otp", requireAuth, requireSiteOrigin, emailCodeLimiter, async (req, res) => {
+  try {
+    const profile = await getUserProfile(req.uid, 0);
+    const email = String(profile?.email || "").trim().toLowerCase();
+    if (!email) return res.status(403).json({ code: "EMAIL_REQUIRED", error: "Add and verify an email address before managing a card." });
+    await issueCode(req.uid, email, "card_action");
+    res.set("Cache-Control", "no-store").json({ ok: true, email: maskEmailAddress(email), resendInSeconds: 30 });
+  } catch (err) {
+    console.error("[card-security] OTP request failed", { code: err?.code || "CARD_SECURITY_OTP_REQUEST_FAILED" });
+    res.status(err.status || 400).json({ error: err.userFacing || "Could not send a security code." });
+  }
+});
+
 const TELEGRAM_CLIENT_ID = process.env.TELEGRAM_CLIENT_ID || "";
 const TELEGRAM_CLIENT_SECRET = process.env.TELEGRAM_CLIENT_SECRET || "";
 const TELEGRAM_REDIRECT_URI = "https://esteamstv.devs.surf/api/telegram-auth/callback";

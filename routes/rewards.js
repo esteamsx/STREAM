@@ -38,6 +38,7 @@ import {
   COIN_REQUEST_LINK_TTL_MS,
   getWeeklyActivitySummary,
   claimWeeklyActivity,
+  checkCode,
 } from "../services/auth.js";
 import { findBankCode, resolveAccountNumber } from "../services/paystack.js";
 import { SimpleRateLimiter, requireSiteOrigin } from "../middleware/security-middleware.js";
@@ -71,6 +72,30 @@ async function verifyProtectedAction(req, res) {
     return false;
   }
   if (!(await emailVerifiedOrRespond(req, res))) return false;
+  if (!(await verifyCaptcha.consumeVerified(payload))) {
+    res.status(400).json({ error: "This anti-bot check has expired or was already used. Complete it again." });
+    return false;
+  }
+  return true;
+}
+
+async function verifyCardAction(req, res) {
+  const payload = req.body?.altcha;
+  if (!(await verifyCaptcha.verifyOnly(payload))) {
+    res.status(400).json({ error: "Captcha not completed." });
+    return false;
+  }
+  const email = String(req.userProfile?.email || "").trim().toLowerCase();
+  if (!email) {
+    res.status(403).json({ code: "EMAIL_REQUIRED", error: "Add and verify an email address before managing a card." });
+    return false;
+  }
+  const result = await checkCode(req.uid, "card_action", req.body?.emailOtp);
+  if (!result.ok || String(result.email || "").trim().toLowerCase() !== email) {
+    const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "Code expired. Request a new one." };
+    res.status(400).json({ error: messages[result.reason] || "Invalid security code." });
+    return false;
+  }
   if (!(await verifyCaptcha.consumeVerified(payload))) {
     res.status(400).json({ error: "This anti-bot check has expired or was already used. Complete it again." });
     return false;
@@ -215,7 +240,7 @@ router.post("/api/rewards/redeem", requireAuth, redeemLimiter, async (req, res) 
 
 router.post("/api/rewards/bank-details", requireAuth, bankLimiter, async (req, res) => {
   try {
-    if (!(await verifyProtectedAction(req, res))) return;
+    if (!(await verifyCardAction(req, res))) return;
     const result = await setBankDetails(req.uid, {
       bankName: req.body?.bankName,
       accountNumber: req.body?.accountNumber,
@@ -229,7 +254,7 @@ router.post("/api/rewards/bank-details", requireAuth, bankLimiter, async (req, r
 
 router.post("/api/rewards/bank-details/delete", requireAuth, bankDeleteLimiter, async (req, res) => {
   try {
-    if (!(await verifyProtectedAction(req, res))) return;
+    if (!(await verifyCardAction(req, res))) return;
     await deleteBankDetails(req.uid);
     res.json({ ok: true });
   } catch (err) {

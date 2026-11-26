@@ -1337,6 +1337,7 @@ body:has(.page-overlay.show){overflow:hidden}
         <div id="billingNoCardRow" style="font-size:.78rem;color:var(--muted);line-height:1.5;padding:10px 0">No card saved yet. Pay for verification or an API plan once and the card is saved here for renewals.</div>
 
         <div id="billingToggles" style="margin-top:14px"></div>
+        <div style="margin:12px 0"><altcha-widget id="billingRemoveAltcha" challengeurl="/api/captcha/challenge" workers="4"></altcha-widget></div>
         <div class="acc-msg" id="billingMsg"></div>
       </div>
     </div>
@@ -2433,7 +2434,7 @@ async function resumePendingEmailVerificationAction() {
   setEmailVerificationMessage('Email verified. Continuing your action…', false);
   try {
     const result = pending.resume
-      ? await pending.resume()
+      ? await pending.resume(pending.freshCardOtp ? pending.cardOtp : undefined)
       : await postJSON(pending.url, pending.body, pending.timeoutMs, true);
     pendingEmailVerificationAction = null;
     pending.resolve?.(result);
@@ -2487,6 +2488,57 @@ async function openEmailVerificationOverlay(maskedEmail, resumeAction) {
 }
 window.openEmailVerificationOverlay = openEmailVerificationOverlay;
 
+async function openFreshCardEmailVerificationOverlay(maskedEmail, resumeAction) {
+  if (typeof resumeAction === 'function' && !pendingEmailVerificationAction) {
+    pendingEmailVerificationAction = { resume: resumeAction, freshCardOtp: true, maskedEmail: maskedEmail || '' };
+  }
+  if (emailVerificationOpening) return;
+  emailVerificationOpening = true;
+  try {
+    if (!profile?.email) {
+      document.getElementById('addEmailInputMsg').textContent = 'Add an email address before using this account action.';
+      document.getElementById('addEmailOverlay').classList.add('show');
+      return;
+    }
+    document.getElementById('emailVerificationIntro').textContent = 'Confirm that you own ' + (maskedEmail || 'the email address on your account') + ' to continue.';
+    emailVerificationDigits.forEach((digit) => { digit.value = ''; });
+    emailVerificationOverlay.classList.add('show');
+    setEmailVerificationMessage('Sending a one-time security code…', false);
+    const result = await postJSON('/api/card-security/request-otp', {});
+    document.getElementById('emailVerificationIntro').textContent = 'We sent a 6-digit code to ' + (result.email || maskedEmail || 'your account email') + '. It expires in 5 minutes.';
+    setEmailVerificationMessage('Enter the code to continue.', false);
+    startEmailVerificationResendCooldown(result.resendInSeconds || 30);
+    emailVerificationDigits[0]?.focus();
+  } catch (err) {
+    if (err.code === 'EMAIL_REQUIRED') {
+      document.getElementById('addEmailInputMsg').textContent = 'Add an email address before using this account action.';
+      document.getElementById('addEmailOverlay').classList.add('show');
+      return;
+    }
+    setEmailVerificationMessage(err.message || 'Could not send a security code.', true);
+    emailVerificationResend.disabled = false;
+  } finally {
+    emailVerificationOpening = false;
+  }
+}
+
+function runCardActionWithEmailOtp(url, body) {
+  return new Promise((resolve, reject) => {
+    if (pendingEmailVerificationAction) return reject(new Error('Finish the current email verification first.'));
+    pendingEmailVerificationAction = {
+      freshCardOtp: true,
+      resume: (cardOtp) => postJSON(url, { ...(body || {}), emailOtp: cardOtp }, 12000, true),
+      resolve,
+      reject,
+    };
+    openFreshCardEmailVerificationOverlay('', pendingEmailVerificationAction.resume).catch((err) => {
+      const pending = pendingEmailVerificationAction;
+      pendingEmailVerificationAction = null;
+      pending?.reject?.(err);
+    });
+  });
+}
+
 emailVerificationDigits.forEach((digit, index) => {
   digit.addEventListener('input', () => {
     digit.value = digit.value.replace(/[^0-9]/g, '').slice(0, 1);
@@ -2509,6 +2561,11 @@ emailVerificationConfirm.addEventListener('click', async () => {
   emailVerificationConfirm.disabled = true;
   emailVerificationConfirm.textContent = 'Verifying…';
   try {
+    if (pendingEmailVerificationAction?.freshCardOtp) {
+      pendingEmailVerificationAction.cardOtp = code;
+      await resumePendingEmailVerificationAction();
+      return;
+    }
     await postJSON('/api/email-verification/confirm', { code });
     if (profile) profile.emailVerified = true;
     const pending = pendingEmailVerificationAction;
@@ -2531,7 +2588,7 @@ emailVerificationResend.addEventListener('click', async () => {
   emailVerificationResend.disabled = true;
   setEmailVerificationMessage('Sending a new code…', false);
   try {
-    const result = await postJSON('/api/email-verification/request', {});
+    const result = await postJSON(pendingEmailVerificationAction?.freshCardOtp ? '/api/card-security/request-otp' : '/api/email-verification/request', {});
     document.getElementById('emailVerificationIntro').textContent = 'We sent a 6-digit code to ' + (result.email || 'your account email') + '. It expires in 5 minutes.';
     setEmailVerificationMessage('Enter the new code to continue.', false);
     startEmailVerificationResendCooldown(result.resendInSeconds || 30);
@@ -3426,18 +3483,30 @@ async function toggleAutoRenew(product, sw){
   }
 }
 
+let billingRemoveCaptchaPassed = false;
+let billingRemoveCaptchaValue = '';
+document.getElementById('billingRemoveAltcha').addEventListener('statechange', (ev) => {
+  billingRemoveCaptchaPassed = ev.detail.state === 'verified';
+  billingRemoveCaptchaValue = billingRemoveCaptchaPassed ? ev.detail.payload : '';
+  document.getElementById('billingRemoveCardBtn').disabled = !billingRemoveCaptchaPassed;
+});
+
 document.getElementById('billingRemoveCardBtn').addEventListener('click', async () => {
   const msg = document.getElementById('billingMsg');
   const btn = document.getElementById('billingRemoveCardBtn');
+  if (!billingRemoveCaptchaPassed) {
+    flashMsg(msg, 'Complete the captcha first.', false);
+    return;
+  }
   btn.disabled = true;
   try {
-    await postJSON('/api/billing/card/remove', {});
+    await runCardActionWithEmailOtp('/api/billing/card/remove', { altcha: billingRemoveCaptchaValue });
     await loadBilling();
     flashMsg(msg, 'Card removed. Auto-renew has been turned off.', true);
   } catch (err) {
     flashMsg(msg, err.message, false);
   } finally {
-    btn.disabled = false;
+    btn.disabled = !billingRemoveCaptchaPassed;
   }
 });
 
@@ -4026,7 +4095,14 @@ document.getElementById('addEmailConfirmBtn').addEventListener('click', async ()
     document.getElementById('changeEmailLink').style.display = 'inline-block';
     closeAddEmailOverlay();
     flashMsg(document.getElementById('profileMsg'), wasChange ? 'Email changed and verified.' : 'Email added and verified.', true);
-    if (pendingEmailVerificationAction) await resumePendingEmailVerificationAction();
+    if (pendingEmailVerificationAction?.freshCardOtp) {
+      const pending = pendingEmailVerificationAction;
+      pendingEmailVerificationAction = null;
+      pendingEmailVerificationAction = { freshCardOtp: true, resume: pending.resume, resolve: pending.resolve, reject: pending.reject };
+      await openFreshCardEmailVerificationOverlay('', pending.resume);
+    } else if (pendingEmailVerificationAction) {
+      await resumePendingEmailVerificationAction();
+    }
   } catch (err) {
     flashMsg(msg, err.message, false);
   }
@@ -6679,7 +6755,7 @@ document.getElementById('rwSaveBankBtn').addEventListener('click', async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner"></span>Saving…';
   try {
-    await postJSON('/api/rewards/bank-details', { bankName, accountNumber, accountName, altcha: bankAddCaptchaValue });
+    await runCardActionWithEmailOtp('/api/rewards/bank-details', { bankName, accountNumber, accountName, altcha: bankAddCaptchaValue });
     flashMsg(msg, 'Bank details saved.', true);
     loadRewardsSummary();
   } catch (err) {
@@ -6769,7 +6845,7 @@ document.getElementById('rwBankDeleteConfirmBtn').addEventListener('click', asyn
   btn.disabled = true;
   btn.innerHTML = '<span class="btn-spinner btn-spinner-light"></span>Deleting…';
   try {
-    await postJSON('/api/rewards/bank-details/delete', { altcha: bankDeleteCaptchaValue });
+    await runCardActionWithEmailOtp('/api/rewards/bank-details/delete', { altcha: bankDeleteCaptchaValue });
     rwBankDeleteOverlay.classList.remove('show');
     loadRewardsSummary();
   } catch (err) {
