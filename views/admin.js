@@ -2357,6 +2357,7 @@ function askMatchBan(btn){
       const d = await postJSON('/api/admin/device-bans/' + encodeURIComponent(btn.getAttribute('data-match')) + '/ban-matches', {});
       btn.classList.remove('cn-busy');
       if (!d.banned.length) { showToast('No other accounts matched this device.'); return; }
+      await loadBannedUsers();
       card.innerHTML = '<div class="cn-title">' + d.banned.length + ' account' + (d.banned.length === 1 ? '' : 's') + ' banned</div>' +
         '<div class="cn-sub">These accounts used the same device and IP.</div>' +
         d.banned.map((u) => '<div class="db-found"><div><b>' + esc(u.name || u.username || 'Account') + '</b><small>@' + esc(u.username || 'unknown') + '</small></div></div>').join('') +

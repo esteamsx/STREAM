@@ -3821,7 +3821,7 @@ async function adminSearchUsers(query) {
 }
 
 async function adminListBannedUsers() {
-  const snap = await db.collection("users").where("banned", "==", true).limit(300).get();
+  const snap = await db.collection("users").where("banned", "==", true).get();
   return snap.docs
     .filter((d) => !isAdminEmail(d.data().email))
     .map((d) => adminUserView(d.id, d.data()));

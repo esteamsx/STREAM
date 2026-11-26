@@ -7,6 +7,7 @@ const auth = fs.readFileSync(new URL("../services/auth.js", import.meta.url), "u
 const sessions = fs.readFileSync(new URL("../services/device-sessions.js", import.meta.url), "utf8");
 const login = fs.readFileSync(new URL("../server.js", import.meta.url), "utf8");
 const bans = fs.readFileSync(new URL("../routes/device-bans.js", import.meta.url), "utf8");
+const admin = fs.readFileSync(new URL("../views/admin.js", import.meta.url), "utf8");
 const devices = fs.readFileSync(new URL("../routes/devices.js", import.meta.url), "utf8");
 const navigation = fs.readFileSync(new URL("../middleware/navigation.js", import.meta.url), "utf8");
 
@@ -44,6 +45,11 @@ test("an existing session cannot elevate to trusted without Face ID", () => {
   assert.match(devices, /userHasFaceId\(req\.uid\)/);
   assert.match(devices, /device\/face-required/);
   assert.match(devices, /verifyLoginFace\(req\.uid, probe\)/);
+});
+
+test("accounts banned from Flagged Devices appear in the Banned Users list immediately", () => {
+  assert.match(admin, /if \(!d\.banned\.length\)[\s\S]*?await loadBannedUsers\(\)/);
+  assert.match(auth, /async function adminListBannedUsers\(\) \{\s*const snap = await db\.collection\("users"\)\.where\("banned", "==", true\)\.get\(\)/);
 });
 
 test("2FA preserves the Face ID decision and uses same-origin protection", () => {
