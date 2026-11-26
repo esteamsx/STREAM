@@ -4627,52 +4627,35 @@ loadDbUsage();
 }
 
 export function renderAdminLock(cfg) {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-${cfg.devToolsBlock || ""}
-<meta name="viewport" content="width=device-width,initial-scale=1">
-${siteHeadFor("admin")}
-<script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content","#0A0A0F");})();</script>
-<title>Admin J · Face ID</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-${cfg.protectionCSS || ""}
-:root{--accent:#00E0FF;--dark:#0A0A0F;--border:rgba(255,255,255,.1);--text:#F3F3FA;--muted:rgba(255,255,255,.58);--ease:cubic-bezier(.22,1,.36,1)}
-*{box-sizing:border-box}html,body{min-height:100%;margin:0;background:radial-gradient(circle at 50% 0%,rgba(0,224,255,.12),transparent 42%),var(--dark);color:var(--text);font-family:Inter,-apple-system,sans-serif}body{display:grid;place-items:center;padding:24px}.lock-card{width:min(100%,460px);padding:34px 28px;border:1px solid var(--border);border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.025));box-shadow:0 24px 80px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.08);backdrop-filter:blur(24px);text-align:center;animation:rise .7s var(--ease) both}.lock-icon{width:76px;height:76px;margin:0 auto 20px;border-radius:24px;display:grid;place-items:center;border:1px solid rgba(0,224,255,.35);background:rgba(0,224,255,.1);color:var(--accent);font-size:36px;box-shadow:0 0 42px rgba(0,224,255,.16)}h1{font:700 27px/1.1 'Space Grotesk',Inter,sans-serif;margin:0 0 12px}p{margin:0 auto 24px;color:var(--muted);line-height:1.55}.unlock-btn{border:0;border-radius:15px;padding:14px 20px;color:#061016;background:linear-gradient(135deg,#7cf5ff,var(--accent));font:700 15px Inter,sans-serif;cursor:pointer;box-shadow:0 12px 28px rgba(0,224,255,.2);transition:transform .25s var(--ease),filter .25s}.unlock-btn:hover{transform:translateY(-2px);filter:brightness(1.08)}.unlock-btn:disabled{opacity:.55;cursor:wait;transform:none}.status{min-height:22px;margin-top:16px;color:var(--muted);font-size:13px}.status.error{color:#ff8298}@keyframes rise{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
-</style>
-</head>
-<body>
-<main class="lock-card" aria-labelledby="admin-lock-title">
-  <div class="lock-icon" aria-hidden="true">⌁</div>
-  <h1 id="admin-lock-title">Admin J is locked</h1>
-  <p>Face ID verification is required before this dashboard or its protected controls can be opened.</p>
-  <button class="unlock-btn" id="adminFaceUnlock" type="button">Unlock with Face ID</button>
-  <div class="status" id="adminFaceStatus" role="status" aria-live="polite"></div>
-</main>
-<script nonce="__CSP_NONCE__" type="module">
+  const dashboard = renderAdmin(cfg);
+  const faceIdVerification = `<script nonce="__CSP_NONCE__" type="module">
 import { captureFaceDescriptor, preloadFaceModels } from '/face-scan.js';
-const button=document.getElementById('adminFaceUnlock');
-const status=document.getElementById('adminFaceStatus');
-const setStatus=(text,error=false)=>{status.textContent=text;status.className='status'+(error?' error':'');};
-preloadFaceModels().catch(()=>{});
-button.addEventListener('click',async()=>{
-  button.disabled=true;setStatus('Starting Face ID…');
+preloadFaceModels();
+async function verifyAdminFaceId(){
   try{
-    await captureFaceDescriptor({requireLiveness:true,showCamera:true,verify:async(descriptor)=>{
-      const response=await fetch('/api/admin/face-unlock',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({descriptor})});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(data.error||'Face ID could not unlock Admin J.');
-      return data;
-    }});
-    setStatus('Unlocked. Opening Admin J…');
+    await captureFaceDescriptor({
+      requireLiveness:false,
+      showCamera:false,
+      voice:false,
+      verify:async(descriptor,samples)=>{
+        const response=await fetch('/api/admin/face-unlock',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({descriptor:[descriptor].concat(samples||[])})});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||'Face ID could not verify this admin account.');
+        return data;
+      },
+    });
     window.location.replace('/admin');
-  }catch(error){setStatus(error?.message||'Face ID could not unlock Admin J. Try again.',true);button.disabled=false;}
-});
-</script>
-</body>
-</html>`;
+  }catch(error){
+    const toast=document.createElement('div');
+    toast.className='ad-toast';
+    toast.setAttribute('role','status');
+    toast.textContent=(error?.message||'Face ID could not verify this admin account. Please refresh to try again.');
+    document.body.appendChild(toast);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>toast.classList.add('show')));
+    setTimeout(()=>{toast.classList.remove('show');setTimeout(()=>toast.remove(),400);},4000);
+  }
+}
+verifyAdminFaceId();
+</script>`;
+  return dashboard.replace('</body>', `${faceIdVerification}\n</body>`);
 }

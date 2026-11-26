@@ -140,6 +140,9 @@ test("Admin J is server-locked behind the current admin's Face ID", () => {
   assert.match(serverSource, /sessionHash: hashAdminFaceUnlock\(sessionId\)/);
   assert.match(serverSource, /if \(\!\(await hasAdminFaceUnlock\(req\)\)\) return res\.status\(423\)/);
   assert.match(serverSource, /res\.set\("Cache-Control", "private, no-store"\)/);
-  assert.match(adminSource, /captureFaceDescriptor\(\{requireLiveness:true,showCamera:true/);
+  assert.match(adminSource, /const dashboard = renderAdmin\(cfg\)/);
+  assert.match(adminSource, /captureFaceDescriptor\(\{/);
+  assert.match(adminSource, /requireLiveness:false,[\s\S]*?showCamera:false,[\s\S]*?voice:false/);
+  assert.match(adminSource, /window.location.replace\('\/admin'\)/);
   assert.doesNotMatch(adminSource, /localStorage\.setItem|sessionStorage\./);
 });
