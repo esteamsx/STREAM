@@ -1961,7 +1961,10 @@ async function finishPasskeyAuthentication(token, response, rpID, origin) {
 
 
 const FACE_DESCRIPTOR_LENGTH = 128;
-const FACE_MATCH_THRESHOLD = 0.55;
+// face-api.js's Euclidean distance guidance uses 0.6 as the normal match cutoff.
+// The previous 0.55 cutoff rejected valid scans from the same person across
+// normal camera, lighting, and pose variation.
+const FACE_MATCH_THRESHOLD = 0.6;
 const FACE_AMBIGUITY_MARGIN = 0.05;
 const FACE_MAX_SAMPLES = 8;
 
@@ -2003,6 +2006,14 @@ function faceEuclideanDistance(a, b) {
     sum += d * d;
   }
   return Math.sqrt(sum);
+}
+
+function isAmbiguousFaceMatch(bestDistance, runnerUpDistance) {
+  return (
+    bestDistance <= FACE_MATCH_THRESHOLD &&
+    runnerUpDistance <= FACE_MATCH_THRESHOLD &&
+    runnerUpDistance - bestDistance < FACE_AMBIGUITY_MARGIN
+  );
 }
 
 async function getFaceScanForUser(uid) {
@@ -2122,7 +2133,7 @@ async function matchFaceScan(descriptor) {
   );
 
   if (bestUid && bestDistance <= FACE_MATCH_THRESHOLD) {
-    if (runnerUpDistance - bestDistance < FACE_AMBIGUITY_MARGIN) {
+    if (isAmbiguousFaceMatch(bestDistance, runnerUpDistance)) {
       const err = new Error("Could not tell your face apart from another account. Please sign in with your password.");
       err.code = "facescan/ambiguous";
       throw err;
