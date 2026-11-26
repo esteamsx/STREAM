@@ -374,7 +374,6 @@ import { injectPromoSlot } from "./middleware/promo-slot.js";
 import { enhanceIosPhysicsPage } from "./middleware/ios-physics-scroll.js";
 import { flushAdStats } from "./services/ads.js";
 import { rewardsRouter } from "./routes/rewards.js";
-import { registerEnvManagerRoutes } from "./routes/env-manager.js";
 import { initFakeCoins, startFakeCoinSchedule, runFakeCoinScan, listFakeCoinAlerts, banFakeCoinUser, dismissFakeCoinAlert, liftCoinRestriction, coinDeviceGuard } from "./services/fake-coins.js";
 import { payLinkRouter } from "./routes/pay-link.js";
 import { statusRouter } from "./routes/status.js";
@@ -1391,8 +1390,6 @@ async function requireAdmin(req, res, next) {
     res.status(403).json({ error: "Not authorized." });
   }
 }
-
-registerEnvManagerRoutes({ app, requireAuth, requireSiteOrigin, requireAdmin });
 
 app.post("/api/admin/face-unlock", facescanVerifyLimiter, requireSiteOrigin, requireAuth, requireAdminIdentity, async (req, res) => {
   try {
