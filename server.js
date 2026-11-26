@@ -31,7 +31,7 @@ import { renderDevelopersLiveTv } from "./views/developers-live-tv.js";
 import { renderDevelopersApi } from "./views/developers-api.js";
 import { renderDevelopersMovieApi } from "./views/developers-movie-api.js";
 import { renderCoding } from "./views/coding.js";
-import { renderAdmin } from "./views/admin.js";
+import { renderAdmin, renderAdminLock } from "./views/admin.js";
 import { domainLock } from "./middleware/lock.js";
 import { maintenanceGate } from "./middleware/maintenance.js";
 import { quotaMaintenanceGate, checkQuotaError } from "./middleware/quota-guard.js";
@@ -374,6 +374,7 @@ import { injectPromoSlot } from "./middleware/promo-slot.js";
 import { enhanceIosPhysicsPage } from "./middleware/ios-physics-scroll.js";
 import { flushAdStats } from "./services/ads.js";
 import { rewardsRouter } from "./routes/rewards.js";
+import { registerEnvManagerRoutes } from "./routes/env-manager.js";
 import { initFakeCoins, startFakeCoinSchedule, runFakeCoinScan, listFakeCoinAlerts, banFakeCoinUser, dismissFakeCoinAlert, liftCoinRestriction, coinDeviceGuard } from "./services/fake-coins.js";
 import { payLinkRouter } from "./routes/pay-link.js";
 import { statusRouter } from "./routes/status.js";
@@ -963,6 +964,7 @@ const cachedTttHtml = renderTtt(authPageConfig);
 const cachedAccountGuestHtml = wrapWithGuestBlur(cachedAccountHtml, "/account");
 const cachedProfileHtml = renderProfile(authPageConfig);
 const cachedAdminHtml = renderAdmin(authPageConfig);
+const cachedAdminLockHtml = renderAdminLock(authPageConfig);
 const cachedResetHtml = renderReset(authPageConfig);
 const cachedDmcaHtml = renderDmca(authPageConfig);
 const cachedPrivacyHtml = renderPrivacy(authPageConfig);
@@ -1325,6 +1327,46 @@ app.get("/u/:username", scrapeGate, (req, res) => {
   res.send(cachedProfileHtml);
 });
 
+const ADMIN_FACE_UNLOCK_COOKIE = "admin_face_unlock";
+const ADMIN_FACE_UNLOCK_TTL_MS = 10 * 60 * 1000;
+const ADMIN_FACE_UNLOCK_COLLECTION = "admin_face_unlocks";
+
+function hashAdminFaceUnlock(value) {
+  return crypto.createHash("sha256").update(String(value || ""), "utf8").digest("hex");
+}
+
+function sameSecretHash(left, right) {
+  const a = Buffer.from(String(left || ""), "hex");
+  const b = Buffer.from(String(right || ""), "hex");
+  return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
+}
+
+async function hasAdminFaceUnlock(req) {
+  const token = req.cookies?.[ADMIN_FACE_UNLOCK_COOKIE];
+  const sessionId = req.cookies?.session;
+  if (!token || !sessionId || !req.uid) return false;
+  const snap = await db.collection(ADMIN_FACE_UNLOCK_COLLECTION).doc(req.uid).get();
+  if (!snap.exists) return false;
+  const state = snap.data() || {};
+  if (!Number.isFinite(state.expiresAt) || state.expiresAt <= Date.now()) {
+    await snap.ref.delete().catch(() => {});
+    return false;
+  }
+  return sameSecretHash(state.tokenHash, hashAdminFaceUnlock(token))
+    && sameSecretHash(state.sessionHash, hashAdminFaceUnlock(sessionId));
+}
+
+async function requireAdminIdentity(req, res, next) {
+  try {
+    const profile = req.userProfile || (await getUserProfile(req.uid));
+    if (!profile || !isAdminEmail(profile.email)) return res.status(403).json({ error: "Not authorized." });
+    req.userProfile = profile;
+    next();
+  } catch (err) {
+    res.status(403).json({ error: "Not authorized." });
+  }
+}
+
 app.get("/admin", scrapeGate, async (req, res) => {
   const sessionId = req.cookies?.session;
   const uid = await verifySession(sessionId, req);
@@ -1332,18 +1374,63 @@ app.get("/admin", scrapeGate, async (req, res) => {
   const profile = await getUserProfile(uid);
   if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return res.redirect("/login");
   if (!isAdminEmail(profile.email)) return res.redirect("/");
-  res.send(cachedAdminHtml);
+  req.uid = uid;
+  req.userProfile = profile;
+  res.set("Cache-Control", "private, no-store");
+  res.send(await hasAdminFaceUnlock(req) ? cachedAdminHtml : cachedAdminLockHtml);
 });
 
 async function requireAdmin(req, res, next) {
   try {
     const profile = req.userProfile || (await getUserProfile(req.uid));
     if (!profile || !isAdminEmail(profile.email)) return res.status(403).json({ error: "Not authorized." });
+    req.userProfile = profile;
+    if (!(await hasAdminFaceUnlock(req))) return res.status(423).set("Cache-Control", "no-store").json({ error: "Admin J is locked. Face ID verification is required." });
     next();
   } catch (err) {
     res.status(403).json({ error: "Not authorized." });
   }
 }
+
+registerEnvManagerRoutes({ app, requireAuth, requireSiteOrigin, requireAdmin });
+
+app.post("/api/admin/face-unlock", facescanVerifyLimiter, requireSiteOrigin, requireAuth, requireAdminIdentity, async (req, res) => {
+  try {
+    const sessionId = req.cookies?.session;
+    const matchedUid = await matchFaceScan(req.body?.descriptor);
+    if (!matchedUid || matchedUid !== req.uid) {
+      return res.status(403).json({ error: "That face is not enrolled for this admin account." });
+    }
+    const token = crypto.randomBytes(32).toString("base64url");
+    const expiresAt = Date.now() + ADMIN_FACE_UNLOCK_TTL_MS;
+    await db.collection(ADMIN_FACE_UNLOCK_COLLECTION).doc(req.uid).set({
+      tokenHash: hashAdminFaceUnlock(token),
+      sessionHash: hashAdminFaceUnlock(sessionId),
+      expiresAt,
+      updatedAt: Date.now(),
+    });
+    res.cookie(ADMIN_FACE_UNLOCK_COOKIE, token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: ADMIN_FACE_UNLOCK_TTL_MS,
+      path: "/",
+    });
+    res.set("Cache-Control", "no-store").json({ ok: true, expiresAt });
+  } catch (err) {
+    const code = err?.code || "";
+    if (code === "facescan/not-found" || code === "facescan/ambiguous" || code === "facescan/none-enrolled") {
+      return res.status(403).json({ error: "Face ID could not verify this admin account." });
+    }
+    res.status(400).json({ error: "Face ID could not unlock Admin J." });
+  }
+});
+
+app.post("/api/admin/face-lock", requireSiteOrigin, requireAuth, requireAdminIdentity, async (req, res) => {
+  await db.collection(ADMIN_FACE_UNLOCK_COLLECTION).doc(req.uid).delete().catch(() => {});
+  res.clearCookie(ADMIN_FACE_UNLOCK_COOKIE, { httpOnly: true, secure: true, sameSite: "lax", path: "/" });
+  res.set("Cache-Control", "no-store").json({ ok: true });
+});
 
 app.get("/api/admin/promotional-reviews", requireAuth, requireAdmin, async (req, res) => {
   try {

@@ -10,6 +10,7 @@ import { isRecentAuthentication, normalizeFirebaseAuthTime } from "../services/r
 
 const authSource = await readFile(new URL("../services/auth.js", import.meta.url), "utf8");
 const serverSource = await readFile(new URL("../server.js", import.meta.url), "utf8");
+const adminSource = await readFile(new URL("../views/admin.js", import.meta.url), "utf8");
 const accountSource = await readFile(new URL("../views/account.js", import.meta.url), "utf8");
 const channelRouterSource = await readFile(new URL("../routes/channel-tools.js", import.meta.url), "utf8");
 const giveawayRouterSource = await readFile(new URL("../routes/giveaway.js", import.meta.url), "utf8");
@@ -127,4 +128,18 @@ test("card mutations require ALTCHA plus a fresh one-time email OTP", () => {
   assert.match(accountSource, /openFreshCardEmailVerificationOverlay/);
   assert.match(accountSource, /code === 'EMAIL_REQUIRED'/);
   assert.match(accountSource, /emailOtp: cardOtp/);
+});
+
+test("Admin J is server-locked behind the current admin's Face ID", () => {
+  assert.match(serverSource, /const cachedAdminLockHtml = renderAdminLock\(authPageConfig\)/);
+  assert.match(serverSource, /res\.send\(await hasAdminFaceUnlock\(req\) \? cachedAdminHtml : cachedAdminLockHtml\)/);
+  assert.match(serverSource, /app\.post\("\/api\/admin\/face-unlock", facescanVerifyLimiter, requireSiteOrigin, requireAuth, requireAdminIdentity/);
+  assert.match(serverSource, /const matchedUid = await matchFaceScan\(req\.body\?\.descriptor\)/);
+  assert.match(serverSource, /matchedUid !== req\.uid/);
+  assert.match(serverSource, /tokenHash: hashAdminFaceUnlock\(token\)/);
+  assert.match(serverSource, /sessionHash: hashAdminFaceUnlock\(sessionId\)/);
+  assert.match(serverSource, /if \(\!\(await hasAdminFaceUnlock\(req\)\)\) return res\.status\(423\)/);
+  assert.match(serverSource, /res\.set\("Cache-Control", "private, no-store"\)/);
+  assert.match(adminSource, /captureFaceDescriptor\(\{requireLiveness:true,showCamera:true/);
+  assert.doesNotMatch(adminSource, /localStorage\.setItem|sessionStorage\./);
 });

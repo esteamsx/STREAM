@@ -752,6 +752,7 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     <a class="ad-sidebar-link" href="#adminFinance">Finance &amp; Rewards</a>
     <a class="ad-sidebar-link" href="#adminModeration">Users &amp; Moderation</a>
     <a class="ad-sidebar-link" href="#adminBots">Bot Deployments</a>
+    <a class="ad-sidebar-link" href="#adminEnvManager">ENV Keys</a>
   </nav>
   <main class="ad-dashboard-main">
 <div class="ad-wrap">
@@ -894,6 +895,44 @@ body:has(#adsOverlay.show) .ad-analytics-fab{opacity:0;pointer-events:none}
     </div>
   </div>
 
+  <div class="ad-section-label" id="adminEnvManager">ENV Keys Manager</div>
+  <div class="ad-card open accent-purple" id="envManagerCard">
+    <div class="ad-card-header" style="cursor:default">
+      <svg class="ad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8h10M7 12h10M7 16h6"/><rect x="3" y="4" width="18" height="16" rx="3"/></svg>
+      <div class="ad-card-header-title">Persistent environment collections</div>
+      <div class="ad-card-count" id="envCollectionCount">0</div>
+    </div>
+    <div class="ad-card-body" style="max-height:none"><div class="ad-card-body-inner">
+      <div style="font-size:.76rem;color:var(--muted);line-height:1.5;margin-bottom:12px">Secrets are encrypted on the server and remain masked here. Provider credentials never enter browser storage or frontend code.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <select id="envCollectionSelect" style="flex:1;min-width:180px;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit"><option value="">Select a collection</option></select>
+        <button type="button" class="cn-refund" id="envNewCollectionBtn">New collection</button>
+      </div>
+      <div id="envCollectionMeta" style="font-size:.74rem;color:var(--muted);margin:8px 0"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <input type="file" id="envUploadFile" accept=".env,text/plain" style="max-width:220px;color:var(--muted)">
+        <select id="envUploadMode" style="padding:9px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit"><option value="merge">Merge</option><option value="replace">Replace</option></select>
+        <button type="button" class="cn-refund" id="envUploadBtn">Upload .env</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <input id="envManualName" placeholder="Variable name" style="flex:0 1 180px;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit">
+        <input id="envManualValue" type="password" placeholder="New value (never displayed)" style="flex:1;min-width:200px;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit">
+        <button type="button" class="cn-refund" id="envManualSaveBtn">Add / overwrite</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <select id="envProvider" style="padding:9px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit"><option value="heroku">Heroku</option><option value="railway">Railway</option><option value="render">Render</option></select>
+        <button type="button" class="cn-refund" id="envLoadTargetsBtn">Load targets</button>
+        <select id="envTargetSelect" style="flex:1;min-width:220px;padding:9px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit"><option value="">Select a target</option></select>
+        <input id="envTargetJson" placeholder='Target JSON, e.g. {"app":"my-app"}' style="flex:1;min-width:220px;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit">
+        <label style="display:flex;gap:5px;align-items:center;font-size:.74rem;color:var(--muted)"><input type="checkbox" id="envReplaceRemote"> Full replacement</label>
+        <button type="button" class="cn-refund" id="envCompareBtn">Compare</button>
+      </div>
+      <div id="envCompareResult" style="font-size:.76rem;color:var(--muted);line-height:1.6;margin-bottom:10px"></div>
+      <button type="button" class="cn-refund" id="envSyncBtn" style="width:100%;display:none">Approve and synchronize</button>
+      <div id="envVariableList" style="display:flex;flex-direction:column;gap:7px;margin-top:12px"></div>
+      <div class="ad-modal-msg" id="envManagerMsg"></div>
+    </div></div>
+  </div>
   <div class="ad-section-label" id="adminFinance">Finance &amp; Rewards</div>
 
   <div class="ad-card accent-gold" id="bonusCard">
@@ -4618,9 +4657,97 @@ loadVerifyPage(true);
 loadBotsUsers();
 loadTemplateStatus();
 loadStorage();
+const envState = { collections: [], selected: null, planToken: null };
+async function envJson(url, options) {
+  const response = await fetch(url, { credentials: 'same-origin', ...options, headers: { 'Content-Type': 'application/json', ...(options && options.headers || {}) } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'ENV Manager request failed.');
+  return data;
+}
+function envMessage(text, error) { const el = document.getElementById('envManagerMsg'); el.textContent = text || ''; el.style.color = error ? 'var(--red)' : 'var(--muted)'; }
+function envTarget() { try { const value = JSON.parse(document.getElementById('envTargetJson').value || '{}'); if (!value || typeof value !== 'object') throw new Error(); return value; } catch { throw new Error('Enter a valid provider target JSON object.'); } }
+document.getElementById('envProvider').addEventListener('change', () => { document.getElementById('envTargetSelect').innerHTML = '<option value="">Select a target</option>'; document.getElementById('envTargetJson').value = ''; });
+function renderEnvCollections() {
+  const select = document.getElementById('envCollectionSelect');
+  select.innerHTML = '<option value="">Select a collection</option>' + envState.collections.map(c => '<option value="' + String(c.id).replace(/"/g, '&quot;') + '">' + String(c.name).replace(/[<>&"]/g, '') + ' (' + c.variableCount + ')</option>').join('');
+  select.value = envState.selected || '';
+  document.getElementById('envCollectionCount').textContent = String(envState.collections.length);
+}
+async function loadEnvCollections() { try { const data = await envJson('/api/admin/env/collections'); envState.collections = data.collections || []; renderEnvCollections(); if (envState.selected) await loadEnvCollection(envState.selected); } catch (err) { envMessage(err.message, true); } }
+async function loadEnvCollection(id) {
+  if (!id) return;
+  envState.selected = id; envState.planToken = null; renderEnvCollections();
+  try {
+    const data = await envJson('/api/admin/env/collections/' + encodeURIComponent(id)); const collection = data.collection;
+    document.getElementById('envCollectionMeta').textContent = collection.name + ' · ' + collection.variableCount + ' variables · updated ' + (collection.updatedAt ? new Date(collection.updatedAt).toLocaleString() : 'never');
+    document.getElementById('envVariableList').innerHTML = (collection.variables || []).map(v => '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:9px 10px;border:1px solid var(--border);border-radius:10px"><code style="font-size:.75rem;overflow-wrap:anywhere">' + String(v.name).replace(/[<>&"]/g, '') + '</code><span style="font-size:.72rem;color:var(--muted)">' + (v.hasValue ? '••••••••' : '(blank)') + '</span><button type="button" class="cn-close env-delete-var" data-name="' + encodeURIComponent(v.name) + '" style="margin:0;padding:5px 8px">Delete</button></div>').join('') || '<div class="ad-empty">No variables saved yet.</div>';
+  } catch (err) { envMessage(err.message, true); }
+}
+document.getElementById('envCollectionSelect').addEventListener('change', e => loadEnvCollection(e.target.value));
+document.getElementById('envNewCollectionBtn').addEventListener('click', async () => { const name = window.prompt('Collection name'); if (!name) return; try { const data = await envJson('/api/admin/env/collections', { method: 'POST', body: JSON.stringify({ name }) }); envState.selected = data.collection.id; await loadEnvCollections(); envMessage('Collection created.'); } catch (err) { envMessage(err.message, true); } });
+document.getElementById('envUploadBtn').addEventListener('click', async () => { const file = document.getElementById('envUploadFile').files[0]; if (!envState.selected) return envMessage('Select a collection first.', true); if (!file) return envMessage('Choose a .env file first.', true); if (file.size > 2 * 1024 * 1024) return envMessage('The .env file is too large.', true); const mode = document.getElementById('envUploadMode').value; if (mode === 'replace' && !window.confirm('Replace every variable in this collection? This cannot be undone.')) return; try { await envJson('/api/admin/env/collections/' + encodeURIComponent(envState.selected) + '/upload', { method: 'POST', body: JSON.stringify({ content: await file.text(), mode, confirm: mode === 'replace' }) }); await loadEnvCollections(); await loadEnvCollection(envState.selected); envMessage('ENV collection saved.'); } catch (err) { envMessage(err.message, true); } });
+document.getElementById('envManualSaveBtn').addEventListener('click', async () => { if (!envState.selected) return envMessage('Select a collection first.', true); const name = document.getElementById('envManualName').value.trim(); const value = document.getElementById('envManualValue').value; if (!name) return envMessage('Enter a variable name.', true); try { await envJson('/api/admin/env/collections/' + encodeURIComponent(envState.selected), { method: 'PATCH', body: JSON.stringify({ mode: 'merge', variables: { [name]: value } }) }); document.getElementById('envManualName').value = ''; document.getElementById('envManualValue').value = ''; await loadEnvCollections(); await loadEnvCollection(envState.selected); envMessage('Variable saved securely.'); } catch (err) { envMessage(err.message, true); } });
+document.getElementById('envVariableList').addEventListener('click', async e => { const button = e.target.closest('.env-delete-var'); if (!button || !envState.selected) return; const name = decodeURIComponent(button.dataset.name || ''); if (!window.confirm('Delete ' + name + ' from this collection?')) return; try { await envJson('/api/admin/env/collections/' + encodeURIComponent(envState.selected), { method: 'PATCH', body: JSON.stringify({ deleteNames: [name] }) }); await loadEnvCollections(); await loadEnvCollection(envState.selected); envMessage('Variable deleted.'); } catch (err) { envMessage(err.message, true); } });
+document.getElementById('envLoadTargetsBtn').addEventListener('click', async () => { try { const provider = document.getElementById('envProvider').value; const data = await envJson('/api/admin/env/providers/' + provider + '/targets'); const select = document.getElementById('envTargetSelect'); select.innerHTML = '<option value="">Select a target</option>' + (data.targets || []).map(target => '<option value="' + encodeURIComponent(JSON.stringify(target)) + '">' + String(target.name || target.id || 'Target').replace(/[<>&"]/g, '') + '</option>').join(''); envMessage((data.targets || []).length + ' target(s) loaded.'); } catch (err) { envMessage(err.message, true); } });
+document.getElementById('envTargetSelect').addEventListener('change', e => { if (e.target.value) document.getElementById('envTargetJson').value = JSON.stringify(JSON.parse(decodeURIComponent(e.target.value))); });
+document.getElementById('envCompareBtn').addEventListener('click', async () => { if (!envState.selected) return envMessage('Select a collection first.', true); try { const provider = document.getElementById('envProvider').value; const replace = document.getElementById('envReplaceRemote').checked; const data = await envJson('/api/admin/env/collections/' + encodeURIComponent(envState.selected) + '/compare', { method: 'POST', body: JSON.stringify({ provider, target: envTarget(), replace }) }); envState.planToken = data.planToken; const c = data.comparison; document.getElementById('envCompareResult').textContent = 'New: ' + c.additions.length + ' · Changed: ' + c.changes.length + ' · Unchanged: ' + c.unchanged.length + ' · Provider-only: ' + c.removals.length + (replace ? ' · Full replacement selected' : ' · Provider-only variables will be preserved'); document.getElementById('envSyncBtn').style.display = c.totalChanges ? '' : 'none'; envMessage('Comparison complete. Nothing has been changed.'); } catch (err) { envMessage(err.message, true); } });
+document.getElementById('envSyncBtn').addEventListener('click', async () => { if (!envState.planToken) return envMessage('Compare first.', true); if (!window.confirm('Approve this provider synchronization? Production configuration may change.')) return; try { await envJson('/api/admin/env/sync', { method: 'POST', body: JSON.stringify({ planToken: envState.planToken, confirm: true, productionConfirm: true }) }); envState.planToken = null; document.getElementById('envSyncBtn').style.display = 'none'; envMessage('Provider confirmed synchronization.'); await loadEnvCollections(); } catch (err) { envMessage(err.message, true); } });
+loadEnvCollections();
 loadDbUsage();
 
 })();
+</script>
+</body>
+</html>`;
+}
+
+
+export function renderAdminLock(cfg) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+${cfg.devToolsBlock || ""}
+<meta name="viewport" content="width=device-width,initial-scale=1">
+${siteHeadFor("admin")}
+<script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content","#0A0A0F");})();</script>
+<title>Admin J · Face ID</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+${cfg.protectionCSS || ""}
+:root{--accent:#00E0FF;--dark:#0A0A0F;--border:rgba(255,255,255,.1);--text:#F3F3FA;--muted:rgba(255,255,255,.58);--ease:cubic-bezier(.22,1,.36,1)}
+*{box-sizing:border-box}html,body{min-height:100%;margin:0;background:radial-gradient(circle at 50% 0%,rgba(0,224,255,.12),transparent 42%),var(--dark);color:var(--text);font-family:Inter,-apple-system,sans-serif}body{display:grid;place-items:center;padding:24px}.lock-card{width:min(100%,460px);padding:34px 28px;border:1px solid var(--border);border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.025));box-shadow:0 24px 80px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.08);backdrop-filter:blur(24px);text-align:center;animation:rise .7s var(--ease) both}.lock-icon{width:76px;height:76px;margin:0 auto 20px;border-radius:24px;display:grid;place-items:center;border:1px solid rgba(0,224,255,.35);background:rgba(0,224,255,.1);color:var(--accent);font-size:36px;box-shadow:0 0 42px rgba(0,224,255,.16)}h1{font:700 27px/1.1 'Space Grotesk',Inter,sans-serif;margin:0 0 12px}p{margin:0 auto 24px;color:var(--muted);line-height:1.55}.unlock-btn{border:0;border-radius:15px;padding:14px 20px;color:#061016;background:linear-gradient(135deg,#7cf5ff,var(--accent));font:700 15px Inter,sans-serif;cursor:pointer;box-shadow:0 12px 28px rgba(0,224,255,.2);transition:transform .25s var(--ease),filter .25s}.unlock-btn:hover{transform:translateY(-2px);filter:brightness(1.08)}.unlock-btn:disabled{opacity:.55;cursor:wait;transform:none}.status{min-height:22px;margin-top:16px;color:var(--muted);font-size:13px}.status.error{color:#ff8298}@keyframes rise{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<main class="lock-card" aria-labelledby="admin-lock-title">
+  <div class="lock-icon" aria-hidden="true">⌁</div>
+  <h1 id="admin-lock-title">Admin J is locked</h1>
+  <p>Face ID verification is required before this dashboard or its protected controls can be opened.</p>
+  <button class="unlock-btn" id="adminFaceUnlock" type="button">Unlock with Face ID</button>
+  <div class="status" id="adminFaceStatus" role="status" aria-live="polite"></div>
+</main>
+<script nonce="__CSP_NONCE__" type="module">
+import { captureFaceDescriptor, preloadFaceModels } from '/face-scan.js';
+const button=document.getElementById('adminFaceUnlock');
+const status=document.getElementById('adminFaceStatus');
+const setStatus=(text,error=false)=>{status.textContent=text;status.className='status'+(error?' error':'');};
+preloadFaceModels().catch(()=>{});
+button.addEventListener('click',async()=>{
+  button.disabled=true;setStatus('Starting Face ID…');
+  try{
+    await captureFaceDescriptor({requireLiveness:true,showCamera:true,verify:async(descriptor)=>{
+      const response=await fetch('/api/admin/face-unlock',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({descriptor})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Face ID could not unlock Admin J.');
+      return data;
+    }});
+    setStatus('Unlocked. Opening Admin J…');
+    window.location.replace('/admin');
+  }catch(error){setStatus(error?.message||'Face ID could not unlock Admin J. Try again.',true);button.disabled=false;}
+});
 </script>
 </body>
 </html>`;
