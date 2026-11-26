@@ -50,6 +50,8 @@
 @keyframes esIosStatusPulse{0%,100%{opacity:.58;transform:scale(.86)}50%{opacity:1;transform:scale(1)}}\
 @view-transition{navigation:auto;}\
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.24s;animation-timing-function:cubic-bezier(.22,.61,.36,1)}\
+::view-transition-group(es-brand){animation-duration:.34s;animation-timing-function:cubic-bezier(.22,.8,.25,1.08)}\
+::view-transition-old(es-brand),::view-transition-new(es-brand){animation:none;}\
 #esIosScrollProgress{position:fixed;top:0;left:0;width:100%;height:2px;z-index:1001;pointer-events:none;transform:scaleX(0);transform-origin:0 50%;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 12px color-mix(in srgb,var(--accent) 55%,transparent);}\
 .ios-motion-enabled #esIosScrollProgress{animation:esIosScrollGrow linear;animation-timeline:scroll(root block)}\
 .es-ios-pull-refresh{position:fixed;top:max(12px,env(safe-area-inset-top));left:50%;width:68px;height:68px;z-index:1002;display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(155deg,rgba(255,255,255,.18),rgba(255,255,255,.05)),rgba(20,20,28,.68);border:1px solid rgba(255,255,255,.24);box-shadow:0 14px 34px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.24);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);transform:translate(-50%,-150%) scale(.72);opacity:0;pointer-events:none;transition:transform .42s cubic-bezier(.22,.61,.36,1),opacity .22s ease;}\
@@ -416,6 +418,11 @@
   }
 
   initPageOverview();
+
+  // Keep the existing STREAM mark visually continuous when both pages expose it.
+  // Browsers that do not support named view-transition groups simply ignore this.
+  var sharedBrand = document.querySelector('.hm-logo,.mv-logo,.nav-logo');
+  if (sharedBrand) sharedBrand.style.viewTransitionName = 'es-brand';
 
   if (reduceMotion) return;
   document.documentElement.classList.add('ios-motion-enabled');

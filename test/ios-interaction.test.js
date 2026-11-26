@@ -88,6 +88,8 @@ test("dialog transitions are progressive and reduced-motion-aware while page tra
   assert.match(site, /@starting-style/);
   assert.match(site, /@media\(prefers-reduced-motion:reduce\)[\s\S]*?transition:none!important/);
   assert.match(motion, /@view-transition\{navigation:auto;\}/);
+  assert.match(motion, /::view-transition-group\(es-brand\)/);
+  assert.match(motion, /viewTransitionName = 'es-brand'/);
   assert.match(motion, /@media\(prefers-reduced-motion:reduce\)/);
 });
 
