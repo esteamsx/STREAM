@@ -175,6 +175,8 @@ import {
 import {
   issueCode,
   checkCode,
+  authorizeVerifiedOtpAction,
+  sessionSid,
   createUserAccount,
   upsertUserProfile,
   findUserByUsername,
@@ -3539,6 +3541,14 @@ app.post("/api/resend-code", signupLimiter, async (req, res) => {
       }
       return res.json({ ok: true });
     }
+    if (purpose === "password_reset") {
+      const sessionUid = await verifySession(req.cookies?.session, req);
+      if (!sessionUid || String(sessionUid) !== String(uid || "")) return res.status(401).json({ error: "Sign in again to request a new code." });
+      const profile = await getUserProfile(sessionUid, 0);
+      if (!profile?.email || profile.provider === "google" || profile.provider === "telegram" || profile.provider === "github") return res.status(400).json({ error: "Password reset by email isn't available for this account." });
+      await issueCode(sessionUid, profile.email, "password_reset");
+      return res.json({ ok: true });
+    }
     if (purpose !== "delete_account") return res.status(400).json({ error: "Invalid verification request." });
     const sessionUid = await verifySession(req.cookies?.session, req);
     if (!sessionUid || String(sessionUid) !== String(uid || "")) return res.status(401).json({ error: "not_authenticated" });
@@ -3648,6 +3658,20 @@ app.post("/api/card-security/request-otp", requireAuth, requireSiteOrigin, email
   } catch (err) {
     console.error("[card-security] OTP request failed", { code: err?.code || "CARD_SECURITY_OTP_REQUEST_FAILED" });
     res.status(err.status || 400).json({ error: err.userFacing || "Could not send a security code." });
+  }
+});
+
+app.post("/api/card-security/verify-otp", requireAuth, requireSiteOrigin, emailCodeLimiter, async (req, res) => {
+  try {
+    const email = String(req.userProfile?.email || "").trim().toLowerCase();
+    if (!email) return res.status(403).json({ code: "EMAIL_REQUIRED", error: "Add and verify an email address before managing a card." });
+    const result = await checkCode(req.uid, "card_action", req.body?.code);
+    if (!result.ok || String(result.email || "").trim().toLowerCase() !== email) return res.status(400).json({ error: result.reason === "expired" || result.reason === "not_found" ? "Code expired. Request a new one." : "Invalid security code." });
+    await authorizeVerifiedOtpAction(req.uid, "card_action", sessionSid(req.cookies?.session));
+    res.set("Cache-Control", "no-store").json({ ok: true });
+  } catch (err) {
+    console.error("[card-security] OTP confirmation failed", { code: err?.code || "CARD_SECURITY_OTP_CONFIRM_FAILED" });
+    res.status(err.status || 400).json({ error: err.userFacing || "Could not verify this security code." });
   }
 });
 

@@ -110,14 +110,17 @@ test("high-value ALTCHA actions validate, verify email, then consume the proof b
   };
   ordered(channelFlow, "const captchaValid = await verifyCaptcha.verifyOnly", "if (!(await isEmailVerifiedForUser", "if (!(await verifyCaptcha.consumeVerified", "checkAndIncrementDailyLimit");
   ordered(giveawayFlow, "const valid = await verifyCaptcha.verifyOnly", "if (!(await isEmailVerifiedForUser", "if (!(await verifyCaptcha.consumeVerified", "enterGiveaway(req.uid");
-  assert.match(channelViewSource, /ESTEmailVerification\.require\(\{ email: err\.email, onVerified: submit \}\)/);
-  assert.match(giveawayViewSource, /ESTEmailVerification\.require\(\{ email: err\.email, onVerified: submitEntry \}\)/);
+  assert.match(channelViewSource, /ESTEmailVerification\.require\(\{ email: err\.email, purpose: 'protected_action_email' \}\)/);
+  assert.match(giveawayViewSource, /ESTEmailVerification\.require\(\{ email: err\.email, purpose: 'protected_action_email' \}\)/);
+  assert.doesNotMatch(channelViewSource, /onVerified: submit/);
+  assert.doesNotMatch(giveawayViewSource, /onVerified: submitEntry/);
 });
 
 test("card mutations require ALTCHA plus a fresh one-time email OTP", () => {
   for (const routeSource of [rewardsRouterSource, paymentsRouterSource]) {
     assert.match(routeSource, /verifyCaptcha\.verifyOnly\(payload\)/);
-    assert.match(routeSource, /checkCode\(req\.uid, "card_action", req\.body\?\.emailOtp\)/);
+    assert.match(routeSource, /checkCode\(req\.uid, "card_action", req\.body\.emailOtp\)/);
+    assert.match(routeSource, /consumeVerifiedOtpAction\(req\.uid, "card_action"/);
     assert.match(routeSource, /verifyCaptcha\.consumeVerified\(payload\)/);
   }
   assert.match(rewardsRouterSource, /router\.post\("\/api\/rewards\/bank-details"[\s\S]*?verifyCardAction/);
@@ -125,18 +128,15 @@ test("card mutations require ALTCHA plus a fresh one-time email OTP", () => {
   assert.match(paymentsRouterSource, /router\.post\("\/api\/billing\/card\/remove"[\s\S]*?requireSiteOrigin/);
   assert.match(serverSource, /app\.post\("\/api\/card-security\/request-otp"[\s\S]*?issueCode\(req\.uid, email, "card_action"\)/);
   assert.match(authSource, /tx\.delete\(ref\)[\s\S]*?result = \{ ok: true, email: data\.email \}/);
-  assert.match(accountSource, /openFreshCardEmailVerificationOverlay/);
-  assert.match(accountSource, /code === 'EMAIL_REQUIRED'/);
-  assert.match(accountSource, /emailOtp: cardOtp/);
+  assert.match(accountSource, /purpose: 'card_action'/);
+  assert.match(serverSource, /\/api\/card-security\/verify-otp/);
 });
 
-test("card OTP verification surfaces invalid or expired codes in the modal for retry", () => {
-  assert.match(accountSource, /pending\.freshCardOtp && \/security code\|verification code\|code expired\|incorrect code\|invalid code\/i/);
-  assert.match(accountSource, /That code could not be verified\. Request a new one and try again\./);
-  assert.match(accountSource, /Verify code & continue/);
+test("card OTP verification returns users to retry the action with a fresh CAPTCHA", () => {
   assert.match(accountSource, /function runEmailOtpAction/);
-  assert.match(accountSource, /30000, true/);
-  assert.doesNotMatch(accountSource, /ESTEmailVerification\.require/);
+  assert.match(accountSource, /window\.location\.assign\(makeOtpVerifyUrl\(purpose/);
+  assert.match(accountSource, /purpose: 'card_action'/);
+  assert.match(paymentsRouterSource + rewardsRouterSource, /Email verification expired\. Verify again, then retry this action with a fresh anti-bot check\./);
 });
 
 test("Admin J is server-locked behind the current admin's Face ID", () => {

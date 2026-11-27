@@ -245,24 +245,35 @@
 
   window.ESTEmailVerification = {
     require(options = {}) {
-      const { email = '', onVerified, requestCode: requestCodeHandler, confirmCode: confirmCodeHandler, allowAddEmail = false, confirmLabel = 'Verify email & continue' } = options;
-      if (active) return Promise.reject(new Error('Email verification is already open.'));
-      ensureShell();
-      shell.querySelectorAll('.es-verify-digits input').forEach((input) => { input.value = ''; });
-      shell.querySelector('#esVerifyIntro').textContent = email ? `Confirm ownership of ${email} to continue.` : 'Confirm that you own the email on your account to continue.';
-      shell.querySelector('#esVerifyAddLink').style.display = 'none';
-      shell.querySelector('#esVerifyConfirm').disabled = false;
-      shell.querySelector('#esVerifyConfirm').textContent = confirmLabel;
-      shell.querySelector('#esVerifyEmailEntry').classList.remove('show');
-      shell.querySelector('#esVerifyEmailInput').value = '';
-      shell.querySelector('.es-verify-digits').style.display = 'flex';
-      shell.querySelector('#esVerifyConfirm').style.display = 'block';
-      shell.querySelector('#esVerifyResend').style.display = 'block';
-      setMessage('');
-      shell.classList.add('show');
-      return new Promise((resolve, reject) => {
-        active = { resolve, reject, onVerified, requestCode: requestCodeHandler, confirmCode: confirmCodeHandler, allowAddEmail, confirmLabel };
-        requestCode();
+      // Login's new-device OTP (and optional email enrollment) remains on its existing overlay.
+      if (options.allowAddEmail || options.requestCode || options.confirmCode) {
+        const { email = '', onVerified, requestCode: requestCodeHandler, confirmCode: confirmCodeHandler, allowAddEmail = false, confirmLabel = 'Verify email & continue' } = options;
+        if (active) return Promise.reject(new Error('Email verification is already open.'));
+        ensureShell();
+        shell.querySelectorAll('.es-verify-digits input').forEach((input) => { input.value = ''; });
+        shell.querySelector('#esVerifyIntro').textContent = email ? `Confirm ownership of ${email} to continue.` : 'Confirm that you own the email on your account to continue.';
+        shell.querySelector('#esVerifyAddLink').style.display = 'none';
+        shell.querySelector('#esVerifyConfirm').disabled = false;
+        shell.querySelector('#esVerifyConfirm').textContent = confirmLabel;
+        shell.querySelector('#esVerifyEmailEntry').classList.remove('show');
+        shell.querySelector('#esVerifyEmailInput').value = '';
+        shell.querySelector('.es-verify-digits').style.display = 'flex';
+        shell.querySelector('#esVerifyConfirm').style.display = 'block';
+        shell.querySelector('#esVerifyResend').style.display = 'block';
+        setMessage('');
+        shell.classList.add('show');
+        return new Promise((resolve, reject) => {
+          active = { resolve, reject, onVerified, requestCode: requestCodeHandler, confirmCode: confirmCodeHandler, allowAddEmail, confirmLabel };
+          requestCode();
+        });
+      }
+      const purpose = ['protected_action_email', 'trust_device_add'].includes(options.purpose) ? options.purpose : 'protected_action_email';
+      return fetch('/api/profile', { credentials: 'same-origin' }).then(async (response) => {
+        const profile = await response.json().catch(() => ({}));
+        if (!response.ok || !profile.uid) throw new Error(profile.error || 'Sign in again to verify your email.');
+        const params = new URLSearchParams({ uid: profile.uid, email: profile.email || options.email || '', purpose, returnTo: window.location.pathname + window.location.search + window.location.hash });
+        window.location.assign('/verify?' + params.toString());
+        return new Promise(() => {});
       });
     },
   };

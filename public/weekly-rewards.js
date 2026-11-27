@@ -500,34 +500,8 @@
         var message = error && error.message ? error.message : "The reward could not be claimed.";
         if (error && error.code === "EMAIL_VERIFICATION_REQUIRED") {
           status.className = "es-weekly-status is-error";
-          status.textContent = "Verify your account email before claiming this reward.";
-          if (typeof window.openEmailVerificationOverlay === "function") window.openEmailVerificationOverlay(error.email, function () {
-            claimBusy = true;
-            claimButton.disabled = true;
-            status.className = "es-weekly-status";
-            status.textContent = "Email verified. Continuing your reward claim…";
-            return requestJson("/api/rewards/weekly-activity/claim", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ altcha: weeklyCaptchaPayload }),
-            }).then(function (result) {
-              if (result.summary) render(result.summary);
-              else loadSummary();
-              window.dispatchEvent(new CustomEvent("es:coin-balance-updated", { detail: { coinBalance: result.coinBalance, added: result.coinsAwarded } }));
-              status.className = "es-weekly-status is-success";
-              status.textContent = "10 coins added to your account balance.";
-              resetWeeklyCaptcha(true);
-              return result;
-            }).catch(function (retryError) {
-              resetWeeklyCaptcha(true);
-              status.className = "es-weekly-status is-error";
-              status.textContent = retryError && retryError.message ? retryError.message : "The reward could not be claimed.";
-              throw retryError;
-            }).finally(function () {
-              claimBusy = false;
-              syncClaimButton();
-            });
-          }).catch(function () {});
+          status.textContent = "Verify your account email, return here, then re-enter the claim with a fresh anti-bot check.";
+          if (typeof window.openEmailVerificationOverlay === "function") window.openEmailVerificationOverlay(error.email).catch(function () {});
           else window.location.href = "/account#verifyEmail";
           return;
         }

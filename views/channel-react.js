@@ -862,7 +862,8 @@ body:has(.cr-premium-overlay.show){overflow:hidden}
         res = await submit();
       } catch (err) {
         if (err.code !== 'EMAIL_VERIFICATION_REQUIRED' || !window.ESTEmailVerification) throw err;
-        res = await window.ESTEmailVerification.require({ email: err.email, onVerified: submit });
+        await window.ESTEmailVerification.require({ email: err.email, purpose: 'protected_action_email' });
+        return;
       }
       const n = Number(res.sent || 0).toLocaleString();
       setMsg(vote

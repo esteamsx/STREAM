@@ -9,6 +9,7 @@ const mailer = fs.readFileSync(`${root}/services/mailer.js`, "utf8");
 const server = fs.readFileSync(`${root}/server.js`, "utf8");
 const account = fs.readFileSync(`${root}/views/account.js`, "utf8");
 const siteUi = fs.readFileSync(`${root}/public/site-ui.js`, "utf8");
+const verify = fs.readFileSync(`${root}/views/verify.js`, "utf8");
 
 test("trusted-device removal cannot bypass email OTP", () => {
   assert.match(routes, /remove\/request/);
@@ -31,12 +32,11 @@ test("trusting or untrusting the current device requires an email OTP", () => {
   assert.match(routes, /\/api\/devices\/trust\/confirm[\s\S]*?checkCode\(req\.uid, trusted \? "trust_device_add" : "trust_device_remove", req\.body\?\.code\)/);
   assert.match(routes, /\/api\/devices\/trust", requireAuth[\s\S]*?status\(410\)[\s\S]*?OTP_REQUIRED/);
   assert.match(account, /\/api\/devices\/trust\/request/);
-  assert.match(account, /\/api\/devices\/trust\/confirm/);
-  assert.match(account, /Verify & trust device/);
-  assert.match(account, /Verify & remove trust/);
+  assert.match(account, /purpose: trusted \? 'trust_device_add' : 'trust_device_remove'/);
+  assert.match(verify, /trust_device_add:[\s\S]*?\/api\/devices\/trust\/confirm/);
+  assert.match(verify, /trust_device_remove:[\s\S]*?\/api\/devices\/trust\/confirm/);
   assert.match(account, /function runEmailOtpAction/);
-  assert.match(account, /pendingEmailVerificationAction = \{ \.\.\.pending \}/);
   assert.doesNotMatch(account, /ESTEmailVerification\.require/);
-  assert.match(siteUi, /\/api\/devices\/trust\/request/);
+  assert.match(siteUi, /purpose: "trust_device_add"/);
   assert.match(siteUi, /window\.ESTEmailVerification\.require/);
 });

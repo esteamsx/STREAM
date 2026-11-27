@@ -37,7 +37,10 @@ devicesRouter.get("/api/devices/prompt", requireAuth, async (req, res) => {
     res.json({ prompt: false });
   }
 });
-
+devicesRouter.get("/api/devices/trust/face-required", requireAuth, async (req, res) => {
+  try { res.set("Cache-Control", "no-store").json({ required: await userHasFaceId(req.uid) }); }
+  catch { res.status(503).json({ error: "Could not check Face ID requirements." }); }
+});
 devicesRouter.post("/api/devices/trust/request", requireAuth, requireSiteOrigin, deviceOtpLimiter, async (req, res) => {
   try {
     const sid = sessionSid(req.cookies?.session);

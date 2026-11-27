@@ -271,6 +271,98 @@ document.getElementById('codeForm').addEventListener('submit', async (e) => {
     vSubmit.textContent = 'Verify';
   }
 });
+
+// Non-login email OTP flows use this page; login/device-login OTPs remain on /login.
+const flowConfig = {
+  protected_action_email: { title: 'Verify your email', note: 'Confirm your registered email before continuing.', request: ['/api/email-verification/request', {}], confirm: ['/api/email-verification/confirm', (code) => ({ code })], resend: ['/api/email-verification/request', {}] },
+  add_email: { title: 'Verify your new email', note: 'Your address is updated only after this code is confirmed.', request: ['/api/account/request-email', { email }], confirm: ['/api/account/confirm-email', (code) => ({ code })], resend: ['/api/account/request-email', { email }] },
+  delete_account: { title: 'Confirm account deletion', note: 'This code confirms your request to delete your account.', confirm: ['/api/confirm-account-deletion', (code) => ({ code })], resend: ['/api/resend-code', { uid, purpose }] },
+  card_action: { title: 'Verify this security action', note: 'After verification, return and re-enter the action with a fresh anti-bot check.', request: ['/api/card-security/request-otp', {}], confirm: ['/api/card-security/verify-otp', (code) => ({ code })], resend: ['/api/card-security/request-otp', {}] },
+  trust_device_add: { title: 'Trust this device', note: 'Confirm the device change. Face ID may also be required.', request: ['/api/devices/trust/request', { trusted: true }], confirm: ['/api/devices/trust/confirm', (code, faceDescriptor) => ({ code, trusted: true, faceDescriptor })], resend: ['/api/devices/trust/request', { trusted: true }] },
+  trust_device_remove: { title: 'Update trusted devices', note: 'Confirm that this device should no longer be trusted.', request: ['/api/devices/trust/request', { trusted: false }], confirm: ['/api/devices/trust/confirm', (code) => ({ code, trusted: false })], resend: ['/api/devices/trust/request', { trusted: false }] },
+  remove_trusted_devices: { title: 'Remove trusted devices', note: 'Confirm removal of the selected trusted devices.', request: ['/api/devices/trusted-group/remove/request', { deviceIds: (params.get('deviceIds') || '').split(',').filter(Boolean) }], confirm: ['/api/devices/trusted-group/remove/confirm', (code) => ({ code, deviceIds: (params.get('deviceIds') || '').split(',').filter(Boolean) })], resend: ['/api/devices/trusted-group/remove/request', { deviceIds: (params.get('deviceIds') || '').split(',').filter(Boolean) }] },
+  password_reset: { title: 'Verify your password change', note: 'Use the code sent to your account email.', confirm: ['/api/verify-email', (code) => ({ uid, code, purpose })], resend: ['/api/resend-code', { uid, purpose }] },
+};
+const flow = flowConfig[purpose];
+if (flow) {
+  const safeReturnTo = (() => {
+    const value = params.get('returnTo') || '/account';
+    return value.startsWith('/') && !value.startsWith('//') && !value.includes('\\') ? value : '/account';
+  })();
+  document.querySelector('.v-title').textContent = flow.title;
+  const sub = document.querySelector('.v-sub');
+  sub.innerHTML = '';
+  const note = document.createElement('span');
+  note.textContent = purpose === 'delete_account' && params.get('via') === 'telegram' ? 'Check Telegram for your account-deletion code.' : flow.note;
+  sub.appendChild(note);
+  if (email) {
+    sub.appendChild(document.createElement('br'));
+    const label = document.createElement('b');
+    label.textContent = email;
+    sub.appendChild(label);
+  }
+  document.title = flow.title + ' | ES TEAMS TV';
+  const showSuccess = (msg) => {
+    errorBox.textContent = msg;
+    errorBox.classList.add('show');
+    errorBox.style.color = 'var(--accent)';
+    errorBox.style.borderColor = 'rgba(0,224,255,.35)';
+    errorBox.style.background = 'rgba(0,224,255,.08)';
+  };
+  const requestCode = async (route) => {
+    const [url, body] = route;
+    const data = await postJSON(url, body);
+    if (data.alreadyVerified) {
+      showSuccess('Your email is already verified. Returning you now…');
+      setTimeout(() => { window.location.assign(safeReturnTo); }, 900);
+      return false;
+    }
+    return true;
+  };
+  if (flow.request && params.get('sent') !== '1') {
+    requestCode(flow.request).catch((err) => showError(err.message));
+  }
+  resendBtn.addEventListener('click', async (e) => {
+    e.preventDefault(); e.stopImmediatePropagation();
+    clearError(); resendBtn.disabled = true;
+    try {
+      const canContinue = await requestCode(flow.resend);
+      if (!canContinue) return;
+      secondsLeft = 300; timerWrap.classList.remove('expired'); vSubmit.disabled = false;
+      resendWait = 30; resendBtn.textContent = 'Resend code (30s)';
+      const retry = setInterval(() => { resendWait--; if (resendWait <= 0) { clearInterval(retry); resendBtn.disabled = false; resendBtn.textContent = 'Resend code'; } else resendBtn.textContent = 'Resend code (' + resendWait + 's)'; }, 1000);
+    } catch (err) { showError(err.message); resendBtn.disabled = false; }
+  }, true);
+  document.getElementById('codeForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); e.stopImmediatePropagation(); clearError();
+    const code = digits.map((d) => d.value).join('');
+    if (code.length !== 6) { showError('Enter all 6 digits.'); return; }
+    vSubmit.disabled = true; vSubmit.textContent = 'Verifying…';
+    try {
+      let body = flow.confirm[1](code);
+      if (purpose === 'trust_device_add') {
+        const statusResponse = await fetch('/api/devices/trust/face-required', { credentials: 'same-origin' });
+        const faceStatus = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok) throw new Error(faceStatus.error || 'Could not check Face ID requirements.');
+        if (faceStatus.required) {
+          const face = await import('/face-scan.js');
+          const capture = await face.captureFaceDescriptor({ returnSamples: true });
+          body.faceDescriptor = capture.samples?.length ? capture.samples.map((v) => ({ v })) : capture.descriptor;
+        }
+      }
+      const result = await postJSON(flow.confirm[0], body);
+      if (purpose === 'password_reset') {
+        window.location.assign('/account?resetToken=' + encodeURIComponent(result.resetToken));
+      } else if (purpose === 'delete_account') {
+        showSuccess('Account deletion confirmed. Returning to sign in…');
+        setTimeout(() => window.location.assign('/login?deleted=1'), 900);
+      } else {
+        showSuccess(purpose === 'card_action' ? 'Security code confirmed. Return and re-enter the action with a fresh anti-bot check.' : 'Verification complete. Returning to the original page…');
+        setTimeout(() => window.location.assign(safeReturnTo), 1300);
+      }
+    } catch (err) { showError(err.message); vSubmit.disabled = false; vSubmit.textContent = 'Verify'; }
+  }, true);
+}
 </script>
 </body>
 </html>`;

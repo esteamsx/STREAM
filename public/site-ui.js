@@ -809,9 +809,7 @@ function esMaybeTrustPrompt() {
         try {
           await esEnsureEmailVerification();
           await window.ESTEmailVerification.require({
-            confirmLabel: "Verify & trust device",
-            requestCode: () => esTrustOtpPost("/api/devices/trust/request", { trusted: true }),
-            confirmCode: (code) => esTrustOtpPost("/api/devices/trust/confirm", { trusted: true, code })
+            purpose: "trust_device_add"
           });
           ov.remove();
         } catch (error) {

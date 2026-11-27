@@ -180,6 +180,29 @@ async function checkCode(uid, purpose, code) {
   return result;
 }
 
+async function authorizeVerifiedOtpAction(uid, purpose, sid) {
+  if (!uid || !purpose || !sid) throw new Error("A valid signed-in session is required.");
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  await db.collection("verified_otp_actions").doc(`${uid}_${purpose}`).set({ uid, purpose, sid, expiresAt });
+}
+
+async function consumeVerifiedOtpAction(uid, purpose, sid) {
+  if (!uid || !purpose || !sid) return false;
+  const ref = db.collection("verified_otp_actions").doc(`${uid}_${purpose}`);
+  const now = Date.now();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const data = snap.data() || {};
+    if (data.uid !== uid || data.purpose !== purpose || data.sid !== sid || Number(data.expiresAt || 0) <= now) {
+      tx.delete(ref);
+      return false;
+    }
+    tx.delete(ref);
+    return true;
+  });
+}
+
 async function createUserAccount({ firstName, lastName, email, password, username }) {
   const userRecord = await auth.createUser({
     email,
@@ -6634,6 +6657,8 @@ export {
 export {
   issueCode,
   checkCode,
+  authorizeVerifiedOtpAction,
+  consumeVerifiedOtpAction,
   createUserAccount,
   upsertUserProfile,
   findUserByUsername,

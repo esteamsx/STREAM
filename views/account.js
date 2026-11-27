@@ -2458,39 +2458,26 @@ async function resumePendingEmailVerificationAction() {
   return true;
 }
 
-async function openEmailVerificationOverlay(maskedEmail, resumeAction) {
-  if (typeof resumeAction === 'function' && !pendingEmailVerificationAction) pendingEmailVerificationAction = { resume: resumeAction };
-  if (emailVerificationOpening) return;
-  emailVerificationOpening = true;
-  try {
-    if (!profile?.email) {
-      document.getElementById('addEmailInputMsg').textContent = 'Add an email address before using this account action.';
-      document.getElementById('addEmailOverlay').classList.add('show');
-      return;
-    }
-    document.getElementById('emailVerificationIntro').textContent = 'Confirm that you own ' + (maskedEmail || 'the email address on your account') + ' to continue.';
-    emailVerificationDigits.forEach((digit) => { digit.value = ''; });
-    emailVerificationOverlay.classList.add('show');
-    setEmailVerificationMessage('Sending a one-time code…', false);
-    const result = await postJSON('/api/email-verification/request', {});
-    if (result.alreadyVerified) {
-      profile.emailVerified = true;
-      if (!(await resumePendingEmailVerificationAction())) {
-        emailVerificationOverlay.classList.remove('show');
-        showToast('Your email is already verified.');
-      }
-      return;
-    }
-    document.getElementById('emailVerificationIntro').textContent = 'We sent a 6-digit code to ' + (result.email || maskedEmail || 'your account email') + '. It expires in 5 minutes.';
-    setEmailVerificationMessage('Enter the code to continue. Complete a fresh anti-bot check after verification.', false);
-    startEmailVerificationResendCooldown(result.resendInSeconds || 30);
-    emailVerificationDigits[0]?.focus();
-  } catch (err) {
-    setEmailVerificationMessage(err.message || 'Could not send a verification code.', true);
-    emailVerificationResend.disabled = false;
-  } finally {
-    emailVerificationOpening = false;
+function currentOtpReturnPath(){ return window.location.pathname + window.location.search + window.location.hash; }
+function makeOtpVerifyUrl(purpose, extras = {}){
+  const params = new URLSearchParams({ uid: profile?.uid || '', email: extras.email || profile?.email || '', purpose, returnTo: extras.returnTo || currentOtpReturnPath(), sent: extras.sent === false ? '0' : '1' });
+  for (const [key, value] of Object.entries(extras)) if (!['email','returnTo','sent'].includes(key) && value != null) params.set(key, String(value));
+  return '/verify?' + params.toString();
+}
+async function openEmailVerificationOverlay(){
+  if (!profile?.email) {
+    document.getElementById('addEmailInputMsg').textContent = 'Add an email address before using this account action.';
+    document.getElementById('addEmailOverlay').classList.add('show');
+    return;
   }
+  const result = await postJSON('/api/email-verification/request', {});
+  if (result.alreadyVerified) {
+    profile.emailVerified = true;
+    window.location.reload();
+    return new Promise(() => {});
+  }
+  window.location.assign(makeOtpVerifyUrl('protected_action_email', { email: profile.email }));
+  return new Promise(() => {});
 }
 window.openEmailVerificationOverlay = openEmailVerificationOverlay;
 
@@ -2531,29 +2518,17 @@ async function openFreshCardEmailVerificationOverlay(maskedEmail, resumeAction) 
   }
 }
 
-function runEmailOtpAction({ requestCode, confirmCode, confirmLabel = 'Verify code & continue' }) {
-  return new Promise((resolve, reject) => {
-    if (pendingEmailVerificationAction || emailVerificationOpening) return reject(new Error('Finish the current email verification first.'));
-    pendingEmailVerificationAction = {
-      freshCardOtp: true,
-      requestCode,
-      confirmLabel,
-      resume: confirmCode,
-      resolve,
-      reject,
-    };
-    openFreshCardEmailVerificationOverlay('', pendingEmailVerificationAction.resume).catch((err) => {
-      const pending = pendingEmailVerificationAction;
-      pendingEmailVerificationAction = null;
-      pending?.reject?.(err);
-    });
-  });
+async function runEmailOtpAction({ purpose = 'card_action', requestCode, extras = {} }) {
+  if (pendingEmailVerificationAction || emailVerificationOpening) throw new Error('Finish the current email verification first.');
+  await requestCode();
+  window.location.assign(makeOtpVerifyUrl(purpose, { ...extras, email: profile?.email || '' }));
+  return new Promise(() => {});
 }
 
 function runCardActionWithEmailOtp(url, body) {
   return runEmailOtpAction({
+    purpose: 'card_action',
     requestCode: () => postJSON('/api/card-security/request-otp', {}),
-    confirmCode: (cardOtp) => postJSON(url, { ...(body || {}), emailOtp: cardOtp }, 30000, true),
   });
 }
 
@@ -2645,20 +2620,7 @@ async function postJSON(url, body, timeoutMs, retryAfterVerification){
     if (error.code === 'EMAIL_VERIFICATION_REQUIRED') {
       if (retryAfterVerification) throw error;
       if (pendingEmailVerificationAction) throw new Error('Finish the current email verification first.');
-      return new Promise((resolve, reject) => {
-        pendingEmailVerificationAction = {
-          url,
-          body: JSON.parse(JSON.stringify(body || {})),
-          timeoutMs,
-          resolve,
-          reject,
-        };
-        openEmailVerificationOverlay(data.email).catch((openError) => {
-          const pending = pendingEmailVerificationAction;
-          pendingEmailVerificationAction = null;
-          pending?.reject?.(openError);
-        });
-      });
+      return openEmailVerificationOverlay(data.email).then(() => new Promise(() => {}));
     }
     if (/captcha|anti-bot check/i.test(error.message)) resetAccountAltchaWidgets();
     throw error;
@@ -3714,7 +3676,7 @@ document.getElementById('startPwChange').addEventListener('click', async () => {
   btn.innerHTML = '<span class="btn-spinner"></span>Sending code…';
   try {
     await postJSON('/api/request-password-change');
-    window.location.href = '/verify?uid=' + encodeURIComponent(profile.uid) + '&email=' + encodeURIComponent(profile.email) + '&purpose=password_reset';
+    window.location.href = makeOtpVerifyUrl('password_reset', { email: profile.email });
   } catch (err) {
     flashMsg(document.getElementById('pwMsg'), err.message, false);
     btn.disabled = false;
@@ -3884,14 +3846,8 @@ document.getElementById('deleteContinueBtn').addEventListener('click', async () 
   btn.innerHTML = '<span class="btn-spinner btn-spinner-light" style="border-top-color:var(--red)"></span>Sending code…';
   try {
     const result = await postJSON('/api/request-account-deletion', { altcha: deleteCaptchaValue });
-    document.getElementById('deleteEmailLabel').textContent = result.via === 'telegram' ? 'your Telegram' : profile.email;
-    document.getElementById('deleteCodeIntro').textContent = result.via === 'telegram'
-      ? 'We sent a 6-digit code via Telegram to'
-      : 'We sent a 6-digit code to';
-    deleteStepCaptcha.classList.remove('active');
-    deleteStepCode.classList.add('active');
-    startDeleteTimer();
-    startDeleteResendCooldown();
+    window.location.assign(makeOtpVerifyUrl('delete_account', { via: result.via, email: result.via === 'telegram' ? '' : profile.email }));
+    return;
   } catch (err) {
     flashMsg(msg, err.message, false);
     btn.disabled = false;
@@ -4038,10 +3994,8 @@ document.getElementById('addEmailSendBtn').addEventListener('click', async () =>
   btn.innerHTML = '<span class="btn-spinner"></span>Sending code…';
   try {
     await postJSON('/api/account/request-email', { email });
-    document.getElementById('addEmailCodeTarget').textContent = email;
-    addEmailStepInput.classList.remove('active');
-    addEmailStepCode.classList.add('active');
-    startAddEmailResendCooldown();
+    window.location.assign(makeOtpVerifyUrl('add_email', { email }));
+    return;
   } catch (err) {
     flashMsg(msg, err.message, false);
   }
@@ -4497,9 +4451,8 @@ async function loadDevices(){
         try {
           const trusted = !c.trusted;
           await runEmailOtpAction({
-            confirmLabel: trusted ? 'Verify & trust device' : 'Verify & remove trust',
+            purpose: trusted ? 'trust_device_add' : 'trust_device_remove',
             requestCode: () => postJSON('/api/devices/trust/request', { trusted }),
-            confirmCode: (code) => postJSON('/api/devices/trust/confirm', { trusted, code }, 30000, true)
           });
           flashMsg(document.getElementById('devicesMsg'), c.trusted ? 'This device is no longer trusted.' : 'This device is now trusted.', true);
           loadDevices();
@@ -4533,9 +4486,9 @@ async function loadDevices(){
           btn.disabled = true;
           try {
             await runEmailOtpAction({
-              confirmLabel: 'Verify & remove trust',
+              purpose: 'remove_trusted_devices',
+              extras: { deviceIds: deviceIds.join(',') },
               requestCode: () => postJSON('/api/devices/trusted-group/remove/request', { deviceIds }),
-              confirmCode: (code) => postJSON('/api/devices/trusted-group/remove/confirm', { deviceIds, code }, 30000, true)
             });
             await loadDevices();
           } catch (err) {

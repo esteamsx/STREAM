@@ -39,6 +39,8 @@ import {
   getWeeklyActivitySummary,
   claimWeeklyActivity,
   checkCode,
+  consumeVerifiedOtpAction,
+  sessionSid,
 } from "../services/auth.js";
 import { findBankCode, resolveAccountNumber } from "../services/paystack.js";
 import { SimpleRateLimiter, requireSiteOrigin } from "../middleware/security-middleware.js";
@@ -90,14 +92,20 @@ async function verifyCardAction(req, res) {
     res.status(403).json({ code: "EMAIL_REQUIRED", error: "Add and verify an email address before managing a card." });
     return false;
   }
-  const result = await checkCode(req.uid, "card_action", req.body?.emailOtp);
-  if (!result.ok || String(result.email || "").trim().toLowerCase() !== email) {
-    const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "Code expired. Request a new one." };
-    res.status(400).json({ error: messages[result.reason] || "Invalid security code." });
-    return false;
+  if (req.body?.emailOtp) {
+    const result = await checkCode(req.uid, "card_action", req.body.emailOtp);
+    if (!result.ok || String(result.email || "").trim().toLowerCase() !== email) {
+      const messages = { expired: "Code expired. Request a new one.", mismatch: "Incorrect code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "Code expired. Request a new one." };
+      res.status(400).json({ error: messages[result.reason] || "Invalid security code." });
+      return false;
+    }
   }
   if (!(await verifyCaptcha.consumeVerified(payload))) {
     res.status(400).json({ error: "This anti-bot check has expired or was already used. Complete it again." });
+    return false;
+  }
+  if (!req.body?.emailOtp && !(await consumeVerifiedOtpAction(req.uid, "card_action", sessionSid(req.cookies?.session)))) {
+    res.status(400).json({ error: "Email verification expired. Verify again, then retry this action with a fresh anti-bot check." });
     return false;
   }
   return true;

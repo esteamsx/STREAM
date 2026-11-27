@@ -436,7 +436,8 @@ async function onEnter(){
       await submitEntry();
     } catch (err) {
       if (err.code !== 'EMAIL_VERIFICATION_REQUIRED' || !window.ESTEmailVerification) throw err;
-      await window.ESTEmailVerification.require({ email: err.email, onVerified: submitEntry });
+      await window.ESTEmailVerification.require({ email: err.email, purpose: 'protected_action_email' });
+      return;
     }
     status.entered = true;
     showEntered();
