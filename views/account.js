@@ -13,7 +13,6 @@ ${siteHeadFor("account")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <script nonce="__CSP_NONCE__" src="/push-client.js" defer></script>
-<script nonce="__CSP_NONCE__" src="/email-verification.js" defer></script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2509,10 +2508,12 @@ async function openFreshCardEmailVerificationOverlay(maskedEmail, resumeAction) 
     }
     document.getElementById('emailVerificationIntro').textContent = 'Confirm that you own ' + (maskedEmail || 'the email address on your account') + ' to continue.';
     emailVerificationDigits.forEach((digit) => { digit.value = ''; });
-    emailVerificationConfirm.textContent = 'Verify code & continue';
+    emailVerificationConfirm.textContent = pendingEmailVerificationAction?.confirmLabel || 'Verify code & continue';
     emailVerificationOverlay.classList.add('show');
     setEmailVerificationMessage('Sending a one-time security code…', false);
-    const result = await postJSON('/api/card-security/request-otp', {});
+    const result = pendingEmailVerificationAction?.requestCode
+      ? await pendingEmailVerificationAction.requestCode()
+      : await postJSON('/api/card-security/request-otp', {});
     document.getElementById('emailVerificationIntro').textContent = 'We sent a 6-digit code to ' + (result.email || maskedEmail || 'your account email') + '. It expires in 5 minutes.';
     setEmailVerificationMessage('Enter the code to continue.', false);
     startEmailVerificationResendCooldown(result.resendInSeconds || 30);
@@ -2530,12 +2531,14 @@ async function openFreshCardEmailVerificationOverlay(maskedEmail, resumeAction) 
   }
 }
 
-function runCardActionWithEmailOtp(url, body) {
+function runEmailOtpAction({ requestCode, confirmCode, confirmLabel = 'Verify code & continue' }) {
   return new Promise((resolve, reject) => {
-    if (pendingEmailVerificationAction) return reject(new Error('Finish the current email verification first.'));
+    if (pendingEmailVerificationAction || emailVerificationOpening) return reject(new Error('Finish the current email verification first.'));
     pendingEmailVerificationAction = {
       freshCardOtp: true,
-      resume: (cardOtp) => postJSON(url, { ...(body || {}), emailOtp: cardOtp }, 12000, true),
+      requestCode,
+      confirmLabel,
+      resume: confirmCode,
       resolve,
       reject,
     };
@@ -2544,6 +2547,13 @@ function runCardActionWithEmailOtp(url, body) {
       pendingEmailVerificationAction = null;
       pending?.reject?.(err);
     });
+  });
+}
+
+function runCardActionWithEmailOtp(url, body) {
+  return runEmailOtpAction({
+    requestCode: () => postJSON('/api/card-security/request-otp', {}),
+    confirmCode: (cardOtp) => postJSON(url, { ...(body || {}), emailOtp: cardOtp }, 30000, true),
   });
 }
 
@@ -2596,7 +2606,9 @@ emailVerificationResend.addEventListener('click', async () => {
   emailVerificationResend.disabled = true;
   setEmailVerificationMessage('Sending a new code…', false);
   try {
-    const result = await postJSON(pendingEmailVerificationAction?.freshCardOtp ? '/api/card-security/request-otp' : '/api/email-verification/request', {});
+    const result = pendingEmailVerificationAction?.freshCardOtp
+      ? await (pendingEmailVerificationAction.requestCode ? pendingEmailVerificationAction.requestCode() : postJSON('/api/card-security/request-otp', {}))
+      : await postJSON('/api/email-verification/request', {});
     document.getElementById('emailVerificationIntro').textContent = 'We sent a 6-digit code to ' + (result.email || 'your account email') + '. It expires in 5 minutes.';
     setEmailVerificationMessage('Enter the new code to continue.', false);
     startEmailVerificationResendCooldown(result.resendInSeconds || 30);
@@ -4106,7 +4118,7 @@ document.getElementById('addEmailConfirmBtn').addEventListener('click', async ()
     if (pendingEmailVerificationAction?.freshCardOtp) {
       const pending = pendingEmailVerificationAction;
       pendingEmailVerificationAction = null;
-      pendingEmailVerificationAction = { freshCardOtp: true, resume: pending.resume, resolve: pending.resolve, reject: pending.reject };
+      pendingEmailVerificationAction = { ...pending };
       await openFreshCardEmailVerificationOverlay('', pending.resume);
     } else if (pendingEmailVerificationAction) {
       await resumePendingEmailVerificationAction();
@@ -4484,11 +4496,10 @@ async function loadDevices(){
         btn.disabled = true;
         try {
           const trusted = !c.trusted;
-          await ESTEmailVerification.require({
-            email: profile?.email || '',
+          await runEmailOtpAction({
             confirmLabel: trusted ? 'Verify & trust device' : 'Verify & remove trust',
             requestCode: () => postJSON('/api/devices/trust/request', { trusted }),
-            confirmCode: (code) => postJSON('/api/devices/trust/confirm', { trusted, code })
+            confirmCode: (code) => postJSON('/api/devices/trust/confirm', { trusted, code }, 30000, true)
           });
           flashMsg(document.getElementById('devicesMsg'), c.trusted ? 'This device is no longer trusted.' : 'This device is now trusted.', true);
           loadDevices();
@@ -4521,11 +4532,10 @@ async function loadDevices(){
           if (!ok) return;
           btn.disabled = true;
           try {
-            await ESTEmailVerification.require({
-              email: profile?.email || '',
+            await runEmailOtpAction({
               confirmLabel: 'Verify & remove trust',
               requestCode: () => postJSON('/api/devices/trusted-group/remove/request', { deviceIds }),
-              confirmCode: (code) => postJSON('/api/devices/trusted-group/remove/confirm', { deviceIds, code })
+              confirmCode: (code) => postJSON('/api/devices/trusted-group/remove/confirm', { deviceIds, code }, 30000, true)
             });
             await loadDevices();
           } catch (err) {
@@ -6771,7 +6781,8 @@ document.getElementById('rwSaveBankBtn').addEventListener('click', async () => {
   try {
     await runCardActionWithEmailOtp('/api/rewards/bank-details', { bankName, accountNumber, accountName, altcha: bankAddCaptchaValue });
     flashMsg(msg, 'Bank details saved.', true);
-    loadRewardsSummary();
+    await loadRewardsSummary();
+    showToast('Bank details saved successfully.');
   } catch (err) {
     flashMsg(msg, err.message, false);
     btn.innerHTML = originalHtml;
@@ -6860,8 +6871,11 @@ document.getElementById('rwBankDeleteConfirmBtn').addEventListener('click', asyn
   btn.innerHTML = '<span class="btn-spinner btn-spinner-light"></span>Deleting…';
   try {
     await runCardActionWithEmailOtp('/api/rewards/bank-details/delete', { altcha: bankDeleteCaptchaValue });
+    if (rewardsSummary) rewardsSummary.bankDetails = null;
+    renderBankCard();
     rwBankDeleteOverlay.classList.remove('show');
-    loadRewardsSummary();
+    await loadRewardsSummary();
+    showToast('Saved bank card removed successfully.');
   } catch (err) {
     flashMsg(msg, err.message, false);
     btn.disabled = false;

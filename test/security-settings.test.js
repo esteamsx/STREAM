@@ -34,6 +34,9 @@ test("trusting or untrusting the current device requires an email OTP", () => {
   assert.match(account, /\/api\/devices\/trust\/confirm/);
   assert.match(account, /Verify & trust device/);
   assert.match(account, /Verify & remove trust/);
+  assert.match(account, /function runEmailOtpAction/);
+  assert.match(account, /pendingEmailVerificationAction = \{ \.\.\.pending \}/);
+  assert.doesNotMatch(account, /ESTEmailVerification\.require/);
   assert.match(siteUi, /\/api\/devices\/trust\/request/);
   assert.match(siteUi, /window\.ESTEmailVerification\.require/);
 });

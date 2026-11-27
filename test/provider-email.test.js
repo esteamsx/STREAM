@@ -134,7 +134,9 @@ test("card OTP verification surfaces invalid or expired codes in the modal for r
   assert.match(accountSource, /pending\.freshCardOtp && \/security code\|verification code\|code expired\|incorrect code\|invalid code\/i/);
   assert.match(accountSource, /That code could not be verified\. Request a new one and try again\./);
   assert.match(accountSource, /Verify code & continue/);
-  assert.match(accountSource, /src="\/email-verification\.js" defer/);
+  assert.match(accountSource, /function runEmailOtpAction/);
+  assert.match(accountSource, /30000, true/);
+  assert.doesNotMatch(accountSource, /ESTEmailVerification\.require/);
 });
 
 test("Admin J is server-locked behind the current admin's Face ID", () => {
