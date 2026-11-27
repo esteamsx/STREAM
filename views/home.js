@@ -409,12 +409,7 @@ setTimeout(function(){
   b.className = "hm-btn small";
   b.style.marginTop = "12px";
   b.textContent = "Reload fresh copy";
-  b.onclick = function(){
-    var jobs = [];
-    if (window.caches && caches.keys) jobs.push(caches.keys().then(function(k){ return Promise.all(k.map(function(x){ return caches.delete(x); })); }));
-    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) jobs.push(navigator.serviceWorker.getRegistrations().then(function(r){ return Promise.all(r.map(function(x){ return x.unregister(); })); }));
-    Promise.all(jobs).catch(function(){}).then(function(){ location.reload(); });
-  };
+  b.onclick = function(){ location.reload(); };
   box.appendChild(b);
   f.appendChild(box);
 }, 6000);

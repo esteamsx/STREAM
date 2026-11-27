@@ -618,7 +618,7 @@ export function siteHeadFor(key, overrides = {}) {
     description: page.description,
     path: page.path && !page.path.includes(":") ? page.path : "/",
     ...overrides,
-  }) + `\n<script nonce="__CSP_NONCE__" src="/select-overlay.js" defer></script>`;
+  }) + `\n<script nonce="__CSP_NONCE__" src="/select-overlay.js" defer></script>\n<script nonce="__CSP_NONCE__" src="/offline-register.js" defer></script>`;
 }
 
 export const WEB_MANIFEST = {

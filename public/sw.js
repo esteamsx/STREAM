@@ -1,9 +1,42 @@
+const OFFLINE_CACHE = "es-teams-tv-offline-v1";
+const OFFLINE_PAGE = "/offline.html";
+const OFFLINE_LOGO = "/icon-32.png";
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(OFFLINE_CACHE)
+      .then((cache) => cache.addAll([OFFLINE_PAGE, OFFLINE_LOGO]))
+      .catch(() => {})
+  );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  if (url.pathname === OFFLINE_LOGO) {
+    event.respondWith((async () => {
+      const cached = await caches.open(OFFLINE_CACHE).then((cache) => cache.match(OFFLINE_LOGO));
+      return cached || fetch(request);
+    })());
+    return;
+  }
+
+  if (request.mode !== "navigate") return;
+  event.respondWith(
+    fetch(request).catch(async () => {
+      const cache = await caches.open(OFFLINE_CACHE);
+      return (await cache.match(OFFLINE_PAGE)) || Response.error();
+    })
+  );
 });
 
 self.addEventListener("push", (event) => {
