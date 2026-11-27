@@ -50,6 +50,7 @@ test("verification URLs use session-bound 15-minute tokens and reject expired, c
   assert.match(server, /\/api\/otp-verification-link\/validate[\s\S]*?OTP_LINK_EXPIRED/);
   assert.match(server, /\/api\/otp-verification-link\/consume/);
   assert.match(server, /app\.get\("\/verify", scrapeGate, async[\s\S]*?if \(!uid \|\| String\(req\.query\.uid/);
+  assert.match(server, /const notFound = \(\) => notFoundHandler\(req, res\)/);
   assert.match(server, /if \(!valid\) return notFound\(\)/);
   assert.match(verifyView, /\/api\/otp-verification-link\/validate/);
   assert.match(verifyView, /\/api\/otp-verification-link\/consume/);

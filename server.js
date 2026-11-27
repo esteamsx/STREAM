@@ -1195,7 +1195,7 @@ app.get("/login", scrapeGate, guestOnly, (req, res) => {
 app.get("/verify", scrapeGate, async (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.set("Referrer-Policy", "no-referrer");
-  const notFound = () => res.status(404).type("html").send("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>404 Not Found</title><body><h1>Not Found</h1></body></html>");
+  const notFound = () => notFoundHandler(req, res);
   try {
     const sessionId = req.cookies?.session;
     const uid = await verifySession(sessionId, req);
