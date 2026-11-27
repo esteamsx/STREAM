@@ -314,11 +314,18 @@ if (flow) {
   };
   const linkReady = (async () => {
     if (!linkToken) throw new Error('This verification link has expired or has already been used. Return to your account and start again.');
-    await postJSON('/api/otp-verification-link/validate', {
+    const linkInfo = await postJSON('/api/otp-verification-link/validate', {
       link: linkToken, uid: uid || '', email: email || '', purpose,
       returnTo: params.get('returnTo') || '/account', via: params.get('via') || 'email',
       deviceIds: params.get('deviceIds') || '', sent: params.get('sent') || '1',
     });
+    if (!email && linkInfo.email) {
+      const label = document.createElement('b');
+      label.textContent = linkInfo.email;
+      sub.appendChild(document.createElement('br'));
+      sub.appendChild(label);
+      document.getElementById('emailLabel').textContent = linkInfo.email;
+    }
     return true;
   })().catch((err) => {
     document.querySelector('.v-title').textContent = 'Verification link expired';

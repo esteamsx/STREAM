@@ -29,7 +29,7 @@ import { siteOrigin } from "../config/site.js";
 const CODE_TTL_MS = 5 * 60 * 1000;
 const CODE_MAX_ATTEMPTS = 5;
 const CODE_RESEND_COOLDOWN_MS = 30 * 1000;
-const OTP_LINK_TTL_MS = 24 * 60 * 60 * 1000;
+const OTP_LINK_TTL_MS = 15 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 

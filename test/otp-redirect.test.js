@@ -40,8 +40,8 @@ test("verification return navigation accepts only a same-origin relative path an
   assert.doesNotMatch(channelView, /onVerified: submit/);
 });
 
-test("verification URLs use session-bound 24-hour tokens and reject expired or consumed links", () => {
-  assert.match(auth, /OTP_LINK_TTL_MS = 24 \* 60 \* 60 \* 1000/);
+test("verification URLs use session-bound 15-minute tokens and reject expired, consumed, or other-user links", () => {
+  assert.match(auth, /OTP_LINK_TTL_MS = 15 \* 60 \* 1000/);
   assert.match(auth, /async function issueOtpVerificationLink/);
   assert.match(auth, /async function validateOtpVerificationLink/);
   assert.match(auth, /async function consumeOtpVerificationLink/);
@@ -49,8 +49,12 @@ test("verification URLs use session-bound 24-hour tokens and reject expired or c
   assert.match(server, /\/api\/otp-verification-link\/issue[\s\S]*?requireAuth, requireSiteOrigin/);
   assert.match(server, /\/api\/otp-verification-link\/validate[\s\S]*?OTP_LINK_EXPIRED/);
   assert.match(server, /\/api\/otp-verification-link\/consume/);
+  assert.match(server, /app\.get\("\/verify", scrapeGate, async[\s\S]*?if \(!uid \|\| String\(req\.query\.uid/);
+  assert.match(server, /if \(!valid\) return notFound\(\)/);
   assert.match(verifyView, /\/api\/otp-verification-link\/validate/);
   assert.match(verifyView, /\/api\/otp-verification-link\/consume/);
+  assert.match(verifyView, /if \(!email && linkInfo\.email\)/);
+  assert.match(verifyView, /label\.textContent = linkInfo\.email/);
   assert.match(verifyView, /Verification link expired/);
 });
 

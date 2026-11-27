@@ -1192,10 +1192,30 @@ app.get("/login", scrapeGate, guestOnly, (req, res) => {
   res.send(cachedLoginHtml);
 });
 
-app.get("/verify", scrapeGate, (req, res) => {
+app.get("/verify", scrapeGate, async (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.set("Referrer-Policy", "no-referrer");
-  res.send(cachedVerifyHtml);
+  const notFound = () => res.status(404).type("html").send("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>404 Not Found</title><body><h1>Not Found</h1></body></html>");
+  try {
+    const sessionId = req.cookies?.session;
+    const uid = await verifySession(sessionId, req);
+    if (!uid || String(req.query.uid || "") !== String(uid)) return notFound();
+    const profile = await getUserProfile(uid);
+    if (!profile || profile.banned || isSessionRevoked(sessionId, profile)) return notFound();
+    const link = await validateOtpVerificationLink(req.query.link, uid, sessionSid(sessionId));
+    const details = link?.details || {};
+    const valid = !!link
+      && String(req.query.purpose || "") === String(link.purpose)
+      && (!String(req.query.email || "") || String(req.query.email) === String(details.email || ""))
+      && String(req.query.returnTo || "") === String(details.returnTo || "")
+      && String(req.query.via || "email") === String(details.via || "email")
+      && String(req.query.deviceIds || "") === String(details.deviceIds || "")
+      && String(req.query.sent || "1") === String(details.sent || "1");
+    if (!valid) return notFound();
+    res.send(cachedVerifyHtml);
+  } catch {
+    return notFound();
+  }
 });
 
 app.get("/account", scrapeGate, async (req, res) => {
@@ -3578,10 +3598,16 @@ app.post("/api/otp-verification-link/issue", requireAuth, requireSiteOrigin, asy
   try {
     const purpose = String(req.body?.purpose || "");
     if (!OTP_LINK_PURPOSES.has(purpose)) return res.status(400).json({ error: "Invalid verification link purpose." });
-    const email = String(req.body?.email || "").trim().slice(0, 320);
+    const profile = await getUserProfile(req.uid, 0);
+    if (!profile) return res.status(404).json({ error: "Account not found." });
+    const via = purpose === "delete_account" && req.body?.via === "telegram" ? "telegram" : "email";
+    const email = purpose === "add_email"
+      ? String(req.body?.email || "").trim().slice(0, 320)
+      : purpose === "delete_account" && via === "telegram"
+        ? ""
+        : String(profile.email || "").trim().slice(0, 320);
     const returnTo = safeOtpReturnPath(req.body?.returnTo);
     if (!returnTo) return res.status(400).json({ error: "Invalid return location." });
-    const via = purpose === "delete_account" && req.body?.via === "telegram" ? "telegram" : "email";
     const deviceIds = purpose === "remove_trusted_devices" && typeof req.body?.deviceIds === "string"
       ? req.body.deviceIds.split(",").filter((id) => /^[a-zA-Z0-9_-]{1,120}$/.test(id)).slice(0, 40).join(",")
       : "";
@@ -3605,13 +3631,13 @@ app.post("/api/otp-verification-link/validate", requireAuth, requireSiteOrigin, 
     const valid = !!link
       && String(req.body?.uid || "") === req.uid
       && String(req.body?.purpose || "") === String(link.purpose)
-      && String(req.body?.email || "") === String(details.email || "")
+      && (!String(req.body?.email || "") || String(req.body.email) === String(details.email || ""))
       && String(req.body?.returnTo || "") === String(details.returnTo || "")
       && String(req.body?.via || "email") === String(details.via || "email")
       && String(req.body?.deviceIds || "") === String(details.deviceIds || "")
       && String(req.body?.sent || "1") === String(details.sent || "1");
     if (!valid) return res.status(410).json({ code: "OTP_LINK_EXPIRED", error: "This verification link has expired or has already been used. Return to your account and start again." });
-    res.set("Cache-Control", "no-store").json({ ok: true, expiresAt: link.expiresAt });
+    res.set("Cache-Control", "no-store").json({ ok: true, expiresAt: link.expiresAt, email: details.email || "" });
   } catch (err) {
     console.error("[otp-link] validation failed", { code: err?.code || "OTP_LINK_VALIDATE_FAILED" });
     res.status(503).json({ error: "Could not validate this verification link. Please try again." });
