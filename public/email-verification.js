@@ -174,20 +174,24 @@
     if (!active) return;
     const button = shell.querySelector('#esVerifyConfirm');
     const code = Array.from(shell.querySelectorAll('.es-verify-digits input')).map((input) => input.value).join('');
-    if (code.length !== 6) return setMessage('Enter all six digits.', 'error');
+    if (!active.verified && code.length !== 6) return setMessage('Enter all six digits.', 'error');
     button.disabled = true;
-    button.textContent = 'Verifying…';
+    button.textContent = active.verified ? 'Retrying action…' : 'Verifying…';
     try {
-      const result = active.confirmCode
-        ? await active.confirmCode(code)
-        : await post('/api/email-verification/confirm', { code });
-      await finishVerification(result);
+      if (active.verified) {
+        await finishVerification(active.confirmation);
+      } else {
+        const result = active.confirmCode
+          ? await active.confirmCode(code)
+          : await post('/api/email-verification/confirm', { code });
+        await finishVerification(result);
+      }
     } catch (error) {
       setMessage(error.message, 'error');
     } finally {
       if (active) {
         button.disabled = false;
-        button.textContent = active?.confirmLabel || 'Verify email & continue';
+        button.textContent = active?.verified ? 'Retry action' : active?.confirmLabel || 'Verify email & continue';
       }
     }
   }
@@ -195,15 +199,36 @@
   async function finishVerification(confirmation) {
     if (!active) return;
     const state = active;
-    active = null;
-    shell.classList.remove('show');
-    if (resendTimer) clearInterval(resendTimer);
-    resendTimer = null;
+    if (state.completing) return;
+    state.verified = true;
+    state.confirmation = confirmation;
+    state.completing = true;
+    if (state.onVerified) {
+      shell.querySelector('#esVerifyConfirm').textContent = 'Completing…';
+      shell.querySelector('#esVerifyResend').style.display = 'none';
+      setMessage('Code verified. Completing your request…');
+    }
     try {
       const result = state.onVerified ? await state.onVerified(confirmation) : confirmation;
+      if (active !== state) return;
+      active = null;
+      shell.classList.remove('show');
+      if (resendTimer) clearInterval(resendTimer);
+      resendTimer = null;
       state.resolve(result);
     } catch (error) {
-      state.reject(error);
+      if (active !== state) return;
+      state.completing = false;
+      if (state.onVerified) {
+        setMessage((error && error.message ? error.message + ' ' : '') + 'Your email is verified. Tap Retry action to try again.', 'error');
+        shell.querySelector('#esVerifyConfirm').textContent = 'Retry action';
+      } else {
+        active = null;
+        shell.classList.remove('show');
+        if (resendTimer) clearInterval(resendTimer);
+        resendTimer = null;
+        state.reject(error);
+      }
     }
   }
 

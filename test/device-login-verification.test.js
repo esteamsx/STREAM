@@ -65,3 +65,18 @@ test("each browser receives its own trust cookie only after completing the Face 
   assert.match(otpDialog, /EMAIL_REQUIRED/);
   assert.match(otpDialog, /esVerifyEmailInput/);
 });
+
+test("the shared OTP overlay stays open until its protected action succeeds and retries without reusing the OTP", () => {
+  const finishStart = otpDialog.indexOf("async function finishVerification(confirmation)");
+  const closeStart = otpDialog.indexOf("function close(verified)", finishStart);
+  const finish = otpDialog.slice(finishStart, closeStart);
+  const confirmStart = otpDialog.indexOf("async function confirmCode()");
+  const confirmEnd = otpDialog.indexOf("async function finishVerification", confirmStart);
+  const confirm = otpDialog.slice(confirmStart, confirmEnd);
+  assert.ok(finishStart >= 0 && closeStart > finishStart);
+  assert.ok(finish.indexOf("await state.onVerified(confirmation)") < finish.indexOf("active = null"));
+  assert.match(finish, /state\.completing = false/);
+  assert.match(finish, /Your email is verified\. Tap Retry action to try again\./);
+  assert.match(confirm, /if \(active\.verified\)[\s\S]*?finishVerification\(active\.confirmation\)/);
+  assert.match(confirm, /if \(!active\.verified && code\.length !== 6\)/);
+});
