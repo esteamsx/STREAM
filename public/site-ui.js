@@ -762,9 +762,34 @@ function esTrustCss() {
     ".es-trust-more div{margin-top:8px}",
     ".es-trust-yes{width:100%;padding:13px;border:0;border-radius:12px;font-weight:700;font-size:.92rem;font-family:inherit;cursor:pointer;color:#04141a;background:linear-gradient(135deg,var(--accent,#00E0FF),var(--accent2,#7c5cff))}",
     ".es-trust-no{width:100%;margin-top:8px;padding:12px;border:0;background:none;color:var(--muted,rgba(255,255,255,.55));font-size:.85rem;font-family:inherit;cursor:pointer}",
-    ".es-trust-yes:disabled,.es-trust-no:disabled{opacity:.6}"
+    ".es-trust-yes:disabled,.es-trust-no:disabled{opacity:.6}",
+    ".es-trust-error{min-height:18px;margin:0 0 12px;color:#ff6b82;font-size:.78rem;line-height:1.4}"
   ].join("\n");
   document.head.appendChild(st);
+}
+
+function esEnsureEmailVerification() {
+  if (window.ESTEmailVerification) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "/email-verification.js";
+    const nonceSource = document.querySelector("script[nonce]");
+    if (nonceSource) script.nonce = nonceSource.nonce || nonceSource.getAttribute("nonce") || "";
+    script.onload = () => window.ESTEmailVerification ? resolve() : reject(new Error("Email verification is unavailable. Reload and try again."));
+    script.onerror = () => reject(new Error("Email verification could not be loaded. Reload and try again."));
+    document.head.appendChild(script);
+  });
+}
+
+async function esTrustOtpPost(url, body) {
+  const response = await fetch(url, {
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(data.error || "Could not update trusted-device status."), { code: data.code || "" });
+  return data;
 }
 
 function esMaybeTrustPrompt() {
@@ -778,13 +803,27 @@ function esMaybeTrustPrompt() {
       const ov = esEl("div", { class: "es-trust-ov", id: "esTrustOverlay" });
       const yes = esEl("button", { type: "button", class: "es-trust-yes", text: "Trust this device" });
       const no = esEl("button", { type: "button", class: "es-trust-no", text: "Not now" });
-      function answer(trusted) {
+      async function answer(trusted) {
+        if (!trusted) return ov.remove();
         yes.disabled = true; no.disabled = true;
-        fetch("/api/devices/trust", {
-          method: "POST", credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ trusted: trusted }),
-        }).catch(() => {}).then(() => ov.remove());
+        try {
+          await esEnsureEmailVerification();
+          await window.ESTEmailVerification.require({
+            confirmLabel: "Verify & trust device",
+            requestCode: () => esTrustOtpPost("/api/devices/trust/request", { trusted: true }),
+            confirmCode: (code) => esTrustOtpPost("/api/devices/trust/confirm", { trusted: true, code })
+          });
+          ov.remove();
+        } catch (error) {
+          yes.disabled = false; no.disabled = false;
+          let message = ov.querySelector(".es-trust-error");
+          if (!message) {
+            message = esEl("div", { class: "es-trust-error", role: "status", "aria-live": "polite" });
+            const card = ov.querySelector(".es-trust-card");
+            card.insertBefore(message, yes);
+          }
+          message.textContent = error.message || "Could not update trusted-device status.";
+        }
       }
       yes.addEventListener("click", () => answer(true));
       no.addEventListener("click", () => answer(false));

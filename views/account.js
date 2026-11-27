@@ -13,6 +13,7 @@ ${siteHeadFor("account")}
 <script nonce="__CSP_NONCE__">(function(){var m=document.getElementById("themeColorMeta");if(m)m.setAttribute("content",document.documentElement.getAttribute("data-theme")==="light"?"#F5F6FA":"#0A0A0F");})();</script>
 <script nonce="__CSP_NONCE__" src="/interactive.js" defer></script>
 <script nonce="__CSP_NONCE__" src="/push-client.js" defer></script>
+<script nonce="__CSP_NONCE__" src="/email-verification.js" defer></script>
 <title>ES TEAMS TV</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2442,6 +2443,12 @@ async function resumePendingEmailVerificationAction() {
     setEmailVerificationMessage('', false);
     showToast('Email verified and your action is complete.');
   } catch (err) {
+    if (pending.freshCardOtp && /security code|verification code|code expired|incorrect code|invalid code/i.test(err.message || '')) {
+      emailVerificationDigits.forEach((digit) => { digit.value = ''; });
+      setEmailVerificationMessage(err.message || 'That code could not be verified. Request a new one and try again.', true);
+      emailVerificationDigits[0]?.focus();
+      return false;
+    }
     pendingEmailVerificationAction = null;
     pending.reject?.(err);
     emailVerificationOverlay.classList.remove('show');
@@ -2502,6 +2509,7 @@ async function openFreshCardEmailVerificationOverlay(maskedEmail, resumeAction) 
     }
     document.getElementById('emailVerificationIntro').textContent = 'Confirm that you own ' + (maskedEmail || 'the email address on your account') + ' to continue.';
     emailVerificationDigits.forEach((digit) => { digit.value = ''; });
+    emailVerificationConfirm.textContent = 'Verify code & continue';
     emailVerificationOverlay.classList.add('show');
     setEmailVerificationMessage('Sending a one-time security code…', false);
     const result = await postJSON('/api/card-security/request-otp', {});
@@ -2580,7 +2588,7 @@ emailVerificationConfirm.addEventListener('click', async () => {
     setEmailVerificationMessage(err.message || 'Could not verify this code.', true);
   } finally {
     emailVerificationConfirm.disabled = false;
-    emailVerificationConfirm.textContent = 'Verify email';
+    emailVerificationConfirm.textContent = pendingEmailVerificationAction?.freshCardOtp ? 'Verify code & continue' : 'Verify email';
   }
 });
 
@@ -4475,7 +4483,13 @@ async function loadDevices(){
         }
         btn.disabled = true;
         try {
-          await postJSON('/api/devices/trust', { trusted: !c.trusted });
+          const trusted = !c.trusted;
+          await ESTEmailVerification.require({
+            email: profile?.email || '',
+            confirmLabel: trusted ? 'Verify & trust device' : 'Verify & remove trust',
+            requestCode: () => postJSON('/api/devices/trust/request', { trusted }),
+            confirmCode: (code) => postJSON('/api/devices/trust/confirm', { trusted, code })
+          });
           flashMsg(document.getElementById('devicesMsg'), c.trusted ? 'This device is no longer trusted.' : 'This device is now trusted.', true);
           loadDevices();
         } catch (err) {

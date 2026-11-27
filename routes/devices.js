@@ -1,5 +1,5 @@
 import express from "express";
-import { SimpleRateLimiter } from "../middleware/security-middleware.js";
+import { SimpleRateLimiter, requireSiteOrigin } from "../middleware/security-middleware.js";
 import { requireAuth, sessionSid, reissueSessionToken, SESSION_TTL_MS, userHasFaceId, verifyLoginFace, issueCode, checkCode, getUserProfile } from "../services/auth.js";
 import { listUserBans } from "../services/device-bans.js";
 import { getDeviceSession, listDevices, setTrusted, removeTrustedDevice, removeTrustedDevices, setTrustedDevicesLabel, revokeDeviceSession } from "../services/device-sessions.js";
@@ -38,11 +38,39 @@ devicesRouter.get("/api/devices/prompt", requireAuth, async (req, res) => {
   }
 });
 
-devicesRouter.post("/api/devices/trust", requireAuth, async (req, res) => {
+devicesRouter.post("/api/devices/trust/request", requireAuth, requireSiteOrigin, deviceOtpLimiter, async (req, res) => {
   try {
     const sid = sessionSid(req.cookies?.session);
     if (!sid) return res.status(400).json({ error: "Sign in again to manage this device." });
-    const trusted = req.body?.trusted === true;
+    if (typeof req.body?.trusted !== "boolean") return res.status(400).json({ error: "Choose whether to trust this device." });
+    const rec = await getDeviceSession(sid);
+    if (!rec || rec.uid !== req.uid || rec.revoked) return res.status(404).json({ error: "Device session not found." });
+    const profile = await getUserProfile(req.uid);
+    const email = String(profile?.email || "").trim().toLowerCase();
+    if (!email) return res.status(403).json({ code: "EMAIL_REQUIRED", error: "Add an email address to your account before managing trusted devices." });
+    await issueCode(req.uid, email, req.body.trusted ? "trust_device_add" : "trust_device_remove");
+    res.set("Cache-Control", "no-store").json({ ok: true, email: email.replace(/(^.).*(@.*$)/, "$1••••$2"), resendInSeconds: 30 });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.userFacing || "Could not send a verification code." });
+  }
+});
+
+devicesRouter.post("/api/devices/trust/confirm", requireAuth, requireSiteOrigin, deviceOtpLimiter, async (req, res) => {
+  try {
+    const sid = sessionSid(req.cookies?.session);
+    const trusted = req.body?.trusted;
+    if (!sid) return res.status(400).json({ error: "Sign in again to manage this device." });
+    if (typeof trusted !== "boolean") return res.status(400).json({ error: "Choose whether to trust this device." });
+    const rec = await getDeviceSession(sid);
+    if (!rec || rec.uid !== req.uid || rec.revoked) return res.status(404).json({ error: "Device session not found." });
+    const profile = await getUserProfile(req.uid);
+    const email = String(profile?.email || "").trim().toLowerCase();
+    if (!email) return res.status(403).json({ code: "EMAIL_REQUIRED", error: "Add an email address to your account before managing trusted devices." });
+    const result = await checkCode(req.uid, trusted ? "trust_device_add" : "trust_device_remove", req.body?.code);
+    if (!result.ok || String(result.email || "").trim().toLowerCase() !== email) {
+      const messages = { expired: "That code has expired. Request a new one.", mismatch: "Incorrect verification code.", locked: "Too many incorrect attempts. Request a new code.", not_found: "That code has expired. Request a new one." };
+      return res.status(400).json({ code: "OTP_INVALID", error: messages[result.reason] || "Invalid verification code." });
+    }
     if (trusted && (await userHasFaceId(req.uid))) {
       const probe = req.body?.faceDescriptor;
       if (!probe) return res.status(403).json({ code: "device/face-required", error: "Face ID is required before trusting this device." });
@@ -52,15 +80,18 @@ devicesRouter.post("/api/devices/trust", requireAuth, async (req, res) => {
         return res.status(403).json({ code: "device/face-mismatch", error: "That face does not match this account." });
       }
     }
-    const rec = await setTrusted(req.uid, sid, trusted);
-    if (!rec) return res.status(404).json({ error: "Device session not found." });
+    const updated = await setTrusted(req.uid, sid, trusted);
+    if (!updated) return res.status(404).json({ error: "Device session not found." });
     const fresh = reissueSessionToken(req.cookies.session, trusted);
     if (fresh) res.cookie("session", fresh.token, cookieOpts(trusted ? fresh.maxAge : SESSION_TTL_MS));
-    res.json({ ok: true, trusted });
+    res.set("Cache-Control", "no-store").json({ ok: true, trusted });
   } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: "Could not update this device." });
+    res.status(err.status || 400).json({ error: err.userFacing || "Could not update this device." });
   }
+});
+
+devicesRouter.post("/api/devices/trust", requireAuth, async (req, res) => {
+  return res.status(410).json({ code: "OTP_REQUIRED", error: "Email verification is required before changing trusted-device status." });
 });
 
 devicesRouter.delete("/api/devices/trusted/:deviceId", requireAuth, async (req, res) => {
@@ -81,7 +112,7 @@ devicesRouter.post("/api/devices/trusted-group/name", requireAuth, async (req, r
   }
 });
 
-devicesRouter.post("/api/devices/trusted-group/remove/request", requireAuth, deviceOtpLimiter, async (req, res) => {
+devicesRouter.post("/api/devices/trusted-group/remove/request", requireAuth, requireSiteOrigin, deviceOtpLimiter, async (req, res) => {
   try {
     const deviceIds = req.body?.deviceIds;
     if (!Array.isArray(deviceIds) || !deviceIds.length || deviceIds.length > 100 || deviceIds.some((id) => !/^[a-f0-9]{32}$/.test(String(id || "")))) return res.status(400).json({ error: "Invalid device group." });
@@ -94,7 +125,7 @@ devicesRouter.post("/api/devices/trusted-group/remove/request", requireAuth, dev
     res.status(err.status || 400).json({ code: err.code || "DEVICE_OTP_REQUEST_FAILED", error: err.userFacing || err.message || "Could not send a verification code." });
   }
 });
-devicesRouter.post("/api/devices/trusted-group/remove/confirm", requireAuth, deviceOtpLimiter, async (req, res) => {
+devicesRouter.post("/api/devices/trusted-group/remove/confirm", requireAuth, requireSiteOrigin, deviceOtpLimiter, async (req, res) => {
   try {
     const deviceIds = req.body?.deviceIds;
     if (!Array.isArray(deviceIds) || !deviceIds.length || deviceIds.length > 100 || deviceIds.some((id) => !/^[a-f0-9]{32}$/.test(String(id || "")))) return res.status(400).json({ error: "Invalid device group." });

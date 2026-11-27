@@ -130,6 +130,13 @@ test("card mutations require ALTCHA plus a fresh one-time email OTP", () => {
   assert.match(accountSource, /emailOtp: cardOtp/);
 });
 
+test("card OTP verification surfaces invalid or expired codes in the modal for retry", () => {
+  assert.match(accountSource, /pending\.freshCardOtp && \/security code\|verification code\|code expired\|incorrect code\|invalid code\/i/);
+  assert.match(accountSource, /That code could not be verified\. Request a new one and try again\./);
+  assert.match(accountSource, /Verify code & continue/);
+  assert.match(accountSource, /src="\/email-verification\.js" defer/);
+});
+
 test("Admin J is server-locked behind the current admin's Face ID", () => {
   assert.match(serverSource, /const cachedAdminLockHtml = renderAdminLock\(authPageConfig\)/);
   assert.match(serverSource, /res\.send\(await hasAdminFaceUnlock\(req\) \? cachedAdminHtml : cachedAdminLockHtml\)/);
