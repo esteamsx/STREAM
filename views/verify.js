@@ -154,6 +154,7 @@ const params = new URLSearchParams(window.location.search);
 const uid = params.get('uid');
 const email = params.get('email');
 const purpose = params.get('purpose') || 'signup';
+const linkToken = params.get('link') || '';
 document.getElementById('emailLabel').textContent = email || '';
 
 const digits = Array.from(document.querySelectorAll('.code-digit'));
@@ -302,6 +303,8 @@ if (flow) {
     sub.appendChild(label);
   }
   document.title = flow.title + ' | ES TEAMS TV';
+  vSubmit.disabled = true;
+  resendBtn.disabled = true;
   const showSuccess = (msg) => {
     errorBox.textContent = msg;
     errorBox.classList.add('show');
@@ -309,23 +312,49 @@ if (flow) {
     errorBox.style.borderColor = 'rgba(0,224,255,.35)';
     errorBox.style.background = 'rgba(0,224,255,.08)';
   };
+  const linkReady = (async () => {
+    if (!linkToken) throw new Error('This verification link has expired or has already been used. Return to your account and start again.');
+    await postJSON('/api/otp-verification-link/validate', {
+      link: linkToken, uid: uid || '', email: email || '', purpose,
+      returnTo: params.get('returnTo') || '/account', via: params.get('via') || 'email',
+      deviceIds: params.get('deviceIds') || '', sent: params.get('sent') || '1',
+    });
+    return true;
+  })().catch((err) => {
+    document.querySelector('.v-title').textContent = 'Verification link expired';
+    document.querySelector('.v-sub').textContent = 'This link is no longer active. Return to your account and start the verification again.';
+    document.getElementById('codeForm').hidden = true;
+    timerWrap.hidden = true;
+    resendBtn.hidden = true;
+    showError(err.message || 'This verification link is no longer active.');
+    return false;
+  });
   const requestCode = async (route) => {
     const [url, body] = route;
     const data = await postJSON(url, body);
     if (data.alreadyVerified) {
+      await postJSON('/api/otp-verification-link/consume', { link: linkToken });
       showSuccess('Your email is already verified. Returning you now…');
       setTimeout(() => { window.location.assign(safeReturnTo); }, 900);
       return false;
     }
     return true;
   };
-  if (flow.request && params.get('sent') !== '1') {
-    requestCode(flow.request).catch((err) => showError(err.message));
-  }
+  linkReady.then(async (valid) => {
+    if (!valid) return;
+    digits.forEach((digit) => { digit.disabled = false; });
+    vSubmit.disabled = false;
+    resendBtn.disabled = true;
+    if (flow.request && params.get('sent') !== '1') {
+      try { await requestCode(flow.request); }
+      catch (err) { showError(err.message); }
+    }
+  });
   resendBtn.addEventListener('click', async (e) => {
     e.preventDefault(); e.stopImmediatePropagation();
     clearError(); resendBtn.disabled = true;
     try {
+      if (!(await linkReady)) return;
       const canContinue = await requestCode(flow.resend);
       if (!canContinue) return;
       secondsLeft = 300; timerWrap.classList.remove('expired'); vSubmit.disabled = false;
@@ -335,6 +364,7 @@ if (flow) {
   }, true);
   document.getElementById('codeForm').addEventListener('submit', async (e) => {
     e.preventDefault(); e.stopImmediatePropagation(); clearError();
+    if (!(await linkReady)) return;
     const code = digits.map((d) => d.value).join('');
     if (code.length !== 6) { showError('Enter all 6 digits.'); return; }
     vSubmit.disabled = true; vSubmit.textContent = 'Verifying…';
@@ -351,6 +381,7 @@ if (flow) {
         }
       }
       const result = await postJSON(flow.confirm[0], body);
+      await postJSON('/api/otp-verification-link/consume', { link: linkToken });
       if (purpose === 'password_reset') {
         window.location.assign('/account?resetToken=' + encodeURIComponent(result.resetToken));
       } else if (purpose === 'delete_account') {

@@ -134,7 +134,7 @@ test("card mutations require ALTCHA plus a fresh one-time email OTP", () => {
 
 test("card OTP verification returns users to retry the action with a fresh CAPTCHA", () => {
   assert.match(accountSource, /function runEmailOtpAction/);
-  assert.match(accountSource, /window\.location\.assign\(makeOtpVerifyUrl\(purpose/);
+  assert.match(accountSource, /window\.location\.assign\(await makeOtpVerifyUrl\(purpose/);
   assert.match(accountSource, /purpose: 'card_action'/);
   assert.match(paymentsRouterSource + rewardsRouterSource, /Email verification expired\. Verify again, then retry this action with a fresh anti-bot check\./);
 });

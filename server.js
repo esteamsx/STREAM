@@ -176,6 +176,9 @@ import {
   issueCode,
   checkCode,
   authorizeVerifiedOtpAction,
+  issueOtpVerificationLink,
+  validateOtpVerificationLink,
+  consumeOtpVerificationLink,
   sessionSid,
   createUserAccount,
   upsertUserProfile,
@@ -1190,6 +1193,8 @@ app.get("/login", scrapeGate, guestOnly, (req, res) => {
 });
 
 app.get("/verify", scrapeGate, (req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.set("Referrer-Policy", "no-referrer");
   res.send(cachedVerifyHtml);
 });
 
@@ -3561,6 +3566,64 @@ app.post("/api/resend-code", signupLimiter, async (req, res) => {
   } catch (err) {
     console.error("[otp-resend] request failed", { code: err?.code || "OTP_RESEND_FAILED" });
     res.status(err.status || 400).json({ error: err.userFacing || "Could not resend code." });
+  }
+});
+
+const OTP_LINK_PURPOSES = new Set(["protected_action_email", "add_email", "delete_account", "card_action", "trust_device_add", "trust_device_remove", "remove_trusted_devices", "password_reset"]);
+function safeOtpReturnPath(value) {
+  const path = String(value || "/account");
+  return path.length <= 1200 && path.startsWith("/") && !path.startsWith("//") && !path.includes("\\") ? path : null;
+}
+app.post("/api/otp-verification-link/issue", requireAuth, requireSiteOrigin, async (req, res) => {
+  try {
+    const purpose = String(req.body?.purpose || "");
+    if (!OTP_LINK_PURPOSES.has(purpose)) return res.status(400).json({ error: "Invalid verification link purpose." });
+    const email = String(req.body?.email || "").trim().slice(0, 320);
+    const returnTo = safeOtpReturnPath(req.body?.returnTo);
+    if (!returnTo) return res.status(400).json({ error: "Invalid return location." });
+    const via = purpose === "delete_account" && req.body?.via === "telegram" ? "telegram" : "email";
+    const deviceIds = purpose === "remove_trusted_devices" && typeof req.body?.deviceIds === "string"
+      ? req.body.deviceIds.split(",").filter((id) => /^[a-zA-Z0-9_-]{1,120}$/.test(id)).slice(0, 40).join(",")
+      : "";
+    if (purpose === "remove_trusted_devices" && !deviceIds) return res.status(400).json({ error: "No trusted devices were selected." });
+    const sent = req.body?.sent === false ? "0" : "1";
+    const details = { email, returnTo, via, deviceIds, sent };
+    const { token } = await issueOtpVerificationLink(req.uid, purpose, sessionSid(req.cookies?.session), details);
+    const query = new URLSearchParams({ uid: req.uid, email, purpose, returnTo, sent, link: token });
+    if (purpose === "delete_account") query.set("via", via);
+    if (deviceIds) query.set("deviceIds", deviceIds);
+    res.set("Cache-Control", "no-store").json({ url: `/verify?${query.toString()}` });
+  } catch (err) {
+    console.error("[otp-link] issue failed", { code: err?.code || "OTP_LINK_ISSUE_FAILED" });
+    res.status(err.status || 503).json({ error: "Could not create a verification link. Please try again." });
+  }
+});
+app.post("/api/otp-verification-link/validate", requireAuth, requireSiteOrigin, async (req, res) => {
+  try {
+    const link = await validateOtpVerificationLink(req.body?.link, req.uid, sessionSid(req.cookies?.session));
+    const details = link?.details || {};
+    const valid = !!link
+      && String(req.body?.uid || "") === req.uid
+      && String(req.body?.purpose || "") === String(link.purpose)
+      && String(req.body?.email || "") === String(details.email || "")
+      && String(req.body?.returnTo || "") === String(details.returnTo || "")
+      && String(req.body?.via || "email") === String(details.via || "email")
+      && String(req.body?.deviceIds || "") === String(details.deviceIds || "")
+      && String(req.body?.sent || "1") === String(details.sent || "1");
+    if (!valid) return res.status(410).json({ code: "OTP_LINK_EXPIRED", error: "This verification link has expired or has already been used. Return to your account and start again." });
+    res.set("Cache-Control", "no-store").json({ ok: true, expiresAt: link.expiresAt });
+  } catch (err) {
+    console.error("[otp-link] validation failed", { code: err?.code || "OTP_LINK_VALIDATE_FAILED" });
+    res.status(503).json({ error: "Could not validate this verification link. Please try again." });
+  }
+});
+app.post("/api/otp-verification-link/consume", requireSiteOrigin, async (req, res) => {
+  try {
+    await consumeOtpVerificationLink(req.body?.link);
+    res.set("Cache-Control", "no-store").json({ ok: true });
+  } catch (err) {
+    console.error("[otp-link] consume failed", { code: err?.code || "OTP_LINK_CONSUME_FAILED" });
+    res.status(503).json({ error: "Could not close the verification link." });
   }
 });
 

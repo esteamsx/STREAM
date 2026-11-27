@@ -271,8 +271,14 @@
       return fetch('/api/profile', { credentials: 'same-origin' }).then(async (response) => {
         const profile = await response.json().catch(() => ({}));
         if (!response.ok || !profile.uid) throw new Error(profile.error || 'Sign in again to verify your email.');
-        const params = new URLSearchParams({ uid: profile.uid, email: profile.email || options.email || '', purpose, returnTo: window.location.pathname + window.location.search + window.location.hash });
-        window.location.assign('/verify?' + params.toString());
+        const linkResponse = await fetch('/api/otp-verification-link/issue', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ purpose, email: profile.email || options.email || '', returnTo: window.location.pathname + window.location.search + window.location.hash, sent: false }),
+        });
+        const linkData = await linkResponse.json().catch(() => ({}));
+        if (!linkResponse.ok || !linkData.url) throw new Error(linkData.error || 'Could not create a verification link.');
+        window.location.assign(linkData.url);
         return new Promise(() => {});
       });
     },

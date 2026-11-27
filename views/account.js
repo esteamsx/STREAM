@@ -2459,10 +2459,16 @@ async function resumePendingEmailVerificationAction() {
 }
 
 function currentOtpReturnPath(){ return window.location.pathname + window.location.search + window.location.hash; }
-function makeOtpVerifyUrl(purpose, extras = {}){
-  const params = new URLSearchParams({ uid: profile?.uid || '', email: extras.email || profile?.email || '', purpose, returnTo: extras.returnTo || currentOtpReturnPath(), sent: extras.sent === false ? '0' : '1' });
-  for (const [key, value] of Object.entries(extras)) if (!['email','returnTo','sent'].includes(key) && value != null) params.set(key, String(value));
-  return '/verify?' + params.toString();
+async function makeOtpVerifyUrl(purpose, extras = {}){
+  const result = await postJSON('/api/otp-verification-link/issue', {
+    purpose,
+    email: extras.email || profile?.email || '',
+    returnTo: extras.returnTo || currentOtpReturnPath(),
+    via: extras.via || '',
+    deviceIds: extras.deviceIds || '',
+    sent: extras.sent !== false,
+  });
+  return result.url;
 }
 async function openEmailVerificationOverlay(){
   if (!profile?.email) {
@@ -2476,7 +2482,7 @@ async function openEmailVerificationOverlay(){
     window.location.reload();
     return new Promise(() => {});
   }
-  window.location.assign(makeOtpVerifyUrl('protected_action_email', { email: profile.email }));
+  window.location.assign(await makeOtpVerifyUrl('protected_action_email', { email: profile.email }));
   return new Promise(() => {});
 }
 window.openEmailVerificationOverlay = openEmailVerificationOverlay;
@@ -2521,7 +2527,7 @@ async function openFreshCardEmailVerificationOverlay(maskedEmail, resumeAction) 
 async function runEmailOtpAction({ purpose = 'card_action', requestCode, extras = {} }) {
   if (pendingEmailVerificationAction || emailVerificationOpening) throw new Error('Finish the current email verification first.');
   await requestCode();
-  window.location.assign(makeOtpVerifyUrl(purpose, { ...extras, email: profile?.email || '' }));
+  window.location.assign(await makeOtpVerifyUrl(purpose, { ...extras, email: profile?.email || '' }));
   return new Promise(() => {});
 }
 
@@ -3676,7 +3682,7 @@ document.getElementById('startPwChange').addEventListener('click', async () => {
   btn.innerHTML = '<span class="btn-spinner"></span>Sending code…';
   try {
     await postJSON('/api/request-password-change');
-    window.location.href = makeOtpVerifyUrl('password_reset', { email: profile.email });
+    window.location.href = await makeOtpVerifyUrl('password_reset', { email: profile.email });
   } catch (err) {
     flashMsg(document.getElementById('pwMsg'), err.message, false);
     btn.disabled = false;
@@ -3846,7 +3852,7 @@ document.getElementById('deleteContinueBtn').addEventListener('click', async () 
   btn.innerHTML = '<span class="btn-spinner btn-spinner-light" style="border-top-color:var(--red)"></span>Sending code…';
   try {
     const result = await postJSON('/api/request-account-deletion', { altcha: deleteCaptchaValue });
-    window.location.assign(makeOtpVerifyUrl('delete_account', { via: result.via, email: result.via === 'telegram' ? '' : profile.email }));
+    window.location.assign(await makeOtpVerifyUrl('delete_account', { via: result.via, email: result.via === 'telegram' ? '' : profile.email }));
     return;
   } catch (err) {
     flashMsg(msg, err.message, false);
@@ -3994,7 +4000,7 @@ document.getElementById('addEmailSendBtn').addEventListener('click', async () =>
   btn.innerHTML = '<span class="btn-spinner"></span>Sending code…';
   try {
     await postJSON('/api/account/request-email', { email });
-    window.location.assign(makeOtpVerifyUrl('add_email', { email }));
+    window.location.assign(await makeOtpVerifyUrl('add_email', { email }));
     return;
   } catch (err) {
     flashMsg(msg, err.message, false);

@@ -33,19 +33,30 @@ test("verification return navigation accepts only a same-origin relative path an
   assert.match(verifyView, /value\.startsWith\('\/'\) && !value\.startsWith\('\/\/'\) && !value\.includes\('\\\\'\)/);
   assert.match(verifyView, /window\.location\.assign\(safeReturnTo\)/);
   assert.match(accountView, /currentOtpReturnPath\(\)/);
-  assert.match(accountView, /window\.location\.assign\(makeOtpVerifyUrl\(purpose/);
+  assert.match(accountView, /window\.location\.assign\(await makeOtpVerifyUrl\(purpose/);
   assert.match(channelView, /purpose: 'protected_action_email'/);
   assert.match(giveawayView, /purpose: 'protected_action_email'/);
   assert.doesNotMatch(giveawayView, /onVerified: submitEntry/);
   assert.doesNotMatch(channelView, /onVerified: submit/);
 });
 
+test("verification URLs use session-bound 24-hour tokens and reject expired or consumed links", () => {
+  assert.match(auth, /OTP_LINK_TTL_MS = 24 \* 60 \* 60 \* 1000/);
+  assert.match(auth, /async function issueOtpVerificationLink/);
+  assert.match(auth, /async function validateOtpVerificationLink/);
+  assert.match(auth, /async function consumeOtpVerificationLink/);
+  assert.match(auth, /data\.sid !== sid/);
+  assert.match(server, /\/api\/otp-verification-link\/issue[\s\S]*?requireAuth, requireSiteOrigin/);
+  assert.match(server, /\/api\/otp-verification-link\/validate[\s\S]*?OTP_LINK_EXPIRED/);
+  assert.match(server, /\/api\/otp-verification-link\/consume/);
+  assert.match(verifyView, /\/api\/otp-verification-link\/validate/);
+  assert.match(verifyView, /\/api\/otp-verification-link\/consume/);
+  assert.match(verifyView, /Verification link expired/);
+});
+
 test("sensitive card, bank, CAPTCHA, and face payloads are not carried in verifier query parameters", () => {
   const helper = accountView.match(/function makeOtpVerifyUrl\([\s\S]*?\n\}/)?.[0] || "";
-  assert.match(helper, /uid: profile\?\.uid/);
-  assert.match(helper, /email: extras\.email/);
-  assert.match(helper, /purpose/);
-  assert.match(helper, /returnTo/);
+  assert.match(helper, /\/api\/otp-verification-link\/issue/);
   for (const secret of ["accountNumber", "bankName", "altcha", "faceDescriptor", "snapshot", "captcha"]) assert.doesNotMatch(helper, new RegExp(secret, "i"));
   assert.match(verifyView, /body\.faceDescriptor = capture/);
   assert.doesNotMatch(helper, /sessionStorage|localStorage/);

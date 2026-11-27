@@ -29,6 +29,7 @@ import { siteOrigin } from "../config/site.js";
 const CODE_TTL_MS = 5 * 60 * 1000;
 const CODE_MAX_ATTEMPTS = 5;
 const CODE_RESEND_COOLDOWN_MS = 30 * 1000;
+const OTP_LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -201,6 +202,39 @@ async function consumeVerifiedOtpAction(uid, purpose, sid) {
     tx.delete(ref);
     return true;
   });
+}
+
+async function issueOtpVerificationLink(uid, purpose, sid, details = {}) {
+  if (!uid || !purpose || !sid) throw new Error("A valid signed-in session is required.");
+  const token = crypto.randomBytes(32).toString("base64url");
+  const expiresAt = Date.now() + OTP_LINK_TTL_MS;
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  await db.collection("otp_verification_links").doc(tokenHash).set({ uid, purpose, sid, details, expiresAt, consumedAt: null });
+  return { token, expiresAt };
+}
+
+async function validateOtpVerificationLink(token, uid, sid) {
+  if (!token || !uid || !sid) return null;
+  const tokenHash = crypto.createHash("sha256").update(String(token)).digest("hex");
+  const ref = db.collection("otp_verification_links").doc(tokenHash);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const data = snap.data() || {};
+  if (data.uid !== uid || data.sid !== sid || data.consumedAt || Number(data.expiresAt || 0) <= Date.now()) {
+    if (Number(data.expiresAt || 0) <= Date.now() || data.consumedAt) await ref.delete().catch(() => {});
+    return null;
+  }
+  return data;
+}
+
+async function consumeOtpVerificationLink(token) {
+  if (!token) return false;
+  const tokenHash = crypto.createHash("sha256").update(String(token)).digest("hex");
+  const ref = db.collection("otp_verification_links").doc(tokenHash);
+  const snap = await ref.get();
+  if (!snap.exists) return false;
+  await ref.delete();
+  return true;
 }
 
 async function createUserAccount({ firstName, lastName, email, password, username }) {
@@ -6659,6 +6693,9 @@ export {
   checkCode,
   authorizeVerifiedOtpAction,
   consumeVerifiedOtpAction,
+  issueOtpVerificationLink,
+  validateOtpVerificationLink,
+  consumeOtpVerificationLink,
   createUserAccount,
   upsertUserProfile,
   findUserByUsername,
